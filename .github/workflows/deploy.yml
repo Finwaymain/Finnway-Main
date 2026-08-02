@@ -1,0 +1,69 @@
+name: Deploy to VPS Server
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    name: Deploy to Live VPS Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to VPS Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            echo "🚀 Starting Automated Deployment on VPS (200.141.9.188)..."
+            
+            # Target Directory on VPS (e.g. /var/www/html/fiinway or custom path)
+            TARGET_DIR="${{ secrets.VPS_TARGET_DIR || '/var/www/html/fiinway' }}"
+            
+            if [ -d "$TARGET_DIR" ]; then
+              cd "$TARGET_DIR"
+            else
+              echo "Creating directory $TARGET_DIR..."
+              mkdir -p "$TARGET_DIR"
+              cd "$TARGET_DIR"
+            fi
+
+            # Check git initialization
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/Finwaymain/Finnway-Main.git .
+            else
+              echo "Pulling latest changes from branch..."
+              git fetch --all
+              git reset --hard origin/$(git rev-parse --abbrev-ref HEAD || echo "main")
+            fi
+
+            # Install dependencies & optimize Laravel
+            if [ -f "artisan" ]; then
+              echo "Running Composer Install..."
+              composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev || true
+
+              echo "Running Database Migrations..."
+              php artisan migrate --force || true
+
+              echo "Caching Configuration, Routes & Views..."
+              php artisan config:cache
+              php artisan route:cache
+              php artisan view:cache
+              php artisan storage:link --force || true
+            fi
+
+            # Set Webserver Ownership & Permissions
+            echo "Updating webserver permissions..."
+            chown -R www-data:www-data . || true
+            chmod -R 775 storage bootstrap/cache || true
+
+            echo "✅ Deployment Successful!"

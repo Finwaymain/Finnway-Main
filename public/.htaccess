@@ -1,0 +1,28 @@
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, private"
+    #Header set Pragma "no-cache"
+    #Header set Expires 0
+</IfModule>
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # NOTE: stock Laravel ships a "strip trailing slash" 301 redirect here.
+    # It's removed because ~70% of this app's API routes are defined *with*
+    # a literal trailing slash (both apps' API clients call them that way),
+    # so that redirect broke nearly the whole API under Apache. It never
+    # showed up locally because `php artisan serve` ignores .htaccess.
+
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+AddHandler application/x-httpd-php81 .php .php5 .php4 .php3
