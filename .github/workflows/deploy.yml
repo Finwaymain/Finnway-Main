@@ -25,7 +25,10 @@ jobs:
           script: |
             echo "🚀 Starting Automated Deployment on VPS (200.141.9.188)..."
             
-            # Target Directory on VPS (e.g. /var/www/html/fiinway or custom path)
+            # Allow git operations in target directory
+            git config --global --add safe.directory "*" || true
+            
+            # Target Directory on VPS
             TARGET_DIR="${{ secrets.VPS_TARGET_DIR || '/var/www/html/fiinway' }}"
             
             if [ -d "$TARGET_DIR" ]; then
@@ -38,10 +41,10 @@ jobs:
 
             # Check git initialization
             if [ ! -d ".git" ]; then
-              echo "Cloning repository..."
+              echo "Cloning repository into $TARGET_DIR..."
               git clone https://github.com/Finwaymain/Finnway-Main.git .
             else
-              echo "Pulling latest changes from branch..."
+              echo "Pulling latest changes from repository..."
               git fetch --all
               git reset --hard origin/$(git rev-parse --abbrev-ref HEAD || echo "main")
             fi
