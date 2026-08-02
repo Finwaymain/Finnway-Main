@@ -46,7 +46,7 @@
                 <a class="nav-link dropdown-toggle text-muted waves-effect waves-dark d-flex align-items-center" href="" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="padding: 0; gap: 10px;">
                     <img src="{{ asset('/images/user.png') }}" alt="user" class="profile-pic" style="width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid #E2E8F0;">
                     <div class="d-none d-lg-block text-left" style="line-height: 1.2;">
-                        <div style="font-size: 13px; font-weight: 700; color: #0F172A;">Super Admin</div>
+                        <div style="font-size: 13px; font-weight: 700; color: #0F172A;">Fiinway Admin</div>
                         <div style="font-size: 10px; color: #64748B; font-weight: 600;">Admin</div>
                     </div>
                 </a>
