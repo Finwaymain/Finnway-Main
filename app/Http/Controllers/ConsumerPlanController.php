@@ -4,12 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsumerPremiumPlan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ConsumerPlanController extends Controller
 {
     // ─── List all consumer plans ───────────────────────────────────────────────
     public function index(Request $request)
     {
+        if (!Schema::hasTable('consumer_premium_plans')) {
+            $plans = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 15);
+            return view('consumer_plans.index', compact('plans'));
+        }
+
         $query = ConsumerPremiumPlan::query();
 
         if ($request->filled('search')) {
@@ -37,7 +43,9 @@ class ConsumerPlanController extends Controller
             'description'   => 'nullable|string',
         ]);
 
-        ConsumerPremiumPlan::create($this->buildData($request));
+        if (Schema::hasTable('consumer_premium_plans')) {
+            ConsumerPremiumPlan::create($this->buildData($request));
+        }
 
         return redirect()->route('consumer-plans.index')
             ->with('success', 'Consumer plan created successfully.');
@@ -46,6 +54,9 @@ class ConsumerPlanController extends Controller
     // ─── Show edit form ───────────────────────────────────────────────────────
     public function edit($id)
     {
+        if (!Schema::hasTable('consumer_premium_plans')) {
+            return redirect()->route('consumer-plans.index')->with('error', 'Database table missing.');
+        }
         $plan = ConsumerPremiumPlan::findOrFail($id);
         return view('consumer_plans.edit', compact('plan'));
     }
@@ -60,7 +71,9 @@ class ConsumerPlanController extends Controller
             'description'   => 'nullable|string',
         ]);
 
-        ConsumerPremiumPlan::findOrFail($id)->update($this->buildData($request));
+        if (Schema::hasTable('consumer_premium_plans')) {
+            ConsumerPremiumPlan::findOrFail($id)->update($this->buildData($request));
+        }
 
         return redirect()->route('consumer-plans.index')
             ->with('success', 'Consumer plan updated successfully.');
@@ -69,16 +82,20 @@ class ConsumerPlanController extends Controller
     // ─── Delete plan ──────────────────────────────────────────────────────────
     public function delete($id)
     {
-        ConsumerPremiumPlan::findOrFail($id)->delete();
+        if (Schema::hasTable('consumer_premium_plans')) {
+            ConsumerPremiumPlan::findOrFail($id)->delete();
+        }
         return redirect()->back()->with('success', 'Plan deleted.');
     }
 
     // ─── Toggle active/inactive status ───────────────────────────────────────
     public function toggleStatus(Request $request)
     {
-        $plan = ConsumerPremiumPlan::findOrFail($request->id);
-        $plan->status = ($request->ischeck === 'true') ? 'active' : 'inactive';
-        $plan->save();
+        if (Schema::hasTable('consumer_premium_plans')) {
+            $plan = ConsumerPremiumPlan::findOrFail($request->id);
+            $plan->status = ($request->ischeck === 'true') ? 'active' : 'inactive';
+            $plan->save();
+        }
 
         return response()->json(['success' => true]);
     }

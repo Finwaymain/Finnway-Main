@@ -33,29 +33,27 @@ class WalletGrowthController extends Controller
 
     public function update(Request $request)
     {
-        if (!Schema::hasTable('api_key_settings')) {
-            Artisan::call('migrate', ['--force' => true]);
+        if (Schema::hasTable('api_key_settings')) {
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'wallet_growth_enabled'],
+                ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->has('enabled') ? 'true' : 'false', 'is_active' => true]
+            );
+
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'wallet_growth_rate'],
+                ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->rate ?? '0.10', 'is_active' => true]
+            );
+
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'wallet_growth_mode'],
+                ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->mode ?? 'percentage', 'is_active' => true]
+            );
+
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'wallet_growth_freq'],
+                ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->frequency ?? 'daily', 'is_active' => true]
+            );
         }
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'wallet_growth_enabled'],
-            ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->has('enabled') ? 'true' : 'false', 'is_active' => true]
-        );
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'wallet_growth_rate'],
-            ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->rate ?? '0.10', 'is_active' => true]
-        );
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'wallet_growth_mode'],
-            ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->mode ?? 'percentage', 'is_active' => true]
-        );
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'wallet_growth_freq'],
-            ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->frequency ?? 'daily', 'is_active' => true]
-        );
 
         return redirect()->back()->with('success', 'Wallet Growth settings updated successfully.');
     }

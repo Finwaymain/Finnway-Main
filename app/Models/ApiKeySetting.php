@@ -34,18 +34,11 @@ class ApiKeySetting extends Model
      */
     public static function getApiKeyValue(string $provider, string $default = '')
     {
-        try {
-            if (!Schema::hasTable('api_key_settings')) {
-                return $default;
-            }
-            $setting = self::where('provider', $provider)
-                ->orWhere('key_name', $provider)
-                ->where('is_active', true)
-                ->first();
-            return $setting ? $setting->key_value : $default;
-        } catch (\Throwable $e) {
+        if (!Schema::hasTable('api_key_settings')) {
             return $default;
         }
+        $setting = self::where('provider', $provider)->where('is_active', true)->first();
+        return $setting ? $setting->key_value : $default;
     }
 
     /**
@@ -53,17 +46,10 @@ class ApiKeySetting extends Model
      */
     public static function getApiSecretValue(string $provider, string $default = '')
     {
-        try {
-            if (!Schema::hasTable('api_key_settings')) {
-                return $default;
-            }
-            $setting = self::where('provider', $provider)
-                ->orWhere('key_name', $provider)
-                ->where('is_active', true)
-                ->first();
-            return $setting ? $setting->secret_value : $default;
-        } catch (\Throwable $e) {
+        if (!Schema::hasTable('api_key_settings')) {
             return $default;
         }
+        $setting = self::where('provider', $provider)->where('is_active', true)->first();
+        return $setting ? $setting->secret_value : $default;
     }
 }

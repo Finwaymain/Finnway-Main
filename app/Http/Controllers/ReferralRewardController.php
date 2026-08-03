@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiKeySetting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -17,13 +16,8 @@ class ReferralRewardController extends Controller
 
     public function index()
     {
-        $rewardMode  = 'percentage';
-        $rewardValue = '2.0';
-
-        if (Schema::hasTable('api_key_settings')) {
-            $rewardMode  = ApiKeySetting::getApiKeyValue('referral_reward_mode', 'percentage');
-            $rewardValue = ApiKeySetting::getApiKeyValue('referral_reward_value', '2.0');
-        }
+        $rewardMode  = ApiKeySetting::getApiKeyValue('referral_reward_mode', 'percentage');
+        $rewardValue = ApiKeySetting::getApiKeyValue('referral_reward_value', '2.0');
 
         $totalReferrals = 0;
         if (Schema::hasTable('tj_user_app')) {
@@ -44,19 +38,17 @@ class ReferralRewardController extends Controller
 
     public function update(Request $request)
     {
-        if (!Schema::hasTable('api_key_settings')) {
-            Artisan::call('migrate', ['--force' => true]);
+        if (Schema::hasTable('api_key_settings')) {
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'referral_reward_mode'],
+                ['group' => 'referral', 'provider' => 'engine', 'key_value' => $request->mode ?? 'percentage', 'is_active' => true]
+            );
+
+            ApiKeySetting::updateOrCreate(
+                ['key_name' => 'referral_reward_value'],
+                ['group' => 'referral', 'provider' => 'engine', 'key_value' => $request->value ?? '2.0', 'is_active' => true]
+            );
         }
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'referral_reward_mode'],
-            ['group' => 'referral', 'provider' => 'engine', 'key_value' => $request->mode ?? 'percentage', 'is_active' => true]
-        );
-
-        ApiKeySetting::updateOrCreate(
-            ['key_name' => 'referral_reward_value'],
-            ['group' => 'referral', 'provider' => 'engine', 'key_value' => $request->value ?? '2.0', 'is_active' => true]
-        );
 
         return redirect()->back()->with('success', 'Referral settings updated successfully.');
     }
