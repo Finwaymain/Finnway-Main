@@ -259,7 +259,7 @@ use App\Http\Controllers\API\v1\BannersController;
 
 use App\Http\Controllers\API\v1\UserProfileUpdateController;
 
-use App\Http\Controllers\API\v1\OnBoardingController;
+use App\Http\Controllers\API\v1\OnboardingController as OnBoardingController;
 
 use App\Http\Controllers\API\v1\SubscriptionPlanController;
 use App\Http\Controllers\API\v1\ProductController;
