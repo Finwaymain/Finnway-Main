@@ -65,7 +65,8 @@ class SubscriptionPlanController extends Controller
 
     public function create()
     {
-        return view("subscription_plans.create");
+        $categories = Schema::hasTable('tj_category') ? DB::table('tj_category')->get() : collect([]);
+        return view("subscription_plans.create", compact('categories'));
     }
 
     public function store(Request $request)
@@ -197,9 +198,9 @@ class SubscriptionPlanController extends Controller
 
     public function edit($id)
     {
-
         $subscriptionPlan = SubscriptionPlan::find($id);
-        return view("subscription_plans.edit")->with('subscriptionPlan', $subscriptionPlan);
+        $categories = Schema::hasTable('tj_category') ? DB::table('tj_category')->get() : collect([]);
+        return view("subscription_plans.edit", compact('subscriptionPlan', 'categories'));
     }
 
 

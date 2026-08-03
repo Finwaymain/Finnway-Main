@@ -36,6 +36,11 @@
     padding: 14px 20px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+}
+.section-card .section-header .header-left {
+    display: flex;
+    align-items: center;
     gap: 10px;
 }
 .section-card .section-header .icon-badge {
@@ -84,88 +89,42 @@
     outline: none;
 }
 
-/* Tier Selector Cards */
-.tier-radio-input {
-    position: absolute !important;
-    opacity: 0 !important;
-    width: 0 !important;
-    height: 0 !important;
-    pointer-events: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-.tier-select-card {
-    display: flex;
-    flex-direction: column;
+/* Category Checkbox Pills */
+.cat-pill {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 6px;
     background: #ffffff;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 18px 16px;
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.2s ease;
-    margin-bottom: 0;
-}
-.tier-select-card:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
-}
-.tier-select-card .tier-title {
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: #1e293b;
-    margin-bottom: 2px;
-}
-.tier-select-card .tier-sub {
-    font-size: 0.78rem;
-    color: #64748b;
-}
-.tier-select-card i {
-    font-size: 1.6rem;
-    color: #94a3b8;
-    margin-bottom: 8px;
-    display: block;
-}
-.tier-radio-input:checked + .tier-select-card {
-    background: #f0f6ff;
-    border-color: #2563eb;
-    box-shadow: 0 4px 12px rgba(37,99,235,0.12);
-}
-.tier-radio-input:checked + .tier-select-card .tier-title { color: #1d4ed8; }
-.tier-radio-input:checked + .tier-select-card i { color: #2563eb; }
-
-/* Custom Checkbox & Toggle Box */
-.prof-option-box {
-    background: #ffffff;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition: all 0.2s ease;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
     cursor: pointer;
     user-select: none;
+    transition: all 0.15s ease;
+    margin-right: 8px;
+    margin-bottom: 10px;
 }
-.prof-option-box:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
+.cat-pill.active {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
 }
-.prof-option-box .opt-title {
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: #1e293b;
-    margin: 0;
-}
-.prof-option-box .opt-sub {
-    font-size: 0.75rem;
-    color: #64748b;
-    margin: 2px 0 0 0;
+.cat-pill .check-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
 }
 
-/* Elegant Switch Element */
+/* Switch Element */
 .switch-label {
     position: relative;
     display: inline-block;
@@ -174,37 +133,31 @@
     margin: 0;
     vertical-align: middle;
 }
-.switch-label input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+.switch-label input { opacity: 0; width: 0; height: 0; }
 .switch-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-color: #cbd5e1;
-    transition: .2s ease;
-    border-radius: 24px;
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e1; transition: .2s ease; border-radius: 24px;
 }
 .switch-slider:before {
-    position: absolute;
-    content: "";
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .2s ease;
-    border-radius: 50%;
+    position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background-color: white; transition: .2s ease; border-radius: 50%;
     box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
-.switch-label input:checked + .switch-slider {
-    background-color: #2563eb;
+.switch-label input:checked + .switch-slider { background-color: #2563eb; }
+.switch-label input:checked + .switch-slider:before { transform: translateX(20px); }
+
+/* Option box */
+.prof-option-box {
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
-.switch-label input:checked + .switch-slider:before {
-    transform: translateX(20px);
-}
+.prof-option-box .opt-title { font-weight: 600; font-size: 0.875rem; color: #1e293b; margin: 0; }
+.prof-option-box .opt-sub { font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0; }
 
 .discount-box {
     background: #f8fafc;
@@ -255,6 +208,27 @@
     padding: 6px 12px;
     margin-bottom: 8px;
 }
+
+/* Service Matrix Table */
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.matrix-table th {
+    background: #f8fafc;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 12px 16px;
+    border-bottom: 2px solid #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.matrix-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.875rem;
+}
 </style>
 
 <div class="page-wrapper">
@@ -264,7 +238,7 @@
         <div class="page-header-card d-flex align-items-center justify-content-between">
             <div>
                 <h3><i class="mdi mdi-pencil-box-outline text-primary mr-2"></i>Edit Business Plan</h3>
-                <p>Modify plan pricing, features, cashback, and provider limits.</p>
+                <p>Modify subscription details, permissions, cashback rates, and limits.</p>
             </div>
             <a href="{{ url('subscription-plans') }}" class="btn btn-light-custom btn-sm">
                 <i class="fa fa-arrow-left mr-1"></i> Back to Plans
@@ -282,13 +256,15 @@
 
         <form action="{{ route('subscription-plans.update', $subscriptionPlan->id) }}" method="POST" enctype="multipart/form-data">
             @csrf
-            @method("PUT")
+            @method('PUT')
 
             <!-- Section 1: Plan Tier -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-layers-outline"></i></div>
-                    <h5>Plan Tier</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-layers-outline"></i></div>
+                        <h5>Plan Tier</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
@@ -307,14 +283,16 @@
             <!-- Section 2: Basic Details -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-information-outline"></i></div>
-                    <h5>Basic Information</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-information-outline"></i></div>
+                        <h5>Basic Information</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Plan Name <span class="text-danger">*</span></label>
-                            <input type="text" name="planName" class="form-control form-control-custom" placeholder="e.g. Premium Monthly" value="{{ old('planName', $subscriptionPlan->name) }}" required>
+                            <input type="text" name="planName" class="form-control form-control-custom" placeholder="e.g. Professional Plan" value="{{ old('planName', $subscriptionPlan->name) }}" required>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Plan Type <span class="text-danger">*</span></label>
@@ -336,15 +314,15 @@
                             <label class="form-label-custom">Validity Period</label>
                             <select name="plan_validity_days" id="validityTypeSelect" class="form-control form-control-custom">
                                 <option value="unlimited" {{ old('plan_validity_days', $subscriptionPlan->expiryDay == '-1' ? 'unlimited' : 'limited') == 'unlimited' ? 'selected' : '' }}>Unlimited / Lifetime</option>
-                                <option value="limited" {{ old('plan_validity_days', $subscriptionPlan->expiryDay == '-1' ? 'unlimited' : 'limited') == 'limited' ? 'selected' : '' }}>Fixed Days</option>
+                                <option value="limited" {{ old('plan_validity_days', $subscriptionPlan->expiryDay != '-1' ? 'limited' : 'unlimited') == 'limited' ? 'selected' : '' }}>Fixed Days</option>
                             </select>
-                            <div class="mt-2 expiry-limit-div {{ old('plan_validity_days', $subscriptionPlan->expiryDay == '-1' ? 'unlimited' : 'limited') == 'limited' ? '' : 'd-none' }}">
-                                <input type="number" name="plan_validity" class="form-control form-control-custom" placeholder="Enter number of days" value="{{ old('plan_validity', $subscriptionPlan->expiryDay > 0 ? $subscriptionPlan->expiryDay : '') }}">
+                            <div class="mt-2 expiry-limit-div {{ old('plan_validity_days', $subscriptionPlan->expiryDay != '-1' ? 'limited' : 'unlimited') == 'limited' ? '' : 'd-none' }}">
+                                <input type="number" name="plan_validity" class="form-control form-control-custom" placeholder="Enter number of days (e.g. 30)" value="{{ old('plan_validity', $subscriptionPlan->expiryDay) }}">
                             </div>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label-custom">Display Order <span class="text-danger">*</span></label>
-                            <input type="number" name="order" class="form-control form-control-custom" min="0" value="{{ old('order', $subscriptionPlan->place) }}" required>
+                            <input type="number" name="order" class="form-control form-control-custom" placeholder="1" min="0" value="{{ old('order', $subscriptionPlan->place) }}" required>
                         </div>
                         <div class="col-md-5 mb-3">
                             <label class="form-label-custom">Plan Status</label>
@@ -363,7 +341,7 @@
                     <div class="row">
                         <div class="col-md-8 mb-3">
                             <label class="form-label-custom">Description <span class="text-danger">*</span></label>
-                            <textarea name="description" class="form-control form-control-custom" rows="2" placeholder="Short description...">{{ old('description', $subscriptionPlan->description) }}</textarea>
+                            <textarea name="description" class="form-control form-control-custom" rows="2" placeholder="Short description of this plan...">{{ old('description', $subscriptionPlan->description) }}</textarea>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Plan Image</label>
@@ -376,30 +354,68 @@
                 </div>
             </div>
 
+            <!-- Dynamic Business Categories Section (Fetched from DB) -->
+            @php
+                $dbCategories = isset($categories) && count($categories) > 0 ? $categories : (Illuminate\Support\Facades\Schema::hasTable('tj_category') ? Illuminate\Support\Facades\DB::table('tj_category')->get() : collect([]));
+            @endphp
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-shape-outline"></i></div>
+                        <h5>Business Categories (Dynamic from DB)</h5>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllCats(true)">Select All</button>
+                </div>
+                <div class="section-body">
+                    <p class="text-muted small mb-3">Choose the specific business categories where this plan applies:</p>
+                    <div class="d-flex flex-wrap align-items-center">
+                        @if($dbCategories->count() > 0)
+                            @foreach($dbCategories as $cat)
+                            @php
+                                $catName = $cat->nom ?? $cat->title ?? $cat->name ?? 'Category #'.$cat->id;
+                            @endphp
+                            <label class="cat-pill active">
+                                <span class="check-icon"><i class="fa fa-check"></i></span>
+                                <input type="checkbox" name="categories[]" value="{{ $cat->id }}" checked class="cat-checkbox" style="display:none;">
+                                {{ $catName }}
+                            </label>
+                            @endforeach
+                        @else
+                            @php
+                                $defaultCats = ['Cab Driver', 'Bike Taxi', 'Auto Rickshaw', 'Delivery Partner', 'Merchant', 'Home Services', 'Food Delivery'];
+                            @endphp
+                            @foreach($defaultCats as $cat)
+                            <label class="cat-pill active">
+                                <span class="check-icon"><i class="fa fa-check"></i></span>
+                                <input type="checkbox" name="categories[]" value="{{ $cat }}" checked class="cat-checkbox" style="display:none;">
+                                {{ $cat }}
+                            </label>
+                            @endforeach
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 3: Feature Highlights -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-checkbox-marked-circle-outline"></i></div>
-                    <h5>Plan Features (Bullet Points)</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-checkbox-marked-circle-outline"></i></div>
+                        <h5>Plan Features (Bullet Points)</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div id="points_container">
-                        @php $points = old('plan_points', is_array($subscriptionPlan->plan_points) ? $subscriptionPlan->plan_points : json_decode($subscriptionPlan->plan_points, true) ?? []); @endphp
-                        @if(!empty($points))
-                            @foreach($points as $pt)
-                            <div class="point-row d-flex align-items-center gap-2">
-                                <i class="mdi mdi-check text-success mr-2"></i>
-                                <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" value="{{ $pt }}">
-                                <button type="button" class="btn btn-sm text-danger ml-auto" onclick="removePoint(this)"><i class="fa fa-trash"></i></button>
-                            </div>
-                            @endforeach
-                        @else
+                        @php
+                            $pts = is_array($subscriptionPlan->plan_points) ? $subscriptionPlan->plan_points : (json_decode($subscriptionPlan->plan_points, true) ?? ['Standard Provider Features']);
+                        @endphp
+                        @foreach($pts as $pt)
                         <div class="point-row d-flex align-items-center gap-2">
                             <i class="mdi mdi-check text-success mr-2"></i>
-                            <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" placeholder="e.g. Priority order access">
+                            <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" value="{{ $pt }}">
                             <button type="button" class="btn btn-sm text-danger ml-auto" onclick="removePoint(this)"><i class="fa fa-trash"></i></button>
                         </div>
-                        @endif
+                        @endforeach
                     </div>
                     <button type="button" onclick="addPoint()" class="btn btn-sm btn-light-custom mt-2">
                         <i class="fa fa-plus mr-1"></i> Add Feature
@@ -410,8 +426,10 @@
             <!-- Section 4: Booking Limits & Quotas -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-calendar-clock"></i></div>
-                    <h5>Booking Limits & Free Quotas</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-calendar-clock"></i></div>
+                        <h5>Booking Limits & Free Quotas</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
@@ -419,15 +437,15 @@
                             <label class="form-label-custom">Booking Limit</label>
                             <select name="set_booking_limit" id="bookingLimitSelect" class="form-control form-control-custom">
                                 <option value="unlimited" {{ old('set_booking_limit', $subscriptionPlan->bookingLimit == '-1' ? 'unlimited' : 'limited') == 'unlimited' ? 'selected' : '' }}>Unlimited Bookings</option>
-                                <option value="limited" {{ old('set_booking_limit', $subscriptionPlan->bookingLimit == '-1' ? 'unlimited' : 'limited') == 'limited' ? 'selected' : '' }}>Limited Bookings</option>
+                                <option value="limited" {{ old('set_booking_limit', $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited') == 'limited' ? 'selected' : '' }}>Limited Bookings</option>
                             </select>
-                            <div class="mt-2 booking-limit-div {{ old('set_booking_limit', $subscriptionPlan->bookingLimit == '-1' ? 'unlimited' : 'limited') == 'limited' ? '' : 'd-none' }}">
-                                <input type="number" name="booking_limit" class="form-control form-control-custom" placeholder="Max orders" value="{{ old('booking_limit', $subscriptionPlan->bookingLimit > 0 ? $subscriptionPlan->bookingLimit : '') }}">
+                            <div class="mt-2 booking-limit-div {{ old('set_booking_limit', $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited') == 'limited' ? '' : 'd-none' }}">
+                                <input type="number" name="booking_limit" class="form-control form-control-custom" placeholder="Max orders (e.g. 100)" value="{{ old('booking_limit', $subscriptionPlan->bookingLimit) }}">
                             </div>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Free Ride Limit</label>
-                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" value="{{ old('free_ride_limit', $subscriptionPlan->free_ride_limit ?? 0) }}">
+                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" placeholder="0" value="{{ old('free_ride_limit', $subscriptionPlan->free_ride_limit ?? 0) }}">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Free Ride Reset</label>
@@ -444,8 +462,10 @@
             <!-- Section 5: Cashback Configuration -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-cash-refund"></i></div>
-                    <h5>Cashback Settings</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-cash-refund"></i></div>
+                        <h5>Cashback Settings</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
@@ -492,8 +512,10 @@
             <!-- Section 6: Category Discounts -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
-                    <h5>Category Discounts (%)</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
+                        <h5>Category Discounts (%)</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
@@ -526,8 +548,10 @@
             <!-- Section 7: Wallet & Loan Privileges -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-wallet-outline"></i></div>
-                    <h5>Wallet & Loan Privileges</h5>
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-wallet-outline"></i></div>
+                        <h5>Wallet & Loan Privileges</h5>
+                    </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
@@ -538,16 +562,16 @@
                         <div class="col-md-3 mb-3">
                             <label class="form-label-custom">Bonus Period</label>
                             <select name="wallet_increment_period" class="form-control form-control-custom">
-                                <option value="daily" {{ old('wallet_increment_period', $subscriptionPlan->wallet_increment_period ?? '') == 'daily' ? 'selected' : '' }}>Daily</option>
-                                <option value="weekly" {{ old('wallet_increment_period', $subscriptionPlan->wallet_increment_period ?? '') == 'weekly' ? 'selected' : '' }}>Weekly</option>
-                                <option value="monthly" {{ old('wallet_increment_period', $subscriptionPlan->wallet_increment_period ?? 'monthly') == 'monthly' ? 'selected' : '' }}>Monthly</option>
+                                <option value="daily" {{ ($subscriptionPlan->wallet_increment_period ?? '') == 'daily' ? 'selected' : '' }}>Daily</option>
+                                <option value="weekly" {{ ($subscriptionPlan->wallet_increment_period ?? '') == 'weekly' ? 'selected' : '' }}>Weekly</option>
+                                <option value="monthly" {{ ($subscriptionPlan->wallet_increment_period ?? 'monthly') == 'monthly' ? 'selected' : '' }}>Monthly</option>
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label-custom">Referral Bonus Type</label>
                             <select name="referral_bonus_type" class="form-control form-control-custom">
-                                <option value="flat" {{ old('referral_bonus_type', $subscriptionPlan->referral_bonus_type ?? 'flat') == 'flat' ? 'selected' : '' }}>Flat (₹)</option>
-                                <option value="percentage" {{ old('referral_bonus_type', $subscriptionPlan->referral_bonus_type ?? '') == 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
+                                <option value="flat" {{ ($subscriptionPlan->referral_bonus_type ?? 'flat') == 'flat' ? 'selected' : '' }}>Flat (₹)</option>
+                                <option value="percentage" {{ ($subscriptionPlan->referral_bonus_type ?? '') == 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
@@ -575,6 +599,87 @@
                                 <input type="number" name="loan_max_amount" class="form-control form-control-custom" min="0" value="{{ old('loan_max_amount', $subscriptionPlan->loan_max_amount ?? 0) }}">
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Service Permission Matrix (Fetched from DB Categories) -->
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-grid"></i></div>
+                        <h5>Service Permission Matrix (Dynamic API/DB Data)</h5>
+                    </div>
+                </div>
+                <div class="section-body p-0">
+                    <div class="table-responsive">
+                        <table class="matrix-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40%;">Service / Category</th>
+                                    <th style="text-align:center;">Basic</th>
+                                    <th style="text-align:center;">Professional</th>
+                                    <th style="text-align:center;">Premium Plus</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if($dbCategories->count() > 0)
+                                    @foreach($dbCategories as $idx => $cat)
+                                    @php
+                                        $catTitle = $cat->nom ?? $cat->title ?? $cat->name ?? 'Category #'.$cat->id;
+                                    @endphp
+                                    <tr>
+                                        <td><strong>{{ $catTitle }}</strong></td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $cat->id }}][basic]" {{ $idx % 2 == 0 ? 'checked' : '' }}>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $cat->id }}][professional]" checked>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $cat->id }}][premium_plus]" checked>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                @else
+                                    @php
+                                        $matrixDefault = ['QR Payment', 'Wallet', 'Cab Booking', 'Bike Taxi', 'Parcel', 'Marketplace', 'Travel', 'Hotels', 'Healthcare Cards', 'Loan Services', 'Premium Listing', 'Priority Search'];
+                                    @endphp
+                                    @foreach($matrixDefault as $idx => $serv)
+                                    <tr>
+                                        <td><strong>{{ $serv }}</strong></td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $idx }}][basic]" {{ $idx < 3 ? 'checked' : '' }}>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $idx }}][professional]" {{ $idx < 10 ? 'checked' : '' }}>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <label class="switch-label">
+                                                <input type="checkbox" name="matrix[{{ $idx }}][premium_plus]" checked>
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                @endif
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -643,6 +748,11 @@ function previewImg(input) {
         }
         reader.readAsDataURL(input.files[0]);
     }
+}
+
+function selectAllCats(select) {
+    $('.cat-pill').addClass('active');
+    $('.cat-checkbox').prop('checked', true);
 }
 </script>
 @endsection
