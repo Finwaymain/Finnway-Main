@@ -377,7 +377,9 @@ Route::group(['middleware' => ['envKeyAuth']], function () {
     Route::get('v1/marketplace/products', [ProductController::class, 'index']);
     Route::get('v1/marketplace/products/{id}', [ProductController::class, 'show']);
     Route::get('v1/marketplace/categories', [ProductController::class, 'categories']);
-    Route::get('v1/user-categories', [UserCategoryAPIController::class, 'getData']);
+    Route::get('v1/history/timeline-full', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getTimelineHistory']);
+    Route::get('v1/referral/stats', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getReferralStats']);
+    Route::get('v1/business-plans/active', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getBusinessPlans']);
 });
 
 
