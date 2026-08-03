@@ -33,13 +33,15 @@ class HomeServiceController extends Controller
         if ($search) {
             $subCategoriesQuery->where('libelle', 'LIKE', "%{$search}%");
         }
-        $subCategories = $subCategoriesQuery->get();
+        $services = $subCategoriesQuery->get();
 
-        foreach ($subCategories as $sub) {
+        foreach ($services as $sub) {
             $sub->children = DB::table('tj_categorie_user')->where('parent_id', $sub->id)->get();
         }
 
-        return view('service_requests.categories', compact('subCategories', 'parent', 'search'));
+        $subCategories = $services;
+
+        return view('service_requests.categories', compact('services', 'subCategories', 'parent', 'search'));
     }
 
     public function create()
