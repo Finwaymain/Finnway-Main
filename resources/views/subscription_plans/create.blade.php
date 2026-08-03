@@ -89,8 +89,28 @@
     outline: none;
 }
 
-/* Category Checkbox Pills */
-.cat-pill {
+/* Parent Category Tabs */
+.parent-cat-tab {
+    padding: 8px 18px;
+    border-radius: 20px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.parent-cat-tab.active {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 2px 6px rgba(37,99,235,0.2);
+}
+
+/* Sub Category Checkbox Pills */
+.sub-cat-pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -107,21 +127,12 @@
     margin-right: 8px;
     margin-bottom: 10px;
 }
-.cat-pill.active {
-    background: #eff6ff;
-    border-color: #2563eb;
-    color: #1d4ed8;
-}
-.cat-pill .check-icon {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #2563eb;
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
+.sub-cat-pill:hover { border-color: #2563eb; background: #f8fafc; }
+.sub-cat-pill.active { background: #eff6ff; border-color: #2563eb; color: #1d4ed8; }
+.sub-cat-pill .check-icon {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #2563eb; color: #fff; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 9px;
 }
 
 /* Switch Element */
@@ -159,20 +170,15 @@
 .prof-option-box .opt-title { font-weight: 600; font-size: 0.875rem; color: #1e293b; margin: 0; }
 .prof-option-box .opt-sub { font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0; }
 
-.discount-box {
+.discount-row-card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
-    padding: 12px;
-    text-align: center;
-}
-.discount-box label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #475569;
-    margin-bottom: 6px;
-    display: block;
-    text-transform: uppercase;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .btn-primary-custom {
@@ -229,16 +235,6 @@
     border-bottom: 1px solid #f1f5f9;
     font-size: 0.875rem;
 }
-.badge-check {
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #10b981; color: #fff; display: inline-flex;
-    align-items: center; justify-content: center; font-size: 11px;
-}
-.badge-cross {
-    width: 24px; height: 24px; border-radius: 50%;
-    background: #ef4444; color: #fff; display: inline-flex;
-    align-items: center; justify-content: center; font-size: 11px;
-}
 </style>
 
 <div class="page-wrapper">
@@ -248,7 +244,7 @@
         <div class="page-header-card d-flex align-items-center justify-content-between">
             <div>
                 <h3><i class="mdi mdi-briefcase-plus text-primary mr-2"></i>Create Business Plan</h3>
-                <p>Configure subscription details, categories, permissions, cashback, and limits.</p>
+                <p>Configure plan features, parent/sub category permissions, and discount percentages.</p>
             </div>
             <a href="{{ url('subscription-plans') }}" class="btn btn-light-custom btn-sm">
                 <i class="fa fa-arrow-left mr-1"></i> Back to Plans
@@ -363,44 +359,109 @@
                 </div>
             </div>
 
-            <!-- Dynamic Business Categories Section (Fetched from DB) -->
+            <!-- STEP 1 & 2: Parent & Child Category Selection Flow -->
             @php
-                $dbCategories = isset($categories) && count($categories) > 0 ? $categories : (Illuminate\Support\Facades\Schema::hasTable('tj_category') ? Illuminate\Support\Facades\DB::table('tj_category')->get() : collect([]));
+                $parents = [
+                    'home_services' => ['title' => 'Home Services', 'icon' => 'mdi-home-outline', 'subs' => ['Plumbing', 'Electrical Repair', 'House Cleaning', 'Appliance Service', 'Painting & Decor']],
+                    'transport'     => ['title' => 'Transportation & Rides', 'icon' => 'mdi-car-side', 'subs' => ['Cab Driver', 'Bike Taxi', 'Auto Rickshaw', 'Parcel Delivery', 'Rental Vehicle']],
+                    'food'          => ['title' => 'Food & Dining', 'icon' => 'mdi-food-fork-drink', 'subs' => ['Food Delivery', 'Restaurant Partner', 'Cloud Kitchen']],
+                    'medical'       => ['title' => 'Health & Medical', 'icon' => 'mdi-medical-bag', 'subs' => ['Healthcare Cards', 'Doctor Consultation', 'Pharmacy Delivery']],
+                    'marketplace'   => ['title' => 'Marketplace & Retail', 'icon' => 'mdi-store-outline', 'subs' => ['Merchant Store', 'Shopping Discount', 'Product Listing']],
+                ];
             @endphp
+
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-shape-outline"></i></div>
-                        <h5>Business Categories (Dynamic from DB)</h5>
+                        <div class="icon-badge"><i class="mdi mdi-sitemap"></i></div>
+                        <h5>Step 1: Select Parent & Sub-Categories</h5>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllCats(true)">Select All</button>
                 </div>
                 <div class="section-body">
-                    <p class="text-muted small mb-3">Choose the specific business categories where this plan applies:</p>
-                    <div class="d-flex flex-wrap align-items-center">
-                        @if($dbCategories->count() > 0)
-                            @foreach($dbCategories as $cat)
-                            @php
-                                $catName = $cat->nom ?? $cat->title ?? $cat->name ?? 'Category #'.$cat->id;
-                            @endphp
-                            <label class="cat-pill active">
+                    <!-- Parent Category Tabs -->
+                    <label class="form-label-custom mb-2">Select Parent Category</label>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+                        @foreach($parents as $key => $p)
+                        <div class="parent-cat-tab {{ $loop->first ? 'active' : '' }}" onclick="switchParentCat('{{ $key }}', this)">
+                            <i class="mdi {{ $p['icon'] }} mr-1"></i> {{ $p['title'] }}
+                        </div>
+                        @endforeach
+                    </div>
+
+                    <!-- Sub Categories Container for Each Parent -->
+                    <label class="form-label-custom mb-2">Select Sub-Categories (Adds below to Category Discounts)</label>
+                    @foreach($parents as $key => $p)
+                    <div class="parent-sub-container {{ $loop->first ? '' : 'd-none' }}" id="parent_sub_{{ $key }}">
+                        <div class="d-flex flex-wrap align-items-center">
+                            @foreach($p['subs'] as $sub)
+                            <div class="sub-cat-pill active" onclick="toggleSubCatPill('{{ $sub }}', '{{ $p['title'] }}', this)">
                                 <span class="check-icon"><i class="fa fa-check"></i></span>
-                                <input type="checkbox" name="categories[]" value="{{ $cat->id }}" checked class="cat-checkbox" style="display:none;">
-                                {{ $catName }}
-                            </label>
+                                <input type="checkbox" name="categories[]" value="{{ $sub }}" checked class="cat-checkbox" style="display:none;">
+                                <span>{{ $sub }}</span>
+                            </div>
                             @endforeach
-                        @else
-                            @php
-                                $defaultCats = ['Cab Driver', 'Bike Taxi', 'Auto Rickshaw', 'Delivery Partner', 'Merchant', 'Home Services', 'Food Delivery'];
-                            @endphp
-                            @foreach($defaultCats as $cat)
-                            <label class="cat-pill active">
-                                <span class="check-icon"><i class="fa fa-check"></i></span>
-                                <input type="checkbox" name="categories[]" value="{{ $cat }}" checked class="cat-checkbox" style="display:none;">
-                                {{ $cat }}
-                            </label>
-                            @endforeach
-                        @endif
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- STEP 3: Dynamic Category Discounts (%) Section -->
+            <div class="section-card">
+                <div class="section-header">
+                    <div class="header-left">
+                        <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
+                        <h5>Step 2: Set Category Discounts (%)</h5>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCustomDiscountRow()">
+                        <i class="fa fa-plus mr-1"></i> Add Category Discount
+                    </button>
+                </div>
+                <div class="section-body">
+                    <p class="text-muted small mb-3">Selected categories automatically appear here. Enter discount percentages for each:</p>
+                    <div id="dynamic_discounts_container">
+                        <!-- Default Pre-populated Rows -->
+                        <div class="discount-row-card" id="disc_row_Home Services">
+                            <div>
+                                <span class="font-weight-bold text-dark">Home Services</span>
+                                <span class="badge badge-light text-muted ml-2">Parent: Home Services</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="input-group input-group-sm" style="width:110px;">
+                                    <input type="number" name="discount_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="20">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="discount-row-card" id="disc_row_Transportation">
+                            <div>
+                                <span class="font-weight-bold text-dark">Travel & Transport</span>
+                                <span class="badge badge-light text-muted ml-2">Parent: Transportation</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="input-group input-group-sm" style="width:110px;">
+                                    <input type="number" name="discount_travel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="15">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="discount-row-card" id="disc_row_Hotels">
+                            <div>
+                                <span class="font-weight-bold text-dark">Hotels</span>
+                                <span class="badge badge-light text-muted ml-2">Parent: Medical & Hotels</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="input-group input-group-sm" style="width:110px;">
+                                    <input type="number" name="discount_hotel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="10">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -523,43 +584,7 @@
                 </div>
             </div>
 
-            <!-- Section 6: Category Discounts -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
-                        <h5>Category Discounts (%)</h5>
-                    </div>
-                </div>
-                <div class="section-body">
-                    <div class="row">
-                        @php 
-                            $discounts = [
-                                'discount_home_service' => ['Home Service', 'mdi-home-outline'],
-                                'discount_travel'       => ['Travel', 'mdi-airplane-takeoff'],
-                                'discount_hotel'        => ['Hotel', 'mdi-office-building'],
-                                'discount_food'         => ['Food', 'mdi-food-fork-drink'],
-                                'discount_medical'      => ['Medical', 'mdi-medical-bag'],
-                                'discount_marketplace'  => ['Marketplace', 'mdi-store-outline'],
-                                'shopping_discount'     => ['Shopping', 'mdi-cart-outline']
-                            ]; 
-                        @endphp
-                        @foreach($discounts as $field => [$label, $icon])
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="discount-box">
-                                <label><i class="mdi {{ $icon }} text-primary mr-1"></i>{{ $label }}</label>
-                                <div class="input-group input-group-sm">
-                                    <input type="number" name="{{ $field }}" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old($field, 0) }}">
-                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-
-            <!-- Section 7: Wallet & Loan Privileges -->
+            <!-- Section 6: Wallet & Loan Privileges -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
@@ -617,12 +642,12 @@
                 </div>
             </div>
 
-            <!-- Dynamic Service Permission Matrix (Fetched from DB Categories) -->
+            <!-- Dynamic Service Permission Matrix -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
                         <div class="icon-badge"><i class="mdi mdi-grid"></i></div>
-                        <h5>Service Permission Matrix (Dynamic API/DB Data)</h5>
+                        <h5>Service Permission Matrix</h5>
                     </div>
                 </div>
                 <div class="section-body p-0">
@@ -630,68 +655,39 @@
                         <table class="matrix-table">
                             <thead>
                                 <tr>
-                                    <th style="width:40%;">Service / Category</th>
+                                    <th style="width:40%;">Service / Sub-Category</th>
                                     <th style="text-align:center;">Basic</th>
                                     <th style="text-align:center;">Professional</th>
                                     <th style="text-align:center;">Premium Plus</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @if($dbCategories->count() > 0)
-                                    @foreach($dbCategories as $idx => $cat)
-                                    @php
-                                        $catTitle = $cat->nom ?? $cat->title ?? $cat->name ?? 'Category #'.$cat->id;
-                                    @endphp
-                                    <tr>
-                                        <td><strong>{{ $catTitle }}</strong></td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $cat->id }}][basic]" {{ $idx % 2 == 0 ? 'checked' : '' }}>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $cat->id }}][professional]" checked>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $cat->id }}][premium_plus]" checked>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                @else
-                                    @php
-                                        $matrixDefault = ['QR Payment', 'Wallet', 'Cab Booking', 'Bike Taxi', 'Parcel', 'Marketplace', 'Travel', 'Hotels', 'Healthcare Cards', 'Loan Services', 'Premium Listing', 'Priority Search'];
-                                    @endphp
-                                    @foreach($matrixDefault as $idx => $serv)
-                                    <tr>
-                                        <td><strong>{{ $serv }}</strong></td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $idx }}][basic]" {{ $idx < 3 ? 'checked' : '' }}>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $idx }}][professional]" {{ $idx < 10 ? 'checked' : '' }}>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                        <td style="text-align:center;">
-                                            <label class="switch-label">
-                                                <input type="checkbox" name="matrix[{{ $idx }}][premium_plus]" checked>
-                                                <span class="switch-slider"></span>
-                                            </label>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                @endif
+                                @php
+                                    $matrixDefault = ['QR Payment', 'Wallet', 'Cab Booking', 'Bike Taxi', 'Parcel', 'Marketplace', 'Travel', 'Hotels', 'Healthcare Cards', 'Loan Services', 'Premium Listing', 'Priority Search'];
+                                @endphp
+                                @foreach($matrixDefault as $idx => $serv)
+                                <tr>
+                                    <td><strong>{{ $serv }}</strong></td>
+                                    <td style="text-align:center;">
+                                        <label class="switch-label">
+                                            <input type="checkbox" name="matrix[{{ $idx }}][basic]" {{ $idx < 3 ? 'checked' : '' }}>
+                                            <span class="switch-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td style="text-align:center;">
+                                        <label class="switch-label">
+                                            <input type="checkbox" name="matrix[{{ $idx }}][professional]" {{ $idx < 10 ? 'checked' : '' }}>
+                                            <span class="switch-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td style="text-align:center;">
+                                        <label class="switch-label">
+                                            <input type="checkbox" name="matrix[{{ $idx }}][premium_plus]" checked>
+                                            <span class="switch-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                                @endforeach
                             </tbody>
                         </table>
                     </div>
@@ -737,6 +733,70 @@ $(document).ready(function() {
     });
 });
 
+function switchParentCat(key, btn) {
+    $('.parent-cat-tab').removeClass('active');
+    $(btn).addClass('active');
+    $('.parent-sub-container').addClass('d-none');
+    $('#parent_sub_' + key).removeClass('d-none');
+}
+
+function toggleSubCatPill(subName, parentName, element) {
+    const checkbox = $(element).find('.cat-checkbox');
+    const isChecked = checkbox.prop('checked');
+    checkbox.prop('checked', !isChecked);
+
+    const safeId = 'disc_row_' + subName.replace(/[^a-zA-Z0-9]/g, '_');
+
+    if (!isChecked) {
+        $(element).addClass('active');
+        $(element).find('.check-icon').html('<i class="fa fa-check"></i>').show();
+        // Add row to Category Discounts
+        if ($('#' + safeId).length === 0) {
+            const rowHtml = `
+            <div class="discount-row-card" id="${safeId}">
+                <div>
+                    <span class="font-weight-bold text-dark">${subName}</span>
+                    <span class="badge badge-light text-muted ml-2">Parent: ${parentName}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="input-group input-group-sm" style="width:110px;">
+                        <input type="number" name="category_discounts[${subName}]" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="15">
+                        <div class="input-group-append"><span class="input-group-text">%</span></div>
+                    </div>
+                    <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
+                </div>
+            </div>`;
+            $('#dynamic_discounts_container').append(rowHtml);
+        }
+    } else {
+        $(element).removeClass('active');
+        $(element).find('.check-icon').hide();
+        $('#' + safeId).remove();
+    }
+}
+
+function addCustomDiscountRow() {
+    const catName = prompt("Enter category name to set discount:");
+    if (catName && catName.trim() !== '') {
+        const safeId = 'disc_row_' + catName.replace(/[^a-zA-Z0-9]/g, '_');
+        const rowHtml = `
+        <div class="discount-row-card" id="${safeId}">
+            <div>
+                <span class="font-weight-bold text-dark">${catName}</span>
+                <span class="badge badge-light text-muted ml-2">Custom Category</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="width:110px;">
+                    <input type="number" name="category_discounts[${catName}]" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="10">
+                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                </div>
+                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
+            </div>
+        </div>`;
+        $('#dynamic_discounts_container').append(rowHtml);
+    }
+}
+
 function addPoint() {
     const html = `
     <div class="point-row d-flex align-items-center gap-2">
@@ -762,11 +822,6 @@ function previewImg(input) {
         }
         reader.readAsDataURL(input.files[0]);
     }
-}
-
-function selectAllCats(select) {
-    $('.cat-pill').addClass('active');
-    $('.cat-checkbox').prop('checked', true);
 }
 </script>
 @endsection

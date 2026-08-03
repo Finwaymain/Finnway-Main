@@ -12,10 +12,9 @@ use App\Models\SubscriptionHistory;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\Validator;
-
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use File;
-
 use Image;
 
 class SubscriptionPlanController extends Controller
@@ -65,7 +64,14 @@ class SubscriptionPlanController extends Controller
 
     public function create()
     {
-        $categories = Schema::hasTable('tj_category') ? DB::table('tj_category')->get() : collect([]);
+        $categories = collect([]);
+        if (Schema::hasTable('tj_categorie_user')) {
+            $categories = DB::table('tj_categorie_user')->get();
+        } elseif (Schema::hasTable('tj_services')) {
+            $categories = DB::table('tj_services')->get();
+        } elseif (Schema::hasTable('tj_category')) {
+            $categories = DB::table('tj_category')->get();
+        }
         return view("subscription_plans.create", compact('categories'));
     }
 
@@ -199,7 +205,14 @@ class SubscriptionPlanController extends Controller
     public function edit($id)
     {
         $subscriptionPlan = SubscriptionPlan::find($id);
-        $categories = Schema::hasTable('tj_category') ? DB::table('tj_category')->get() : collect([]);
+        $categories = collect([]);
+        if (Schema::hasTable('tj_categorie_user')) {
+            $categories = DB::table('tj_categorie_user')->get();
+        } elseif (Schema::hasTable('tj_services')) {
+            $categories = DB::table('tj_services')->get();
+        } elseif (Schema::hasTable('tj_category')) {
+            $categories = DB::table('tj_category')->get();
+        }
         return view("subscription_plans.edit", compact('subscriptionPlan', 'categories'));
     }
 
