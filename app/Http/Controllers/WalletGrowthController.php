@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApiKeySetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
 
 class WalletGrowthController extends Controller
 {
@@ -15,16 +16,27 @@ class WalletGrowthController extends Controller
 
     public function index()
     {
-        $growthEnabled = ApiKeySetting::where('key_name', 'wallet_growth_enabled')->value('key_value') ?? 'true';
-        $growthRate    = ApiKeySetting::where('key_name', 'wallet_growth_rate')->value('key_value') ?? '0.10';
-        $growthMode    = ApiKeySetting::where('key_name', 'wallet_growth_mode')->value('key_value') ?? 'percentage';
-        $frequency     = ApiKeySetting::where('key_name', 'wallet_growth_freq')->value('key_value') ?? 'daily';
+        $growthEnabled = 'true';
+        $growthRate    = '0.10';
+        $growthMode    = 'percentage';
+        $frequency     = 'daily';
+
+        if (Schema::hasTable('api_key_settings')) {
+            $growthEnabled = ApiKeySetting::where('key_name', 'wallet_growth_enabled')->value('key_value') ?? 'true';
+            $growthRate    = ApiKeySetting::where('key_name', 'wallet_growth_rate')->value('key_value') ?? '0.10';
+            $growthMode    = ApiKeySetting::where('key_name', 'wallet_growth_mode')->value('key_value') ?? 'percentage';
+            $frequency     = ApiKeySetting::where('key_name', 'wallet_growth_freq')->value('key_value') ?? 'daily';
+        }
 
         return view('wallet.growth', compact('growthEnabled', 'growthRate', 'growthMode', 'frequency'));
     }
 
     public function update(Request $request)
     {
+        if (!Schema::hasTable('api_key_settings')) {
+            Artisan::call('migrate', ['--force' => true]);
+        }
+
         ApiKeySetting::updateOrCreate(
             ['key_name' => 'wallet_growth_enabled'],
             ['group' => 'wallet', 'provider' => 'growth', 'key_value' => $request->has('enabled') ? 'true' : 'false', 'is_active' => true]
