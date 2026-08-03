@@ -2,281 +2,322 @@
 
 @section('content')
 <style>
-    .referral-container {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    .referral-admin-wrapper {
+        padding: 20px;
+        background-color: #f8fafc;
+        min-height: 100vh;
     }
-    .nav-tabs-custom {
-        border-bottom: 2px solid #EFECE4;
-        gap: 8px;
-    }
-    .nav-tabs-custom .nav-link {
-        border: none;
-        border-bottom: 3px solid transparent;
-        color: #555;
-        font-weight: 600;
-        font-size: 14px;
-        padding: 10px 20px;
-        border-radius: 8px 8px 0 0;
-        transition: all 0.2s ease;
-    }
-    .nav-tabs-custom .nav-link.active {
-        color: #00A859 !important;
-        border-bottom-color: #00A859 !important;
-        background-color: rgba(0, 168, 89, 0.05);
-    }
-    .btn-green-submit {
-        background-color: #00A859;
-        color: #fff;
-        font-weight: 700;
-        border-radius: 20px;
-        padding: 8px 24px;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0, 168, 89, 0.25);
-    }
-    .btn-green-submit:hover {
-        background-color: #008D4A;
-        color: #fff;
-    }
-    .pill-switch {
-        background: #F0F2F5;
-        border-radius: 25px;
-        padding: 4px;
-        display: inline-flex;
-    }
-    .pill-switch button {
-        border: none;
-        padding: 8px 24px;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 13px;
-        background: transparent;
-        color: #666;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .pill-switch button.active {
-        background: #00A859;
-        color: white;
-        box-shadow: 0 2px 6px rgba(0, 168, 89, 0.3);
-    }
-    .metric-card {
+    .ref-card {
         background: #ffffff;
         border-radius: 12px;
-        padding: 16px;
-        border: 1px solid #EFECE4;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 24px;
+        overflow: hidden;
     }
-    .custom-switch-green .custom-control-input:checked ~ .custom-control-label::before {
-        background-color: #00A859 !important;
-        border-color: #00A859 !important;
+    .ref-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #ffffff;
+    }
+    .ref-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    .ref-tabs-bar {
+        display: flex;
+        gap: 12px;
+        border-bottom: 2px solid #e2e8f0;
+        margin-top: 16px;
+    }
+    .ref-tab-item {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #64748b;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s ease;
+        text-decoration: none !important;
+    }
+    .ref-tab-item:hover {
+        color: #00A859;
+    }
+    .ref-tab-item.active {
+        color: #00A859;
+        border-bottom-color: #00A859;
+        background-color: rgba(0, 168, 89, 0.04);
+        border-radius: 6px 6px 0 0;
+    }
+    .ref-tab-content {
+        padding: 24px;
+    }
+    .mode-btn-group {
+        display: inline-flex;
+        background: #f1f5f9;
+        padding: 4px;
+        border-radius: 30px;
+    }
+    .mode-btn {
+        border: none;
+        padding: 8px 24px;
+        border-radius: 25px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #64748b;
+        background: transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .mode-btn.active {
+        background: #00A859;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 168, 89, 0.3);
+    }
+    .btn-save-green {
+        background-color: #00A859;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 10px 28px;
+        border-radius: 25px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 168, 89, 0.25);
+        transition: all 0.2s;
+    }
+    .btn-save-green:hover {
+        background-color: #008D4A;
+        color: #ffffff;
+    }
+    .stat-box {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+    }
+    .switch-toggle {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+    }
+    .switch-toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #cbd5e1;
+        transition: .3s;
+        border-radius: 24px;
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+    }
+    input:checked + .slider {
+        background-color: #00A859;
+    }
+    input:checked + .slider:before {
+        transform: translateX(20px);
     }
 </style>
 
-<div class="page-wrapper referral-container">
-    <div class="container-fluid pt-3">
-        <!-- Header -->
-        <div class="d-flex align-items-center justify-content-between mb-3">
-            <div>
-                <h3 class="font-weight-bold mb-1" style="color: #1A1A1A;">
-                    <i class="mdi mdi-share-variant text-success mr-2"></i>Referral & Earn – Admin Panel
-                </h3>
-                <p class="text-muted small mb-0">Configure ecosystem reward rules, event triggers, service percentages, and track live referral logs.</p>
-            </div>
-        </div>
+<div class="page-wrapper referral-admin-wrapper">
+    <div class="container-fluid">
 
+        <!-- Notification Alert -->
         @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" style="border-radius: 10px; background-color: #E8F8F0; color: #008D4A;">
-                <i class="mdi mdi-check-circle mr-1"></i> {{ session('success') }}
+            <div class="alert alert-success alert-dismissible fade show border-0 mb-4" style="border-radius: 10px; background-color: #e6f4ea; color: #137333;">
+                <i class="fa fa-check-circle mr-2"></i> {{ session('success') }}
                 <button type="button" class="close" data-dismiss="alert">&times;</button>
             </div>
         @endif
 
-        <!-- Single Page Main Tabs Navigation -->
-        <ul class="nav nav-tabs nav-tabs-custom mb-4" id="referralTabs" role="tablist">
-            <li class="nav-item">
-                <a class="nav-link active" id="reward-settings-tab" data-toggle="tab" href="#reward-settings" role="tab">Reward Settings</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="event-rules-tab" data-toggle="tab" href="#event-rules" role="tab">Event Rules</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="service-rewards-tab" data-toggle="tab" href="#service-rewards" role="tab">Service-wise Rewards</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" id="reports-tab" data-toggle="tab" href="#reports" role="tab">Reports & Earnings Log</a>
-            </li>
-        </ul>
+        <div class="ref-card">
+            <!-- Header & Main Tabs Navigation -->
+            <div class="ref-header">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h1 class="ref-title"><i class="fa fa-share-alt text-success mr-2"></i> Referral & Earn – Admin Panel</h1>
+                        <p class="text-muted small mb-0 mt-1">Configure automated referral rewards, event rules, service percentages, and live performance reports.</p>
+                    </div>
+                </div>
 
-        <!-- Single Page Tab Content -->
-        <div class="tab-content" id="referralTabsContent">
+                <div class="ref-tabs-bar">
+                    <div class="ref-tab-item active" onclick="openReferralTab('reward-settings', this)">Reward Settings</div>
+                    <div class="ref-tab-item" onclick="openReferralTab('event-rules', this)">Event Rules</div>
+                    <div class="ref-tab-item" onclick="openReferralTab('service-rewards', this)">Service-wise Rewards</div>
+                    <div class="ref-tab-item" onclick="openReferralTab('reports-logs', this)">Reports & Earnings Log</div>
+                </div>
+            </div>
 
             <!-- TAB 1: REWARD SETTINGS -->
-            <div class="tab-pane fade show active" id="reward-settings" role="tabpanel">
-                <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                    <h5 class="font-weight-bold text-dark mb-4">Reward Mode</h5>
-                    <form action="{{ route('referral.update') }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="reward_mode" id="reward_mode_input" value="{{ $rewardMode }}">
+            <div id="reward-settings" class="ref-tab-content" style="display: block;">
+                <h4 class="font-weight-bold text-dark mb-4">Reward Mode Configuration</h4>
+                
+                <form action="{{ route('referral.update') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="reward_mode" id="reward_mode_field" value="{{ $rewardMode }}">
 
-                        <div class="mb-4">
-                            <div class="pill-switch">
-                                <button type="button" class="{{ $rewardMode === 'percentage' ? 'active' : '' }}" onclick="selectRewardMode('percentage')">Percentage</button>
-                                <button type="button" class="{{ $rewardMode === 'flat' ? 'active' : '' }}" onclick="selectRewardMode('flat')">Flat Amount</button>
+                    <div class="form-group mb-4">
+                        <label class="d-block font-weight-bold text-muted small uppercase">Select Reward Type</label>
+                        <div class="mode-btn-group">
+                            <button type="button" id="btn_mode_percentage" class="mode-btn {{ $rewardMode === 'percentage' ? 'active' : '' }}" onclick="setRewardType('percentage')">Percentage</button>
+                            <button type="button" id="btn_mode_flat" class="mode-btn {{ $rewardMode === 'flat' ? 'active' : '' }}" onclick="setRewardType('flat')">Flat Amount</button>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 form-group mb-4">
+                            <label class="font-weight-bold small text-muted">Percentage Value (%)</label>
+                            <div class="input-group">
+                                <input type="text" name="reward_value" class="form-control form-control-lg" value="{{ $rewardValue }}" placeholder="1.0">
+                                <div class="input-group-append"><span class="input-group-text">%</span></div>
                             </div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="font-weight-bold small text-muted">Percentage Value / Reward Rate</label>
-                                <div class="input-group">
-                                    <input type="text" name="reward_value" class="form-control form-control-lg border-right-0" value="{{ $rewardValue }}" style="border-radius: 10px 0 0 10px;">
-                                    <div class="input-group-append">
-                                        <span class="input-group-text bg-white border-left-0" style="border-radius: 0 10px 10px 0;">%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="font-weight-bold small text-muted">Minimum Reward Amount</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text bg-white border-right-0" style="border-radius: 10px 0 0 10px;">₹</span>
-                                    </div>
-                                    <input type="text" name="reward_min" class="form-control form-control-lg border-left-0" value="{{ $rewardMin }}" style="border-radius: 0 10px 10px 0;">
-                                </div>
+                        <div class="col-md-6 form-group mb-4">
+                            <label class="font-weight-bold small text-muted">Minimum Reward (₹)</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                <input type="text" name="reward_min" class="form-control form-control-lg" value="{{ $rewardMin }}" placeholder="1">
                             </div>
                         </div>
+                    </div>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-green-submit">Save Settings</button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn-save-green">Save Settings</button>
+                    </div>
+                </form>
             </div>
 
             <!-- TAB 2: EVENT RULES -->
-            <div class="tab-pane fade" id="event-rules" role="tabpanel">
-                <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                    <h5 class="font-weight-bold text-dark mb-3">Referral Event Rules</h5>
-                    <form action="{{ route('referral.update') }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="event_rules_submit" value="1">
-                        
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead style="background-color: #F8F9FA;">
-                                    <tr>
-                                        <th class="font-weight-bold border-0">Event</th>
-                                        <th class="font-weight-bold border-0 text-center">Enable</th>
-                                        <th class="font-weight-bold border-0">Reward Type</th>
-                                        <th class="font-weight-bold border-0">Value</th>
-                                        <th class="font-weight-bold border-0 text-center">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($eventRules as $key => $rule)
-                                    <tr>
-                                        <td class="font-weight-bold text-dark">{{ $rule['name'] }}</td>
-                                        <td class="text-center">
-                                            <div class="custom-control custom-switch custom-switch-green">
-                                                <input type="checkbox" class="custom-control-input" id="switch_{{ $key }}" name="event_{{ $key }}_enable" value="1" {{ $rule['enable'] == '1' ? 'checked' : '' }}>
-                                                <label class="custom-control-label" for="switch_{{ $key }}"></label>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-light font-weight-bold px-3 py-2 text-dark">{{ ucfirst($rule['type']) }}</span>
-                                        </td>
-                                        <td>
-                                            <input type="text" name="event_{{ $key }}_val" class="form-control form-control-sm font-weight-bold" style="width: 100px; border-radius: 6px;" value="{{ $rule['val'] }}">
-                                        </td>
-                                        <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-light text-primary font-weight-bold"><i class="mdi mdi-pencil"></i></button>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+            <div id="event-rules" class="ref-tab-content" style="display: none;">
+                <h4 class="font-weight-bold text-dark mb-3">Referral Event Triggers & Rules</h4>
 
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-green-submit">Save Rules</button>
-                        </div>
-                    </form>
-                </div>
+                <form action="{{ route('referral.update') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="event_rules_submit" value="1">
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="font-weight-bold">Event</th>
+                                    <th class="font-weight-bold text-center">Enable</th>
+                                    <th class="font-weight-bold">Reward Type</th>
+                                    <th class="font-weight-bold">Value</th>
+                                    <th class="font-weight-bold text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($eventRules as $key => $rule)
+                                <tr>
+                                    <td class="font-weight-bold text-dark">{{ $rule['name'] }}</td>
+                                    <td class="text-center">
+                                        <label class="switch-toggle">
+                                            <input type="checkbox" name="event_{{ $key }}_enable" value="1" {{ $rule['enable'] == '1' ? 'checked' : '' }}>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-light font-weight-bold px-3 py-2 text-dark">{{ ucfirst($rule['type']) }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="event_{{ $key }}_val" class="form-control form-control-sm font-weight-bold" style="width: 110px;" value="{{ $rule['val'] }}">
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-edit"></i> Edit</button>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn-save-green">Save Rules</button>
+                    </div>
+                </form>
             </div>
 
             <!-- TAB 3: SERVICE-WISE REWARDS -->
-            <div class="tab-pane fade" id="service-rewards" role="tabpanel">
-                <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <h5 class="font-weight-bold text-dark mb-0">Service-wise Rewards (Admin)</h5>
+            <div id="service-rewards" class="ref-tab-content" style="display: none;">
+                <h4 class="font-weight-bold text-dark mb-3">Service-wise Reward Configuration (Admin)</h4>
+
+                <form action="{{ route('referral.update') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="service_rewards_submit" value="1">
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="font-weight-bold">Service / Activity</th>
+                                    <th class="font-weight-bold">Reward Type</th>
+                                    <th class="font-weight-bold">Value</th>
+                                    <th class="font-weight-bold text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($consumerServices as $key => $srv)
+                                <tr>
+                                    <td class="font-weight-bold text-dark">{{ $srv['name'] }}</td>
+                                    <td><span class="badge badge-light font-weight-bold px-3 py-2 text-dark">{{ $srv['type'] }}</span></td>
+                                    <td>
+                                        <input type="text" name="srv_{{ $key }}_val" class="form-control form-control-sm font-weight-bold" style="width: 110px;" value="{{ $srv['val'] }}">
+                                    </td>
+                                    <td class="text-center">
+                                        <label class="switch-toggle">
+                                            <input type="checkbox" name="srv_{{ $key }}_status" value="1" {{ $srv['status'] == '1' ? 'checked' : '' }}>
+                                            <span class="slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
 
-                    <!-- Service Sub Tabs -->
-                    <ul class="nav nav-pills mb-4 gap-2" id="serviceSubTabs">
-                        <li class="nav-item">
-                            <a class="nav-link active bg-success text-white font-weight-bold rounded-pill px-3 py-1 mr-2" href="#">Consumer Services</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-muted font-weight-bold px-3 py-1 mr-2" href="#">Business Services</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-muted font-weight-bold px-3 py-1 mr-2" href="#">Marketplace</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-muted font-weight-bold px-3 py-1" href="#">Other</a>
-                        </li>
-                    </ul>
-
-                    <form action="{{ route('referral.update') }}" method="POST">
-                        @csrf
-                        <input type="hidden" name="service_rewards_submit" value="1">
-
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead style="background-color: #F8F9FA;">
-                                    <tr>
-                                        <th class="font-weight-bold border-0">Service / Activity</th>
-                                        <th class="font-weight-bold border-0">Reward Type</th>
-                                        <th class="font-weight-bold border-0">Value</th>
-                                        <th class="font-weight-bold border-0 text-center">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($consumerServices as $key => $srv)
-                                    <tr>
-                                        <td class="font-weight-bold text-dark">{{ $srv['name'] }}</td>
-                                        <td><span class="badge badge-light font-weight-bold px-3 py-2 text-dark">{{ $srv['type'] }}</span></td>
-                                        <td>
-                                            <input type="text" name="srv_{{ $key }}_val" class="form-control form-control-sm font-weight-bold" style="width: 100px; border-radius: 6px;" value="{{ $srv['val'] }}">
-                                        </td>
-                                        <td class="text-center">
-                                            <div class="custom-control custom-switch custom-switch-green">
-                                                <input type="checkbox" class="custom-control-input" id="srv_switch_{{ $key }}" name="srv_{{ $key }}_status" value="1" {{ $srv['status'] == '1' ? 'checked' : '' }}>
-                                                <label class="custom-control-label" for="srv_switch_{{ $key }}"></label>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-green-submit">Save Settings</button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="mt-4">
+                        <button type="submit" class="btn-save-green">Save Settings</button>
+                    </div>
+                </form>
             </div>
 
             <!-- TAB 4: REPORTS & EARNINGS LOG -->
-            <div class="tab-pane fade" id="reports" role="tabpanel">
-                <!-- Top Metric Cards Grid (Matching Screenshots 1 & 3) -->
+            <div id="reports-logs" class="ref-tab-content" style="display: none;">
+                <!-- Summary Metrics (Matching Screenshots 1 & 3) -->
                 <div class="row mb-4">
                     <div class="col-md-3 mb-3">
-                        <div class="metric-card d-flex align-items-center">
-                            <div class="rounded-circle p-3 mr-3" style="background: rgba(0, 168, 89, 0.15); color: #00A859;">
-                                <i class="mdi mdi-account-group mdi-24px"></i>
-                            </div>
+                        <div class="stat-box">
+                            <div class="stat-icon" style="background: rgba(0, 168, 89, 0.15); color: #00A859;"><i class="fa fa-users"></i></div>
                             <div>
                                 <small class="text-muted font-weight-bold d-block">Total Referrals</small>
                                 <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalReferrals) }}</h3>
@@ -284,10 +325,8 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="metric-card d-flex align-items-center">
-                            <div class="rounded-circle p-3 mr-3" style="background: rgba(40, 167, 69, 0.15); color: #28a745;">
-                                <i class="mdi mdi-download mdi-24px"></i>
-                            </div>
+                        <div class="stat-box">
+                            <div class="stat-icon" style="background: rgba(40, 167, 69, 0.15); color: #28a745;"><i class="fa fa-download"></i></div>
                             <div>
                                 <small class="text-muted font-weight-bold d-block">Installed</small>
                                 <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalInstalled) }}</h3>
@@ -295,10 +334,8 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="metric-card d-flex align-items-center">
-                            <div class="rounded-circle p-3 mr-3" style="background: rgba(23, 162, 184, 0.15); color: #17a2b8;">
-                                <i class="mdi mdi-check-circle mdi-24px"></i>
-                            </div>
+                        <div class="stat-box">
+                            <div class="stat-icon" style="background: rgba(23, 162, 184, 0.15); color: #17a2b8;"><i class="fa fa-user-plus"></i></div>
                             <div>
                                 <small class="text-muted font-weight-bold d-block">Registered</small>
                                 <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalRegistered) }}</h3>
@@ -306,10 +343,8 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="metric-card d-flex align-items-center">
-                            <div class="rounded-circle p-3 mr-3" style="background: rgba(0, 123, 255, 0.15); color: #007bff;">
-                                <i class="mdi mdi-shield-check mdi-24px"></i>
-                            </div>
+                        <div class="stat-box">
+                            <div class="stat-icon" style="background: rgba(0, 123, 255, 0.15); color: #007bff;"><i class="fa fa-check-circle"></i></div>
                             <div>
                                 <small class="text-muted font-weight-bold d-block">Verified</small>
                                 <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalVerified) }}</h3>
@@ -320,54 +355,53 @@
 
                 <div class="row mb-4">
                     <div class="col-md-4 mb-3">
-                        <div class="metric-card">
-                            <small class="text-muted font-weight-bold d-block">Consumer Users</small>
-                            <h4 class="font-weight-bold text-dark mb-0 mt-1">{{ number_format($consumerUsers) }}</h4>
+                        <div class="stat-box">
+                            <div>
+                                <small class="text-muted font-weight-bold d-block">Consumer Users</small>
+                                <h4 class="font-weight-bold text-dark mb-0 mt-1">{{ number_format($consumerUsers) }}</h4>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <div class="metric-card">
-                            <small class="text-muted font-weight-bold d-block">Business Users</small>
-                            <h4 class="font-weight-bold text-dark mb-0 mt-1">{{ number_format($businessUsers) }}</h4>
+                        <div class="stat-box">
+                            <div>
+                                <small class="text-muted font-weight-bold d-block">Business Users</small>
+                                <h4 class="font-weight-bold text-dark mb-0 mt-1">{{ number_format($businessUsers) }}</h4>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <div class="metric-card">
-                            <small class="text-muted font-weight-bold d-block">Total Referral Income</small>
-                            <h4 class="font-weight-bold text-success mb-0 mt-1">₹{{ number_format($totalReferralIncome, 2) }}</h4>
+                        <div class="stat-box">
+                            <div>
+                                <small class="text-muted font-weight-bold d-block">Total Referral Income Paid</small>
+                                <h4 class="font-weight-bold text-success mb-0 mt-1">₹{{ number_format($totalReferralIncome, 2) }}</h4>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Recent Earnings Log Table -->
-                <div class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <h5 class="font-weight-bold text-dark mb-0">Recent Referral Earnings Log</h5>
-                        <button class="btn btn-sm btn-outline-success font-weight-bold rounded-pill">Export Report</button>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead style="background-color: #F8F9FA;">
-                                <tr>
-                                    <th class="font-weight-bold border-0">Service / Activity</th>
-                                    <th class="font-weight-bold border-0">User Type</th>
-                                    <th class="font-weight-bold border-0">Reward Amount</th>
-                                    <th class="font-weight-bold border-0">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($earningsLogs as $log)
-                                <tr>
-                                    <td class="font-weight-bold text-dark">{{ $log['activity'] }}</td>
-                                    <td><span class="badge badge-soft-primary px-3 py-1 font-weight-bold">{{ $log['type'] }}</span></td>
-                                    <td class="font-weight-bold text-success">{{ $log['amount'] }}</td>
-                                    <td class="small text-muted">{{ $log['date'] }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+                <!-- Earnings Table -->
+                <div class="table-responsive mt-3">
+                    <table class="table table-hover align-middle">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="font-weight-bold">Activity / User</th>
+                                <th class="font-weight-bold">User Type</th>
+                                <th class="font-weight-bold">Reward Paid</th>
+                                <th class="font-weight-bold">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($earningsLogs as $log)
+                            <tr>
+                                <td class="font-weight-bold text-dark">{{ $log['activity'] }}</td>
+                                <td><span class="badge badge-info px-3 py-1 font-weight-bold">{{ $log['type'] }}</span></td>
+                                <td class="font-weight-bold text-success">{{ $log['amount'] }}</td>
+                                <td class="small text-muted">{{ $log['date'] }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -376,14 +410,32 @@
 </div>
 
 <script>
-    function selectRewardMode(mode) {
-        document.getElementById('reward_mode_input').value = mode;
-        const buttons = document.querySelectorAll('.pill-switch button');
-        buttons.forEach(btn => btn.classList.remove('active'));
-        if (mode === 'percentage') {
-            buttons[0].classList.add('active');
+    function openReferralTab(tabId, el) {
+        // Hide all tab content divs
+        var contents = document.getElementsByClassName('ref-tab-content');
+        for (var i = 0; i < contents.length; i++) {
+            contents[i].style.display = 'none';
+        }
+
+        // Remove active class from all tabs
+        var tabItems = document.getElementsByClassName('ref-tab-item');
+        for (var j = 0; j < tabItems.length; j++) {
+            tabItems[j].classList.remove('active');
+        }
+
+        // Show selected tab content and highlight tab
+        document.getElementById(tabId).style.display = 'block';
+        el.classList.add('active');
+    }
+
+    function setRewardType(type) {
+        document.getElementById('reward_mode_field').value = type;
+        document.getElementById('btn_mode_percentage').classList.remove('active');
+        document.getElementById('btn_mode_flat').classList.remove('active');
+        if (type === 'percentage') {
+            document.getElementById('btn_mode_percentage').classList.add('active');
         } else {
-            buttons[1].classList.add('active');
+            document.getElementById('btn_mode_flat').classList.add('active');
         }
     }
 </script>
