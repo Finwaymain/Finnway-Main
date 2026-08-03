@@ -904,3 +904,25 @@ Route::get('/export/{type}/{model}', [App\Http\Controllers\ExportController::cla
 
 Route::get('/logs', [App\Http\Controllers\LogsController::class, 'index'])->name('logs');
 Route::get('/logs/clear', [App\Http\Controllers\LogsController::class, 'clear'])->name('logs.clear');
+
+// ── Dynamic API Keys ────────────────────────────────────────────────────────
+Route::get('/administration_tools/api-keys', [App\Http\Controllers\ApiKeySettingController::class, 'index'])->name('api-keys.index');
+Route::post('/administration_tools/api-keys/store', [App\Http\Controllers\ApiKeySettingController::class, 'storeOrUpdate'])->name('api-keys.store');
+Route::post('/administration_tools/api-keys/toggle', [App\Http\Controllers\ApiKeySettingController::class, 'toggleStatus'])->name('api-keys.toggle');
+
+// ── Wallet Growth Engine ───────────────────────────────────────────────────
+Route::get('/wallet-growth', [App\Http\Controllers\WalletGrowthController::class, 'index'])->name('wallet-growth.index');
+Route::post('/wallet-growth/update', [App\Http\Controllers\WalletGrowthController::class, 'update'])->name('wallet-growth.update');
+Route::post('/wallet-growth/run', [App\Http\Controllers\WalletGrowthController::class, 'runManualGrowth'])->name('wallet-growth.run');
+
+// ── Referral Engine ────────────────────────────────────────────────────────
+Route::get('/referral-engine', [App\Http\Controllers\ReferralRewardController::class, 'index'])->name('referral.index');
+Route::post('/referral-engine/update', [App\Http\Controllers\ReferralRewardController::class, 'update'])->name('referral.update');
+
+// ── Invoice Download ───────────────────────────────────────────────────────
+Route::get('/invoice/{id}/download', [App\Http\Controllers\InvoiceController::class, 'downloadInvoice'])->name('invoice.download');
+
+// ── Campaigns ──────────────────────────────────────────────────────────────
+Route::get('/campaigns', [App\Http\Controllers\CampaignController::class, 'index'])->name('campaigns.index');
+Route::post('/campaigns/send', [App\Http\Controllers\CampaignController::class, 'sendCampaign'])->name('campaigns.send');
+

@@ -759,6 +759,18 @@ Route::get('v1/service-history', [\App\Http\Controllers\API\v1\ServiceRequestAPI
 Route::get('v1/home-services', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getHomeServices']);
 Route::get('v1/service-categories', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getServiceCategories']);
 
+// ── Dynamic Public API Keys Endpoint ──────────────────────────────────────
+Route::get('v1/app-settings/keys', function() {
+    $keys = \App\Models\ApiKeySetting::where('is_active', true)->get()->mapWithKeys(function($item) {
+        return [$item->key_name => $item->key_value];
+    });
+    return response()->json(['success' => true, 'data' => $keys]);
+});
+
+// ── Unified Timeline API ──────────────────────────────────────────────────
+Route::get('v1/history/timeline', [\App\Http\Controllers\API\v1\UnifiedTimelineController::class, 'getTimeline']);
+
+
 
 
 
