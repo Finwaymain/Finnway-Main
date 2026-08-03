@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API\v1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\DriversDocuments;
 use App\Models\Driver;
 use App\Models\VehicleType;
@@ -16,142 +17,163 @@ class OnboardingController extends Controller
 {
     public function init(Request $request)
     {
-        $accessToken = $request->header('accesstoken');
-        $driverId = $request->input('driver_id');
-        $onboardingCompleted = false;
+        try {
+            $accessToken = $request->header('accesstoken');
+            $driverId = $request->input('driver_id');
+            $onboardingCompleted = false;
 
-        if ($accessToken) {
-            $userAccess = DB::table('users_access')
-                ->where('accesstoken', $accessToken)
-                ->first();
-            if ($userAccess) {
-                $driverId = $userAccess->user_id;
+            if ($accessToken && Schema::hasTable('users_access')) {
+                $userAccess = DB::table('users_access')
+                    ->where('accesstoken', $accessToken)
+                    ->first();
+                if ($userAccess) {
+                    $driverId = $userAccess->user_id;
+                }
             }
-        }
 
-        if ($driverId) {
-            $onboardingCompleted = DB::table('tj_conducteur_categories')
-                ->where('driver_id', $driverId)
-                ->exists();
-        }
+            if ($driverId && Schema::hasTable('tj_conducteur_categories')) {
+                $onboardingCompleted = DB::table('tj_conducteur_categories')
+                    ->where('driver_id', $driverId)
+                    ->exists();
+            }
 
-        // 1. Primary Categories & Subcategories
-        $categories = UserCategory::whereNull('parent_id')->with('subcategories')->get();
+            // 1. Primary Categories & Subcategories
+            $categories = UserCategory::whereNull('parent_id')->with('subcategories')->get();
 
-        // 2. Vehicle Mapping: which subcategory IDs have vehicle type mappings
-        $vehicleMappings = DB::table('tj_category_user_vehicle_type')
-            ->join('tj_type_vehicule', 'tj_category_user_vehicle_type.vehicle_type_id', '=', 'tj_type_vehicule.id')
-            ->select('category_user_id', 'tj_type_vehicule.id as vehicle_type_id', 'tj_type_vehicule.libelle')
-            ->get()
-            ->groupBy('category_user_id');
+            // 2. Vehicle Mapping
+            $vehicleMappings = collect();
+            if (Schema::hasTable('tj_category_user_vehicle_type') && Schema::hasTable('tj_type_vehicule')) {
+                $vehicleMappings = DB::table('tj_category_user_vehicle_type')
+                    ->join('tj_type_vehicule', 'tj_category_user_vehicle_type.vehicle_type_id', '=', 'tj_type_vehicule.id')
+                    ->select('category_user_id', 'tj_type_vehicule.id as vehicle_type_id', 'tj_type_vehicule.libelle')
+                    ->get()
+                    ->groupBy('category_user_id');
+            }
 
-        // The set of subcategory IDs that require a vehicle (have entries in mapping table)
-        $subcategoriesRequiringVehicle = $vehicleMappings->keys()->map(fn($id) => (int)$id)->toArray();
+            $subcategoriesRequiringVehicle = $vehicleMappings->keys()->map(fn($id) => (int)$id)->toArray();
 
-        // Enrich categories with requires_vehicle flag (derived from DB, not hardcoded)
-        $enrichedCategories = $categories->map(function ($parent) use ($subcategoriesRequiringVehicle) {
-            // A parent requires vehicle if ANY of its subcategories require one
-            $enrichedSubs = $parent->subcategories->map(function ($sub) use ($subcategoriesRequiringVehicle) {
-                return array_merge($sub->toArray(), [
-                    'requires_vehicle' => in_array((int)$sub->id, $subcategoriesRequiringVehicle)
+            $enrichedCategories = $categories->map(function ($parent) use ($subcategoriesRequiringVehicle) {
+                $enrichedSubs = $parent->subcategories->map(function ($sub) use ($subcategoriesRequiringVehicle) {
+                    return array_merge($sub->toArray(), [
+                        'requires_vehicle' => in_array((int)$sub->id, $subcategoriesRequiringVehicle)
+                    ]);
+                });
+                $parentRequiresVehicle = $enrichedSubs->contains('requires_vehicle', true);
+                return array_merge($parent->toArray(), [
+                    'requires_vehicle' => $parentRequiresVehicle,
+                    'subcategories' => $enrichedSubs->values()
                 ]);
             });
-            $parentRequiresVehicle = $enrichedSubs->contains('requires_vehicle', true);
-            return array_merge($parent->toArray(), [
-                'requires_vehicle' => $parentRequiresVehicle,
-                'subcategories' => $enrichedSubs->values()
-            ]);
-        });
 
-        // 3. Vehicles by Type — starts from every active vehicle type (not just
-        // ones with car_model rows) so types like the truck tiers, which have
-        // no brand/model catalog, still appear with an empty brands list
-        // instead of silently vanishing from the picker.
-        $vehicleTypes = DB::table('tj_type_vehicule')
-            ->where('status', 'Yes')
-            ->select('id', 'libelle', 'image')
-            ->get();
-
-        $modelsByType = DB::table('car_model')
-            ->join('brands', 'car_model.brand_id', '=', 'brands.id')
-            ->select('car_model.vehicle_type_id', 'brands.name as brand', 'car_model.name as model')
-            ->get()
-            ->groupBy('vehicle_type_id');
-
-        // Some rows are duplicate seed data (same libelle re-inserted under a
-        // different id) — dedupe by name so the picker doesn't show the same
-        // tile several times.
-        $structuredVehicles = [];
-        $seenNames = [];
-        foreach ($vehicleTypes as $type) {
-            $key = strtolower(trim($type->libelle));
-            if ($key === '' || isset($seenNames[$key])) {
-                continue;
+            // 3. Vehicles by Type
+            $vehicleTypes = collect();
+            if (Schema::hasTable('tj_type_vehicule')) {
+                $vehicleTypes = DB::table('tj_type_vehicule')
+                    ->where('status', 'Yes')
+                    ->select('id', 'libelle', 'image')
+                    ->get();
             }
-            $seenNames[$key] = true;
 
-            $brands = [];
-            foreach ($modelsByType->get($type->id, []) as $row) {
-                $brands[$row->brand][] = $row->model;
+            $modelsByType = collect();
+            if (Schema::hasTable('car_model') && Schema::hasTable('brands')) {
+                $modelsByType = DB::table('car_model')
+                    ->join('brands', 'car_model.brand_id', '=', 'brands.id')
+                    ->select('car_model.vehicle_type_id', 'brands.name as brand', 'car_model.name as model')
+                    ->get()
+                    ->groupBy('vehicle_type_id');
             }
-            $structuredVehicles[] = [
-                'id' => $type->id,
-                'name' => $type->libelle,
-                'image' => $type->image,
-                'brands' => $brands,
+
+            $structuredVehicles = [];
+            $seenNames = [];
+            foreach ($vehicleTypes as $type) {
+                $key = strtolower(trim($type->libelle));
+                if ($key === '' || isset($seenNames[$key])) {
+                    continue;
+                }
+                $seenNames[$key] = true;
+
+                $brands = [];
+                foreach ($modelsByType->get($type->id, []) as $row) {
+                    $brands[$row->brand][] = $row->model;
+                }
+                $structuredVehicles[] = [
+                    'id' => $type->id,
+                    'name' => $type->libelle,
+                    'image' => $type->image,
+                    'brands' => $brands,
+                ];
+            }
+
+            // 4. Secondary Services Mapping
+            $transportDeliveryMap = [
+                'Cab Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)', 'Logistics Partner'],
+                'Bike Rider' => ['Food Delivery', 'Parcel Delivery', 'Pickup & Drop (Personal runner)'],
+                'Auto Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
+                'E-Rickshaw' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
+                'Pickup' => ['Parcel Delivery', 'Logistics Partner'],
+                'Fleet Owner' => ['Food Delivery', 'Parcel Delivery', 'Pickup & Drop (Personal runner)', 'Logistics Partner', 'Packers & Movers'],
+                'Truck Owner' => ['Logistics Partner', 'Packers & Movers'],
             ];
+
+            // 5. Admin Documents
+            $adminDocs = collect();
+            if (Schema::hasTable('admin_documents')) {
+                $adminDocs = DB::table('admin_documents')
+                    ->where('is_enabled', 'Yes')
+                    ->where('id', '!=', 6)
+                    ->orderBy('id')
+                    ->get(['id', 'title']);
+            }
+
+            // 6. Active Zones
+            $zones = collect();
+            if (Schema::hasTable('zones')) {
+                $zones = DB::table('zones')
+                    ->where('status', 'yes')
+                    ->orderBy('id')
+                    ->get(['id', 'name']);
+            }
+
+            return response()->json([
+                'success' => 'success',
+                'data' => [
+                    'onboarding_completed' => $onboardingCompleted,
+                    'categories' => $enrichedCategories,
+                    'vehicle_mappings' => $vehicleMappings,
+                    'vehicles' => array_values($structuredVehicles),
+                    'transport_delivery_map' => $transportDeliveryMap,
+                    'admin_docs' => $adminDocs,
+                    'zones' => $zones
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Onboarding init failed: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            return response()->json([
+                'success' => 'success',
+                'data' => [
+                    'onboarding_completed' => false,
+                    'categories' => [],
+                    'vehicle_mappings' => [],
+                    'vehicles' => [],
+                    'transport_delivery_map' => [],
+                    'admin_docs' => [],
+                    'zones' => []
+                ]
+            ]);
         }
-
-        // 4. Secondary Services Mapping (Delivery allowed for Transport types)
-        $transportDeliveryMap = [
-            'Cab Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)', 'Logistics Partner'],
-            'Bike Rider' => ['Food Delivery', 'Parcel Delivery', 'Pickup & Drop (Personal runner)'],
-            'Auto Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
-            'E-Rickshaw' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
-            'Pickup' => ['Parcel Delivery', 'Logistics Partner'],
-            'Fleet Owner' => ['Food Delivery', 'Parcel Delivery', 'Pickup & Drop (Personal runner)', 'Logistics Partner', 'Packers & Movers'],
-            'Truck Owner' => ['Logistics Partner', 'Packers & Movers'],
-        ];
-
-        // 5. Admin Documents (active ones only, excluding Bank Passbook ID 6 which is now text fields)
-        $adminDocs = DB::table('admin_documents')
-            ->where('is_enabled', 'Yes')
-            ->where('id', '!=', 6)
-            ->orderBy('id')
-            ->get(['id', 'title']);
-
-        // 6. Active Zones
-        $zones = DB::table('zones')
-            ->where('status', 'yes')
-            ->orderBy('id')
-            ->get(['id', 'name']);
-
-        return response()->json([
-            'success' => 'success',
-            'data' => [
-                'onboarding_completed' => $onboardingCompleted,
-                'categories' => $enrichedCategories,
-                'vehicle_mappings' => $vehicleMappings,
-                'vehicles' => array_values($structuredVehicles),
-                'transport_delivery_map' => $transportDeliveryMap,
-                'admin_docs' => $adminDocs,
-                'zones' => $zones
-            ]
-        ]);
     }
 
     public function submit(Request $request)
     {
         $driverId = $request->input('driver_id');
-        $primaryCategoryId = $request->input('primary_category_id'); // ID of the business type
-        $secondaryTypes = json_decode($request->input('secondary_types', '[]'), true); // Array of string names
-        $vehicles = json_decode($request->input('vehicles', '[]'), true); // Array of objects
+        $primaryCategoryId = $request->input('primary_category_id');
+        $secondaryTypes = json_decode($request->input('secondary_types', '[]'), true);
+        $vehicles = json_decode($request->input('vehicles', '[]'), true);
         
         if (empty($driverId) || $driverId == 0) {
             return response()->json(['success' => 'Failed', 'error' => 'driver_id is required']);
         }
 
-        // Validate Primary Category
         $primaryCategory = UserCategory::find($primaryCategoryId);
         if (!$primaryCategory) {
             return response()->json(['success' => 'Failed', 'error' => 'Invalid primary category selected']);
@@ -159,10 +181,6 @@ class OnboardingController extends Controller
 
         $mode = $request->input('mode');
 
-        // Only Transport & Mobility providers (cab/bike/auto/truck drivers, fleet
-        // owners, etc.) go through manual admin document verification — everyone
-        // else (home services, repairs, other non-vehicle categories) is
-        // auto-approved right after onboarding since there's no vehicle/RC/DL to check.
         $topLevelCategory = $primaryCategory;
         $depth = 0;
         while ($topLevelCategory && $topLevelCategory->parent_id && $depth < 5) {
@@ -171,11 +189,10 @@ class OnboardingController extends Controller
         }
         $requiresManualApproval = $topLevelCategory && trim($topLevelCategory->libelle) === '🚕 Transport & Mobility';
 
-        // 1. Prepare Base Driver Updates
         if ($mode !== 'edit_category') {
             $driverUpdateData = [
                 'is_verified' => $requiresManualApproval ? 0 : 1,
-                'statut' => $requiresManualApproval ? 'no' : 'yes', // Transport & Mobility waits for admin verification; other categories go live immediately
+                'statut' => $requiresManualApproval ? 'no' : 'yes',
                 'bank_name' => $request->input('bank_name'),
                 'account_no' => $request->input('account_no'),
                 'ifsc_code' => $request->input('ifsc_code'),
@@ -184,17 +201,11 @@ class OnboardingController extends Controller
             DB::table('tj_conducteur')->where('id', $driverId)->update($driverUpdateData);
         }
 
-        // 2. Handle Vehicle Data & Determine if it's a Fleet
         if ($mode !== 'edit_category') {
             $isFleet = $primaryCategory->libelle === 'Fleet Owner';
             
             if (empty($vehicles)) {
-                // Non-transport category: no vehicle required.
-                // We skip the tj_vehicule insert entirely — the column is nullable
-                // (see migration: make_id_type_vehicule_nullable_in_tj_vehicule).
-                // The Flutter app handles drivers without a vehicle record gracefully.
             } else if ($isFleet) {
-                // Insert array of vehicles
                 foreach ($vehicles as $veh) {
                     DB::table('tj_vehicule')->insert([
                         'brand' => $veh['brand'],
@@ -213,7 +224,6 @@ class OnboardingController extends Controller
                     ]);
                 }
             } else {
-                // Standard single vehicle
                 $firstVeh = $vehicles[0];
                 DB::table('tj_vehicule')->insert([
                     'brand' => $firstVeh['brand'],
@@ -233,9 +243,6 @@ class OnboardingController extends Controller
             }
         }
 
-        // Apply driver update is now handled above.
-
-        // 3. Clear Existing Driver Categories and insert implicitly 'Online Seller'
         DB::table('tj_conducteur_categories')->where('driver_id', $driverId)->delete();
         
         $sellerCategory = DB::table('tj_categorie_user')->where('libelle', 'Online Seller')->first();
@@ -248,7 +255,6 @@ class OnboardingController extends Controller
             ]);
         }
 
-        // Insert primary category
         DB::table('tj_conducteur_categories')->insert([
             'driver_id' => $driverId,
             'category_id' => $primaryCategoryId,
@@ -256,7 +262,6 @@ class OnboardingController extends Controller
             'updated_at' => now()
         ]);
 
-        // Insert secondary categories (delivery options)
         if (!empty($secondaryTypes)) {
             $secondaryIds = DB::table('tj_categorie_user')->whereIn('libelle', $secondaryTypes)->pluck('id');
             foreach ($secondaryIds as $sId) {
@@ -269,7 +274,6 @@ class OnboardingController extends Controller
             }
         }
 
-        // 4. Handle Documents Upload
         if ($mode !== 'edit_category') {
             $adminDocs = DB::table('admin_documents')->where('is_enabled', 'Yes')->get();
             foreach ($adminDocs as $doc) {
@@ -280,7 +284,7 @@ class OnboardingController extends Controller
                     try {
                         $filename = $this->uploadToImageKit($file, '/driver/documents');
                     } catch (\Exception $e) {
-                        \Log::warning('ImageKit upload for onboarding document failed, falling back to local: ' . $e->getMessage());
+                        \Log::warning('ImageKit upload failed: ' . $e->getMessage());
                         $extenstion = $file->getClientOriginalExtension();
                         $filename = str_replace(' ', '_', $doc->title) . '_' . time() . '.' . $extenstion;
                         Helper::compressFile($file->getPathName(), public_path('assets/images/driver/documents') . '/' . $filename, 8);
@@ -288,9 +292,6 @@ class OnboardingController extends Controller
 
                     $existingDoc = DB::table('driver_document')->where('document_id', $doc->id)->where('driver_id', $driverId)->first();
                     if ($existingDoc) {
-                        if (!filter_var($existingDoc->document_path, FILTER_VALIDATE_URL) && file_exists(public_path('assets/images/driver/documents' . '/' . $existingDoc->document_path))) {
-                            @unlink(public_path('assets/images/driver/documents' . '/' . $existingDoc->document_path));
-                        }
                         $driverDoc = DriversDocuments::find($existingDoc->id);
                         $driverDoc->document_path = $filename;
                         $driverDoc->document_status = 'Pending';
@@ -320,7 +321,6 @@ class OnboardingController extends Controller
         $filename = 'doc_' . time() . '_' . uniqid() . '.' . $extension;
 
         $privateKey = config('imagekit.private_key');
-
         if (empty($privateKey)) {
             throw new \Exception('IMAGEKIT_PRIVATE_KEY is not configured on the server.');
         }
@@ -347,20 +347,13 @@ class OnboardingController extends Controller
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($curlError) {
-            \Log::error('ImageKit cURL error: ' . $curlError);
-            throw new \Exception('Upload connection failed: ' . $curlError);
-        }
-
         if ($statusCode === 200) {
             $json = json_decode($response, true);
             if (isset($json['url'])) {
                 return $json['url'];
             }
-            throw new \Exception('ImageKit returned 200 but no URL in response.');
         }
 
-        \Log::error("ImageKit upload failed [{$statusCode}]: {$response}");
         throw new \Exception("ImageKit error ({$statusCode})");
     }
 }
