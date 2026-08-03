@@ -99,52 +99,34 @@ class AppFeatureAPIController extends Controller
             $driver = DB::table('tj_conducteur')->where('id', $driverId)->first();
         }
 
-        $referralCode = $driver->code_referral ?? ('FIIN' . ($driverId ? str_pad($driverId, 4, '0', STR_PAD_LEFT) : '12345'));
-        $bizReferralCode = 'BIZ' . ($driverId ? str_pad($driverId, 4, '0', STR_PAD_LEFT) : '12345');
-        
-        $referralLink = 'https://fiinway.app/r/' . $referralCode;
-        $bizReferralLink = 'https://fiinway.app/r/' . $bizReferralCode;
+        $referralCode = $driver->code_referral ?? ('FIIN' . ($driverId ? str_pad($driverId, 4, '0', STR_PAD_LEFT) : '8829'));
+        $referralLink = 'https://fiinway.online/r/' . $referralCode;
 
         $walletBalance = (float)($driver->amount ?? 0.0);
 
-        $consumerReferrals = 0;
-        $consumerActive = 0;
-        $consumerEarnings = 0.0;
+        $totalReferrals = 0;
+        $activeUsers = 0;
+        $earnings = 0.0;
 
         if ($driverId && Schema::hasTable('tj_user_app')) {
-            $consumerReferrals = DB::table('tj_user_app')->where('referral_code', $referralCode)->count();
-            $consumerActive = DB::table('tj_user_app')->where('referral_code', $referralCode)->where('statut', 'yes')->count();
-            $consumerEarnings = $consumerActive * 50.00;
-        }
-
-        $bizReferrals = 0;
-        $bizActive = 0;
-        $bizPartners = 0;
-        $bizEarnings = 0.0;
-
-        if (Schema::hasTable('tj_conducteur')) {
-            $bizPartners = DB::table('tj_conducteur')->count();
+            $totalReferrals = DB::table('tj_user_app')->where('referral_code', $referralCode)->count();
+            if (Schema::hasColumn('tj_user_app', 'statut')) {
+                $activeUsers = DB::table('tj_user_app')->where('referral_code', $referralCode)->where('statut', 'yes')->count();
+            } else {
+                $activeUsers = $totalReferrals;
+            }
+            $earnings = $activeUsers * 50.00;
         }
 
         return response()->json([
             'success' => 'success',
             'data' => [
-                'consumer' => [
-                    'referral_code' => $referralCode,
-                    'referral_link' => $referralLink,
-                    'total_referrals' => $consumerReferrals > 0 ? $consumerReferrals : 125,
-                    'earnings' => $consumerEarnings > 0 ? '₹' . number_format($consumerEarnings, 0) : '₹18,750',
-                    'wallet_balance' => '₹' . number_format($walletBalance > 0 ? $walletBalance : 3250, 0),
-                    'active_users' => $consumerActive > 0 ? $consumerActive : 80,
-                ],
-                'business' => [
-                    'referral_code' => $bizReferralCode,
-                    'referral_link' => $bizReferralLink,
-                    'total_referrals' => 98,
-                    'earnings' => '₹12,540',
-                    'active_users' => 52,
-                    'business_users' => $bizPartners > 0 ? $bizPartners : 28,
-                ]
+                'referral_code' => $referralCode,
+                'referral_link' => $referralLink,
+                'total_referrals' => $totalReferrals,
+                'earnings' => '₹' . number_format($earnings, 2),
+                'wallet_balance' => '₹' . number_format($walletBalance, 2),
+                'active_users' => $activeUsers,
             ]
         ]);
     }
