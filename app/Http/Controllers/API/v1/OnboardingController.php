@@ -13,8 +13,13 @@ use App\Models\UserCategory;
 use App\Models\CarModel;
 use App\Helpers\Helper;
 
-class OnboardingController extends Controller
+class OnBoardingController extends Controller
 {
+    public function getData(Request $request)
+    {
+        return $this->init($request);
+    }
+
     public function init(Request $request)
     {
         try {
