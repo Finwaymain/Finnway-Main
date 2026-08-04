@@ -704,6 +704,10 @@ Route::get('service-requests/show/{id}', [App\Http\Controllers\ServiceRequestCon
 Route::get('home-services', [App\Http\Controllers\HomeServiceController::class, 'index'])->name('home_services.index');
 Route::get('home-services/create', [App\Http\Controllers\HomeServiceController::class, 'create'])->name('home_services.create');
 Route::post('home-services', [App\Http\Controllers\HomeServiceController::class, 'store'])->name('home_services.store');
+Route::get('home-services/skills/{parentId}', [App\Http\Controllers\HomeServiceController::class, 'getSkills'])->name('home_services.getSkills');
+Route::get('home-services/sub-skills/{skillId}', [App\Http\Controllers\HomeServiceController::class, 'getSubSkills'])->name('home_services.getSubSkills');
+Route::post('home-services/skill', [App\Http\Controllers\HomeServiceController::class, 'storeSkill'])->name('home_services.storeSkill');
+Route::post('home-services/sub-skill', [App\Http\Controllers\HomeServiceController::class, 'storeSubSkill'])->name('home_services.storeSubSkill');
 Route::get('home-services/edit/{id}', [App\Http\Controllers\HomeServiceController::class, 'edit'])->name('home_services.edit');
 Route::post('home-services/update/{id}', [App\Http\Controllers\HomeServiceController::class, 'update'])->name('home_services.update');
 Route::post('home-services/toggle/{id}', [App\Http\Controllers\HomeServiceController::class, 'toggleStatus'])->name('home_services.toggleStatus');

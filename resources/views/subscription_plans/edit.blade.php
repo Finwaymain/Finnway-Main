@@ -89,7 +89,7 @@
     outline: none;
 }
 
-/* Category Checkbox Pills (Screenshot 3 style) */
+/* Category Checkbox Pills (Admin Blue Theme) */
 .category-pill {
     display: inline-flex;
     align-items: center;
@@ -107,18 +107,18 @@
     margin-right: 10px;
     margin-bottom: 12px;
 }
-.category-pill:hover { border-color: #16a34a; background: #f0fdf4; }
+.category-pill:hover { border-color: #2563eb; background: #eff6ff; }
 .category-pill.active {
-    background: #ffffff;
-    border-color: #16a34a;
-    color: #0f172a;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+    box-shadow: 0 1px 3px rgba(37,99,235,0.1);
 }
 .category-pill .check-box-icon {
     width: 20px;
     height: 20px;
     border-radius: 5px;
-    background: #16a34a;
+    background: #2563eb;
     color: #ffffff;
     display: inline-flex;
     align-items: center;
@@ -130,7 +130,7 @@
     color: transparent;
 }
 
-/* Switch Element */
+/* Switch Element (Admin Blue Theme) */
 .switch-label {
     position: relative;
     display: inline-block;
@@ -149,7 +149,7 @@
     background-color: white; transition: .2s ease; border-radius: 50%;
     box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
-.switch-label input:checked + .switch-slider { background-color: #16a34a; }
+.switch-label input:checked + .switch-slider { background-color: #2563eb; }
 .switch-label input:checked + .switch-slider:before { transform: translateX(22px); }
 
 /* Option box */
@@ -333,7 +333,7 @@
                 </div>
             </div>
 
-            <!-- Section 2: Business Categories & Free Orders Quotas (Screenshot 3) -->
+            <!-- Section 2: Business Categories & Free Orders Quotas (Admin Blue Theme) -->
             @php
                 $fixedCategories = [
                     'Cab Driver',
@@ -352,12 +352,12 @@
                         <div class="icon-badge"><i class="mdi mdi-shape-outline"></i></div>
                         <h5>Business Categories & Free Orders</h5>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-success font-weight-bold" onclick="applyToAllCategories(true)">
+                    <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold" onclick="applyToAllCategories(true)">
                         Apply To All
                     </button>
                 </div>
                 <div class="section-body">
-                    <!-- Search Input (Screenshot 3 style) -->
+                    <!-- Search Input -->
                     <div class="mb-3">
                         <div class="input-group" style="max-width: 450px;">
                             <div class="input-group-prepend"><span class="input-group-text bg-white border-right-0"><i class="fa fa-search text-muted"></i></span></div>
@@ -365,7 +365,7 @@
                         </div>
                     </div>
 
-                    <!-- Category Pills -->
+                    <!-- Category Pills (Admin Blue Theme) -->
                     <div class="d-flex flex-wrap align-items-center mb-4" id="categoryPillContainer">
                         @foreach($fixedCategories as $cat)
                         <div class="category-pill active" onclick="toggleCategoryPill(this, '{{ $cat }}')">
@@ -378,14 +378,14 @@
 
                     <!-- Free Orders / Rides Per Category Settings -->
                     <div class="border-top pt-3">
-                        <label class="form-label-custom mb-2"><i class="mdi mdi-ticket-percent text-success mr-1"></i>Free Orders / Rides Limit per Category (When User Buys Plan)</label>
+                        <label class="form-label-custom mb-2"><i class="mdi mdi-ticket-percent text-primary mr-1"></i>Free Orders / Rides Limit per Category (When User Buys Plan)</label>
                         <p class="text-muted small mb-3">Set how many free bookings/orders a provider gets for each category under this plan:</p>
 
                         <div class="row" id="freeOrdersContainer">
                             @foreach($fixedCategories as $cat)
                             <div class="col-md-6 col-lg-4 mb-2 category-free-order-item" id="free_order_item_{{ Str::slug($cat) }}">
                                 <div class="category-free-order-row">
-                                    <span class="font-weight-bold text-dark small"><i class="mdi mdi-check-circle text-success mr-1"></i>{{ $cat }}</span>
+                                    <span class="font-weight-bold text-dark small"><i class="mdi mdi-check-circle text-primary mr-1"></i>{{ $cat }}</span>
                                     <div class="input-group input-group-sm" style="width:130px;">
                                         <input type="number" name="category_free_orders[{{ $cat }}]" class="form-control form-control-custom text-center font-weight-bold" min="0" value="{{ $subscriptionPlan->free_ride_limit ?? 150 }}" placeholder="Orders">
                                         <div class="input-group-append"><span class="input-group-text small">free</span></div>
@@ -398,9 +398,9 @@
                 </div>
             </div>
 
-            <!-- Section 3: Service Discount & Interest-Free Loan Cards (Screenshots 1 & 2) -->
+            <!-- Section 3: Service Discount & Interest-Free Loan Cards (Admin Blue Theme) -->
             <div class="row">
-                <!-- Screenshot 1: Service Discount Card -->
+                <!-- Service Discount Card -->
                 <div class="col-md-6 mb-3">
                     <div class="section-card h-100">
                         <div class="section-header">
@@ -468,7 +468,7 @@
                     </div>
                 </div>
 
-                <!-- Screenshot 2: Interest-Free Loan Card -->
+                <!-- Interest-Free Loan Card -->
                 <div class="col-md-6 mb-3">
                     <div class="section-card h-100">
                         <div class="section-header">
@@ -535,7 +535,7 @@
                         @endphp
                         @foreach($pts as $pt)
                         <div class="point-row d-flex align-items-center gap-2">
-                            <i class="mdi mdi-check text-success mr-2"></i>
+                            <i class="mdi mdi-check text-primary mr-2"></i>
                             <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" value="{{ $pt }}">
                             <button type="button" class="btn btn-sm text-danger ml-auto" onclick="removePoint(this)"><i class="fa fa-trash"></i></button>
                         </div>
@@ -577,7 +577,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <div class="p-3 bg-light border rounded">
-                                <span class="form-label-custom mb-2"><i class="mdi mdi-arrow-down-bold-circle text-success mr-1"></i>Receiver Cashback</span>
+                                <span class="form-label-custom mb-2"><i class="mdi mdi-arrow-down-bold-circle text-primary mr-1"></i>Receiver Cashback</span>
                                 <div class="row">
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Type</label>
@@ -669,7 +669,7 @@ function applyToAllCategories(select) {
 function addPoint() {
     const html = `
     <div class="point-row d-flex align-items-center gap-2">
-        <i class="mdi mdi-check text-success mr-2"></i>
+        <i class="mdi mdi-check text-primary mr-2"></i>
         <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" placeholder="Enter key benefit text...">
         <button type="button" class="btn btn-sm text-danger ml-auto" onclick="removePoint(this)"><i class="fa fa-trash"></i></button>
     </div>`;
