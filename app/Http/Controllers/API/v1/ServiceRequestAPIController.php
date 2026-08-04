@@ -118,8 +118,7 @@ class ServiceRequestAPIController extends Controller
         $parentId = $request->input('parent_id');
 
         $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
-            ->where('statut', true)
-            ->where('type', 'consumer_service');
+            ->where('statut', true);
 
         $query = $parentId ? $query->where('parent_id', $parentId) : $query->whereNull('parent_id');
 
