@@ -12,6 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         // 1. tj_currency
+        if (!Schema::hasTable('tj_currency')) {
         Schema::create('tj_currency', function (Blueprint $table) {
             $table->id();
             $table->string('libelle')->nullable();
@@ -23,8 +24,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->softDeletes();
         });
+        }
 
         // 2. tj_type_vehicule
+        if (!Schema::hasTable('tj_type_vehicule')) {
         Schema::create('tj_type_vehicule', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
             $table->string('libelle')->nullable();
@@ -36,8 +39,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->softDeletes();
         });
+        }
 
         // 3. tj_settings
+        if (!Schema::hasTable('tj_settings')) {
         Schema::create('tj_settings', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -54,8 +59,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 4. tj_conducteur
+        if (!Schema::hasTable('tj_conducteur')) {
         Schema::create('tj_conducteur', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
             $table->string('nom')->nullable();
@@ -80,8 +87,10 @@ return new class extends Migration
             $table->integer('is_verified')->nullable();
             $table->string('alternate_phone')->nullable();
         });
+        }
 
         // 5. tj_vehicule
+        if (!Schema::hasTable('tj_vehicule')) {
         Schema::create('tj_vehicule', function (Blueprint $table) {
             $table->id();
             $table->string('brand')->nullable();
@@ -98,8 +107,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 6. tj_payment_method
+        if (!Schema::hasTable('tj_payment_method')) {
         Schema::create('tj_payment_method', function (Blueprint $table) {
             $table->id();
             $table->string('libelle')->nullable();
@@ -108,8 +119,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 7. tj_user_app
+        if (!Schema::hasTable('tj_user_app')) {
         Schema::create('tj_user_app', function (Blueprint $table) {
             $table->id();
             $table->string('nom')->nullable();
@@ -136,8 +149,10 @@ return new class extends Migration
             $table->string('gender')->nullable();
             $table->string('alternate_phone')->nullable();
         });
+        }
 
         // 8. tj_requete
+        if (!Schema::hasTable('tj_requete')) {
         Schema::create('tj_requete', function (Blueprint $table) {
             $table->id();
             $table->string('id_user_app')->nullable();
@@ -179,8 +194,10 @@ return new class extends Migration
             $table->dateTime('otp_created')->nullable();
             $table->softDeletes();
         });
+        }
 
         // 9. brands
+        if (!Schema::hasTable('brands')) {
         Schema::create('brands', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -188,8 +205,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->timestamps();
         });
+        }
 
         // 10. car_model
+        if (!Schema::hasTable('car_model')) {
         Schema::create('car_model', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -202,8 +221,10 @@ return new class extends Migration
             $table->foreign('brand_id')->references('id')->on('brands')->onDelete('cascade');
             $table->foreign('vehicle_type_id')->references('id')->on('tj_type_vehicule')->onDelete('cascade');
         });
+        }
 
         // 11. users_access
+        if (!Schema::hasTable('users_access')) {
         Schema::create('users_access', function (Blueprint $table) {
             $table->id();
             $table->string('user_id')->nullable();
@@ -213,8 +234,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->timestamps();
         });
+        }
 
         // 12. admin_notification
+        if (!Schema::hasTable('admin_notification')) {
         Schema::create('admin_notification', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -222,8 +245,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 13. banners
+        if (!Schema::hasTable('banners')) {
         Schema::create('banners', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -234,8 +259,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->timestamps();
         });
+        }
 
         // 14. dispatcher_booking
+        if (!Schema::hasTable('dispatcher_booking')) {
         Schema::create('dispatcher_booking', function (Blueprint $table) {
             $table->id();
             $table->string('id_user_app')->nullable();
@@ -245,8 +272,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->timestamps();
         });
+        }
 
         // 15. tj_cms
+        if (!Schema::hasTable('tj_cms')) {
         Schema::create('tj_cms', function (Blueprint $table) {
             $table->id();
             $table->string('page_name')->nullable();
@@ -256,8 +285,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 16. tj_commission
+        if (!Schema::hasTable('tj_commission')) {
         Schema::create('tj_commission', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -267,8 +298,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 17. tj_complaints
+        if (!Schema::hasTable('tj_complaints')) {
         Schema::create('tj_complaints', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -279,8 +312,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 18. tj_country
+        if (!Schema::hasTable('tj_country')) {
         Schema::create('tj_country', function (Blueprint $table) {
             $table->id();
             $table->string('libelle')->nullable();
@@ -289,8 +324,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 19. delivery_charges
+        if (!Schema::hasTable('delivery_charges')) {
         Schema::create('delivery_charges', function (Blueprint $table) {
             $table->id();
             $table->string('from_distance')->nullable();
@@ -299,8 +336,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 20. tj_discount
+        if (!Schema::hasTable('tj_discount')) {
         Schema::create('tj_discount', function (Blueprint $table) {
             $table->id();
             $table->string('code')->nullable();
@@ -310,8 +349,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 21. dispatcher_user
+        if (!Schema::hasTable('dispatcher_user')) {
         Schema::create('dispatcher_user', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -321,8 +362,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 22. admin_documents
+        if (!Schema::hasTable('admin_documents')) {
         Schema::create('admin_documents', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -331,8 +374,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 23. tj_conducteur_transaction
+        if (!Schema::hasTable('tj_conducteur_transaction')) {
         Schema::create('tj_conducteur_transaction', function (Blueprint $table) {
             $table->id();
             $table->string('id_conducteur')->nullable();
@@ -342,8 +387,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 24. driver_document
+        if (!Schema::hasTable('driver_document')) {
         Schema::create('driver_document', function (Blueprint $table) {
             $table->id();
             $table->string('driver_id')->nullable();
@@ -352,8 +399,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 25. email_template
+        if (!Schema::hasTable('email_template')) {
         Schema::create('email_template', function (Blueprint $table) {
             $table->id();
             $table->string('subject')->nullable();
@@ -362,8 +411,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 26. tj_favorite_ride
+        if (!Schema::hasTable('tj_favorite_ride')) {
         Schema::create('tj_favorite_ride', function (Blueprint $table) {
             $table->id();
             $table->string('id_user_app')->nullable();
@@ -373,8 +424,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 27. home_services
+        if (!Schema::hasTable('home_services')) {
         Schema::create('home_services', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
@@ -382,8 +435,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 28. landing_page_templates
+        if (!Schema::hasTable('landing_page_templates')) {
         Schema::create('landing_page_templates', function (Blueprint $table) {
             $table->id();
             $table->string('section_name')->nullable();
@@ -391,8 +446,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 29. tj_message
+        if (!Schema::hasTable('tj_message')) {
         Schema::create('tj_message', function (Blueprint $table) {
             $table->id();
             $table->text('message')->nullable();
@@ -403,8 +460,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 30. tj_note
+        if (!Schema::hasTable('tj_note')) {
         Schema::create('tj_note', function (Blueprint $table) {
             $table->id();
             $table->string('niveau')->nullable();
@@ -417,8 +476,10 @@ return new class extends Migration
             $table->string('ride_id')->nullable();
             $table->string('parcel_id')->nullable();
         });
+        }
 
         // 31. tj_notification
+        if (!Schema::hasTable('tj_notification')) {
         Schema::create('tj_notification', function (Blueprint $table) {
             $table->id();
             $table->string('to_id')->nullable();
@@ -430,8 +491,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 32. on_boardings
+        if (!Schema::hasTable('on_boardings')) {
         Schema::create('on_boardings', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -440,8 +503,10 @@ return new class extends Migration
             $table->string('image')->nullable();
             $table->timestamps();
         });
+        }
 
         // 33. parcel_category
+        if (!Schema::hasTable('parcel_category')) {
         Schema::create('parcel_category', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
@@ -449,8 +514,10 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 34. parcel_orders
+        if (!Schema::hasTable('parcel_orders')) {
         Schema::create('parcel_orders', function (Blueprint $table) {
             $table->id();
             $table->string('id_user_app')->nullable();
@@ -493,15 +560,19 @@ return new class extends Migration
             $table->string('tip')->nullable();
             $table->timestamps();
         });
+        }
 
         // 35. payment_settings
+        if (!Schema::hasTable('payment_settings')) {
         Schema::create('payment_settings', function (Blueprint $table) {
             $table->id();
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 36. tj_recu
+        if (!Schema::hasTable('tj_recu')) {
         Schema::create('tj_recu', function (Blueprint $table) {
             $table->id();
             $table->string('image')->nullable();
@@ -515,16 +586,20 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 37. referral
+        if (!Schema::hasTable('referral')) {
         Schema::create('referral', function (Blueprint $table) {
             $table->id();
             $table->string('referral_by_id')->nullable();
             $table->string('referral_code')->nullable();
             $table->dateTime('creer')->nullable();
         });
+        }
 
         // 38. tj_type_vehicule_rental
+        if (!Schema::hasTable('tj_type_vehicule_rental')) {
         Schema::create('tj_type_vehicule_rental', function (Blueprint $table) {
             $table->id();
             $table->string('libelle')->nullable();
@@ -533,8 +608,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 39. tj_requete_book
+        if (!Schema::hasTable('tj_requete_book')) {
         Schema::create('tj_requete_book', function (Blueprint $table) {
             $table->id();
             $table->string('id_user_app')->nullable();
@@ -563,8 +640,10 @@ return new class extends Migration
             $table->string('statut_round')->nullable();
             $table->string('heure_retour')->nullable();
         });
+        }
 
         // 40. tj_sos
+        if (!Schema::hasTable('tj_sos')) {
         Schema::create('tj_sos', function (Blueprint $table) {
             $table->id();
             $table->string('ride_id')->nullable();
@@ -572,8 +651,10 @@ return new class extends Migration
             $table->string('longitude')->nullable();
             $table->timestamps();
         });
+        }
 
         // 41. subscription_history
+        if (!Schema::hasTable('subscription_history')) {
         Schema::create('subscription_history', function (Blueprint $table) {
             $table->id();
             $table->string('expiry_date')->nullable();
@@ -583,8 +664,10 @@ return new class extends Migration
             $table->string('subscriptionPlanId')->nullable();
             $table->timestamps();
         });
+        }
 
         // 42. subscription_plans
+        if (!Schema::hasTable('subscription_plans')) {
         Schema::create('subscription_plans', function (Blueprint $table) {
             $table->id();
             $table->integer('bookingLimit')->nullable();
@@ -599,8 +682,10 @@ return new class extends Migration
             $table->string('type')->nullable();
             $table->timestamps();
         });
+        }
 
         // 43. tj_tax
+        if (!Schema::hasTable('tj_tax')) {
         Schema::create('tj_tax', function (Blueprint $table) {
             $table->id();
             $table->string('libelle')->nullable();
@@ -611,16 +696,20 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 44. tj_terms_and_conditions
+        if (!Schema::hasTable('tj_terms_and_conditions')) {
         Schema::create('tj_terms_and_conditions', function (Blueprint $table) {
             $table->id();
             $table->text('terms')->nullable();
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 45. tj_transaction
+        if (!Schema::hasTable('tj_transaction')) {
         Schema::create('tj_transaction', function (Blueprint $table) {
             $table->id();
             $table->string('amount')->nullable();
@@ -628,8 +717,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 46. tj_user_note
+        if (!Schema::hasTable('tj_user_note')) {
         Schema::create('tj_user_note', function (Blueprint $table) {
             $table->id();
             $table->string('niveau_driver')->nullable();
@@ -640,8 +731,10 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->text('comment')->nullable();
         });
+        }
 
         // 47. tj_user
+        if (!Schema::hasTable('tj_user')) {
         Schema::create('tj_user', function (Blueprint $table) {
             $table->id();
             $table->string('nom_prenom')->nullable();
@@ -652,8 +745,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 48. tj_location_vehicule
+        if (!Schema::hasTable('tj_location_vehicule')) {
         Schema::create('tj_location_vehicule', function (Blueprint $table) {
             $table->id();
             $table->string('nb_jour')->nullable();
@@ -667,8 +762,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 49. tj_vehicule_rental
+        if (!Schema::hasTable('tj_vehicule_rental')) {
         Schema::create('tj_vehicule_rental', function (Blueprint $table) {
             $table->id();
             $table->string('nombre')->nullable();
@@ -680,8 +777,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 50. tj_vehicule_service_book
+        if (!Schema::hasTable('tj_vehicule_service_book')) {
         Schema::create('tj_vehicule_service_book', function (Blueprint $table) {
             $table->id();
             $table->string('id_conducteur')->nullable();
@@ -692,8 +791,10 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 51. withdrawals
+        if (!Schema::hasTable('withdrawals')) {
         Schema::create('withdrawals', function (Blueprint $table) {
             $table->id();
             $table->string('amount')->nullable();
@@ -703,24 +804,30 @@ return new class extends Migration
             $table->dateTime('modifier')->nullable();
             $table->timestamps();
         });
+        }
 
         // 52. language
+        if (!Schema::hasTable('language')) {
         Schema::create('language', function (Blueprint $table) {
             $table->id();
             $table->string('language')->nullable();
             $table->string('status')->nullable();
             $table->timestamps();
         });
+        }
 
         // 53. tj_privacy_policy
+        if (!Schema::hasTable('tj_privacy_policy')) {
         Schema::create('tj_privacy_policy', function (Blueprint $table) {
             $table->id();
             $table->text('privacy_policy')->nullable();
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
 
         // 54. tj_vehicle_images
+        if (!Schema::hasTable('tj_vehicle_images')) {
         Schema::create('tj_vehicle_images', function (Blueprint $table) {
             $table->id();
             $table->string('id_vehicle')->nullable();
@@ -730,6 +837,7 @@ return new class extends Migration
             $table->dateTime('creer')->nullable();
             $table->dateTime('modifier')->nullable();
         });
+        }
     }
 
     /**
