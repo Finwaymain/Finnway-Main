@@ -89,57 +89,52 @@
     outline: none;
 }
 
-/* Parent Category Tabs */
-.parent-cat-tab {
-    padding: 8px 18px;
-    border-radius: 20px;
-    background: #f1f5f9;
-    color: #475569;
-    font-weight: 600;
-    font-size: 0.85rem;
-    border: 1px solid #cbd5e1;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    user-select: none;
-}
-.parent-cat-tab.active {
-    background: #2563eb;
-    color: #ffffff;
-    border-color: #2563eb;
-    box-shadow: 0 2px 6px rgba(37,99,235,0.2);
-}
-
-/* Sub Category Checkbox Pills */
-.sub-cat-pill {
+/* Category Checkbox Pills (Screenshot 3 style) */
+.category-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     background: #ffffff;
     border: 1.5px solid #cbd5e1;
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 0.85rem;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.875rem;
     font-weight: 600;
-    color: #334155;
+    color: #1e293b;
     cursor: pointer;
     user-select: none;
     transition: all 0.15s ease;
-    margin-right: 8px;
-    margin-bottom: 10px;
+    margin-right: 10px;
+    margin-bottom: 12px;
 }
-.sub-cat-pill:hover { border-color: #2563eb; background: #f8fafc; }
-.sub-cat-pill.active { background: #eff6ff; border-color: #2563eb; color: #1d4ed8; }
-.sub-cat-pill .check-icon {
-    width: 16px; height: 16px; border-radius: 50%;
-    background: #2563eb; color: #fff; display: inline-flex;
-    align-items: center; justify-content: center; font-size: 9px;
+.category-pill:hover { border-color: #16a34a; background: #f0fdf4; }
+.category-pill.active {
+    background: #ffffff;
+    border-color: #16a34a;
+    color: #0f172a;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.category-pill .check-box-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    background: #16a34a;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+}
+.category-pill:not(.active) .check-box-icon {
+    background: #e2e8f0;
+    color: transparent;
 }
 
 /* Switch Element */
 .switch-label {
     position: relative;
     display: inline-block;
-    width: 44px;
+    width: 46px;
     height: 24px;
     margin: 0;
     vertical-align: middle;
@@ -154,8 +149,8 @@
     background-color: white; transition: .2s ease; border-radius: 50%;
     box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
-.switch-label input:checked + .switch-slider { background-color: #2563eb; }
-.switch-label input:checked + .switch-slider:before { transform: translateX(20px); }
+.switch-label input:checked + .switch-slider { background-color: #16a34a; }
+.switch-label input:checked + .switch-slider:before { transform: translateX(22px); }
 
 /* Option box */
 .prof-option-box {
@@ -170,15 +165,19 @@
 .prof-option-box .opt-title { font-weight: 600; font-size: 0.875rem; color: #1e293b; margin: 0; }
 .prof-option-box .opt-sub { font-size: 0.75rem; color: #64748b; margin: 2px 0 0 0; }
 
-.discount-row-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 10px;
+.discount-item-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+.discount-item-row:last-child { border-bottom: none; }
+.discount-item-row label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
 }
 
 .btn-primary-custom {
@@ -215,25 +214,15 @@
     margin-bottom: 8px;
 }
 
-/* Service Matrix Table */
-.matrix-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.matrix-table th {
+.category-free-order-row {
     background: #f8fafc;
-    color: #0f172a;
-    font-weight: 700;
-    font-size: 0.85rem;
-    padding: 12px 16px;
-    border-bottom: 2px solid #e2e8f0;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-.matrix-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 </style>
 
@@ -244,7 +233,7 @@
         <div class="page-header-card d-flex align-items-center justify-content-between">
             <div>
                 <h3><i class="mdi mdi-pencil-box-outline text-primary mr-2"></i>Edit Business Plan</h3>
-                <p>Modify subscription details, permissions, cashback rates, and limits.</p>
+                <p>Modify plan pricing, category access, free order quotas, discounts, and loan features.</p>
             </div>
             <a href="{{ url('subscription-plans') }}" class="btn btn-light-custom btn-sm">
                 <i class="fa fa-arrow-left mr-1"></i> Back to Plans
@@ -263,39 +252,27 @@
         <form action="{{ route('subscription-plans.update', $subscriptionPlan->id) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
+            <input type="hidden" name="order" value="{{ $subscriptionPlan->place ?? 1 }}">
+            <input type="hidden" name="set_booking_limit" value="{{ $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited' }}">
 
-            <!-- Section 1: Plan Tier -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-layers-outline"></i></div>
-                        <h5>Plan Tier</h5>
-                    </div>
-                </div>
-                <div class="section-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label-custom">Select Plan Tier <span class="text-danger">*</span></label>
-                            <select name="plan_tier" class="form-control form-control-custom">
-                                <option value="basic" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? 'basic') === 'basic' ? 'selected' : '' }}>Basic — Starter business features</option>
-                                <option value="professional" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? '') === 'professional' ? 'selected' : '' }}>Professional — Standard features & limits</option>
-                                <option value="premium_plus" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? '') === 'premium_plus' ? 'selected' : '' }}>Premium Plus — Maximum benefits & quotas</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Section 2: Basic Details -->
+            <!-- Section 1: Plan Tier & Basic Details -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
                         <div class="icon-badge"><i class="mdi mdi-information-outline"></i></div>
-                        <h5>Basic Information</h5>
+                        <h5>Basic Plan Details</h5>
                     </div>
                 </div>
                 <div class="section-body">
                     <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label-custom">Select Plan Tier <span class="text-danger">*</span></label>
+                            <select name="plan_tier" class="form-control form-control-custom">
+                                <option value="basic" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? 'basic') === 'basic' ? 'selected' : '' }}>Basic Plan — Starter business features</option>
+                                <option value="professional" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? '') === 'professional' ? 'selected' : '' }}>Professional Plan — Recommended</option>
+                                <option value="premium_plus" {{ old('plan_tier', $subscriptionPlan->plan_tier ?? '') === 'premium_plus' ? 'selected' : '' }}>Premium Plus — Maximum benefits</option>
+                            </select>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Plan Name <span class="text-danger">*</span></label>
                             <input type="text" name="planName" class="form-control form-control-custom" placeholder="e.g. Professional Plan" value="{{ old('planName', $subscriptionPlan->name) }}" required>
@@ -307,15 +284,15 @@
                                 <option value="paid" {{ old('planType', $subscriptionPlan->type) == 'paid' ? 'selected' : '' }}>Paid Plan</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="row align-items-center">
                         <div class="col-md-4 mb-3 plan_price_div {{ old('planType', $subscriptionPlan->type) == 'paid' ? '' : 'd-none' }}">
                             <label class="form-label-custom">Plan Price <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                <input type="number" name="planPrice" class="form-control form-control-custom" placeholder="0.00" min="0" step="0.01" value="{{ old('planPrice', $subscriptionPlan->price) }}">
+                                <input type="number" name="planPrice" class="form-control form-control-custom" placeholder="2500" min="0" step="0.01" value="{{ old('planPrice', $subscriptionPlan->price) }}">
                             </div>
                         </div>
-                    </div>
-                    <div class="row align-items-center">
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Validity Period</label>
                             <select name="plan_validity_days" id="validityTypeSelect" class="form-control form-control-custom">
@@ -323,14 +300,10 @@
                                 <option value="limited" {{ old('plan_validity_days', $subscriptionPlan->expiryDay != '-1' ? 'limited' : 'unlimited') == 'limited' ? 'selected' : '' }}>Fixed Days</option>
                             </select>
                             <div class="mt-2 expiry-limit-div {{ old('plan_validity_days', $subscriptionPlan->expiryDay != '-1' ? 'limited' : 'unlimited') == 'limited' ? '' : 'd-none' }}">
-                                <input type="number" name="plan_validity" class="form-control form-control-custom" placeholder="Enter number of days (e.g. 30)" value="{{ old('plan_validity', $subscriptionPlan->expiryDay) }}">
+                                <input type="number" name="plan_validity" class="form-control form-control-custom" placeholder="Enter number of days (e.g. 365)" value="{{ old('plan_validity', $subscriptionPlan->expiryDay) }}">
                             </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-custom">Display Order <span class="text-danger">*</span></label>
-                            <input type="number" name="order" class="form-control form-control-custom" placeholder="1" min="0" value="{{ old('order', $subscriptionPlan->place) }}" required>
-                        </div>
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Plan Status</label>
                             <div class="prof-option-box">
                                 <div>
@@ -360,125 +333,205 @@
                 </div>
             </div>
 
-            <!-- STEP 1 & 2: Parent & Child Category Selection Flow -->
+            <!-- Section 2: Business Categories & Free Orders Quotas (Screenshot 3) -->
             @php
-                $parents = [
-                    'home_services' => ['title' => 'Home Services', 'icon' => 'mdi-home-outline', 'subs' => ['Plumbing', 'Electrical Repair', 'House Cleaning', 'Appliance Service', 'Painting & Decor']],
-                    'transport'     => ['title' => 'Transportation & Rides', 'icon' => 'mdi-car-side', 'subs' => ['Cab Driver', 'Bike Taxi', 'Auto Rickshaw', 'Parcel Delivery', 'Rental Vehicle']],
-                    'food'          => ['title' => 'Food & Dining', 'icon' => 'mdi-food-fork-drink', 'subs' => ['Food Delivery', 'Restaurant Partner', 'Cloud Kitchen']],
-                    'medical'       => ['title' => 'Health & Medical', 'icon' => 'mdi-medical-bag', 'subs' => ['Healthcare Cards', 'Doctor Consultation', 'Pharmacy Delivery']],
-                    'marketplace'   => ['title' => 'Marketplace & Retail', 'icon' => 'mdi-store-outline', 'subs' => ['Merchant Store', 'Shopping Discount', 'Product Listing']],
+                $fixedCategories = [
+                    'Cab Driver',
+                    'Bike Taxi',
+                    'Auto Rickshaw',
+                    'Delivery Partner',
+                    'Merchant',
+                    'Home Services',
+                    'Food Delivery'
                 ];
             @endphp
 
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-sitemap"></i></div>
-                        <h5>Step 1: Select Parent & Sub-Categories</h5>
+                        <div class="icon-badge"><i class="mdi mdi-shape-outline"></i></div>
+                        <h5>Business Categories & Free Orders</h5>
                     </div>
+                    <button type="button" class="btn btn-sm btn-outline-success font-weight-bold" onclick="applyToAllCategories(true)">
+                        Apply To All
+                    </button>
                 </div>
                 <div class="section-body">
-                    <!-- Parent Category Tabs -->
-                    <label class="form-label-custom mb-2">Select Parent Category</label>
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
-                        @foreach($parents as $key => $p)
-                        <div class="parent-cat-tab {{ $loop->first ? 'active' : '' }}" onclick="switchParentCat('{{ $key }}', this)">
-                            <i class="mdi {{ $p['icon'] }} mr-1"></i> {{ $p['title'] }}
+                    <!-- Search Input (Screenshot 3 style) -->
+                    <div class="mb-3">
+                        <div class="input-group" style="max-width: 450px;">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-right-0"><i class="fa fa-search text-muted"></i></span></div>
+                            <input type="text" id="categorySearchInput" class="form-control form-control-custom border-left-0" placeholder="Select Categories (Multiple allowed)">
+                        </div>
+                    </div>
+
+                    <!-- Category Pills -->
+                    <div class="d-flex flex-wrap align-items-center mb-4" id="categoryPillContainer">
+                        @foreach($fixedCategories as $cat)
+                        <div class="category-pill active" onclick="toggleCategoryPill(this, '{{ $cat }}')">
+                            <span class="check-box-icon"><i class="fa fa-check"></i></span>
+                            <input type="checkbox" name="categories[]" value="{{ $cat }}" checked class="category-checkbox" style="display:none;">
+                            <span>{{ $cat }}</span>
                         </div>
                         @endforeach
                     </div>
 
-                    <!-- Sub Categories Container for Each Parent -->
-                    <label class="form-label-custom mb-2">Select Sub-Categories (Adds below to Category Discounts)</label>
-                    @foreach($parents as $key => $p)
-                    <div class="parent-sub-container {{ $loop->first ? '' : 'd-none' }}" id="parent_sub_{{ $key }}">
-                        <div class="d-flex flex-wrap align-items-center">
-                            @foreach($p['subs'] as $sub)
-                            <div class="sub-cat-pill active" onclick="toggleSubCatPill('{{ $sub }}', '{{ $p['title'] }}', this)">
-                                <span class="check-icon"><i class="fa fa-check"></i></span>
-                                <input type="checkbox" name="categories[]" value="{{ $sub }}" checked class="cat-checkbox" style="display:none;">
-                                <span>{{ $sub }}</span>
+                    <!-- Free Orders / Rides Per Category Settings -->
+                    <div class="border-top pt-3">
+                        <label class="form-label-custom mb-2"><i class="mdi mdi-ticket-percent text-success mr-1"></i>Free Orders / Rides Limit per Category (When User Buys Plan)</label>
+                        <p class="text-muted small mb-3">Set how many free bookings/orders a provider gets for each category under this plan:</p>
+
+                        <div class="row" id="freeOrdersContainer">
+                            @foreach($fixedCategories as $cat)
+                            <div class="col-md-6 col-lg-4 mb-2 category-free-order-item" id="free_order_item_{{ Str::slug($cat) }}">
+                                <div class="category-free-order-row">
+                                    <span class="font-weight-bold text-dark small"><i class="mdi mdi-check-circle text-success mr-1"></i>{{ $cat }}</span>
+                                    <div class="input-group input-group-sm" style="width:130px;">
+                                        <input type="number" name="category_free_orders[{{ $cat }}]" class="form-control form-control-custom text-center font-weight-bold" min="0" value="{{ $subscriptionPlan->free_ride_limit ?? 150 }}" placeholder="Orders">
+                                        <div class="input-group-append"><span class="input-group-text small">free</span></div>
+                                    </div>
+                                </div>
                             </div>
                             @endforeach
                         </div>
                     </div>
-                    @endforeach
                 </div>
             </div>
 
-            <!-- STEP 3: Dynamic Category Discounts (%) Section -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
-                        <h5>Step 2: Set Category Discounts (%)</h5>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCustomDiscountRow()">
-                        <i class="fa fa-plus mr-1"></i> Add Category Discount
-                    </button>
-                </div>
-                <div class="section-body">
-                    <p class="text-muted small mb-3">Selected categories automatically appear here. Enter discount percentages for each:</p>
-                    <div id="dynamic_discounts_container">
-                        <!-- Default Pre-populated Rows -->
-                        <div class="discount-row-card" id="disc_row_Home Services">
-                            <div>
-                                <span class="font-weight-bold text-dark">Home Services</span>
-                                <span class="badge badge-light text-muted ml-2">Parent: Home Services</span>
+            <!-- Section 3: Service Discount & Interest-Free Loan Cards (Screenshots 1 & 2) -->
+            <div class="row">
+                <!-- Screenshot 1: Service Discount Card -->
+                <div class="col-md-6 mb-3">
+                    <div class="section-card h-100">
+                        <div class="section-header">
+                            <div class="header-left">
+                                <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
+                                <h5>Service Discount</h5>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="input-group input-group-sm" style="width:110px;">
+                            <label class="switch-label">
+                                <input type="checkbox" name="service_discount_enabled" id="serviceDiscountSwitch" checked>
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="section-body">
+                            <p class="text-muted small mb-3">Discount percentage applied to bookings under each service:</p>
+
+                            <div class="discount-item-row">
+                                <label>Home Services</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
                                     <input type="number" name="discount_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_home_service', $subscriptionPlan->discount_home_service ?? 20) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
-                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
                             </div>
-                        </div>
 
-                        <div class="discount-row-card" id="disc_row_Transportation">
-                            <div>
-                                <span class="font-weight-bold text-dark">Travel & Transport</span>
-                                <span class="badge badge-light text-muted ml-2">Parent: Transportation</span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="input-group input-group-sm" style="width:110px;">
+                            <div class="discount-item-row">
+                                <label>Travel</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
                                     <input type="number" name="discount_travel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_travel', $subscriptionPlan->discount_travel ?? 15) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
-                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
                             </div>
-                        </div>
 
-                        <div class="discount-row-card" id="disc_row_Hotels">
-                            <div>
-                                <span class="font-weight-bold text-dark">Hotels</span>
-                                <span class="badge badge-light text-muted ml-2">Parent: Medical & Hotels</span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="input-group input-group-sm" style="width:110px;">
+                            <div class="discount-item-row">
+                                <label>Hotels</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
                                     <input type="number" name="discount_hotel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_hotel', $subscriptionPlan->discount_hotel ?? 10) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
-                                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
                             </div>
+
+                            <div class="discount-item-row">
+                                <label>Food</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
+                                    <input type="number" name="discount_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_food', $subscriptionPlan->discount_food ?? 25) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+
+                            <div class="discount-item-row">
+                                <label>Medical</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
+                                    <input type="number" name="discount_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_medical', $subscriptionPlan->discount_medical ?? 12) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+
+                            <div class="discount-item-row">
+                                <label>Marketplace</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
+                                    <input type="number" name="discount_marketplace" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_marketplace', $subscriptionPlan->discount_marketplace ?? 18) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screenshot 2: Interest-Free Loan Card -->
+                <div class="col-md-6 mb-3">
+                    <div class="section-card h-100">
+                        <div class="section-header">
+                            <div class="header-left">
+                                <div class="icon-badge"><i class="mdi mdi-cash-multiple"></i></div>
+                                <h5>Interest-Free Loan</h5>
+                            </div>
+                            <label class="switch-label">
+                                <input type="checkbox" name="loan_enabled" id="interestFreeLoanSwitch" {{ old('loan_enabled', $subscriptionPlan->loan_enabled) ? 'checked' : '' }}>
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="section-body">
+                            <p class="text-muted small mb-4">Set eligibility loan amounts for providers on this plan:</p>
+
+                            <div class="mb-4">
+                                <label class="form-label-custom">Base Loan Amount</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="loan_min_amount" class="form-control form-control-custom font-weight-bold" placeholder="50000" value="{{ old('loan_min_amount', $subscriptionPlan->loan_min_amount ?? 50000) }}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label-custom">Maximum Loan Amount</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="loan_max_amount" class="form-control form-control-custom font-weight-bold" placeholder="500000" value="{{ old('loan_max_amount', $subscriptionPlan->loan_max_amount ?? 500000) }}">
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-light rounded mt-4">
+                                <p class="small text-muted mb-0"><i class="fa fa-info-circle text-primary mr-1"></i>Providers subscribing to this plan will be eligible for up to ₹5,00,000 interest-free business loan access.</p>
+                            </div>
+
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Section 3: Feature Highlights -->
+            <!-- Section 4: Plan Features (Bullet Points) -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
                         <div class="icon-badge"><i class="mdi mdi-checkbox-marked-circle-outline"></i></div>
-                        <h5>Plan Features (Bullet Points)</h5>
+                        <h5>Plan Key Benefits (Bullet Points)</h5>
                     </div>
                 </div>
                 <div class="section-body">
                     <div id="points_container">
                         @php
-                            $pts = is_array($subscriptionPlan->plan_points) ? $subscriptionPlan->plan_points : (json_decode($subscriptionPlan->plan_points, true) ?? ['Standard Provider Features']);
+                            $pts = is_array($subscriptionPlan->plan_points) ? $subscriptionPlan->plan_points : (json_decode($subscriptionPlan->plan_points, true) ?? [
+                                'Business Verified Batch',
+                                'Premium Listing (Appears at top)',
+                                'QR Pay Send & Receive (Benefit up to 2%)',
+                                'Daily Value Increment (Up to 2%)',
+                                'Free Incoming Bookings (150)',
+                                'Interest-Free Loan Eligibility (Up to ₹5 Lakh)',
+                                'Value Transfer Cashback (Up to 2%)',
+                                'Wallet Enabled',
+                                'Professional Dashboard',
+                                'Priority Support'
+                            ]);
                         @endphp
                         @foreach($pts as $pt)
                         <div class="point-row d-flex align-items-center gap-2">
@@ -489,53 +542,17 @@
                         @endforeach
                     </div>
                     <button type="button" onclick="addPoint()" class="btn btn-sm btn-light-custom mt-2">
-                        <i class="fa fa-plus mr-1"></i> Add Feature
+                        <i class="fa fa-plus mr-1"></i> Add Key Benefit
                     </button>
                 </div>
             </div>
 
-            <!-- Section 4: Booking Limits & Quotas -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-calendar-clock"></i></div>
-                        <h5>Booking Limits & Free Quotas</h5>
-                    </div>
-                </div>
-                <div class="section-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Booking Limit</label>
-                            <select name="set_booking_limit" id="bookingLimitSelect" class="form-control form-control-custom">
-                                <option value="unlimited" {{ old('set_booking_limit', $subscriptionPlan->bookingLimit == '-1' ? 'unlimited' : 'limited') == 'unlimited' ? 'selected' : '' }}>Unlimited Bookings</option>
-                                <option value="limited" {{ old('set_booking_limit', $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited') == 'limited' ? 'selected' : '' }}>Limited Bookings</option>
-                            </select>
-                            <div class="mt-2 booking-limit-div {{ old('set_booking_limit', $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited') == 'limited' ? '' : 'd-none' }}">
-                                <input type="number" name="booking_limit" class="form-control form-control-custom" placeholder="Max orders (e.g. 100)" value="{{ old('booking_limit', $subscriptionPlan->bookingLimit) }}">
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Free Ride Limit</label>
-                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" placeholder="0" value="{{ old('free_ride_limit', $subscriptionPlan->free_ride_limit ?? 0) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Free Ride Reset</label>
-                            <select name="free_ride_reset" class="form-control form-control-custom">
-                                <option value="monthly" {{ old('free_ride_reset', $subscriptionPlan->free_ride_reset ?? 'monthly') == 'monthly' ? 'selected' : '' }}>Monthly</option>
-                                <option value="quarterly" {{ old('free_ride_reset', $subscriptionPlan->free_ride_reset ?? '') == 'quarterly' ? 'selected' : '' }}>Quarterly</option>
-                                <option value="yearly" {{ old('free_ride_reset', $subscriptionPlan->free_ride_reset ?? '') == 'yearly' ? 'selected' : '' }}>Yearly</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Section 5: Cashback Configuration -->
+            <!-- Section 5: Cashback & Wallet Settings -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="header-left">
                         <div class="icon-badge"><i class="mdi mdi-cash-refund"></i></div>
-                        <h5>Cashback Settings</h5>
+                        <h5>Cashback & Wallet Settings</h5>
                     </div>
                 </div>
                 <div class="section-body">
@@ -553,7 +570,7 @@
                                     </div>
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Value</label>
-                                        <input type="number" name="sender_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('sender_cashback_value', $subscriptionPlan->sender_cashback_value ?? 0) }}">
+                                        <input type="number" name="sender_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('sender_cashback_value', $subscriptionPlan->sender_cashback_value ?? 2) }}">
                                     </div>
                                 </div>
                             </div>
@@ -571,121 +588,11 @@
                                     </div>
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Value</label>
-                                        <input type="number" name="receiver_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('receiver_cashback_value', $subscriptionPlan->receiver_cashback_value ?? 0) }}">
+                                        <input type="number" name="receiver_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('receiver_cashback_value', $subscriptionPlan->receiver_cashback_value ?? 2) }}">
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Section 6: Wallet & Loan Privileges -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-wallet-outline"></i></div>
-                        <h5>Wallet & Loan Privileges</h5>
-                    </div>
-                </div>
-                <div class="section-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-custom">Wallet Top-Up Bonus</label>
-                            <input type="number" name="wallet_increment_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('wallet_increment_value', $subscriptionPlan->wallet_increment_value ?? 0) }}">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-custom">Bonus Period</label>
-                            <select name="wallet_increment_period" class="form-control form-control-custom">
-                                <option value="daily" {{ ($subscriptionPlan->wallet_increment_period ?? '') == 'daily' ? 'selected' : '' }}>Daily</option>
-                                <option value="weekly" {{ ($subscriptionPlan->wallet_increment_period ?? '') == 'weekly' ? 'selected' : '' }}>Weekly</option>
-                                <option value="monthly" {{ ($subscriptionPlan->wallet_increment_period ?? 'monthly') == 'monthly' ? 'selected' : '' }}>Monthly</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-custom">Referral Bonus Type</label>
-                            <select name="referral_bonus_type" class="form-control form-control-custom">
-                                <option value="flat" {{ ($subscriptionPlan->referral_bonus_type ?? 'flat') == 'flat' ? 'selected' : '' }}>Flat (₹)</option>
-                                <option value="percentage" {{ ($subscriptionPlan->referral_bonus_type ?? '') == 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label-custom">Referral Bonus Value</label>
-                            <input type="number" name="referral_bonus_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('referral_bonus_value', $subscriptionPlan->referral_bonus_value ?? 0) }}">
-                        </div>
-                    </div>
-
-                    <div class="border-top pt-3 mt-2">
-                        <div class="row align-items-center">
-                            <div class="col-md-6 mb-3">
-                                <div class="prof-option-box">
-                                    <div>
-                                        <p class="opt-title">Enable Loan Access</p>
-                                        <p class="opt-sub">Allow providers on this plan to request business loans</p>
-                                    </div>
-                                    <label class="switch-label">
-                                        <input type="checkbox" name="loan_enabled" id="loanSwitch" {{ old('loan_enabled', $subscriptionPlan->loan_enabled) ? 'checked' : '' }}>
-                                        <span class="switch-slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label-custom">Max Loan Amount (₹)</label>
-                                <input type="number" name="loan_max_amount" class="form-control form-control-custom" min="0" value="{{ old('loan_max_amount', $subscriptionPlan->loan_max_amount ?? 0) }}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dynamic Service Permission Matrix -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="header-left">
-                        <div class="icon-badge"><i class="mdi mdi-grid"></i></div>
-                        <h5>Service Permission Matrix</h5>
-                    </div>
-                </div>
-                <div class="section-body p-0">
-                    <div class="table-responsive">
-                        <table class="matrix-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:40%;">Service / Sub-Category</th>
-                                    <th style="text-align:center;">Basic</th>
-                                    <th style="text-align:center;">Professional</th>
-                                    <th style="text-align:center;">Premium Plus</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php
-                                    $matrixDefault = ['QR Payment', 'Wallet', 'Cab Booking', 'Bike Taxi', 'Parcel', 'Marketplace', 'Travel', 'Hotels', 'Healthcare Cards', 'Loan Services', 'Premium Listing', 'Priority Search'];
-                                @endphp
-                                @foreach($matrixDefault as $idx => $serv)
-                                <tr>
-                                    <td><strong>{{ $serv }}</strong></td>
-                                    <td style="text-align:center;">
-                                        <label class="switch-label">
-                                            <input type="checkbox" name="matrix[{{ $idx }}][basic]" {{ $idx < 3 ? 'checked' : '' }}>
-                                            <span class="switch-slider"></span>
-                                        </label>
-                                    </td>
-                                    <td style="text-align:center;">
-                                        <label class="switch-label">
-                                            <input type="checkbox" name="matrix[{{ $idx }}][professional]" {{ $idx < 10 ? 'checked' : '' }}>
-                                            <span class="switch-slider"></span>
-                                        </label>
-                                    </td>
-                                    <td style="text-align:center;">
-                                        <label class="switch-label">
-                                            <input type="checkbox" name="matrix[{{ $idx }}][premium_plus]" checked>
-                                            <span class="switch-slider"></span>
-                                        </label>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -720,84 +627,50 @@ $(document).ready(function() {
         }
     });
 
-    $('#bookingLimitSelect').on('change', function() {
-        if ($(this).val() === 'limited') {
-            $('.booking-limit-div').removeClass('d-none');
-        } else {
-            $('.booking-limit-div').addClass('d-none');
-        }
+    // Category search filter
+    $('#categorySearchInput').on('keyup', function() {
+        const term = $(this).val().toLowerCase();
+        $('.category-pill').each(function() {
+            const text = $(this).text().toLowerCase();
+            if (text.includes(term)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
     });
 });
 
-function switchParentCat(key, btn) {
-    $('.parent-cat-tab').removeClass('active');
-    $(btn).addClass('active');
-    $('.parent-sub-container').addClass('d-none');
-    $('#parent_sub_' + key).removeClass('d-none');
-}
-
-function toggleSubCatPill(subName, parentName, element) {
-    const checkbox = $(element).find('.cat-checkbox');
+function toggleCategoryPill(element, catName) {
+    const checkbox = $(element).find('.category-checkbox');
     const isChecked = checkbox.prop('checked');
     checkbox.prop('checked', !isChecked);
 
-    const safeId = 'disc_row_' + subName.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeId = 'free_order_item_' + catName.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
     if (!isChecked) {
         $(element).addClass('active');
-        $(element).find('.check-icon').html('<i class="fa fa-check"></i>').show();
-        // Add row to Category Discounts
-        if ($('#' + safeId).length === 0) {
-            const rowHtml = `
-            <div class="discount-row-card" id="${safeId}">
-                <div>
-                    <span class="font-weight-bold text-dark">${subName}</span>
-                    <span class="badge badge-light text-muted ml-2">Parent: ${parentName}</span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <div class="input-group input-group-sm" style="width:110px;">
-                        <input type="number" name="category_discounts[${subName}]" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="15">
-                        <div class="input-group-append"><span class="input-group-text">%</span></div>
-                    </div>
-                    <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
-                </div>
-            </div>`;
-            $('#dynamic_discounts_container').append(rowHtml);
-        }
+        $(element).find('.check-box-icon').html('<i class="fa fa-check"></i>');
+        $('#' + safeId).slideDown(150);
     } else {
         $(element).removeClass('active');
-        $(element).find('.check-icon').hide();
-        $('#' + safeId).remove();
+        $(element).find('.check-box-icon').html('');
+        $('#' + safeId).slideUp(150);
     }
 }
 
-function addCustomDiscountRow() {
-    const catName = prompt("Enter category name to set discount:");
-    if (catName && catName.trim() !== '') {
-        const safeId = 'disc_row_' + catName.replace(/[^a-zA-Z0-9]/g, '_');
-        const rowHtml = `
-        <div class="discount-row-card" id="${safeId}">
-            <div>
-                <span class="font-weight-bold text-dark">${catName}</span>
-                <span class="badge badge-light text-muted ml-2">Custom Category</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <div class="input-group input-group-sm" style="width:110px;">
-                    <input type="number" name="category_discounts[${catName}]" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="10">
-                    <div class="input-group-append"><span class="input-group-text">%</span></div>
-                </div>
-                <button type="button" class="btn btn-sm text-danger" onclick="$(this).closest('.discount-row-card').remove()"><i class="fa fa-trash"></i></button>
-            </div>
-        </div>`;
-        $('#dynamic_discounts_container').append(rowHtml);
-    }
+function applyToAllCategories(select) {
+    $('.category-pill').addClass('active');
+    $('.category-checkbox').prop('checked', true);
+    $('.category-pill .check-box-icon').html('<i class="fa fa-check"></i>');
+    $('.category-free-order-item').slideDown(150);
 }
 
 function addPoint() {
     const html = `
     <div class="point-row d-flex align-items-center gap-2">
         <i class="mdi mdi-check text-success mr-2"></i>
-        <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" placeholder="Enter feature text...">
+        <input type="text" class="form-control form-control-custom border-0 bg-transparent" name="plan_points[]" placeholder="Enter key benefit text...">
         <button type="button" class="btn btn-sm text-danger ml-auto" onclick="removePoint(this)"><i class="fa fa-trash"></i></button>
     </div>`;
     $('#points_container').append(html);
