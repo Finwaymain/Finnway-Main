@@ -365,8 +365,8 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'No account found with this phone number. Please sign up.']);
         }
 
-        // Check account is active
-        if (isset($user->statut) && $user->statut !== 'yes') {
+        // Check account is active (for non-drivers)
+        if ($user_cat !== 'driver' && isset($user->statut) && $user->statut !== 'yes') {
             return response()->json(['success' => 'Failed', 'error' => 'Your account is not activated. Please contact support.']);
         }
 
@@ -563,8 +563,8 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'No account found with this phone number.']);
         }
 
-        // Check account is active
-        if (isset($user->statut) && $user->statut !== 'yes') {
+        // Check account is active (for non-drivers)
+        if ($user_cat !== 'driver' && isset($user->statut) && $user->statut !== 'yes') {
             \Log::error("loginByMpin: user account status is not yes (status: " . ($user->statut ?? 'null') . ")");
             return response()->json(['success' => 'Failed', 'error' => 'Your account is not activated. Please contact support.']);
         }

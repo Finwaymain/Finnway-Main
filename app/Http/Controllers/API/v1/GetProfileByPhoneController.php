@@ -316,11 +316,11 @@ class GetProfileByPhoneController extends Controller
 
                 if ($login_type == 'phoneNumber' || $login_type == 'phoneOtp' || $login_type == 'phone') {
 
-                    $checkaccount = Driver::where('phone', $phone)->where('statut', 'yes')->first();
+                    $checkaccount = Driver::where('phone', $phone)->first();
 
                 }else{
 
-                    $checkaccount = Driver::where('email', $email)->where('statut', 'yes')->first();
+                    $checkaccount = Driver::where('email', $email)->first();
 
                 }        
 
