@@ -380,6 +380,9 @@ Route::group(['middleware' => ['envKeyAuth']], function () {
     Route::get('v1/history/timeline-full', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getTimelineHistory']);
     Route::get('v1/referral/stats', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getReferralStats']);
     Route::get('v1/business-plans/active', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getBusinessPlans']);
+    
+    // Consumer Plans (Public - can be viewed without authentication)
+    Route::get('v1/get-consumer-plans/', [SubscriptionPlanController::class, 'getConsumerPlans']);
 });
 
 
@@ -684,6 +687,9 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
     Route::get('v1/get-subscription-plans/', [SubscriptionPlanController::class, 'getPlanList']);
     Route::post('v1/set-subscription/', [SubscriptionPlanController::class, 'setData']);
     Route::post('v1/get-subscription-history/', [SubscriptionPlanController::class, 'getSubscriptionHistory']);
+    
+    // Consumer Plans for User App
+    Route::post('v1/set-consumer-subscription/', [SubscriptionPlanController::class, 'setConsumerSubscription']);
 
     // Marketplace Protected Routes
     Route::get('v1/marketplace/my-products', [ProductController::class, 'myProducts']);

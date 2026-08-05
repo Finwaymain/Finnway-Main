@@ -14,6 +14,8 @@ use App\Models\SubscriptionHistory;
 
 use App\Models\Driver;
 use App\Models\DriverTransaction;
+use App\Models\ConsumerPremiumPlan;
+use App\Models\UserApp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -97,6 +99,105 @@ class SubscriptionPlanController extends Controller
 
 
 
+        return response()->json($response);
+    }
+
+    public function getConsumerPlans(Request $request)
+    {
+        $output = [];
+        $consumerPlans = ConsumerPremiumPlan::where('status', 'active')->orderBy('display_order')->get();
+
+        if (count($consumerPlans) > 0) {
+            foreach ($consumerPlans as $row) {
+                $row->id = (string)$row->id;
+                $row->expiryDay = (string)$row->validity_days;
+                $row->price = (string)$row->price;
+                $row->description = $row->description ?? '';
+                
+                // Build plan points from consumer plan features
+                $planPoints = [];
+                if ($row->discount_cab > 0) $planPoints[] = "{$row->discount_cab}% discount on Cab rides";
+                if ($row->discount_bike > 0) $planPoints[] = "{$row->discount_bike}% discount on Bike rides";
+                if ($row->sender_cashback_value > 0) $planPoints[] = "{$row->sender_cashback_value}% cashback on sending money";
+                if ($row->receiver_cashback_value > 0) $planPoints[] = "{$row->receiver_cashback_value}% cashback on receiving money";
+                if ($row->free_shipping) $planPoints[] = "Free shipping on marketplace orders";
+                if ($row->loan_personal) $planPoints[] = "Personal loan access";
+                if ($row->loan_business) $planPoints[] = "Business loan access";
+                if ($row->loan_virtual) $planPoints[] = "Virtual credit limit: ₹{$row->virtual_credit_limit}";
+                
+                if (empty($planPoints)) {
+                    $planPoints[] = "Premium member benefits";
+                }
+                
+                $row->plan_points = $planPoints;
+                $output[] = $row;
+            }
+
+            if (!empty($output)) {
+                $response['success'] = 'success';
+                $response['error'] = null;
+                $response['message'] = 'Consumer plans fetched successfully';
+                $response['data'] = $output;
+            } else {
+                $response['success'] = 'Failed';
+                $response['error'] = 'Error while fetch data';
+            }
+        } else {
+            $response['success'] = 'Failed';
+            $response['error'] = 'No Data Found';
+            $response['message'] = null;
+        }
+
+        return response()->json($response);
+    }
+
+    public function setConsumerSubscription(Request $request){
+        $planId = $request->get('planId');
+        $userId = $request->get('userId');
+        $paymentType = $request->get('paymentType');
+        
+        $planData = ConsumerPremiumPlan::where('id', $planId)->first();
+        $user = UserApp::where('id', $userId)->first();
+        
+        if (!$planData) {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Consumer plan not found';
+            $response['message'] = 'Invalid plan ID';
+            return response()->json($response);
+        }
+        
+        if(strtolower($paymentType)=='wallet'){
+            if(floatval($user->amount) < floatval($planData->price)){
+                $response['success'] = 'Failed';
+                $response['error'] = 'Insufficient wallet balance';
+                $response['message'] = "You don't have sufficient balance to purchase this plan";
+                return response()->json($response);
+            }else{
+                $newWalletBalance = floatval($user->amount) - floatval($planData->price);
+                UserApp::where('id', $userId)->update(['amount'=>$newWalletBalance]);
+                $date = date('Y-m-d H:i:s');
+
+                DB::table('tj_transaction')->insert([
+                    'amount' => $planData->price,
+                    'payment_method' => 'Wallet',
+                    'id_user' => $userId,
+                    'creer' => $date,
+                    'planId'=> $planData->id
+                ]);
+            }
+        }
+        
+        $expiryDate = Carbon::now()->addDays($planData->validity_days);
+        
+        $updateResult = UserApp::where('id', $userId)->update([
+            'consumer_plan_id'=>$planData->id,
+            'consumer_plan_expiry_date'=> $expiryDate,
+            'consumer_plan'=> json_encode($planData->toArray())
+        ]);
+        
+        $response['success'] = 'success';
+        $response['error'] = null;
+        $response['message'] = 'Consumer subscription added successfully';
         return response()->json($response);
     }
 
