@@ -21,8 +21,9 @@ class ApiKeyAuth
 
     public function handle($request, Closure $next, $guard = null)
     {
-        if(empty($request->header('apikey')) || $request->header('apikey')!=config('app.key')){
-            return BaseApiController::errorResponse([],'Unauthorized',[],Response::HTTP_UNAUTHORIZED);
+        $apiKey = $request->header('apikey') ?: $request->query('apikey');
+        if (empty($apiKey) || $apiKey != config('app.key')) {
+            return BaseApiController::errorResponse([], 'Unauthorized', [], Response::HTTP_UNAUTHORIZED);
         }
         return $next($request);
     }

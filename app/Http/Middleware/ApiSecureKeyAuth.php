@@ -21,20 +21,16 @@ class ApiSecureKeyAuth
 
     public function handle($request, Closure $next, $guard = null)
     {
+        $apiKey = $request->header('apikey') ?: $request->query('apikey');
+        $accessToken = $request->header('accesstoken') ?: $request->query('accesstoken');
 
-        if(empty($request->header('apikey')) || empty($request->header('accesstoken'))){
-            return BaseApiController::errorResponse([],'Unauthorized',[],Response::HTTP_UNAUTHORIZED);
+        if (empty($apiKey) || empty($accessToken) || $apiKey != config('app.key')) {
+            return BaseApiController::errorResponse([], 'Unauthorized', [], Response::HTTP_UNAUTHORIZED);
         }
 
-        if($request->header('apikey')!=config('app.key')){
-            return BaseApiController::errorResponse([],'Unauthorized',[],Response::HTTP_UNAUTHORIZED);
-        }else if($request->header('apikey') && $request->header('accesstoken')){
-             $user = DB::table('users_access')->where('accesstoken',$request->header('accesstoken'))->first();
-             if(!$user){
-                return BaseApiController::errorResponse([],'Unauthorized',[],Response::HTTP_UNAUTHORIZED);
-             }
-        }else{
-            return BaseApiController::errorResponse([],'Unauthorized',[],Response::HTTP_UNAUTHORIZED);
+        $user = DB::table('users_access')->where('accesstoken', $accessToken)->first();
+        if (!$user) {
+            return BaseApiController::errorResponse([], 'Unauthorized', [], Response::HTTP_UNAUTHORIZED);
         }
 
         return $next($request);
