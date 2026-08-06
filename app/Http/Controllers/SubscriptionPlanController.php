@@ -108,7 +108,7 @@ class SubscriptionPlanController extends Controller
             ],
             'description' => 'required',
             'order' => 'required',
-            'image' => 'nullable|mimes:jpeg,jpg,png',
+            'image' => 'required|mimes:jpeg,jpg,png,webp,gif',
             'booking_limit' => ['required_if:set_booking_limit,limited',
                 function ($attribute, $value, $fail) use ($request) {
                     if ($request->input('set_booking_limit') === 'limited' && $value <= 0) {

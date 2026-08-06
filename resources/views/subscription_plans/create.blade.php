@@ -322,8 +322,11 @@
                             <textarea name="description" class="form-control form-control-custom" rows="2" placeholder="Short description of this plan...">{{ old('description', 'Choose a plan to unlock premium features and grow your business.') }}</textarea>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Plan Image</label>
-                            <input type="file" name="image" class="form-control-file" accept="image/*" onchange="previewImg(this)">
+                            <label class="form-label-custom">Plan Image <span class="text-danger">*</span></label>
+                            <input type="file" name="image" class="form-control-file @error('image') is-invalid @enderror" accept="image/*" onchange="previewImg(this)" required>
+                            @error('image')
+                                <span class="text-danger small font-weight-bold d-block mt-1"><i class="fa fa-exclamation-circle mr-1"></i>{{ $message }}</span>
+                            @enderror
                             <div id="img_preview" class="mt-2 d-none">
                                 <img id="preview_src" src="#" alt="Preview" style="height:50px; border-radius:6px; border:1px solid #cbd5e1;">
                             </div>
