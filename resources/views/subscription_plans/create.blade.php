@@ -339,7 +339,6 @@
                     'Bike Taxi',
                     'Auto Rickshaw',
                     'Delivery Partner',
-                    'Merchant',
                     'Home Services',
                     'Food Delivery'
                 ];
