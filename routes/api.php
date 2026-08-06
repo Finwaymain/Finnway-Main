@@ -383,6 +383,9 @@ Route::group(['middleware' => ['envKeyAuth']], function () {
     
     // Consumer Plans (Public - can be viewed without authentication)
     Route::get('v1/get-consumer-plans/', [SubscriptionPlanController::class, 'getConsumerPlans']);
+
+    // Driver Dashboard Stats Route for Web Onboarding
+    Route::get('v1/driver-dashboard-stats/', [DriverDashboardStatsController::class, 'stats']);
 });
 
 
