@@ -86,8 +86,12 @@ Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request)
         ->where('accesstoken', $accessToken)
         ->first();
 
-    if (!$userAccess || $userAccess->user_type !== 'driver') {
-        abort(403, 'Unauthorized. Invalid or expired access token.');
+    if (!$userAccess || strtolower($userAccess->user_type ?? '') !== 'driver') {
+        $driverId = $request->query('driver_id');
+        $driverExists = $driverId ? \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->exists() : false;
+        if (!$driverExists) {
+            abort(403, 'Unauthorized. Invalid or expired access token.');
+        }
     }
 
     if (view()->exists('onboarding-dashboard')) {
