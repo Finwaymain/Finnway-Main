@@ -167,8 +167,7 @@
 
                 <!-- Navigation Tabs -->
                 <div class="admin-nav-tabs mt-3">
-                    <div class="admin-tab-item active" onclick="switchAdminTab('dashboard-pane', this)">Referral Dashboard</div>
-                    <div class="admin-tab-item" onclick="switchAdminTab('reward-settings-pane', this)">Reward Settings</div>
+                    <div class="admin-tab-item active" onclick="switchAdminTab('reward-settings-pane', this)">Reward Settings</div>
                     <div class="admin-tab-item" onclick="switchAdminTab('service-rewards-pane', this)">Service-wise Rewards</div>
                     <div class="admin-tab-item" onclick="switchAdminTab('earnings-pane', this)">Earnings & Breakdown</div>
                 </div>
@@ -177,143 +176,9 @@
             <div class="card-body p-4">
 
                 <!-- ========================================== -->
-                <!-- TAB 1: REFERRAL DASHBOARD -->
+                <!-- TAB 1: REWARD SETTINGS -->
                 <!-- ========================================== -->
-                <div id="dashboard-pane" class="admin-tab-content" style="display: block;">
-                    <div class="admin-pill-group mb-4">
-                        <button type="button" id="sub_cons_btn" class="admin-pill-btn active" onclick="switchSubDashboard('cons_section', this)">Consumer</button>
-                        <button type="button" id="sub_biz_btn" class="admin-pill-btn" onclick="switchSubDashboard('biz_section', this)">Business</button>
-                    </div>
-
-                    <!-- CONSUMER SECTION -->
-                    <div id="cons_section" class="sub-pane" style="display: block;">
-                        <div class="row mb-4">
-                            <div class="col-md-3 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-users"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Total Referrals</small>
-                                        <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalReferrals) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-download"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Installed</small>
-                                        <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalInstalled) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-user-plus"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Registered</small>
-                                        <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalRegistered) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-shield"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Verified</small>
-                                        <h3 class="font-weight-bold text-dark mb-0">{{ number_format($totalVerified) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row mb-4">
-                            <div class="col-md-4 mb-3">
-                                <div class="admin-stat-card">
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Consumer Users</small>
-                                        <h4 class="font-weight-bold text-dark mb-0">{{ number_format($consumerUsers) }}</h4>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="admin-stat-card">
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Business Partners</small>
-                                        <h4 class="font-weight-bold text-dark mb-0">{{ number_format($businessUsers) }}</h4>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <div class="admin-stat-card">
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Total Referral Paid</small>
-                                        <h4 class="font-weight-bold text-primary mb-0">₹{{ number_format($totalReferralIncome, 2) }}</h4>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Real Database Logs -->
-                        <div class="card border-0 shadow-sm p-3" style="border-radius: 8px; background: #fafafa;">
-                            <h5 class="font-weight-bold text-dark mb-3">Live Ecosystem Earnings Log</h5>
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="bg-light">
-                                        <tr class="small text-muted">
-                                            <th>Activity</th>
-                                            <th>Amount</th>
-                                            <th>Date</th>
-                                            <th>Type</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @forelse($earningsLogs as $log)
-                                        <tr>
-                                            <td class="font-weight-bold text-dark">{{ $log['activity'] }}</td>
-                                            <td class="font-weight-bold text-success">{{ $log['amount'] }}</td>
-                                            <td class="text-muted small">{{ $log['date'] }}</td>
-                                            <td><span class="badge badge-primary font-weight-bold">{{ $log['type'] }}</span></td>
-                                        </tr>
-                                        @empty
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted small py-3">No referral transactions recorded yet in the database.</td>
-                                        </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BUSINESS SECTION -->
-                    <div id="biz_section" class="sub-pane" style="display: none;">
-                        <div class="row mb-4">
-                            <div class="col-md-6 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-briefcase"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Total Business Partners</small>
-                                        <h2 class="font-weight-bold text-dark mb-0">{{ number_format($businessUsers) }}</h2>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="admin-stat-card">
-                                    <div class="admin-stat-icon"><i class="fa fa-wallet"></i></div>
-                                    <div>
-                                        <small class="text-muted font-weight-bold d-block">Total Business Referral Paid</small>
-                                        <h2 class="font-weight-bold text-primary mb-0">₹{{ number_format($totalReferralIncome, 2) }}</h2>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========================================== -->
-                <!-- TAB 2: REWARD SETTINGS -->
-                <!-- ========================================== -->
-                <div id="reward-settings-pane" class="admin-tab-content" style="display: none;">
+                <div id="reward-settings-pane" class="admin-tab-content" style="display: block;">
                     <h4 class="font-weight-bold text-dark mb-4">Reward Engine Settings</h4>
                     <form action="{{ route('referral.update') }}" method="POST">
                         @csrf
