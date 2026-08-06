@@ -292,40 +292,44 @@ class OnboardingController extends Controller
                     
                     if ($request->hasFile($inputName)) {
                         $file = $request->file($inputName);
-                        $extenstion = strtolower($file->getClientOriginalExtension());
-                        $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                        $extension = strtolower($file->getClientOriginalExtension());
+                        $filename = str_replace(' ', '_', $doc->title) . '_' . time() . '_' . rand(100, 999) . '.' . $extension;
 
-                        try {
-                            $filename = $this->uploadToImageKit($file, '/driver/documents');
-                        } catch (\Throwable $e) {
-                            \Log::warning('ImageKit upload failed: ' . $e->getMessage());
-                            $filename = str_replace(' ', '_', $doc->title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
-                            if ($isImage) {
-                                try {
-                                    Helper::compressFile($file->getPathName(), $targetDir . '/' . $filename, 80);
-                                } catch (\Throwable $ex) {
-                                    $file->move($targetDir, $filename);
-                                }
-                            } else {
-                                $file->move($targetDir, $filename);
+                        $uploadedUrl = null;
+                        if (!empty(config('imagekit.private_key'))) {
+                            try {
+                                $uploadedUrl = $this->uploadToImageKit($file, '/driver/documents');
+                            } catch (\Throwable $e) {
+                                \Log::warning('ImageKit upload failed: ' . $e->getMessage());
                             }
                         }
 
-                        $existingDoc = DB::table('driver_document')->where('document_id', $doc->id)->where('driver_id', $driverId)->first();
-                        if ($existingDoc) {
-                            $driverDoc = DriversDocuments::find($existingDoc->id);
-                            if ($driverDoc) {
-                                $driverDoc->document_path = $filename;
-                                $driverDoc->document_status = 'Pending';
-                                $driverDoc->save();
-                            }
+                        if ($uploadedUrl) {
+                            $filename = $uploadedUrl;
                         } else {
-                            $driverDoc = new DriversDocuments;
-                            $driverDoc->driver_id = $driverId;
-                            $driverDoc->document_id = $doc->id;
-                            $driverDoc->document_path = $filename;
-                            $driverDoc->document_status = 'Pending';
-                            $driverDoc->save();
+                            $file->move($targetDir, $filename);
+                        }
+
+                        $existingDoc = DB::table('driver_document')
+                            ->where('document_id', $doc->id)
+                            ->where('driver_id', $driverId)
+                            ->first();
+
+                        if ($existingDoc) {
+                            DB::table('driver_document')->where('id', $existingDoc->id)->update([
+                                'document_path' => $filename,
+                                'document_status' => 'Pending',
+                                'updated_at' => now(),
+                            ]);
+                        } else {
+                            DB::table('driver_document')->insert([
+                                'driver_id' => $driverId,
+                                'document_id' => $doc->id,
+                                'document_path' => $filename,
+                                'document_status' => 'Pending',
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
                         }
                     }
                 }

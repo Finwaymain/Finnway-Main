@@ -85,29 +85,43 @@ class DocumentsController extends Controller
                     $document_name = DB::table('admin_documents')->where('id', $document_id)->first();
                     $title = ($document_name && !empty($document_name->title)) ? $document_name->title : 'Document';
 
-                    try {
-                        $filename = Helper::uploadToImageKit($image_path, '/driver/documents');
-                    } catch (\Throwable $e) {
-                        \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
-                        $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
-                        $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
-                        if ($isImage) {
-                            try {
-                                Helper::compressFile($image_path->getPathName(), $targetDir . '/' . $filename, 80);
-                            } catch (\Throwable $ex) {
-                                $image_path->move($targetDir, $filename);
-                            }
-                        } else {
-                            $image_path->move($targetDir, $filename);
+                    $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
+                    $uploadedUrl = null;
+                    if (!empty(config('imagekit.private_key'))) {
+                        try {
+                            $uploadedUrl = Helper::uploadToImageKit($image_path, '/driver/documents');
+                        } catch (\Throwable $e) {
+                            \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
                         }
                     }
 
-                    $driver_document = new DriversDocuments;
-                    $driver_document->driver_id = $driver_id;
-                    $driver_document->document_id = $document_id;
-                    $driver_document->document_path = $filename;
-                    $driver_document->document_status = 'Pending';
-                    $driver_document->save();
+                    if ($uploadedUrl) {
+                        $filename = $uploadedUrl;
+                    } else {
+                        $image_path->move($targetDir, $filename);
+                    }
+
+                    $existingDoc = DB::table('driver_document')
+                        ->where('document_id', $document_id)
+                        ->where('driver_id', $driver_id)
+                        ->first();
+
+                    if ($existingDoc) {
+                        DB::table('driver_document')->where('id', $existingDoc->id)->update([
+                            'document_path' => $filename,
+                            'document_status' => 'Pending',
+                            'updated_at' => now(),
+                        ]);
+                    } else {
+                        DB::table('driver_document')->insert([
+                            'driver_id' => $driver_id,
+                            'document_id' => $document_id,
+                            'document_path' => $filename,
+                            'document_status' => 'Pending',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
                 }
             }
 
@@ -154,20 +168,20 @@ class DocumentsController extends Controller
             $extenstion = strtolower($file->getClientOriginalExtension());
             $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
-            try {
-                $filename = Helper::uploadToImageKit($file, '/driver/documents');
-            } catch (\Throwable $e) {
-                \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
-                $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
-                if ($isImage) {
-                    try {
-                        Helper::compressFile($file->getPathName(), $targetDir . '/' . $filename, 80);
-                    } catch (\Throwable $ex) {
-                        $file->move($targetDir, $filename);
-                    }
-                } else {
-                    $file->move($targetDir, $filename);
+            $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
+            $uploadedUrl = null;
+            if (!empty(config('imagekit.private_key'))) {
+                try {
+                    $uploadedUrl = Helper::uploadToImageKit($file, '/driver/documents');
+                } catch (\Throwable $e) {
+                    \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
                 }
+            }
+
+            if ($uploadedUrl) {
+                $filename = $uploadedUrl;
+            } else {
+                $file->move($targetDir, $filename);
             }
 
             $get_driver_document = DB::table('driver_document')
@@ -179,19 +193,20 @@ class DocumentsController extends Controller
                 if (!filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL) && file_exists($targetDir . '/' . $get_driver_document->document_path)) {
                     @unlink($targetDir . '/' . $get_driver_document->document_path);
                 }
-                $driver_document = DriversDocuments::find($get_driver_document->id);
-                if ($driver_document) {
-                    $driver_document->document_path = $filename;
-                    $driver_document->document_status = 'Pending';
-                    $driver_document->save();
-                }
+                DB::table('driver_document')->where('id', $get_driver_document->id)->update([
+                    'document_path' => $filename,
+                    'document_status' => 'Pending',
+                    'updated_at' => now(),
+                ]);
             } else {
-                $driver_document = new DriversDocuments;
-                $driver_document->driver_id = $driver_id;
-                $driver_document->document_id = $document_id;
-                $driver_document->document_path = $filename;
-                $driver_document->document_status = 'Pending';
-                $driver_document->save();
+                DB::table('driver_document')->insert([
+                    'driver_id' => $driver_id,
+                    'document_id' => $document_id,
+                    'document_path' => $filename,
+                    'document_status' => 'Pending',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
             }
 
             $updatedDoc = DB::table('driver_document')
