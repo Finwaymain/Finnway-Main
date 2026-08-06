@@ -118,26 +118,40 @@ class ConsumerPlanController extends Controller
             'receiver_cashback_value'=> $request->receiver_cashback_value ?? 0,
 
             // Service Discounts
-            'discount_cab'           => $request->discount_cab ?? 0,
-            'discount_bike'          => $request->discount_bike ?? 0,
-            'discount_home_service'  => $request->discount_home_service ?? 0,
-            'discount_food'          => $request->discount_food ?? 0,
-            'discount_travel'        => $request->discount_travel ?? 0,
-            'discount_hotel'         => $request->discount_hotel ?? 0,
-            'discount_healthcare'    => $request->discount_healthcare ?? 0,
-            'discount_marketplace'   => $request->discount_marketplace ?? 0,
+            'discount_cab'              => $request->discount_cab ?? 0,
+            'discount_bike'             => $request->discount_bike ?? 0,
+            'discount_home_service'     => $request->discount_home_service ?? 0,
+            'discount_food'             => $request->discount_food ?? 0,
+            'discount_travel'           => $request->discount_travel ?? 0,
+            'discount_hotel'            => $request->discount_hotel ?? 0,
+            'discount_healthcare'       => $request->discount_healthcare ?? 0,
+            'discount_marketplace'      => $request->discount_marketplace ?? 0,
+            'discount_delivery'         => $request->discount_delivery ?? 0,
+            'discount_transaction'      => $request->discount_transaction ?? 0,
 
-            // Shipping
-            'free_shipping'          => $request->has('free_shipping'),
-            'shipping_min_order'     => $request->shipping_min_order ?? 0,
+            // Quotas & Minimum Benefit Rules
+            'free_shipping'             => $request->has('free_shipping'),
+            'shipping_min_order'        => $request->shipping_min_order ?? 0,
+            'free_shipping_count'       => $request->free_shipping_count ?? 0,
+            'free_ride_limit'           => $request->free_ride_limit ?? 0,
+            'quota_hotel_booking'       => $request->quota_hotel_booking ?? 0,
+            'quota_home_service'        => $request->quota_home_service ?? 0,
+            'quota_shopping'            => $request->quota_shopping ?? 0,
+            'quota_food'                => $request->quota_food ?? 0,
+            'quota_medical'             => $request->quota_medical ?? 0,
+            'min_order_amount_benefit'  => $request->min_order_amount_benefit ?? 0,
+            'wallet_monthly_bonus'      => $request->wallet_monthly_bonus ?? 0,
+            'annual_voucher_value'      => $request->annual_voucher_value ?? 0,
 
-            // Loan Eligibility
-            'loan_personal'          => $request->has('loan_personal'),
-            'loan_business'          => $request->has('loan_business'),
-            'loan_credit_card'       => $request->has('loan_credit_card'),
-            'loan_interest_free'     => $request->has('loan_interest_free'),
-            'loan_virtual'           => $request->has('loan_virtual'),
-            'virtual_credit_limit'   => $request->virtual_credit_limit ?? 15000,
+            // Loan & Virtual Credit Eligibility
+            'loan_enabled'              => $request->has('loan_enabled'),
+            'loan_max_amount'           => $request->loan_max_amount ?? 0,
+            'loan_personal'             => $request->has('loan_personal'),
+            'loan_business'             => $request->has('loan_business'),
+            'loan_credit_card'          => $request->has('loan_credit_card'),
+            'loan_interest_free'        => $request->has('loan_interest_free'),
+            'loan_virtual'              => $request->has('loan_virtual'),
+            'virtual_credit_limit'      => $request->virtual_credit_limit ?? 15000,
         ];
     }
 }

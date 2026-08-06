@@ -354,41 +354,83 @@
                 </div>
             </div>
 
-            <!-- Section 4: Shipping, Loans & Quotas -->
+            <!-- Section 4: Shipping, Quotas & Virtual Credit -->
             <div class="section-card">
                 <div class="section-header">
                     <div class="icon-badge"><i class="mdi mdi-truck-delivery-outline"></i></div>
-                    <h5>Shipping, Quotas & Virtual Credit</h5>
+                    <h5>Shipping, Quotas & Minimum Benefit Thresholds</h5>
                 </div>
                 <div class="section-body">
-                    <div class="row">
+                    <!-- Category Quotas / Month -->
+                    <label class="form-label-custom mb-2"><i class="mdi mdi-ticket-percent text-primary mr-1"></i>Category Free Booking / Order Quotas (Per Month)</label>
+                    <div class="row mb-3">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Delivery Discount (%)</label>
-                            <input type="number" name="discount_delivery" class="form-control form-control-custom" min="0" max="100" step="0.1" value="{{ old('discount_delivery', $plan->discount_delivery ?? 0) }}">
+                            <label class="form-label-custom">Hotel Booking Quota / Month</label>
+                            <input type="number" name="quota_hotel_booking" class="form-control form-control-custom" min="0" value="{{ old('quota_hotel_booking', $plan->quota_hotel_booking ?? 0) }}" placeholder="e.g. 5">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Free Shipping Quota / Month</label>
-                            <input type="number" name="free_shipping_count" class="form-control form-control-custom" min="0" value="{{ old('free_shipping_count', $plan->free_shipping_count ?? 0) }}">
+                            <label class="form-label-custom">Home Service Quota / Month</label>
+                            <input type="number" name="quota_home_service" class="form-control form-control-custom" min="0" value="{{ old('quota_home_service', $plan->quota_home_service ?? 0) }}" placeholder="e.g. 5">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label-custom">Shopping Quota / Month</label>
+                            <input type="number" name="quota_shopping" class="form-control form-control-custom" min="0" value="{{ old('quota_shopping', $plan->quota_shopping ?? 0) }}" placeholder="e.g. 10">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label-custom">Food Delivery Quota / Month</label>
+                            <input type="number" name="quota_food" class="form-control form-control-custom" min="0" value="{{ old('quota_food', $plan->quota_food ?? 0) }}" placeholder="e.g. 15">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label-custom">Medical Booking Quota / Month</label>
+                            <input type="number" name="quota_medical" class="form-control form-control-custom" min="0" value="{{ old('quota_medical', $plan->quota_medical ?? 0) }}" placeholder="e.g. 3">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label-custom">Free Rides / Month</label>
-                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" value="{{ old('free_ride_limit', $plan->free_ride_limit ?? 0) }}">
+                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" value="{{ old('free_ride_limit', $plan->free_ride_limit ?? 0) }}" placeholder="e.g. 20">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label-custom">Free Shipping Quota / Month</label>
+                            <input type="number" name="free_shipping_count" class="form-control form-control-custom" min="0" value="{{ old('free_shipping_count', $plan->free_shipping_count ?? 0) }}" placeholder="e.g. 10">
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Virtual Credit Limit (₹)</label>
-                            <input type="number" name="virtual_credit_limit" class="form-control form-control-custom" min="0" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Monthly Bonus (₹)</label>
-                            <input type="number" name="wallet_monthly_bonus" class="form-control form-control-custom" min="0" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Annual Voucher Value (₹)</label>
-                            <input type="number" name="annual_voucher_value" class="form-control form-control-custom" min="0" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
+
+                    <!-- Minimum Order Amount Benefit Threshold -->
+                    <div class="border-top pt-3 mb-3">
+                        <label class="form-label-custom mb-1"><i class="mdi mdi-cash-multiple text-success mr-1"></i>Minimum Order / Booking Amount for Benefit (₹)</label>
+                        <p class="text-muted small mb-2">Set the minimum transaction amount required on Pre-Hotel booking, Home Services, or Shopping to unlock plan benefits:</p>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_order_amount_benefit" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_order_amount_benefit', $plan->min_order_amount_benefit ?? 0) }}" placeholder="e.g. 500">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label-custom">Delivery Discount (%)</label>
+                                <input type="number" name="discount_delivery" class="form-control form-control-custom" min="0" max="100" step="0.1" value="{{ old('discount_delivery', $plan->discount_delivery ?? 0) }}">
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Credit & Vouchers -->
+                    <div class="border-top pt-3 mb-3">
+                        <label class="form-label-custom mb-2"><i class="mdi mdi-wallet-outline text-info mr-1"></i>Virtual Credit, Bonuses & Vouchers</label>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Virtual Credit Limit (₹)</label>
+                                <input type="number" name="virtual_credit_limit" class="form-control form-control-custom" min="0" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Monthly Bonus (₹)</label>
+                                <input type="number" name="wallet_monthly_bonus" class="form-control form-control-custom" min="0" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Annual Voucher Value (₹)</label>
+                                <input type="number" name="annual_voucher_value" class="form-control form-control-custom" min="0" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="border-top pt-3 mt-2">
                         <div class="row align-items-center">
                             <div class="col-md-6 mb-3">
