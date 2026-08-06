@@ -194,10 +194,17 @@
 
                         <div class="row">
                             <div class="col-md-6 form-group mb-4">
-                                <label class="font-weight-bold small text-muted">Percentage Value (%)</label>
+                                <label id="reward_val_label" class="font-weight-bold small text-muted">
+                                    {{ $rewardMode === 'flat' ? 'Flat Value (₹)' : 'Percentage Value (%)' }}
+                                </label>
                                 <div class="input-group">
-                                    <input type="text" name="reward_value" class="form-control font-weight-bold text-dark" value="{{ $rewardValue }}" placeholder="1.0" style="color: #0f172a !important;">
-                                    <div class="input-group-append"><span class="input-group-text input-addon-text">%</span></div>
+                                    <div id="reward_val_prepend" class="input-group-prepend {{ $rewardMode === 'flat' ? '' : 'd-none' }}">
+                                        <span class="input-group-text input-addon-text">₹</span>
+                                    </div>
+                                    <input type="text" name="reward_value" id="reward_value_input" class="form-control font-weight-bold text-dark" value="{{ $rewardValue }}" placeholder="{{ $rewardMode === 'flat' ? '50' : '1.0' }}" style="color: #0f172a !important;">
+                                    <div id="reward_val_append" class="input-group-append {{ $rewardMode === 'flat' ? 'd-none' : '' }}">
+                                        <span class="input-group-text input-addon-text">%</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6 form-group mb-4">
@@ -492,10 +499,24 @@
         document.getElementById('mode_input_field').value = type;
         document.getElementById('pill_perc').classList.remove('active');
         document.getElementById('pill_flat').classList.remove('active');
+
+        var label = document.getElementById('reward_val_label');
+        var appendSymbol = document.getElementById('reward_val_append');
+        var prependSymbol = document.getElementById('reward_val_prepend');
+        var input = document.getElementById('reward_value_input');
+
         if (type === 'percentage') {
             document.getElementById('pill_perc').classList.add('active');
+            if (label) label.innerText = 'Percentage Value (%)';
+            if (appendSymbol) appendSymbol.classList.remove('d-none');
+            if (prependSymbol) prependSymbol.classList.add('d-none');
+            if (input) input.placeholder = '1.0';
         } else {
             document.getElementById('pill_flat').classList.add('active');
+            if (label) label.innerText = 'Flat Value (₹)';
+            if (appendSymbol) appendSymbol.classList.add('d-none');
+            if (prependSymbol) prependSymbol.classList.remove('d-none');
+            if (input) input.placeholder = '50';
         }
     }
 </script>
