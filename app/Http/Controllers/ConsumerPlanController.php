@@ -143,6 +143,22 @@ class ConsumerPlanController extends Controller
             'wallet_monthly_bonus'      => $request->wallet_monthly_bonus ?? 0,
             'annual_voucher_value'      => $request->annual_voucher_value ?? 0,
 
+            // Per-Service Minimum Booking Amount for Benefit
+            'min_amount_hotel'          => $request->min_amount_hotel ?? 0,
+            'min_amount_home_service'   => $request->min_amount_home_service ?? 0,
+            'min_amount_shopping'       => $request->min_amount_shopping ?? 0,
+            'min_amount_food'           => $request->min_amount_food ?? 0,
+            'min_amount_travel'         => $request->min_amount_travel ?? 0,
+            'min_amount_medical'        => $request->min_amount_medical ?? 0,
+            'min_amount_cab'            => $request->min_amount_cab ?? 0,
+
+            // Per-Service Delivery Discounts
+            'discount_delivery_food'         => $request->discount_delivery_food ?? 0,
+            'discount_delivery_shopping'     => $request->discount_delivery_shopping ?? 0,
+            'discount_delivery_home_service' => $request->discount_delivery_home_service ?? 0,
+            'discount_delivery_medical'      => $request->discount_delivery_medical ?? 0,
+            'discount_delivery_parcel'       => $request->discount_delivery_parcel ?? 0,
+
             // Loan & Virtual Credit Eligibility
             'loan_enabled'              => $request->has('loan_enabled'),
             'loan_max_amount'           => $request->loan_max_amount ?? 0,

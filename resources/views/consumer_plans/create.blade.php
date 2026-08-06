@@ -395,20 +395,102 @@
                         </div>
                     </div>
 
-                    <!-- Minimum Order Amount Benefit Threshold -->
+                    <!-- Per-Service Minimum Order Amount Benefit Thresholds -->
                     <div class="border-top pt-3 mb-3">
-                        <label class="form-label-custom mb-1"><i class="mdi mdi-cash-multiple text-success mr-1"></i>Minimum Order / Booking Amount for Benefit (₹)</label>
-                        <p class="text-muted small mb-2">Set the minimum transaction amount required on Pre-Hotel booking, Home Services, or Shopping to unlock plan benefits:</p>
+                        <label class="form-label-custom mb-1"><i class="mdi mdi-cash-multiple text-success mr-1"></i>Minimum Order / Booking Amount for Benefit (₹) (Per Service)</label>
+                        <p class="text-muted small mb-3">Set the minimum transaction amount required on each service (Pre-Hotel booking, Home Services, Shopping, etc.) to unlock plan benefits:</p>
                         <div class="row">
-                            <div class="col-md-6 mb-2">
-                                <div class="input-group">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Hotel Booking Min Amount</label>
+                                <div class="input-group input-group-sm">
                                     <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_order_amount_benefit" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_order_amount_benefit', $plan->min_order_amount_benefit ?? 0) }}" placeholder="e.g. 500">
+                                    <input type="number" name="min_amount_hotel" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_hotel', $plan->min_amount_hotel ?? 0) }}" placeholder="e.g. 1000">
                                 </div>
                             </div>
-                            <div class="col-md-6 mb-2">
-                                <label class="form-label-custom">Delivery Discount (%)</label>
-                                <input type="number" name="discount_delivery" class="form-control form-control-custom" min="0" max="100" step="0.1" value="{{ old('discount_delivery', $plan->discount_delivery ?? 0) }}">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Home Services Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_home_service" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_home_service', $plan->min_amount_home_service ?? 0) }}" placeholder="e.g. 500">
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Shopping Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_shopping" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_shopping', $plan->min_amount_shopping ?? 0) }}" placeholder="e.g. 400">
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Food Delivery Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_food" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_food', $plan->min_amount_food ?? 0) }}" placeholder="e.g. 200">
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Travel Booking Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_travel" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_travel', $plan->min_amount_travel ?? 0) }}" placeholder="e.g. 1500">
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Medical Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_medical" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_medical', $plan->min_amount_medical ?? 0) }}" placeholder="e.g. 300">
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom font-weight-bold">Cab / Rides Min Amount</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                    <input type="number" name="min_amount_cab" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_cab', $plan->min_amount_cab ?? 0) }}" placeholder="e.g. 150">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Per-Service Delivery Discounts -->
+                    <div class="border-top pt-3 mb-3">
+                        <label class="form-label-custom mb-1"><i class="mdi mdi-truck-fast-outline text-warning mr-1"></i>Delivery Discounts (%) (Per Service)</label>
+                        <p class="text-muted small mb-3">Set different delivery fee discount percentages for each service type:</p>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Food Delivery Discount (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_delivery_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_food', $plan->discount_delivery_food ?? 0) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Shopping Delivery Discount (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_delivery_shopping" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_shopping', $plan->discount_delivery_shopping ?? 0) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Home Service Delivery Discount (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_delivery_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_home_service', $plan->discount_delivery_home_service ?? 0) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Medical Delivery Discount (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_delivery_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_medical', $plan->discount_delivery_medical ?? 0) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label-custom">Parcel / Courier Delivery Discount (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_delivery_parcel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_parcel', $plan->discount_delivery_parcel ?? 0) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
                             </div>
                         </div>
                     </div>
