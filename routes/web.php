@@ -90,6 +90,9 @@ Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request)
         abort(403, 'Unauthorized. Invalid or expired access token.');
     }
 
+    if (view()->exists('onboarding-dashboard')) {
+        return view('onboarding-dashboard');
+    }
     return view('dashboard');
 });
 

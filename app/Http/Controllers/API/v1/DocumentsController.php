@@ -18,151 +18,173 @@ class DocumentsController extends Controller
 
     public function getData(Request $request)
     {
-
-        $admin_documents = DB::table('admin_documents')->where('is_enabled', 'Yes')->get();
-        $output = [];
-        foreach ($admin_documents as $row) {
-            $row->id = (string)$row->id;
-            $output[] = $row;
+        try {
+            $admin_documents = DB::table('admin_documents')->where('is_enabled', 'Yes')->get();
+            $output = [];
+            foreach ($admin_documents as $row) {
+                $row->id = (string)$row->id;
+                $output[] = $row;
+            }
+            if (count($output) > 0) {
+                $response['success'] = 'success';
+                $response['error'] = null;
+                $response['message'] = 'successfully';
+                $response['data'] = $output;
+            } else {
+                $response['success'] = 'Failed';
+                $response['error'] = 'No documents found';
+                $response['message'] = 'No documents found';
+                $response['data'] = [];
+            }
+            return response()->json($response);
+        } catch (\Throwable $e) {
+            \Log::error('DocumentsController getData error: ' . $e->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $e->getMessage(),
+                'message' => 'An error occurred while fetching document types.',
+                'data' => []
+            ]);
         }
-        if (!empty($admin_documents)) {
-            $response['success'] = 'success';
-            $response['error'] = null;
-            $response['message'] = 'successfully';
-            $response['data'] = $output;
-        } else {
-            $response['success'] = 'Failed';
-            $response['error'] = 'Failed to fetch data';
-            $response['message'] = 'successfully';
-        }
-
-
-
-        return response()->json($response);
     }
 
     public function addDriverDocuments(Request $request)
     {
+        try {
+            $driver_id = $request->get('driver_id');
+            $documents = $request->get('documents');
+            $attachment = $request->file('attachment');
 
-        $driver_id = $request->get('driver_id');
-
-        $documents = $request->get('documents');
-
-        $attachment = $request->file('attachment');
-
-        if (empty($driver_id) || $driver_id == 0) {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Driver Not Found';
-        } else if (empty($documents)) {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Documents Not Found';
-        } else if (empty($attachment)) {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Attachment Not Found';
-        } else {
+            if (empty($driver_id) || $driver_id == 0) {
+                return response()->json(['success' => 'Failed', 'error' => 'Driver Not Found']);
+            }
+            if (empty($documents)) {
+                return response()->json(['success' => 'Failed', 'error' => 'Documents Not Found']);
+            }
+            if (empty($attachment)) {
+                return response()->json(['success' => 'Failed', 'error' => 'Attachment Not Found']);
+            }
 
             $documents = json_decode($documents);
+            if (!is_array($documents) && !is_object($documents)) {
+                return response()->json(['success' => 'Failed', 'error' => 'Invalid Documents payload']);
+            }
+
+            $targetDir = public_path('assets/images/driver/documents');
+            if (!file_exists($targetDir)) {
+                @mkdir($targetDir, 0777, true);
+            }
 
             foreach ($documents as $data) {
+                $document_id = $data->document_id ?? null;
+                $attachmentIndex = $data->attachmentIndex ?? null;
 
-                $document_id = $data->document_id;
-
-                $attachmentIndex = $data->attachmentIndex;
-
-                if ($attachmentIndex != '') {
-
+                if ($attachmentIndex !== null && isset($attachment[$attachmentIndex])) {
                     $image_path = $attachment[$attachmentIndex];
-
-                    $extenstion = $image_path->getClientOriginalExtension();
-
+                    $extenstion = strtolower($image_path->getClientOriginalExtension());
                     $document_name = DB::table('admin_documents')->where('id', $document_id)->first();
+                    $title = ($document_name && !empty($document_name->title)) ? $document_name->title : 'Document';
 
                     try {
                         $filename = Helper::uploadToImageKit($image_path, '/driver/documents');
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
-                        $filename = str_replace(' ', '_', $document_name->title) . '_' . time() . '.' . $extenstion;
-                        Helper::compressFile($image_path->getPathName(), public_path('assets/images/driver/documents') . '/' . $filename, 8);
-                    }
-
-                    if (filter_var($filename, FILTER_VALIDATE_URL) || file_exists(public_path('assets/images/driver/documents' . '/' . $filename))) {
-
-                        $driver_document = new DriversDocuments;
-                        $driver_document->driver_id = $driver_id;
-                        $driver_document->document_id = $document_id;
-                        $driver_document->document_path = $filename;
-                        $driver_document->document_status = 'Pending';
-                        $driver_document->save();
-
-                        if ($driver_document->id > 0) {
-                            $response['success'] = 'success';
-                            $response['error'] = null;
-                            $response['message'] = 'Documents Add Successfully';
+                        $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
+                        $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                        if ($isImage) {
+                            try {
+                                Helper::compressFile($image_path->getPathName(), $targetDir . '/' . $filename, 80);
+                            } catch (\Throwable $ex) {
+                                $image_path->move($targetDir, $filename);
+                            }
                         } else {
-                            $response['success'] = 'Failed';
-                            $response['error'] = 'Documents Not Add';
+                            $image_path->move($targetDir, $filename);
                         }
-                    } else {
-                        $response['success'] = 'Failed';
-                        $response['error'] = 'File Not Found';
                     }
-                } else {
-                    $response['success'] = 'Failed';
-                    $response['error'] = 'Document Not Found';
+
+                    $driver_document = new DriversDocuments;
+                    $driver_document->driver_id = $driver_id;
+                    $driver_document->document_id = $document_id;
+                    $driver_document->document_path = $filename;
+                    $driver_document->document_status = 'Pending';
+                    $driver_document->save();
                 }
             }
-        }
 
-        return response()->json($response);
+            return response()->json([
+                'success' => 'success',
+                'error' => null,
+                'message' => 'Documents Added Successfully'
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('addDriverDocuments error: ' . $e->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $e->getMessage(),
+                'message' => 'An error occurred while uploading document.'
+            ]);
+        }
     }
 
     public function updateDriverDocuments(Request $request)
     {
-
-        $driver_id = $request->get('driver_id');
-
-        $document_id = $request->get('document_id');
-
-        $attachment = $request->file('attachment');
-
-        if ($document_id === null || $document_id === '') {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Document Id Not Found';
-        } else if (empty($driver_id) || $driver_id == 0) {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Driver Id Not Found';
-        } else if (empty($attachment)) {
-
-            $response['success'] = 'Failed';
-            $response['error'] = 'Attachment Not Found';
-        } else {
-
+        try {
+            $driver_id = $request->get('driver_id');
+            $document_id = $request->get('document_id');
             $file = $request->file('attachment');
+
+            if ($document_id === null || $document_id === '') {
+                return response()->json(['success' => 'Failed', 'error' => 'Document Id Not Found']);
+            }
+            if (empty($driver_id) || $driver_id == 0) {
+                return response()->json(['success' => 'Failed', 'error' => 'Driver Id Not Found']);
+            }
+            if (empty($file)) {
+                return response()->json(['success' => 'Failed', 'error' => 'Attachment Not Found']);
+            }
+
             $document_name = DB::table('admin_documents')->where('id', $document_id)->first();
+            $title = ($document_name && !empty($document_name->title)) ? $document_name->title : 'Document';
+
+            $targetDir = public_path('assets/images/driver/documents');
+            if (!file_exists($targetDir)) {
+                @mkdir($targetDir, 0777, true);
+            }
+
+            $extenstion = strtolower($file->getClientOriginalExtension());
+            $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
             try {
                 $filename = Helper::uploadToImageKit($file, '/driver/documents');
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 \Log::warning('ImageKit upload for driver document failed, falling back to local: ' . $e->getMessage());
-                $extenstion = $file->getClientOriginalExtension();
-                $filename = str_replace(' ', '_', $document_name->title) . '_' . time() . '.' . $extenstion;
-                $compressedImage = Helper::compressFile($file->getPathName(), public_path('assets/images/driver/documents') . '/' . $filename, 8);
+                $filename = str_replace(' ', '_', $title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
+                if ($isImage) {
+                    try {
+                        Helper::compressFile($file->getPathName(), $targetDir . '/' . $filename, 80);
+                    } catch (\Throwable $ex) {
+                        $file->move($targetDir, $filename);
+                    }
+                } else {
+                    $file->move($targetDir, $filename);
+                }
             }
 
-            $get_driver_document = DB::table('driver_document')->where('document_id', $document_id)->where('driver_id', $driver_id)->first();
+            $get_driver_document = DB::table('driver_document')
+                ->where('document_id', $document_id)
+                ->where('driver_id', $driver_id)
+                ->first();
+
             if ($get_driver_document) {
-                if (!filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL) && file_exists(public_path('assets/images/driver/documents' . '/' . $get_driver_document->document_path))) {
-                    @unlink(public_path('assets/images/driver/documents' . '/' . $get_driver_document->document_path));
+                if (!filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL) && file_exists($targetDir . '/' . $get_driver_document->document_path)) {
+                    @unlink($targetDir . '/' . $get_driver_document->document_path);
                 }
                 $driver_document = DriversDocuments::find($get_driver_document->id);
-                $driver_document->document_path = $filename;
-                $driver_document->document_status = 'Pending';
-                $driver_document->save();
+                if ($driver_document) {
+                    $driver_document->document_path = $filename;
+                    $driver_document->document_status = 'Pending';
+                    $driver_document->save();
+                }
             } else {
                 $driver_document = new DriversDocuments;
                 $driver_document->driver_id = $driver_id;
@@ -172,79 +194,93 @@ class DocumentsController extends Controller
                 $driver_document->save();
             }
 
-            $get_driver_document = DB::table('driver_document')->where('document_id', $document_id)->where('driver_id', $driver_id)->first();
+            $updatedDoc = DB::table('driver_document')
+                ->where('document_id', $document_id)
+                ->where('driver_id', $driver_id)
+                ->first();
 
-            if ($get_driver_document) {
-
-                if (filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL)) {
-                    $get_driver_document->document_path = $get_driver_document->document_path;
+            if ($updatedDoc) {
+                if (filter_var($updatedDoc->document_path, FILTER_VALIDATE_URL)) {
+                    $updatedDoc->document_path = $updatedDoc->document_path;
                 } else {
-                    $get_driver_document->document_path = url('assets/images/driver/documents/' . $get_driver_document->document_path);
+                    $updatedDoc->document_path = url('assets/images/driver/documents/' . $updatedDoc->document_path);
                 }
-                $get_driver_document->document_name = $document_name->title;
-                $get_driver_document->id = $get_driver_document->document_id;
+                $updatedDoc->document_name = $title;
+                $updatedDoc->id = $updatedDoc->document_id;
 
-                unset($get_driver_document->document_id);
-
-                $response['success'] = 'Success';
-
-                $response['error'] = null;
-
-                $response['message'] = $document_name->title . ' Updated';
-
-                $response['data'] = $get_driver_document;
-            } else {
-
-                $response['success'] = 'Failed';
-
-                $response['error'] = $document_name->title . ' Not Updated';
+                return response()->json([
+                    'success' => 'Success',
+                    'error' => null,
+                    'message' => $title . ' Updated',
+                    'data' => $updatedDoc
+                ]);
             }
-        }
 
-        return response()->json($response);
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $title . ' Not Updated'
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('updateDriverDocuments error: ' . $e->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $e->getMessage(),
+                'message' => 'An error occurred while updating document.'
+            ]);
+        }
     }
 
     public function getDriverDocuments(Request $request)
     {
+        try {
+            $driver_id = $request->get('driver_id');
+            $admin_documents = DB::table('admin_documents')->where('is_enabled', '=', 'Yes')->get();
 
-        $driver_id = $request->get('driver_id');
-
-        $admin_documents = DB::table('admin_documents')->where('is_enabled', '=', 'Yes')->get();
-
-        if (!empty($admin_documents)) {
-
-            foreach ($admin_documents as $key => $document) {
-                $id = $document->id;
-                $get_driver_document = DB::table('driver_document')->where('document_id', $document->id)->where('driver_id', $driver_id)->first();
-                $document->id = (string)$id;
-                if ($get_driver_document) {
-                    if (filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL)) {
-                        $document->document_path = $get_driver_document->document_path;
+            if (!empty($admin_documents)) {
+                foreach ($admin_documents as $key => $document) {
+                    $id = $document->id;
+                    $get_driver_document = DB::table('driver_document')
+                        ->where('document_id', $document->id)
+                        ->where('driver_id', $driver_id)
+                        ->first();
+                    $document->id = (string)$id;
+                    if ($get_driver_document) {
+                        if (filter_var($get_driver_document->document_path, FILTER_VALIDATE_URL)) {
+                            $document->document_path = $get_driver_document->document_path;
+                        } else {
+                            $document->document_path = url('assets/images/driver/documents/' . $get_driver_document->document_path);
+                        }
+                        $document->document_status = $get_driver_document->document_status;
+                        $document->comment = $get_driver_document->comment;
                     } else {
-                        $document->document_path = url('assets/images/driver/documents/' . $get_driver_document->document_path);
+                        $document->document_path = '';
+                        $document->document_status = 'Pending';
+                        $document->comment = '';
                     }
-                    $document->document_status = $get_driver_document->document_status;
-                    $document->comment = $get_driver_document->comment;
-                } else {
-                    $document->document_path = '';
-                    $document->document_status = 'Pending';
-                    $document->comment = '';
+                    $document->document_name = $document->title;
+                    $admin_documents[$key] = $document;
                 }
-                $document->document_name = $document->title;
 
-                $admin_documents[$key] = $document;
+                return response()->json([
+                    'success' => 'success',
+                    'error' => null,
+                    'message' => 'successfully',
+                    'data' => $admin_documents
+                ]);
             }
 
-            $response['success'] = 'success';
-            $response['error'] = null;
-            $response['message'] = 'successfully';
-            $response['data'] = $admin_documents;
-        } else {
-            $response['success'] = 'Failed';
-            $response['error'] = 'Failed to fetch data';
-            $response['message'] = 'successfully';
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Failed to fetch data',
+                'message' => 'No document types found'
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('getDriverDocuments error: ' . $e->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $e->getMessage(),
+                'message' => 'An error occurred while fetching driver documents.'
+            ]);
         }
-
-        return response()->json($response);
     }
 }

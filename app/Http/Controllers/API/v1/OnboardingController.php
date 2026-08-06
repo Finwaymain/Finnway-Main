@@ -170,154 +170,180 @@ class OnboardingController extends Controller
 
     public function submit(Request $request)
     {
-        $driverId = $request->input('driver_id');
-        $primaryCategoryId = $request->input('primary_category_id');
-        $secondaryTypes = json_decode($request->input('secondary_types', '[]'), true);
-        $vehicles = json_decode($request->input('vehicles', '[]'), true);
-        
-        if (empty($driverId) || $driverId == 0) {
-            return response()->json(['success' => 'Failed', 'error' => 'driver_id is required']);
-        }
-
-        $primaryCategory = UserCategory::find($primaryCategoryId);
-        if (!$primaryCategory) {
-            return response()->json(['success' => 'Failed', 'error' => 'Invalid primary category selected']);
-        }
-
-        $mode = $request->input('mode');
-
-        $topLevelCategory = $primaryCategory;
-        $depth = 0;
-        while ($topLevelCategory && $topLevelCategory->parent_id && $depth < 5) {
-            $topLevelCategory = UserCategory::find($topLevelCategory->parent_id);
-            $depth++;
-        }
-        $requiresManualApproval = $topLevelCategory && trim($topLevelCategory->libelle) === '🚕 Transport & Mobility';
-
-        if ($mode !== 'edit_category') {
-            $driverUpdateData = [
-                'is_verified' => $requiresManualApproval ? 0 : 1,
-                'statut' => $requiresManualApproval ? 'no' : 'yes',
-                'bank_name' => $request->input('bank_name'),
-                'account_no' => $request->input('account_no'),
-                'ifsc_code' => $request->input('ifsc_code'),
-                'zone_id' => $request->input('zone_id')
-            ];
-            DB::table('tj_conducteur')->where('id', $driverId)->update($driverUpdateData);
-        }
-
-        if ($mode !== 'edit_category') {
-            $isFleet = $primaryCategory->libelle === 'Fleet Owner';
+        try {
+            $driverId = $request->input('driver_id');
+            $primaryCategoryId = $request->input('primary_category_id');
+            $secondaryTypes = json_decode($request->input('secondary_types', '[]'), true);
+            $vehicles = json_decode($request->input('vehicles', '[]'), true);
             
-            if (empty($vehicles)) {
-            } else if ($isFleet) {
-                foreach ($vehicles as $veh) {
+            if (empty($driverId) || $driverId == 0) {
+                return response()->json(['success' => 'Failed', 'error' => 'driver_id is required']);
+            }
+
+            $primaryCategory = UserCategory::find($primaryCategoryId);
+            if (!$primaryCategory) {
+                return response()->json(['success' => 'Failed', 'error' => 'Invalid primary category selected']);
+            }
+
+            $mode = $request->input('mode');
+
+            $topLevelCategory = $primaryCategory;
+            $depth = 0;
+            while ($topLevelCategory && $topLevelCategory->parent_id && $depth < 5) {
+                $topLevelCategory = UserCategory::find($topLevelCategory->parent_id);
+                $depth++;
+            }
+            $requiresManualApproval = $topLevelCategory && trim($topLevelCategory->libelle) === '🚕 Transport & Mobility';
+
+            if ($mode !== 'edit_category') {
+                $driverUpdateData = [
+                    'is_verified' => $requiresManualApproval ? 0 : 1,
+                    'statut' => $requiresManualApproval ? 'no' : 'yes',
+                    'bank_name' => $request->input('bank_name'),
+                    'account_no' => $request->input('account_no'),
+                    'ifsc_code' => $request->input('ifsc_code'),
+                    'zone_id' => $request->input('zone_id')
+                ];
+                DB::table('tj_conducteur')->where('id', $driverId)->update($driverUpdateData);
+            }
+
+            if ($mode !== 'edit_category') {
+                $isFleet = $primaryCategory->libelle === 'Fleet Owner';
+                
+                if (empty($vehicles)) {
+                } else if ($isFleet) {
+                    foreach ($vehicles as $veh) {
+                        DB::table('tj_vehicule')->insert([
+                            'brand' => $veh['brand'],
+                            'model' => $veh['model'],
+                            'numberplate' => $veh['number_plate'],
+                            'id_type_vehicule' => $veh['type_id'],
+                            'id_conducteur' => $driverId,
+                            'car_make' => $veh['car_make'] ?? $veh['brand'],
+                            'milage' => $veh['milage'] ?? '0',
+                            'km' => $veh['km'] ?? '0',
+                            'color' => $veh['color'] ?? 'N/A',
+                            'passenger' => $veh['passenger'] ?? '4',
+                            'statut' => 'yes',
+                            'creer' => now(),
+                            'updated_at' => now()
+                        ]);
+                    }
+                } else {
+                    $firstVeh = $vehicles[0];
                     DB::table('tj_vehicule')->insert([
-                        'brand' => $veh['brand'],
-                        'model' => $veh['model'],
-                        'numberplate' => $veh['number_plate'],
-                        'id_type_vehicule' => $veh['type_id'],
+                        'brand' => $firstVeh['brand'],
+                        'model' => $firstVeh['model'],
+                        'numberplate' => $firstVeh['number_plate'],
+                        'id_type_vehicule' => $firstVeh['type_id'] ?? null,
                         'id_conducteur' => $driverId,
-                        'car_make' => $veh['car_make'] ?? $veh['brand'],
-                        'milage' => $veh['milage'] ?? '0',
-                        'km' => $veh['km'] ?? '0',
-                        'color' => $veh['color'] ?? 'N/A',
-                        'passenger' => $veh['passenger'] ?? '4',
+                        'car_make' => $firstVeh['car_make'] ?? $firstVeh['brand'],
+                        'milage' => $firstVeh['milage'] ?? '0',
+                        'km' => $firstVeh['km'] ?? '0',
+                        'color' => $firstVeh['color'] ?? 'N/A',
+                        'passenger' => $firstVeh['passenger'] ?? '4',
                         'statut' => 'yes',
                         'creer' => now(),
                         'updated_at' => now()
                     ]);
                 }
-            } else {
-                $firstVeh = $vehicles[0];
-                DB::table('tj_vehicule')->insert([
-                    'brand' => $firstVeh['brand'],
-                    'model' => $firstVeh['model'],
-                    'numberplate' => $firstVeh['number_plate'],
-                    'id_type_vehicule' => $firstVeh['type_id'] ?? null,
-                    'id_conducteur' => $driverId,
-                    'car_make' => $firstVeh['car_make'] ?? $firstVeh['brand'],
-                    'milage' => $firstVeh['milage'] ?? '0',
-                    'km' => $firstVeh['km'] ?? '0',
-                    'color' => $firstVeh['color'] ?? 'N/A',
-                    'passenger' => $firstVeh['passenger'] ?? '4',
-                    'statut' => 'yes',
-                    'creer' => now(),
-                    'updated_at' => now()
-                ]);
             }
-        }
 
-        DB::table('tj_conducteur_categories')->where('driver_id', $driverId)->delete();
-        
-        $sellerCategory = DB::table('tj_categorie_user')->where('libelle', 'Online Seller')->first();
-        if ($sellerCategory) {
-            DB::table('tj_conducteur_categories')->insert([
-                'driver_id' => $driverId,
-                'category_id' => $sellerCategory->id,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-        }
-
-        DB::table('tj_conducteur_categories')->insert([
-            'driver_id' => $driverId,
-            'category_id' => $primaryCategoryId,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        if (!empty($secondaryTypes)) {
-            $secondaryIds = DB::table('tj_categorie_user')->whereIn('libelle', $secondaryTypes)->pluck('id');
-            foreach ($secondaryIds as $sId) {
+            DB::table('tj_conducteur_categories')->where('driver_id', $driverId)->delete();
+            
+            $sellerCategory = DB::table('tj_categorie_user')->where('libelle', 'Online Seller')->first();
+            if ($sellerCategory) {
                 DB::table('tj_conducteur_categories')->insert([
                     'driver_id' => $driverId,
-                    'category_id' => $sId,
+                    'category_id' => $sellerCategory->id,
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
             }
-        }
 
-        if ($mode !== 'edit_category') {
-            $adminDocs = DB::table('admin_documents')->where('is_enabled', 'Yes')->get();
-            foreach ($adminDocs as $doc) {
-                $inputName = 'doc_' . $doc->id;
-                
-                if ($request->hasFile($inputName)) {
-                    $file = $request->file($inputName);
-                    try {
-                        $filename = $this->uploadToImageKit($file, '/driver/documents');
-                    } catch (\Exception $e) {
-                        \Log::warning('ImageKit upload failed: ' . $e->getMessage());
-                        $extenstion = $file->getClientOriginalExtension();
-                        $filename = str_replace(' ', '_', $doc->title) . '_' . time() . '.' . $extenstion;
-                        Helper::compressFile($file->getPathName(), public_path('assets/images/driver/documents') . '/' . $filename, 8);
-                    }
+            DB::table('tj_conducteur_categories')->insert([
+                'driver_id' => $driverId,
+                'category_id' => $primaryCategoryId,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
-                    $existingDoc = DB::table('driver_document')->where('document_id', $doc->id)->where('driver_id', $driverId)->first();
-                    if ($existingDoc) {
-                        $driverDoc = DriversDocuments::find($existingDoc->id);
-                        $driverDoc->document_path = $filename;
-                        $driverDoc->document_status = 'Pending';
-                        $driverDoc->save();
-                    } else {
-                        $driverDoc = new DriversDocuments;
-                        $driverDoc->driver_id = $driverId;
-                        $driverDoc->document_id = $doc->id;
-                        $driverDoc->document_path = $filename;
-                        $driverDoc->document_status = 'Pending';
-                        $driverDoc->save();
+            if (!empty($secondaryTypes)) {
+                $secondaryIds = DB::table('tj_categorie_user')->whereIn('libelle', $secondaryTypes)->pluck('id');
+                foreach ($secondaryIds as $sId) {
+                    DB::table('tj_conducteur_categories')->insert([
+                        'driver_id' => $driverId,
+                        'category_id' => $sId,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                }
+            }
+
+            if ($mode !== 'edit_category') {
+                $targetDir = public_path('assets/images/driver/documents');
+                if (!file_exists($targetDir)) {
+                    @mkdir($targetDir, 0777, true);
+                }
+
+                $adminDocs = DB::table('admin_documents')->where('is_enabled', 'Yes')->get();
+                foreach ($adminDocs as $doc) {
+                    $inputName = 'doc_' . $doc->id;
+                    
+                    if ($request->hasFile($inputName)) {
+                        $file = $request->file($inputName);
+                        $extenstion = strtolower($file->getClientOriginalExtension());
+                        $isImage = in_array($extenstion, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+
+                        try {
+                            $filename = $this->uploadToImageKit($file, '/driver/documents');
+                        } catch (\Throwable $e) {
+                            \Log::warning('ImageKit upload failed: ' . $e->getMessage());
+                            $filename = str_replace(' ', '_', $doc->title) . '_' . time() . '_' . rand(100, 999) . '.' . $extenstion;
+                            if ($isImage) {
+                                try {
+                                    Helper::compressFile($file->getPathName(), $targetDir . '/' . $filename, 80);
+                                } catch (\Throwable $ex) {
+                                    $file->move($targetDir, $filename);
+                                }
+                            } else {
+                                $file->move($targetDir, $filename);
+                            }
+                        }
+
+                        $existingDoc = DB::table('driver_document')->where('document_id', $doc->id)->where('driver_id', $driverId)->first();
+                        if ($existingDoc) {
+                            $driverDoc = DriversDocuments::find($existingDoc->id);
+                            if ($driverDoc) {
+                                $driverDoc->document_path = $filename;
+                                $driverDoc->document_status = 'Pending';
+                                $driverDoc->save();
+                            }
+                        } else {
+                            $driverDoc = new DriversDocuments;
+                            $driverDoc->driver_id = $driverId;
+                            $driverDoc->document_id = $doc->id;
+                            $driverDoc->document_path = $filename;
+                            $driverDoc->document_status = 'Pending';
+                            $driverDoc->save();
+                        }
                     }
                 }
             }
-        }
 
-        return response()->json([
-            'success' => 'success',
-            'message' => 'Onboarding data submitted successfully.',
-            'error' => null
-        ]);
+            return response()->json([
+                'success' => 'success',
+                'message' => 'Onboarding data submitted successfully.',
+                'error' => null
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Onboarding submit error: ' . $e->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => $e->getMessage(),
+                'message' => 'An error occurred during onboarding submission.'
+            ]);
+        }
     }
 
     private function uploadToImageKit($file, $folder = '/driver/documents')
