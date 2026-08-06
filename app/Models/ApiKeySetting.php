@@ -32,12 +32,12 @@ class ApiKeySetting extends Model
     /**
      * Helper to get active API key by provider or key name
      */
-    public static function getApiKeyValue(string $provider, string $default = '')
+    public static function getApiKeyValue(string $key, string $default = '')
     {
         if (!Schema::hasTable('api_key_settings')) {
             return $default;
         }
-        $setting = self::where('provider', $provider)->where('is_active', true)->first();
+        $setting = self::where('key_name', $key)->orWhere('provider', $key)->where('is_active', true)->first();
         return $setting ? $setting->key_value : $default;
     }
 
