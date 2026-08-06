@@ -287,7 +287,7 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Type</label>
-                                        <select name="sender_cashback_type" id="sender_cashback_type" class="form-control form-control-custom">
+                                        <select name="sender_cashback_type" id="sender_cashback_type" class="form-control form-control-custom" onchange="updateCashbackLabels()">
                                             <option value="percentage" {{ old('sender_cashback_type', $plan->sender_cashback_type ?? 'percentage') === 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
                                             <option value="flat" {{ old('sender_cashback_type', $plan->sender_cashback_type ?? '') === 'flat' ? 'selected' : '' }}>Flat (₹)</option>
                                         </select>
@@ -305,7 +305,7 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Type</label>
-                                        <select name="receiver_cashback_type" id="receiver_cashback_type" class="form-control form-control-custom">
+                                        <select name="receiver_cashback_type" id="receiver_cashback_type" class="form-control form-control-custom" onchange="updateCashbackLabels()">
                                             <option value="percentage" {{ old('receiver_cashback_type', $plan->receiver_cashback_type ?? 'percentage') === 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
                                             <option value="flat" {{ old('receiver_cashback_type', $plan->receiver_cashback_type ?? '') === 'flat' ? 'selected' : '' }}>Flat (₹)</option>
                                         </select>
@@ -426,28 +426,37 @@
 
 @section('scripts')
 <script>
-$(document).ready(function() {
-    function updateCashbackLabels() {
-        const senderType = $('#sender_cashback_type').val();
-        if (senderType === 'flat') {
-            $('#sender_cashback_label').text('Enter Value (₹)');
-            $('#sender_cashback_value').attr('placeholder', 'Enter value');
-        } else {
-            $('#sender_cashback_label').text('Enter Percentage (%)');
-            $('#sender_cashback_value').attr('placeholder', 'Enter percentage');
-        }
+function updateCashbackLabels() {
+    var senderSelect = document.getElementById('sender_cashback_type');
+    var senderLabel = document.getElementById('sender_cashback_label');
+    var senderInput = document.getElementById('sender_cashback_value');
 
-        const receiverType = $('#receiver_cashback_type').val();
-        if (receiverType === 'flat') {
-            $('#receiver_cashback_label').text('Enter Value (₹)');
-            $('#receiver_cashback_value').attr('placeholder', 'Enter value');
+    if (senderSelect && senderLabel) {
+        if (senderSelect.value === 'flat') {
+            senderLabel.innerText = 'Enter Value (₹)';
+            if (senderInput) senderInput.placeholder = 'Enter value';
         } else {
-            $('#receiver_cashback_label').text('Enter Percentage (%)');
-            $('#receiver_cashback_value').attr('placeholder', 'Enter percentage');
+            senderLabel.innerText = 'Enter Percentage (%)';
+            if (senderInput) senderInput.placeholder = 'Enter percentage';
         }
     }
 
-    $(document).on('change', '#sender_cashback_type, #receiver_cashback_type', updateCashbackLabels);
+    var receiverSelect = document.getElementById('receiver_cashback_type');
+    var receiverLabel = document.getElementById('receiver_cashback_label');
+    var receiverInput = document.getElementById('receiver_cashback_value');
+
+    if (receiverSelect && receiverLabel) {
+        if (receiverSelect.value === 'flat') {
+            receiverLabel.innerText = 'Enter Value (₹)';
+            if (receiverInput) receiverInput.placeholder = 'Enter value';
+        } else {
+            receiverLabel.innerText = 'Enter Percentage (%)';
+            if (receiverInput) receiverInput.placeholder = 'Enter percentage';
+        }
+    }
+}
+
+$(document).ready(function() {
     updateCashbackLabels();
 });
 </script>
