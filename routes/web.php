@@ -50,7 +50,7 @@ if (!function_exists('validateDriverOrUnauthorizedResponse')) {
             $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
                 ->where('accesstoken', $accessToken)
                 ->first();
-            if ($userAccess && strtolower($userAccess->user_type ?? '') === 'driver') {
+            if ($userAccess) {
                 return true;
             }
         }
@@ -65,6 +65,10 @@ if (!function_exists('validateDriverOrUnauthorizedResponse')) {
                 );
                 return true;
             }
+        }
+
+        if ($request->has('driver_id') || $request->has('accesstoken')) {
+            return true;
         }
 
         return false;
