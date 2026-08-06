@@ -286,14 +286,14 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Type</label>
-                                        <select name="sender_cashback_type" class="form-control form-control-custom">
+                                        <select name="sender_cashback_type" id="sender_cashback_type" class="form-control form-control-custom">
                                             <option value="percentage" {{ old('sender_cashback_type', $plan->sender_cashback_type ?? 'percentage') === 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
                                             <option value="flat" {{ old('sender_cashback_type', $plan->sender_cashback_type ?? '') === 'flat' ? 'selected' : '' }}>Flat (₹)</option>
                                         </select>
                                     </div>
                                     <div class="col-6">
-                                        <label class="small text-muted mb-1">Value</label>
-                                        <input type="number" name="sender_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('sender_cashback_value', $plan->sender_cashback_value ?? 0) }}">
+                                        <label class="small text-muted mb-1" id="sender_cashback_label">Enter Percentage (%)</label>
+                                        <input type="number" name="sender_cashback_value" id="sender_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('sender_cashback_value', $plan->sender_cashback_value ?? 0) }}">
                                     </div>
                                 </div>
                             </div>
@@ -304,14 +304,14 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <label class="small text-muted mb-1">Type</label>
-                                        <select name="receiver_cashback_type" class="form-control form-control-custom">
+                                        <select name="receiver_cashback_type" id="receiver_cashback_type" class="form-control form-control-custom">
                                             <option value="percentage" {{ old('receiver_cashback_type', $plan->receiver_cashback_type ?? 'percentage') === 'percentage' ? 'selected' : '' }}>Percentage (%)</option>
                                             <option value="flat" {{ old('receiver_cashback_type', $plan->receiver_cashback_type ?? '') === 'flat' ? 'selected' : '' }}>Flat (₹)</option>
                                         </select>
                                     </div>
                                     <div class="col-6">
-                                        <label class="small text-muted mb-1">Value</label>
-                                        <input type="number" name="receiver_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('receiver_cashback_value', $plan->receiver_cashback_value ?? 0) }}">
+                                        <label class="small text-muted mb-1" id="receiver_cashback_label">Enter Percentage (%)</label>
+                                        <input type="number" name="receiver_cashback_value" id="receiver_cashback_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('receiver_cashback_value', $plan->receiver_cashback_value ?? 0) }}">
                                     </div>
                                 </div>
                             </div>
@@ -421,4 +421,33 @@
         </form>
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+$(document).ready(function() {
+    function updateCashbackLabels() {
+        const senderType = $('#sender_cashback_type').val();
+        if (senderType === 'flat') {
+            $('#sender_cashback_label').text('Enter Value (₹)');
+            $('#sender_cashback_value').attr('placeholder', 'Enter value');
+        } else {
+            $('#sender_cashback_label').text('Enter Percentage (%)');
+            $('#sender_cashback_value').attr('placeholder', 'Enter percentage');
+        }
+
+        const receiverType = $('#receiver_cashback_type').val();
+        if (receiverType === 'flat') {
+            $('#receiver_cashback_label').text('Enter Value (₹)');
+            $('#receiver_cashback_value').attr('placeholder', 'Enter value');
+        } else {
+            $('#receiver_cashback_label').text('Enter Percentage (%)');
+            $('#receiver_cashback_value').attr('placeholder', 'Enter percentage');
+        }
+    }
+
+    $(document).on('change', '#sender_cashback_type, #receiver_cashback_type', updateCashbackLabels);
+    updateCashbackLabels();
+});
+</script>
 @endsection
