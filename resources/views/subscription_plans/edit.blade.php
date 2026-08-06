@@ -463,6 +463,14 @@
                                 </div>
                             </div>
 
+                            <div class="discount-item-row">
+                                <label>Transaction</label>
+                                <div class="input-group input-group-sm" style="width: 120px;">
+                                    <input type="number" name="discount_transaction" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_transaction', $subscriptionPlan->discount_transaction ?? 10) }}">
+                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>

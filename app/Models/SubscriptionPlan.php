@@ -28,6 +28,7 @@ class SubscriptionPlan extends Model
         'receiver_cashback_type', 'receiver_cashback_value',
         'discount_home_service', 'discount_travel', 'discount_hotel',
         'discount_food', 'discount_medical', 'discount_marketplace',
+        'discount_transaction',
         'shopping_discount',
         'free_ride_limit', 'free_ride_reset',
         'wallet_increment_value', 'wallet_increment_period',
