@@ -41,19 +41,54 @@ Route::get('/clear', function() {
 
 Auth::routes();
 
+if (!function_exists('validateDriverOrUnauthorizedResponse')) {
+    function validateDriverOrUnauthorizedResponse(\Illuminate\Http\Request $request) {
+        $accessToken = $request->query('accesstoken');
+        $driverId = $request->query('driver_id');
+
+        if (!empty($accessToken)) {
+            $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
+                ->where('accesstoken', $accessToken)
+                ->first();
+            if ($userAccess && strtolower($userAccess->user_type ?? '') === 'driver') {
+                return true;
+            }
+        }
+
+        if (!empty($driverId)) {
+            $driverExists = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->exists();
+            if ($driverExists) {
+                $tokenToUse = !empty($accessToken) ? $accessToken : md5(uniqid(mt_rand(), true));
+                \Illuminate\Support\Facades\DB::table('users_access')->updateOrInsert(
+                    ['user_id' => $driverId, 'user_type' => 'driver'],
+                    ['accesstoken' => $tokenToUse]
+                );
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('renderUnauthorizedAppBridgeResponse')) {
+    function renderUnauthorizedAppBridgeResponse() {
+        return response()->make(
+            '<!DOCTYPE html><html><head><script>' .
+            'if(window.AppBridge){window.AppBridge.postMessage("unauthorized");}else{window.location.href="/onboarding/join-fiinway";}' .
+            '</script></head><body><script>' .
+            'if(window.AppBridge){window.AppBridge.postMessage("unauthorized");}else{window.location.href="/onboarding/join-fiinway";}' .
+            '</script></body></html>',
+            200,
+            ['Content-Type' => 'text/html']
+        );
+    }
+}
+
 Route::get('/onboarding', function (\Illuminate\Http\Request $request) {
-    $accessToken = $request->query('accesstoken');
-    if (!$accessToken) {
-        abort(403, 'Unauthorized. Access token is missing.');
+    if (!validateDriverOrUnauthorizedResponse($request)) {
+        return renderUnauthorizedAppBridgeResponse();
     }
-    $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
-        ->where('accesstoken', $accessToken)
-        ->first();
-    
-    if (!$userAccess || $userAccess->user_type !== 'driver') {
-        abort(403, 'Unauthorized. Invalid or expired access token.');
-    }
-    
     return view('onboarding');
 });
 
@@ -62,38 +97,16 @@ Route::get('/onboarding/join-fiinway', function (\Illuminate\Http\Request $reque
 });
 
 Route::get('/onboarding/more', function (\Illuminate\Http\Request $request) {
-    $accessToken = $request->query('accesstoken');
-    if (!$accessToken) {
-        abort(403, 'Unauthorized. Access token is missing.');
+    if (!validateDriverOrUnauthorizedResponse($request)) {
+        return renderUnauthorizedAppBridgeResponse();
     }
-    $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
-        ->where('accesstoken', $accessToken)
-        ->first();
-    
-    if (!$userAccess) {
-        abort(403, 'Unauthorized. Invalid or expired access token.');
-    }
-    
     return view('more');
 });
 
 Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request) {
-    $accessToken = $request->query('accesstoken');
-    if (!$accessToken) {
-        abort(403, 'Unauthorized. Access token is missing.');
+    if (!validateDriverOrUnauthorizedResponse($request)) {
+        return renderUnauthorizedAppBridgeResponse();
     }
-    $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
-        ->where('accesstoken', $accessToken)
-        ->first();
-
-    if (!$userAccess || strtolower($userAccess->user_type ?? '') !== 'driver') {
-        $driverId = $request->query('driver_id');
-        $driverExists = $driverId ? \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->exists() : false;
-        if (!$driverExists) {
-            abort(403, 'Unauthorized. Invalid or expired access token.');
-        }
-    }
-
     if (view()->exists('onboarding-dashboard')) {
         return view('onboarding-dashboard');
     }
@@ -101,18 +114,9 @@ Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request)
 });
 
 Route::get('/onboarding/smartvalue', function (\Illuminate\Http\Request $request) {
-    $accessToken = $request->query('accesstoken');
-    if (!$accessToken) {
-        abort(403, 'Unauthorized. Access token is missing.');
+    if (!validateDriverOrUnauthorizedResponse($request)) {
+        return renderUnauthorizedAppBridgeResponse();
     }
-    $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
-        ->where('accesstoken', $accessToken)
-        ->first();
-    
-    if (!$userAccess) {
-        abort(403, 'Unauthorized. Invalid or expired access token.');
-    }
-    
     return view('smartvalue');
 });
 
