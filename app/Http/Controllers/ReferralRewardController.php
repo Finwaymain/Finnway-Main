@@ -132,6 +132,58 @@ class ReferralRewardController extends Controller
             }
         }
 
+        // 6. Referral Event Rules Configuration
+        $eventRules = [
+            'app_install' => [
+                'name'    => 'App Install',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_app_install_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_app_install_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_app_install_value', '1'),
+            ],
+            'registration' => [
+                'name'    => 'Registration',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_registration_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_registration_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_registration_value', '1'),
+            ],
+            'user_subscription' => [
+                'name'    => 'User Subscription',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_value', '2'),
+            ],
+            'service_booking' => [
+                'name'    => 'Service Booking',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_service_booking_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_service_booking_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_service_booking_value', '2'),
+            ],
+            'marketplace_purchase' => [
+                'name'    => 'Marketplace Purchase',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_value', '2'),
+            ],
+            'wallet_payment_transfer' => [
+                'name'    => 'Wallet Payment / Transfer',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_value', '2'),
+            ],
+            'qr_payment' => [
+                'name'    => 'QR Payment',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_type', 'percentage'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_value', '2'),
+            ],
+            'system_accepted' => [
+                'name'    => 'System Accepted',
+                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_enable', '1') == '1',
+                'type'    => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_type', 'flat'),
+                'value'   => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_value', '10'),
+            ],
+        ];
+
         return view('referral.index', compact(
             'rewardMode', 'rewardValue', 'rewardMin',
             'categoriesWithSubs', 'defaultCategories',
@@ -139,7 +191,8 @@ class ReferralRewardController extends Controller
             'consumerUsers', 'businessUsers', 'activeUsers', 'totalTransactions',
             'totalReferralIncome', 'earningsLogs',
             'oneTimeTotal', 'multipleTimeTotal',
-            'oneTimeEarningsTable', 'multipleTimeEarningsTable'
+            'oneTimeEarningsTable', 'multipleTimeEarningsTable',
+            'eventRules'
         ));
     }
 
@@ -169,8 +222,31 @@ class ReferralRewardController extends Controller
                     );
                 }
             }
+
+            if ($request->has('event_rules_submit')) {
+                $events = ['app_install', 'registration', 'user_subscription', 'service_booking', 'marketplace_purchase', 'wallet_payment_transfer', 'qr_payment', 'system_accepted'];
+                foreach ($events as $evt) {
+                    $enableVal = $request->has("event_{$evt}_enable") ? '1' : '0';
+                    $typeVal   = $request->input("event_{$evt}_type", 'percentage');
+                    $valueVal  = $request->input("event_{$evt}_value", '0');
+
+                    ApiKeySetting::updateOrCreate(
+                        ['key_name' => "event_rule_{$evt}_enable"],
+                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$enableVal, 'is_active' => true]
+                    );
+                    ApiKeySetting::updateOrCreate(
+                        ['key_name' => "event_rule_{$evt}_type"],
+                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$typeVal, 'is_active' => true]
+                    );
+                    ApiKeySetting::updateOrCreate(
+                        ['key_name' => "event_rule_{$evt}_value"],
+                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$valueVal, 'is_active' => true]
+                    );
+                }
+                return redirect()->back()->with('success', 'Referral Event Rules Saved Successfully!');
+            }
         }
 
-        return redirect()->back()->with('success', 'Referral & Service Reward Configuration Saved Successfully!');
+        return redirect()->back()->with('success', 'Referral Configuration Saved Successfully!');
     }
 }

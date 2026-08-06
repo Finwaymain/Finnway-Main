@@ -147,6 +147,44 @@
         color: #0f172a !important;
         font-weight: 700 !important;
     }
+
+    /* Green Switch Styling matching screenshot */
+    .switch-green {
+        position: relative;
+        display: inline-block;
+        width: 46px;
+        height: 24px;
+    }
+    .switch-green input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider-green {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #cbd5e1;
+        transition: .3s;
+        border-radius: 24px;
+    }
+    .slider-green:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+    }
+    .switch-green input:checked + .slider-green {
+        background-color: #10b981;
+    }
+    .switch-green input:checked + .slider-green:before {
+        transform: translateX(22px);
+    }
 </style>
 
 <div class="page-wrapper admin-theme-container">
@@ -169,6 +207,7 @@
                 <div class="admin-nav-tabs mt-3">
                     <div class="admin-tab-item active" onclick="switchAdminTab('reward-settings-pane', this)">Reward Settings</div>
                     <div class="admin-tab-item" onclick="switchAdminTab('service-rewards-pane', this)">Service-wise Rewards</div>
+                    <div class="admin-tab-item" onclick="switchAdminTab('event-rules-pane', this)">Referral Event Rules</div>
                     <div class="admin-tab-item" onclick="switchAdminTab('earnings-pane', this)">Earnings & Breakdown</div>
                 </div>
             </div>
@@ -337,6 +376,74 @@
 
                         <button type="submit" class="btn btn-primary font-weight-bold px-4 mt-3"><i class="fa fa-save mr-1"></i> Save Configuration</button>
                     </form>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- TAB 3: REFERRAL EVENT RULES -->
+                <!-- ========================================== -->
+                <div id="event-rules-pane" class="admin-tab-content" style="display: none;">
+                    <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px; overflow: hidden; background: #ffffff;">
+                        <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+                            <h4 class="font-weight-bold" style="color: #1e1b4b; font-size: 1.35rem;">Referral Event Rules</h4>
+                        </div>
+                        <div class="card-body p-4">
+                            <form action="{{ route('referral.update') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="event_rules_submit" value="1">
+                                <div class="table-responsive">
+                                    <table class="table table-borderless align-middle mb-0" style="border-collapse: separate; border-spacing: 0 10px;">
+                                        <thead>
+                                            <tr style="background-color: #f1f5f9; color: #334155; font-size: 0.88rem; font-weight: 700; border-radius: 10px;">
+                                                <th style="padding: 12px 18px; border-top-left-radius: 10px; border-bottom-left-radius: 10px;">Event</th>
+                                                <th style="padding: 12px 18px; text-align: center;">Enable</th>
+                                                <th style="padding: 12px 18px; text-align: center;">Reward Type</th>
+                                                <th style="padding: 12px 18px; text-align: center;">Value</th>
+                                                <th style="padding: 12px 18px; text-align: center; border-top-right-radius: 10px; border-bottom-right-radius: 10px;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($eventRules as $evtKey => $evtRule)
+                                            <tr style="background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border-radius: 8px;">
+                                                <td style="padding: 14px 18px; font-weight: 600; color: #334155; font-size: 0.95rem;">
+                                                    {{ $evtRule['name'] }}
+                                                </td>
+                                                <td style="padding: 14px 18px; text-align: center;">
+                                                    <label class="switch-green mb-0">
+                                                        <input type="checkbox" name="event_{{ $evtKey }}_enable" value="1" {{ $evtRule['enable'] ? 'checked' : '' }}>
+                                                        <span class="slider-green"></span>
+                                                    </label>
+                                                </td>
+                                                <td style="padding: 14px 18px; text-align: center;">
+                                                    <select name="event_{{ $evtKey }}_type" class="form-control form-control-sm text-center font-weight-bold mx-auto" style="width: 140px; border-radius: 20px; border: 1px solid #cbd5e1; color: #4338ca; background: #f8fafc;" onchange="updateEventValueSymbol('{{ $evtKey }}', this.value)">
+                                                        <option value="percentage" {{ $evtRule['type'] === 'percentage' ? 'selected' : '' }}>Percentage</option>
+                                                        <option value="flat" {{ $evtRule['type'] === 'flat' ? 'selected' : '' }}>Flat</option>
+                                                    </select>
+                                                </td>
+                                                <td style="padding: 14px 18px; text-align: center;">
+                                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 110px;">
+                                                        <span id="symbol_prefix_{{ $evtKey }}" class="font-weight-bold mr-1" style="color: #1e293b; {{ $evtRule['type'] === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                        <input type="text" name="event_{{ $evtKey }}_value" id="evt_val_input_{{ $evtKey }}" class="form-control form-control-sm text-center font-weight-bold text-dark" style="width: 65px; border-radius: 6px; border: 1px solid #e2e8f0; color: #0f172a !important;" value="{{ $evtRule['value'] }}">
+                                                        <span id="symbol_suffix_{{ $evtKey }}" class="font-weight-bold ml-1" style="color: #1e293b; {{ $evtRule['type'] === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                    </div>
+                                                </td>
+                                                <td style="padding: 14px 18px; text-align: center;">
+                                                    <button type="button" class="btn btn-sm btn-light-edit" onclick="document.getElementById('evt_val_input_{{ $evtKey }}').focus()" title="Edit Rule" style="width: 34px; height: 34px; border-radius: 50%; background: #e0e7ff; color: #4338ca; border: none;">
+                                                        <i class="fa fa-pencil-alt" style="font-size: 0.82rem;"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="d-flex justify-content-end mt-4">
+                                    <button type="submit" class="btn btn-save-rules font-weight-bold px-4 py-2" style="background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; border-radius: 30px; border: none; font-size: 0.95rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                                        Save Rules
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ========================================== -->
@@ -517,6 +624,18 @@
             if (appendSymbol) appendSymbol.classList.add('d-none');
             if (prependSymbol) prependSymbol.classList.remove('d-none');
             if (input) input.placeholder = '50';
+        }
+    }
+
+    function updateEventValueSymbol(evtKey, type) {
+        var prefix = document.getElementById('symbol_prefix_' + evtKey);
+        var suffix = document.getElementById('symbol_suffix_' + evtKey);
+        if (type === 'flat') {
+            if (prefix) prefix.style.display = 'inline';
+            if (suffix) suffix.style.display = 'none';
+        } else {
+            if (prefix) prefix.style.display = 'none';
+            if (suffix) suffix.style.display = 'inline';
         }
     }
 </script>
