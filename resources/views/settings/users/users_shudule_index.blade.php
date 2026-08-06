@@ -323,11 +323,7 @@
                                     </tbody>
                                 </table>
 
-                                <nav aria-label="Page navigation example" class="custom-pagination">
-                                    {{ $users->appends(request()->query())->links() }}
-                                </nav>
-
-                                {{ $users->links('pagination.pagination') }}
+                                {{ $users->appends(request()->query())->links('pagination.pagination') }}
                             </div>
 
                         </div>

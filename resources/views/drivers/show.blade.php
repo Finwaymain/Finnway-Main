@@ -95,13 +95,13 @@
 
 
                                         @if (file_exists(public_path('assets/images/driver' . '/' . $driver->photo_path)) && !empty($driver->photo_path))
-                                        <td><img class="profile-pic"
+                                        <img class="profile-pic"
                                                 src="{{ asset('assets/images/driver') . '/' . $driver->photo_path }}"
-                                                alt="image"></td>
+                                                alt="image">
                                         @else
-                                        <td><img class="profile-pic"
+                                        <img class="profile-pic"
                                                 src="{{ asset('assets/images/placeholder_image.jpg') }}"
-                                                alt="image"></td>
+                                                alt="image">
                                         @endif
 
                                     </div>
@@ -144,63 +144,30 @@
                             <!-- Nav tabs -->
 
                             <ul class="nav nav-tabs">
-
-
-
                                 <li role="presentation" class="">
-
-                                    <a href="#information" aria-controls="information" role="tab" data-toggle="tab"
+                                    <a href="#information" aria-controls="information" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#information"
                                         class="{{ Request::get('tab') == 'information' || Request::get('tab') == '' ? 'active show' : '' }}">Information</a>
-
                                 </li>
-
-
-
                                 <li role="presentation" class="">
-
-                                    <a href="#rides" aria-controls="rides" role="tab" data-toggle="tab"
+                                    <a href="#rides" aria-controls="rides" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#rides"
                                         class="{{ Request::get('tab') == 'rides' ? 'active show' : '' }}">Rides</a>
-
                                 </li>
-
                                 <li role="presentation" class="">
-
-                                    <a href="#parcels" aria-controls="parcels" role="tab" data-toggle="tab"
+                                    <a href="#parcels" aria-controls="parcels" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#parcels"
                                         class="{{ Request::get('tab') == 'parcels' ? 'active show' : '' }}">{{ trans('lang.parcel') }}</a>
-
                                 </li>
-
-
-
                                 <li role="presentation" class="">
-
-                                    <a href="#vehicle" aria-controls="vehicle" role="tab" data-toggle="tab"
+                                    <a href="#vehicle" aria-controls="vehicle" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#vehicle"
                                         class="{{ Request::get('tab') == 'vehicle' ? 'active show' : '' }}">Vehicle</a>
-
-                                </li>
-
-
-
-                                <li role="presentation" class="">
-
-                                    <a href="#transaction" aria-controls="transaction" role="tab" data-toggle="tab"
-                                        class="{{ Request::get('tab') == 'transaction' ? 'active show' : '' }}">Wallet
-
-                                        Transaction</a>
-
                                 </li>
                                 <li role="presentation" class="">
-
-                                    <a href="#subscription_history" aria-controls="subscription_history" role="tab"
-                                        data-toggle="tab"
-                                        class="{{ Request::get('tab') == 'subscription_history' ? 'active show' : '' }}">{{ trans('lang.subscription_history') }}
-
-                                    </a>
-
+                                    <a href="#transaction" aria-controls="transaction" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#transaction"
+                                        class="{{ Request::get('tab') == 'transaction' ? 'active show' : '' }}">Wallet Transaction</a>
                                 </li>
-
-
-
+                                <li role="presentation" class="">
+                                    <a href="#subscription_history" aria-controls="subscription_history" role="tab" data-toggle="tab" data-bs-toggle="tab" data-bs-target="#subscription_history"
+                                        class="{{ Request::get('tab') == 'subscription_history' ? 'active show' : '' }}">{{ trans('lang.subscription_history') }}</a>
+                                </li>
                             </ul>
 
 
@@ -566,10 +533,23 @@
                                                         <div class="col-12 col-group">
                                                             <label
                                                                 class="font-weight-bold">{{ trans('lang.available_features') }}</label>
-                                                            @if (!empty($driver->subscription_plan) && !empty($driver->subscription_plan['plan_points']))
+                                                            @php
+                                                                $planPoints = !empty($driver->subscription_plan) && isset($driver->subscription_plan['plan_points']) ? $driver->subscription_plan['plan_points'] : null;
+                                                                if (is_string($planPoints)) {
+                                                                    $decoded = json_decode($planPoints, true);
+                                                                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                                        $planPoints = $decoded;
+                                                                    } else {
+                                                                        $planPoints = array_filter(array_map('trim', explode(',', $planPoints)));
+                                                                    }
+                                                                }
+                                                            @endphp
+                                                            @if (!empty($planPoints) && (is_array($planPoints) || is_object($planPoints)))
                                                             <ul>
-                                                                @foreach ($driver->subscription_plan['plan_points'] as $point)
-                                                                <li>{{ $point }}</li>
+                                                                @foreach ($planPoints as $point)
+                                                                    @if(!empty($point))
+                                                                    <li>{{ $point }}</li>
+                                                                    @endif
                                                                 @endforeach
                                                             </ul>
                                                             @else
@@ -1337,20 +1317,8 @@
 
 
                     <div class="modal-footer">
-
-                        <button type="submit" class="btn btn-primary"
-                            id="add-wallet-btn">{{ trans('submit') }}</a>
-
-                        </button>
-
-                        <button type="button" class="btn btn-primary" data-dismiss="modal" aria-label="Close">
-
-                            {{ trans('close') }}</a>
-
-                        </button>
-
-
-
+                        <button type="submit" class="btn btn-primary" id="add-wallet-btn">{{ trans('submit') }}</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close">{{ trans('close') }}</button>
                     </div>
 
                 </form>
@@ -1438,11 +1406,24 @@
                                                         {{ $adminCommission ?? '' }}
                                                         {{ trans('lang.on_each_order') }}
                                                     </li>
-                                                    @foreach ($plan->plan_points as $point)
-                                                    <li><span
-                                                            class="mdi mdi-check"></span>{{ $point }}
-                                                    </li>
-                                                    @endforeach
+                                                    @php
+                                                        $cPlanPoints = $plan->plan_points;
+                                                        if (is_string($cPlanPoints)) {
+                                                            $cDecoded = json_decode($cPlanPoints, true);
+                                                            if (json_last_error() === JSON_ERROR_NONE && is_array($cDecoded)) {
+                                                                $cPlanPoints = $cDecoded;
+                                                            } else {
+                                                                $cPlanPoints = array_filter(array_map('trim', explode(',', $cPlanPoints)));
+                                                            }
+                                                        }
+                                                    @endphp
+                                                    @if(!empty($cPlanPoints) && (is_array($cPlanPoints) || is_object($cPlanPoints)))
+                                                        @foreach ($cPlanPoints as $point)
+                                                            @if(!empty($point))
+                                                                <li><span class="mdi mdi-check"></span>{{ $point }}</li>
+                                                            @endif
+                                                        @endforeach
+                                                    @endif
                                                     <li><span
                                                             class="mdi mdi-check"></span>{{ trans('lang.unlimited') }}
                                                         {{ trans('lang.bookings') }}
@@ -1474,7 +1455,7 @@
                                                 <div class="pricing-card-price">
                                                     <h3 class="text-dark-2">
 
-                                                        {{intval($plan->price==0) ?  trans("lang.free") : ($currency->symbol_at_right == 'true' ? number_format($plan->price, $currency->decimal_degit ?? 2) . $currency->symbole : $currency->symbole . number_format($plan->price, $currency->decimal_degit ?? 2)) }}
+                                                        {{intval($plan->price==0) ?  trans("lang.free") : ($currency->symbol_at_right == 'true' ? number_format($plan->price, $currency->decimal_digit ?? 2) . $currency->symbole : $currency->symbole . number_format($plan->price, $currency->decimal_digit ?? 2)) }}
 
                                                     </h3>
                                                     <span
@@ -1484,11 +1465,24 @@
                                             </div>
                                             <div class="pricing-card-content pt-3 mt-3 border-top">
                                                 <ul class="pricing-card-list text-dark-2">
-                                                    @foreach ($plan->plan_points as $point)
-                                                    <li><span
-                                                            class="mdi mdi-check"></span>{{ $point }}
-                                                    </li>
-                                                    @endforeach
+                                                    @php
+                                                        $mPlanPoints = $plan->plan_points;
+                                                        if (is_string($mPlanPoints)) {
+                                                            $mDecoded = json_decode($mPlanPoints, true);
+                                                            if (json_last_error() === JSON_ERROR_NONE && is_array($mDecoded)) {
+                                                                $mPlanPoints = $mDecoded;
+                                                            } else {
+                                                                $mPlanPoints = array_filter(array_map('trim', explode(',', $mPlanPoints)));
+                                                            }
+                                                        }
+                                                    @endphp
+                                                    @if(!empty($mPlanPoints) && (is_array($mPlanPoints) || is_object($mPlanPoints)))
+                                                        @foreach ($mPlanPoints as $point)
+                                                            @if(!empty($point))
+                                                                <li><span class="mdi mdi-check"></span>{{ $point }}</li>
+                                                            @endif
+                                                        @endforeach
+                                                    @endif
                                                     <li><span
                                                             class="mdi mdi-check"></span>{{ $plan->bookingLimit == -1 ? trans('lang.unlimited') : $plan->bookingLimit }}
                                                         {{ trans('lang.bookings') }}
@@ -1626,11 +1620,8 @@
                     </div>
                     @endif
                     <div class="modal-footer">
-                        <button type="submit"
-                            class="btn btn-primary update-plan-limit">{{ trans('submit') }}</a></button>
-                        <button type="button" class="btn btn-primary" data-dismiss="modal" aria-label="Close">
-                            {{ trans('close') }}</a>
-                        </button>
+                        <button type="submit" class="btn btn-primary update-plan-limit">{{ trans('submit') }}</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close">{{ trans('close') }}</button>
                     </div>
                 </form>
             </div>
@@ -1808,8 +1799,7 @@
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                 },
-                url: '{{ route('
-                subscription - checkout ') }}',
+                url: '{{ route("subscription-checkout") }}',
                 method: "POST",
                 data: {
                     'planId': planId,
@@ -1830,8 +1820,7 @@
 
         if (amount == '') {
 
-            $('#wallet_error').text('{{ trans('
-                lang.add_wallet_amount_error ') }}');
+            $('#wallet_error').text('{{ trans("lang.add_wallet_amount_error") }}');
 
             return false;
 
@@ -1849,9 +1838,35 @@
         var set_booking_limit = $('input[name="set_booking_limit"]:checked').val();
         if (set_booking_limit == 'limited' && bookingLimit === '') {
             event.preventDefault();
-            $('.booking_limit_err').html('{{ trans('
-                lang.enter_booking_limit ') }}');
+            $('.booking_limit_err').html('{{ trans("lang.enter_booking_limit") }}');
         }
+    });
+
+    // Explicit Tab Switching Event Delegation
+    $(document).on('click', '.nav-tabs a', function(e) {
+        e.preventDefault();
+        var target = $(this).attr('href') || $(this).data('bs-target') || $(this).data('target');
+        if (target && target.startsWith('#')) {
+            $(this).closest('.nav-tabs').find('a').removeClass('active show');
+            $(this).addClass('active show');
+            $('.tab-content .tab-pane').removeClass('active show').hide();
+            $(target).addClass('active show').show();
+        }
+    });
+
+    // Explicit Modal Trigger Event Delegation
+    $(document).on('click', '[data-toggle="modal"], [data-bs-toggle="modal"]', function(e) {
+        e.preventDefault();
+        var targetModal = $(this).data('target') || $(this).data('bs-target') || $(this).attr('href');
+        if (targetModal && targetModal.startsWith('#') && $(targetModal).length) {
+            $(targetModal).modal('show');
+        }
+    });
+
+    // Explicit Modal Close Event Delegation
+    $(document).on('click', '[data-dismiss="modal"], [data-bs-dismiss="modal"], .modal .close', function(e) {
+        e.preventDefault();
+        $(this).closest('.modal').modal('hide');
     });
 </script>
 @endsection
