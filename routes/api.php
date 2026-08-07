@@ -379,6 +379,7 @@ Route::group(['middleware' => ['envKeyAuth']], function () {
     Route::get('v1/marketplace/categories', [ProductController::class, 'categories']);
     Route::get('v1/history/timeline-full', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getTimelineHistory']);
     Route::get('v1/referral/stats', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getReferralStats']);
+    Route::get('v1/referral/history', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getReferralHistory']);
     Route::get('v1/business-plans/active', [\App\Http\Controllers\API\v1\AppFeatureAPIController::class, 'getBusinessPlans']);
     
     // Consumer Plans (Public - can be viewed without authentication)
