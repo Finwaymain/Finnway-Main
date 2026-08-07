@@ -88,7 +88,7 @@ class DriverWalletHistoryController extends Controller
 
 
 
-    $total_earning = strval($sql_total_earning->amount);
+    $total_earning = ($sql_total_earning && $sql_total_earning->amount !== null) ? strval($sql_total_earning->amount) : '0';
 
 
 
