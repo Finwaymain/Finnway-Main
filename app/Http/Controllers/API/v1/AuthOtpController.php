@@ -1149,6 +1149,37 @@ class AuthOtpController extends Controller
             )
             ->get();
 
+        $pricingByCategory = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('driver_service_pricing')) {
+            $pricingByCategory = DB::table('driver_service_pricing')
+                ->where('driver_id', $driverId)
+                ->get()
+                ->keyBy('category_id');
+        }
+
+        $itemsByCategory = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('driver_service_items')) {
+            $itemsByCategory = DB::table('driver_service_items')
+                ->where('driver_id', $driverId)
+                ->orderBy('sort_order')
+                ->get()
+                ->groupBy('category_id');
+        }
+
+        $services = $services->map(function ($service) use ($pricingByCategory, $itemsByCategory) {
+            $categoryKey = $service->subcategory_id ?: $service->category_id;
+            $pricing = $pricingByCategory->get($categoryKey) ?? $pricingByCategory->get($service->category_id);
+            $items = $itemsByCategory->get($categoryKey) ?? $itemsByCategory->get($service->category_id) ?? collect();
+
+            $service->visiting_charge = $pricing ? (string) $pricing->visiting_charge : null;
+            $service->service_items = $items->map(fn($item) => [
+                'name' => $item->service_name,
+                'price' => (string) $item->price,
+            ])->values();
+
+            return $service;
+        });
+
         return response()->json([
             'success' => 'success',
             'data' => $services

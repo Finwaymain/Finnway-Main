@@ -58,9 +58,12 @@ class OnboardingController extends Controller
             $subcategoriesRequiringVehicle = $vehicleMappings->keys()->map(fn($id) => (int)$id)->toArray();
 
             $enrichedCategories = $categories->map(function ($parent) use ($subcategoriesRequiringVehicle) {
-                $enrichedSubs = $parent->subcategories->map(function ($sub) use ($subcategoriesRequiringVehicle) {
+                $enrichedSubs = $parent->subcategories->map(function ($sub) use ($subcategoriesRequiringVehicle, $parent) {
+                    $requiresVehicle = in_array((int)$sub->id, $subcategoriesRequiringVehicle);
+
                     return array_merge($sub->toArray(), [
-                        'requires_vehicle' => in_array((int)$sub->id, $subcategoriesRequiringVehicle)
+                        'requires_vehicle' => $requiresVehicle,
+                        'requires_home_visit' => self::subcategoryRequiresHomeVisit($parent, $requiresVehicle),
                     ]);
                 });
                 $parentRequiresVehicle = $enrichedSubs->contains('requires_vehicle', true);
@@ -139,6 +142,37 @@ class OnboardingController extends Controller
                     ->get(['id', 'name']);
             }
 
+            $servicePricing = null;
+            if ($driverId && Schema::hasTable('driver_service_pricing')) {
+                $pricingRow = DB::table('driver_service_pricing')
+                    ->where('driver_id', $driverId)
+                    ->orderByDesc('updated_at')
+                    ->first();
+
+                if ($pricingRow) {
+                    $items = [];
+                    if (Schema::hasTable('driver_service_items')) {
+                        $items = DB::table('driver_service_items')
+                            ->where('driver_id', $driverId)
+                            ->where('category_id', $pricingRow->category_id)
+                            ->orderBy('sort_order')
+                            ->get(['service_name', 'price'])
+                            ->map(fn($row) => [
+                                'name' => $row->service_name,
+                                'price' => (string) $row->price,
+                            ])
+                            ->values()
+                            ->toArray();
+                    }
+
+                    $servicePricing = [
+                        'category_id' => (int) $pricingRow->category_id,
+                        'visiting_charge' => (string) $pricingRow->visiting_charge,
+                        'service_items' => $items,
+                    ];
+                }
+            }
+
             return response()->json([
                 'success' => 'success',
                 'data' => [
@@ -148,7 +182,8 @@ class OnboardingController extends Controller
                     'vehicles' => array_values($structuredVehicles),
                     'transport_delivery_map' => $transportDeliveryMap,
                     'admin_docs' => $adminDocs,
-                    'zones' => $zones
+                    'zones' => $zones,
+                    'service_pricing' => $servicePricing,
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -280,6 +315,18 @@ class OnboardingController extends Controller
                 }
             }
 
+            if (self::categoryRequiresHomeVisitPricing($primaryCategory)) {
+                $visitingCharge = $request->input('visiting_charge');
+                if ($visitingCharge === null || $visitingCharge === '') {
+                    return response()->json([
+                        'success' => 'Failed',
+                        'error' => 'Visiting charge is required for home-visit service providers',
+                    ]);
+                }
+            }
+
+            $this->saveDriverServicePricing($driverId, (int) $primaryCategoryId, $primaryCategory, $request);
+
             if ($mode !== 'edit_category') {
                 $targetDir = public_path('assets/images/driver/documents');
                 if (!file_exists($targetDir)) {
@@ -390,5 +437,126 @@ class OnboardingController extends Controller
         }
 
         throw new \Exception("ImageKit error ({$statusCode})");
+    }
+
+    private static function subcategoryRequiresHomeVisit($parent, bool $requiresVehicle): bool
+    {
+        if ($requiresVehicle) {
+            return false;
+        }
+
+        $parentLabel = is_array($parent) ? ($parent['libelle'] ?? '') : ($parent->libelle ?? '');
+        $excludedTerms = [
+            'Transport', 'Delivery', 'Mobility', 'Logistics',
+            'Online Seller', 'Retail Shop', 'Restaurant', 'Hotel', 'Manufacturing',
+        ];
+
+        foreach ($excludedTerms as $term) {
+            if (stripos($parentLabel, $term) !== false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function categoryRequiresHomeVisitPricing(?UserCategory $category): bool
+    {
+        if (!$category) {
+            return false;
+        }
+
+        $topLevel = $category;
+        $depth = 0;
+        while ($topLevel && $topLevel->parent_id && $depth < 5) {
+            $topLevel = UserCategory::find($topLevel->parent_id);
+            $depth++;
+        }
+
+        if (!$topLevel) {
+            return false;
+        }
+
+        if (Schema::hasTable('tj_category_user_vehicle_type')) {
+            $requiresVehicle = DB::table('tj_category_user_vehicle_type')
+                ->where('category_user_id', $category->id)
+                ->exists();
+            if ($requiresVehicle) {
+                return false;
+            }
+        }
+
+        return self::subcategoryRequiresHomeVisit($topLevel, false);
+    }
+
+    private function saveDriverServicePricing(int $driverId, int $categoryId, UserCategory $category, Request $request): void
+    {
+        if (!self::categoryRequiresHomeVisitPricing($category)) {
+            return;
+        }
+
+        if (!Schema::hasTable('driver_service_pricing')) {
+            return;
+        }
+
+        $visitingCharge = $request->input('visiting_charge');
+        if ($visitingCharge === null || $visitingCharge === '') {
+            return;
+        }
+
+        $serviceItems = json_decode($request->input('service_items', '[]'), true);
+        if (!is_array($serviceItems)) {
+            $serviceItems = [];
+        }
+
+        $existing = DB::table('driver_service_pricing')
+            ->where('driver_id', $driverId)
+            ->where('category_id', $categoryId)
+            ->first();
+
+        if ($existing) {
+            DB::table('driver_service_pricing')
+                ->where('id', $existing->id)
+                ->update([
+                    'visiting_charge' => (float) $visitingCharge,
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('driver_service_pricing')->insert([
+                'driver_id' => $driverId,
+                'category_id' => $categoryId,
+                'visiting_charge' => (float) $visitingCharge,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (!Schema::hasTable('driver_service_items')) {
+            return;
+        }
+
+        DB::table('driver_service_items')
+            ->where('driver_id', $driverId)
+            ->where('category_id', $categoryId)
+            ->delete();
+
+        $order = 0;
+        foreach ($serviceItems as $item) {
+            $name = trim((string) ($item['name'] ?? $item['service_name'] ?? ''));
+            $price = $item['price'] ?? null;
+            if ($name === '' || $price === null || $price === '') {
+                continue;
+            }
+
+            DB::table('driver_service_items')->insert([
+                'driver_id' => $driverId,
+                'category_id' => $categoryId,
+                'service_name' => $name,
+                'price' => (float) $price,
+                'sort_order' => $order++,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }
