@@ -115,6 +115,11 @@ class ServiceRequestAPIController extends Controller
      */
     public function getServiceCategories(Request $request)
     {
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            return $this->searchServiceCategories($search);
+        }
+
         $parentId = $request->input('parent_id');
 
         $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
@@ -135,6 +140,60 @@ class ServiceRequestAPIController extends Controller
                 'libelle' => $row->libelle,
                 'image' => $row->image,
                 'has_children' => $hasChildren,
+            ];
+        });
+
+        return response()->json([
+            'success' => 'success',
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Flat search across all active service categories (parents + sub-items).
+     */
+    private function searchServiceCategories(string $search)
+    {
+        $rows = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+            ->where('statut', true)
+            ->where('libelle', 'like', '%' . $search . '%')
+            ->select('id', 'libelle', 'image', 'parent_id')
+            ->orderBy('libelle')
+            ->limit(100)
+            ->get();
+
+        $allNodes = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+            ->select('id', 'libelle', 'parent_id')
+            ->get()
+            ->keyBy('id');
+
+        $data = $rows->map(function ($row) use ($allNodes) {
+            $breadcrumb = [];
+            $currentId = $row->parent_id;
+            $depth = 0;
+
+            while ($currentId && $depth < 12) {
+                $parent = $allNodes->get($currentId);
+                if (!$parent) {
+                    break;
+                }
+                array_unshift($breadcrumb, $parent->libelle);
+                $currentId = $parent->parent_id;
+                $depth++;
+            }
+
+            $hasChildren = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                ->where('parent_id', $row->id)
+                ->where('statut', true)
+                ->exists();
+
+            return [
+                'id' => $row->id,
+                'libelle' => $row->libelle,
+                'image' => $row->image,
+                'has_children' => $hasChildren,
+                'breadcrumb' => $breadcrumb,
+                'parent_id' => $row->parent_id,
             ];
         });
 
