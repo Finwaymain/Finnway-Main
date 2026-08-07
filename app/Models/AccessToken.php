@@ -11,6 +11,8 @@ class AccessToken extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    public $timestamps = false;
+
     protected $table = 'users_access';
     protected $fillable = [
         'id',

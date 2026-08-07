@@ -41,51 +41,17 @@ Route::get('/clear', function() {
 
 Auth::routes();
 
+use App\Helpers\OnboardingAccess;
+
 if (!function_exists('validateDriverOrUnauthorizedResponse')) {
     function validateDriverOrUnauthorizedResponse(\Illuminate\Http\Request $request) {
-        $accessToken = $request->query('accesstoken');
-        $driverId = $request->query('driver_id');
-
-        if (!empty($accessToken)) {
-            $userAccess = \Illuminate\Support\Facades\DB::table('users_access')
-                ->where('accesstoken', $accessToken)
-                ->first();
-            if ($userAccess) {
-                return true;
-            }
-        }
-
-        if (!empty($driverId)) {
-            $driverExists = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->exists();
-            if ($driverExists) {
-                $tokenToUse = !empty($accessToken) ? $accessToken : md5(uniqid(mt_rand(), true));
-                \Illuminate\Support\Facades\DB::table('users_access')->updateOrInsert(
-                    ['user_id' => $driverId, 'user_type' => 'driver'],
-                    ['accesstoken' => $tokenToUse]
-                );
-                return true;
-            }
-        }
-
-        if ($request->has('driver_id') || $request->has('accesstoken')) {
-            return true;
-        }
-
-        return false;
+        return OnboardingAccess::validate($request);
     }
 }
 
 if (!function_exists('renderUnauthorizedAppBridgeResponse')) {
     function renderUnauthorizedAppBridgeResponse() {
-        return response()->make(
-            '<!DOCTYPE html><html><head><script>' .
-            'if(window.AppBridge){window.AppBridge.postMessage("unauthorized");}else{window.location.href="/onboarding/join-fiinway";}' .
-            '</script></head><body><script>' .
-            'if(window.AppBridge){window.AppBridge.postMessage("unauthorized");}else{window.location.href="/onboarding/join-fiinway";}' .
-            '</script></body></html>',
-            200,
-            ['Content-Type' => 'text/html']
-        );
+        return OnboardingAccess::unauthorizedResponse();
     }
 }
 
@@ -93,18 +59,18 @@ Route::get('/onboarding', function (\Illuminate\Http\Request $request) {
     if (!validateDriverOrUnauthorizedResponse($request)) {
         return renderUnauthorizedAppBridgeResponse();
     }
-    return view('onboarding');
+    return OnboardingAccess::renderView('onboarding');
 });
 
 Route::get('/onboarding/join-fiinway', function (\Illuminate\Http\Request $request) {
-    return view('join-fiinway');
+    return OnboardingAccess::renderView('join-fiinway');
 });
 
 Route::get('/onboarding/more', function (\Illuminate\Http\Request $request) {
     if (!validateDriverOrUnauthorizedResponse($request)) {
         return renderUnauthorizedAppBridgeResponse();
     }
-    return view('more');
+    return OnboardingAccess::renderView('more');
 });
 
 Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request) {
@@ -112,16 +78,16 @@ Route::get('/onboarding/dashboard', function (\Illuminate\Http\Request $request)
         return renderUnauthorizedAppBridgeResponse();
     }
     if (view()->exists('onboarding-dashboard')) {
-        return view('onboarding-dashboard');
+        return OnboardingAccess::renderView('onboarding-dashboard');
     }
-    return view('dashboard');
+    return OnboardingAccess::renderView('dashboard');
 });
 
 Route::get('/onboarding/smartvalue', function (\Illuminate\Http\Request $request) {
     if (!validateDriverOrUnauthorizedResponse($request)) {
         return renderUnauthorizedAppBridgeResponse();
     }
-    return view('smartvalue');
+    return OnboardingAccess::renderView('smartvalue');
 });
 
 Route::get('/', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

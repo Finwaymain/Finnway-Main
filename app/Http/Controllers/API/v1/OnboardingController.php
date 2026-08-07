@@ -24,7 +24,7 @@ class OnboardingController extends Controller
     {
         try {
             $accessToken = $request->header('accesstoken');
-            $driverId = $request->input('driver_id');
+            $driverId = $request->input('driver_id') ?: $request->query('driver_id');
             $onboardingCompleted = false;
 
             if ($accessToken && Schema::hasTable('users_access')) {
