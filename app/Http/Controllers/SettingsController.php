@@ -364,8 +364,15 @@ class SettingsController extends Controller
             $settings->isSandboxEnabled = $sendboxmode;
             $settings->modifier = $modifier;
 
+            $settings->save();
+
+            \App\Helpers\RazorpayConfig::syncToApiKeySettings(
+                (string) $razorpayKey,
+                (string) $razorpaySecret,
+                $isRazorpayenabled === 'true',
+                $sendboxmode === 'true'
+            );
         }
-        $settings->save();
     }
 
 

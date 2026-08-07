@@ -43,6 +43,15 @@ class ApiKeySettingController extends Controller
                     'is_sandbox'   => $request->has('is_sandbox'),
                 ]
             );
+
+            if ($request->provider === 'razorpay') {
+                \App\Helpers\RazorpayConfig::syncToPaymentSettings(
+                    (string) $request->key_value,
+                    (string) $request->secret_value,
+                    $request->has('is_active'),
+                    $request->has('is_sandbox')
+                );
+            }
         }
 
         return redirect()->back()->with('success', 'API Key updated successfully.');

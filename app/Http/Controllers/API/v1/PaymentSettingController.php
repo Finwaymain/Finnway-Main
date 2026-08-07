@@ -161,6 +161,11 @@ class PaymentSettingController extends Controller
         foreach ($sql_rezorpay as $row_rezorpay) {
             $row_rezorpay->id = (string) $row_rezorpay->id;
         }
+
+        $resolvedRazorpay = \App\Helpers\RazorpayConfig::toApiPayload();
+        if ($resolvedRazorpay) {
+            $row_rezorpay = $resolvedRazorpay;
+        }
         $sql_paytm = DB::table('payment_settings')
             ->crossJoin('tj_payment_method')
             ->select(
