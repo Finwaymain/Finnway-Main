@@ -130,13 +130,17 @@ class AppFeatureAPIController extends Controller
     private function buildDriverReferralStats($driverId): array
     {
         $driver = null;
+        $customer = null;
         if ($driverId && Schema::hasTable('tj_conducteur')) {
             $driver = DB::table('tj_conducteur')->where('id', $driverId)->first();
+        }
+        if (!$driver && $driverId && Schema::hasTable('tj_user_app')) {
+            $customer = DB::table('tj_user_app')->where('id', $driverId)->first();
         }
 
         $referralCode = $this->resolveDriverReferralCode($driverId, $driver);
         $referralLink = 'https://fiinway.online/r/' . $referralCode;
-        $walletBalance = (float)($driver->amount ?? 0.0);
+        $walletBalance = (float)($driver->amount ?? $customer->amount ?? 0.0);
 
         $referredUserIds = $this->getReferredUserIds($driverId, $referralCode);
         $totalReferrals = count($referredUserIds);
@@ -423,6 +427,17 @@ class AppFeatureAPIController extends Controller
                 })
                 ->sum(DB::raw('CAST(amount AS DECIMAL(10,2))'));
             $earnings += (float) $txnEarnings;
+        }
+
+        if (Schema::hasTable('tj_transaction') && $driverId) {
+            $userTxnEarnings = DB::table('tj_transaction')
+                ->where('id_user_app', (string) $driverId)
+                ->where(function ($query) {
+                    $query->where('payment_method', 'Referral')
+                        ->orWhere('payment_method', 'like', '%Referral%');
+                })
+                ->sum(DB::raw('CAST(amount AS DECIMAL(10,2))'));
+            $earnings += (float) $userTxnEarnings;
         }
 
         return $earnings;

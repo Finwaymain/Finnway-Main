@@ -27,7 +27,7 @@ class WalletController extends Controller
     if(!empty($id_user) && !empty($cat_user)){
     if($cat_user == "user_app"){
         $sql = DB::table('tj_user_app')
-        ->select('amount')
+        ->select('amount', 'earn_amount')
         ->where('id','=',$id_user)
         ->get();
     
@@ -40,24 +40,19 @@ class WalletController extends Controller
     else{
         $response['success']= 'Failed';
         $response['error']= 'Not Found';
+        return response()->json($response);
     }
-    $amount = "0";
-    // output data of each row
-    foreach($sql as $row)
-    {
-        $amount = $row->amount;
-    }
-       
-        if(!empty($row)){
-            $response['success']= 'success';
-            $response['error']= null;
-            $response['message'] = 'Successfully';
-            $response['data'] = $row;
 
-        }else{
-            $response['success']= 'Failed';
-            $response['error']= 'Failed to Fetch data';
-        }
+    if($sql->count() > 0){
+        $row = $sql->first();
+        $response['success']= 'success';
+        $response['error']= null;
+        $response['message'] = 'Successfully';
+        $response['data'] = $row;
+    }else{
+        $response['success']= 'Failed';
+        $response['error']= 'Failed to Fetch data';
+    }
     }else{
         $response['success']= 'Failed';
         $response['error']= 'some field are missing';

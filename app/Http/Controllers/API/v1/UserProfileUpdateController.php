@@ -1115,6 +1115,19 @@ class UserProfileUpdateController extends Controller
             ->first();
 
         if (! $receiver) {
+            $user = DB::table('tj_user_app')->where('ac_no', $ac_no)->first();
+            if (! $user) {
+                $user = DB::table('tj_conducteur')->where('ac_no', $ac_no)->first();
+            }
+
+            if ($user) {
+                return response()->json([
+                    'res'  => 'success',
+                    'msg'  => 'User found successfully',
+                    'data' => (array) $user,
+                ]);
+            }
+
             return response()->json([
                 'res' => 'error',
                 'msg' => 'Invalid account number or user is inactive.',
@@ -1257,6 +1270,80 @@ class UserProfileUpdateController extends Controller
     }
 
     // Show Reward/Earning History
+    public function show_wallet_amount(Request $request)
+    {
+        $validator = \Validator::make($request->all(), [
+            'ac_no' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'res'    => 'error',
+                'msg'    => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $acNo = $request->ac_no;
+        $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+
+        if (! $user) {
+            $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
+        }
+
+        if (! $user) {
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'Wallet not found for this account number.',
+            ], 404);
+        }
+
+        return response()->json([
+            'res'  => 'success',
+            'msg'  => 'Wallet amount fetched successfully',
+            'data' => [
+                'amount'      => $user->amount ?? '0',
+                'earn_amount' => $user->earn_amount ?? '0',
+            ],
+        ]);
+    }
+
+    public function show_transaction_history(Request $request)
+    {
+        $validator = \Validator::make($request->all(), [
+            'ac_no' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'res'    => 'error',
+                'msg'    => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $acNo = $request->ac_no;
+        $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+
+        if (! $user) {
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'User not found for this account number.',
+            ], 404);
+        }
+
+        $transactions = DB::table('tj_transaction')
+            ->where('id_user_app', $user->id)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return response()->json([
+            'res'  => 'success',
+            'msg'  => 'Transaction history fetched successfully',
+            'data' => $transactions,
+        ]);
+    }
+
     public function show_reward_history(Request $request)
     {
         $validator = \Validator::make($request->all(), [
