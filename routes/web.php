@@ -5,6 +5,7 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\LanguageController;
+use App\Helpers\OnboardingAccess;
 
 
 
@@ -40,8 +41,6 @@ Route::get('/clear', function() {
 
 
 Auth::routes();
-
-use App\Helpers\OnboardingAccess;
 
 if (!function_exists('validateDriverOrUnauthorizedResponse')) {
     function validateDriverOrUnauthorizedResponse(\Illuminate\Http\Request $request) {
