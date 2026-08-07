@@ -57,10 +57,10 @@ jobs:
               echo "Running Database Migrations..."
               php artisan migrate --force || true
 
-              echo "Caching Configuration, Routes & Views..."
+              echo "Caching Configuration & Views (skip route:cache — onboarding uses closures)..."
               php artisan config:cache
-              php artisan route:cache
-              php artisan view:cache
+              php artisan route:clear
+              php artisan view:clear
               php artisan storage:link --force || true
             fi
 

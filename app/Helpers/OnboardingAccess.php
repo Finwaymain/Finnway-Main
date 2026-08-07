@@ -32,7 +32,11 @@ class OnboardingAccess
                 }
 
                 if (Schema::hasTable('users_access')) {
-                    self::ensureDriverAccessRow($driverId, $accessToken);
+                    try {
+                        self::ensureDriverAccessRow($driverId, $accessToken);
+                    } catch (\Throwable $e) {
+                        Log::warning('Onboarding ensureDriverAccessRow failed: ' . $e->getMessage());
+                    }
                 }
 
                 return true;
@@ -97,7 +101,9 @@ class OnboardingAccess
 
     public static function renderView(string $viewName)
     {
-        if (!view()->exists($viewName)) {
+        $path = resource_path('views/' . $viewName . '.blade.php');
+
+        if (!is_file($path)) {
             return response()->make(
                 '<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;text-align:center;">' .
                 '<h2>Onboarding page unavailable</h2>' .
@@ -108,6 +114,7 @@ class OnboardingAccess
             );
         }
 
-        return view($viewName);
+        // Static Next.js export: serve file directly (avoid Blade parsing @ / {{ in JS)
+        return response(file_get_contents($path), 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 }
