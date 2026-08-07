@@ -557,28 +557,45 @@ class GetProfileByPhoneController extends Controller
                             ->where('driver_id', $id_user)
                             ->exists() ? 'yes' : 'no';
 
-                        // Drivers whose selected categories never touch the
-                        // "Transport & Mobility" tree (i.e. only home-service /
-                        // non-vehicle categories) get sent to the web-based
-                        // dashboard instead of the native taxi-style home screen.
+                        // Drivers whose selected categories are vehicle-based
+                        // (cab, delivery, parcel, etc.) use the native app shell.
+                        // Only pure home-service categories get the web dashboard.
                         $allCategoriesById = DB::table('tj_categorie_user')
                             ->select('id', 'parent_id', 'libelle')
                             ->get()
                             ->keyBy('id');
 
+                        $nativeDashboardRoots = [
+                            'Transport & Mobility',
+                            'Delivery & Logistics',
+                        ];
+
                         $isTransportCategory = false;
                         foreach ($row['selected_categories'] as $catId) {
                             $current = $allCategoriesById->get((int) $catId);
                             $depth = 0;
-                            while ($current && $depth < 5) {
-                                if (trim($current->libelle) === '🚕 Transport & Mobility') {
-                                    $isTransportCategory = true;
-                                    break 2;
+                            while ($current && $depth < 8) {
+                                $normalized = preg_replace(
+                                    '/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u',
+                                    '',
+                                    $current->libelle ?? ''
+                                );
+                                $normalized = trim($normalized);
+                                foreach ($nativeDashboardRoots as $root) {
+                                    if ($normalized === $root || str_contains($normalized, $root)) {
+                                        $isTransportCategory = true;
+                                        break 3;
+                                    }
                                 }
                                 $current = $current->parent_id ? $allCategoriesById->get($current->parent_id) : null;
                                 $depth++;
                             }
                         }
+
+                        if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
+                            $isTransportCategory = true;
+                        }
+
                         $row['is_transport_category'] = $isTransportCategory;
 
                         $row['id']=(string)$id_user;
