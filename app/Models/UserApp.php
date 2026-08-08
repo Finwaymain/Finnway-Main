@@ -118,6 +118,9 @@ class UserApp extends Authenticatable
         'age',
         'gender',
         'alternate_phone',
+        'consumer_plan_id',
+        'consumer_plan_expiry_date',
+        'consumer_plan',
     ];
 
 

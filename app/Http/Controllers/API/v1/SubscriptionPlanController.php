@@ -18,6 +18,7 @@ use App\Models\ConsumerPremiumPlan;
 use App\Models\UserApp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 use Carbon\Carbon;
 
@@ -71,7 +72,7 @@ class SubscriptionPlanController extends Controller
                 }
 
                 $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: []);
-                if (floatval($row->cashback_on_purchase ?? 0) > 0) {
+                if (Schema::hasColumn('subscription_plans', 'cashback_on_purchase') && floatval($row->cashback_on_purchase ?? 0) > 0) {
                     $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
                 }
                 $row->plan_points = $planPoints;
@@ -126,7 +127,7 @@ class SubscriptionPlanController extends Controller
                 if ($row->discount_bike > 0) $planPoints[] = "{$row->discount_bike}% discount on Bike rides";
                 if ($row->sender_cashback_value > 0) $planPoints[] = "{$row->sender_cashback_value}% cashback on sending money";
                 if ($row->receiver_cashback_value > 0) $planPoints[] = "{$row->receiver_cashback_value}% cashback on receiving money";
-                if (floatval($row->cashback_on_purchase ?? 0) > 0) {
+                if (Schema::hasColumn('consumer_premium_plans', 'cashback_on_purchase') && floatval($row->cashback_on_purchase ?? 0) > 0) {
                     $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
                 }
                 if ($row->free_shipping) $planPoints[] = "Free shipping on marketplace orders";
@@ -161,56 +162,118 @@ class SubscriptionPlanController extends Controller
     }
 
     public function setConsumerSubscription(Request $request){
-        $planId = $request->get('planId');
-        $userId = $request->get('userId');
-        $paymentType = $request->get('paymentType');
-        
-        $planData = ConsumerPremiumPlan::where('id', $planId)->first();
-        $user = UserApp::where('id', $userId)->first();
-        
-        if (!$planData) {
-            $response['success'] = 'Failed';
-            $response['error'] = 'Consumer plan not found';
-            $response['message'] = 'Invalid plan ID';
-            return response()->json($response);
-        }
+        try {
+            $planId = $request->get('planId');
+            $userId = $request->get('userId');
+            $paymentType = strtolower((string) $request->get('paymentType', ''));
 
-        if (!$user) {
-            $response['success'] = 'Failed';
-            $response['error'] = 'User not found';
-            $response['message'] = 'Invalid user ID';
-            return response()->json($response);
-        }
-        
-        if(strtolower($paymentType)=='wallet'){
-            if(floatval($user->amount) < floatval($planData->price)){
-                $response['success'] = 'Failed';
-                $response['error'] = 'Insufficient wallet balance';
-                $response['message'] = "You don't have sufficient balance to purchase this plan";
-                return response()->json($response);
+            if (empty($planId) || empty($userId)) {
+                return response()->json([
+                    'success' => 'Failed',
+                    'error' => 'planId and userId are required',
+                    'message' => 'Invalid request',
+                ], 422);
             }
 
-            $newWalletBalance = floatval($user->amount) - floatval($planData->price);
-            UserApp::where('id', $userId)->update(['amount'=>$newWalletBalance]);
-            $this->recordPlanWalletDebit($user, floatval($planData->price), $planData->name, (int) $planData->id, 'customer');
-        }
-        
-        $expiryDate = Carbon::now()->addDays($planData->validity_days);
-        
-        UserApp::where('id', $userId)->update([
-            'consumer_plan_id'=>$planData->id,
-            'consumer_plan_expiry_date'=> $expiryDate,
-            'consumer_plan'=> json_encode($planData->toArray())
-        ]);
+            $planData = ConsumerPremiumPlan::where('id', $planId)->first();
+            $user = UserApp::where('id', $userId)->first();
 
-        $cashbackAmount = floatval($planData->cashback_on_purchase ?? 0);
-        $this->applyPlanPurchaseCashback($user, $cashbackAmount, $planData->name, (int) $planData->id, 'customer');
-        
-        $response['success'] = 'success';
-        $response['error'] = null;
-        $response['message'] = 'Consumer subscription added successfully';
-        $response['cashback_credited'] = $cashbackAmount;
-        return response()->json($response);
+            if (!$planData) {
+                return response()->json([
+                    'success' => 'Failed',
+                    'error' => 'Consumer plan not found',
+                    'message' => 'Invalid plan ID',
+                ], 404);
+            }
+
+            if (!$user) {
+                return response()->json([
+                    'success' => 'Failed',
+                    'error' => 'User not found',
+                    'message' => 'Invalid user ID',
+                ], 404);
+            }
+
+            DB::beginTransaction();
+
+            if ($paymentType === 'wallet') {
+                if (floatval($user->amount) < floatval($planData->price)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => 'Failed',
+                        'error' => 'Insufficient wallet balance',
+                        'message' => "You don't have sufficient balance to purchase this plan",
+                    ]);
+                }
+
+                $newWalletBalance = floatval($user->amount) - floatval($planData->price);
+                UserApp::where('id', $userId)->update(['amount' => $newWalletBalance]);
+                $this->recordPlanWalletDebit($user, floatval($planData->price), $planData->name, (int) $planData->id, 'customer');
+            }
+
+            $expiryDate = Carbon::now()->addDays((int) ($planData->validity_days ?? 365));
+            $this->updateConsumerPlanOnUser((int) $userId, $planData, $expiryDate);
+
+            $cashbackAmount = Schema::hasColumn('consumer_premium_plans', 'cashback_on_purchase')
+                ? floatval($planData->cashback_on_purchase ?? 0)
+                : 0.0;
+            $this->applyPlanPurchaseCashback($user, $cashbackAmount, $planData->name, (int) $planData->id, 'customer');
+
+            DB::commit();
+
+            $user = UserApp::where('id', $userId)->first();
+
+            return response()->json([
+                'success' => 'success',
+                'error' => null,
+                'message' => 'Consumer subscription added successfully',
+                'cashback_credited' => $cashbackAmount,
+                'data' => [
+                    'consumer_plan_id' => Schema::hasColumn('tj_user_app', 'consumer_plan_id')
+                        ? (string) ($user->consumer_plan_id ?? $planData->id)
+                        : (string) $planData->id,
+                    'consumer_plan_expiry_date' => $expiryDate->toDateTimeString(),
+                    'consumer_plan' => $planData->toArray(),
+                    'amount' => (string) ($user->amount ?? '0'),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            \Log::error('setConsumerSubscription failed', [
+                'planId' => $request->get('planId'),
+                'userId' => $request->get('userId'),
+                'paymentType' => $request->get('paymentType'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Unable to activate subscription',
+                'message' => config('app.debug') ? $e->getMessage() : 'Server error while activating plan. Please contact support.',
+            ], 500);
+        }
+    }
+
+    private function updateConsumerPlanOnUser(int $userId, ConsumerPremiumPlan $planData, Carbon $expiryDate): void
+    {
+        $updateData = [];
+
+        if (Schema::hasColumn('tj_user_app', 'consumer_plan_id')) {
+            $updateData['consumer_plan_id'] = $planData->id;
+        }
+        if (Schema::hasColumn('tj_user_app', 'consumer_plan_expiry_date')) {
+            $updateData['consumer_plan_expiry_date'] = $expiryDate;
+        }
+        if (Schema::hasColumn('tj_user_app', 'consumer_plan')) {
+            $updateData['consumer_plan'] = json_encode($planData->toArray());
+        }
+
+        if (! empty($updateData)) {
+            UserApp::where('id', $userId)->update($updateData);
+        }
     }
 
     public function setData(Request $request){
@@ -347,35 +410,65 @@ class SubscriptionPlanController extends Controller
         $description = "Purchased {$planName} plan";
 
         if ($userType === 'driver') {
-            DB::table('tj_conducteur_transaction')->insert([
-                'amount'          => $amount,
-                'payment_method'  => 'Wallet',
-                'id_conducteur'   => $entity->id,
-                'deduction_type'  => '0',
-                'payment_status'  => 'success',
-                'type'            => 'debit',
-                'description'     => $description,
-                'txn_id'          => $txnId,
-                'planId'          => (string) $planId,
-                'creer'           => $now,
-                'modifier'        => $now,
-                'date'            => date('Y-m-d'),
-            ]);
+            $payload = [
+                'amount'         => $amount,
+                'payment_method' => 'Wallet',
+                'id_conducteur'  => $entity->id,
+                'creer'          => $now,
+                'modifier'       => $now,
+            ];
+            if (Schema::hasColumn('tj_conducteur_transaction', 'deduction_type')) {
+                $payload['deduction_type'] = '0';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'payment_status')) {
+                $payload['payment_status'] = 'success';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'type')) {
+                $payload['type'] = 'debit';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'description')) {
+                $payload['description'] = $description;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'txn_id')) {
+                $payload['txn_id'] = $txnId;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'planId')) {
+                $payload['planId'] = (string) $planId;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'date')) {
+                $payload['date'] = date('Y-m-d');
+            }
+            DB::table('tj_conducteur_transaction')->insert($payload);
         } else {
-            DB::table('tj_transaction')->insert([
-                'amount'          => $amount,
-                'payment_method'  => 'Wallet',
-                'id_user_app'     => $entity->id,
-                'deduction_type'  => '0',
-                'payment_status'  => 'success',
-                'type'            => 'debit',
-                'description'     => $description,
-                'txn_id'          => $txnId,
-                'user_type'       => 'customer',
-                'creer'           => $now,
-                'modifier'        => $now,
-                'date'            => date('Y-m-d'),
-            ]);
+            $payload = [
+                'amount'         => $amount,
+                'payment_method' => 'Wallet',
+                'id_user_app'    => $entity->id,
+                'creer'          => $now,
+                'modifier'       => $now,
+            ];
+            if (Schema::hasColumn('tj_transaction', 'deduction_type')) {
+                $payload['deduction_type'] = '0';
+            }
+            if (Schema::hasColumn('tj_transaction', 'payment_status')) {
+                $payload['payment_status'] = 'success';
+            }
+            if (Schema::hasColumn('tj_transaction', 'type')) {
+                $payload['type'] = 'debit';
+            }
+            if (Schema::hasColumn('tj_transaction', 'description')) {
+                $payload['description'] = $description;
+            }
+            if (Schema::hasColumn('tj_transaction', 'txn_id')) {
+                $payload['txn_id'] = $txnId;
+            }
+            if (Schema::hasColumn('tj_transaction', 'user_type')) {
+                $payload['user_type'] = 'customer';
+            }
+            if (Schema::hasColumn('tj_transaction', 'date')) {
+                $payload['date'] = date('Y-m-d');
+            }
+            DB::table('tj_transaction')->insert($payload);
         }
     }
 
@@ -391,36 +484,66 @@ class SubscriptionPlanController extends Controller
 
         if ($userType === 'driver') {
             DB::table('tj_conducteur')->where('id', $entity->id)->increment('amount', $cashbackAmount);
-            DB::table('tj_conducteur_transaction')->insert([
-                'amount'          => $cashbackAmount,
-                'payment_method'  => 'Wallet',
-                'id_conducteur'   => $entity->id,
-                'deduction_type'  => '1',
-                'payment_status'  => 'success',
-                'type'            => 'credit',
-                'description'     => $description,
-                'txn_id'          => $txnId,
-                'planId'          => (string) $planId,
-                'creer'           => $now,
-                'modifier'        => $now,
-                'date'            => date('Y-m-d'),
-            ]);
+            $payload = [
+                'amount'         => $cashbackAmount,
+                'payment_method' => 'Wallet',
+                'id_conducteur'  => $entity->id,
+                'creer'          => $now,
+                'modifier'       => $now,
+            ];
+            if (Schema::hasColumn('tj_conducteur_transaction', 'deduction_type')) {
+                $payload['deduction_type'] = '1';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'payment_status')) {
+                $payload['payment_status'] = 'success';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'type')) {
+                $payload['type'] = 'credit';
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'description')) {
+                $payload['description'] = $description;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'txn_id')) {
+                $payload['txn_id'] = $txnId;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'planId')) {
+                $payload['planId'] = (string) $planId;
+            }
+            if (Schema::hasColumn('tj_conducteur_transaction', 'date')) {
+                $payload['date'] = date('Y-m-d');
+            }
+            DB::table('tj_conducteur_transaction')->insert($payload);
         } else {
             DB::table('tj_user_app')->where('id', $entity->id)->increment('amount', $cashbackAmount);
-            DB::table('tj_transaction')->insert([
-                'amount'          => $cashbackAmount,
-                'payment_method'  => 'Wallet',
-                'id_user_app'     => $entity->id,
-                'deduction_type'  => '1',
-                'payment_status'  => 'success',
-                'type'            => 'credit',
-                'description'     => $description,
-                'txn_id'          => $txnId,
-                'user_type'       => 'customer',
-                'creer'           => $now,
-                'modifier'        => $now,
-                'date'            => date('Y-m-d'),
-            ]);
+            $payload = [
+                'amount'         => $cashbackAmount,
+                'payment_method' => 'Wallet',
+                'id_user_app'    => $entity->id,
+                'creer'          => $now,
+                'modifier'       => $now,
+            ];
+            if (Schema::hasColumn('tj_transaction', 'deduction_type')) {
+                $payload['deduction_type'] = '1';
+            }
+            if (Schema::hasColumn('tj_transaction', 'payment_status')) {
+                $payload['payment_status'] = 'success';
+            }
+            if (Schema::hasColumn('tj_transaction', 'type')) {
+                $payload['type'] = 'credit';
+            }
+            if (Schema::hasColumn('tj_transaction', 'description')) {
+                $payload['description'] = $description;
+            }
+            if (Schema::hasColumn('tj_transaction', 'txn_id')) {
+                $payload['txn_id'] = $txnId;
+            }
+            if (Schema::hasColumn('tj_transaction', 'user_type')) {
+                $payload['user_type'] = 'customer';
+            }
+            if (Schema::hasColumn('tj_transaction', 'date')) {
+                $payload['date'] = date('Y-m-d');
+            }
+            DB::table('tj_transaction')->insert($payload);
         }
     }
 
