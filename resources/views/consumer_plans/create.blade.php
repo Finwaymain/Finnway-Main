@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('content')
-@php $isEdit = isset($plan); $formAction = $isEdit ? route('consumer-plans.update', $plan->id) : route('consumer-plans.store'); @endphp
+@php $isEdit = !empty($plan->id); $formAction = $isEdit ? route('consumer-plans.update', $plan->id) : route('consumer-plans.store'); @endphp
 
 <style>
 .page-header-card {
@@ -323,7 +323,7 @@
                             <div class="p-3 bg-light border rounded">
                                 <span class="form-label-custom mb-2"><i class="mdi mdi-gift-outline text-success mr-1"></i>Cashback on Plan Purchase</span>
                                 <label class="small text-muted mb-1">Instant wallet reward when user buys this plan (₹)</label>
-                                <input type="number" name="cashback_on_purchase" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('cashback_on_purchase', optional($plan)->cashback_on_purchase ?? 0) }}" placeholder="e.g. 100">
+                                <input type="number" name="cashback_on_purchase" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('cashback_on_purchase', $plan->cashback_on_purchase ?? 0) }}" placeholder="e.g. 100">
                             </div>
                         </div>
                     </div>

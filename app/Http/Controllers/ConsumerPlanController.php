@@ -30,7 +30,9 @@ class ConsumerPlanController extends Controller
     // ─── Show create form ─────────────────────────────────────────────────────
     public function create()
     {
-        return view('consumer_plans.create');
+        $plan = new ConsumerPremiumPlan();
+
+        return view('consumer_plans.create', compact('plan'));
     }
 
     // ─── Store new plan ───────────────────────────────────────────────────────
