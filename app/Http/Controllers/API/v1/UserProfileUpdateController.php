@@ -1345,7 +1345,9 @@ class UserProfileUpdateController extends Controller
     public function show_transaction_history(Request $request)
     {
         $validator = \Validator::make($request->all(), [
-            'ac_no' => 'required',
+            'ac_no'     => 'nullable',
+            'user_type' => 'nullable|in:customer,driver',
+            'days'      => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -1356,26 +1358,270 @@ class UserProfileUpdateController extends Controller
             ], 422);
         }
 
-        $acNo = $request->ac_no;
-        $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+        $acNo     = $request->ac_no;
+        $userType = $request->get('user_type', 'customer');
+        $days     = (int) $request->get('days', 0);
+        $userId   = $request->get('id_user_app');
+        $user     = null;
+
+        if (! empty($acNo)) {
+            if ($userType === 'driver') {
+                $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
+            } else {
+                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+            }
+        } elseif (! empty($userId)) {
+            if ($userType === 'driver') {
+                $user = DB::table('tj_conducteur')->where('id', $userId)->first();
+            } else {
+                $user = DB::table('tj_user_app')->where('id', $userId)->first();
+            }
+        }
 
         if (! $user) {
             return response()->json([
                 'res' => 'error',
-                'msg' => 'User not found for this account number.',
+                'msg' => 'User not found for this account.',
             ], 404);
         }
 
-        $transactions = DB::table('tj_transaction')
-            ->where('id_user_app', $user->id)
-            ->orderBy('id', 'desc')
-            ->get();
+        $userColumn = $userType === 'driver' ? 'id_conducteur' : 'id_user_app';
+
+        $query = DB::table('tj_transaction')
+            ->where($userColumn, $user->id)
+            ->orderBy('id', 'desc');
+
+        if ($days > 0) {
+            $query->where(function ($q) use ($days) {
+                $fromDate = Carbon::now('Asia/Kolkata')->subDays($days)->startOfDay();
+                $q->where('creer', '>=', $fromDate->format('Y-m-d H:i:s'))
+                    ->orWhere(function ($inner) use ($fromDate) {
+                        $inner->where(function ($invalidDate) {
+                            $invalidDate->whereNull('creer')
+                                ->orWhere('creer', '0000-00-00 00:00:00');
+                        })->where('date', '>=', $fromDate->format('Y-m-d'));
+                    });
+            });
+        }
+
+        $transactions = $query->get();
+        $output       = [];
+
+        foreach ($transactions as $row) {
+            $output[] = $this->enrichTransactionHistoryRow($row, (string) $user->id, $userType);
+        }
 
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Transaction history fetched successfully',
-            'data' => $transactions,
+            'data' => $output,
         ]);
+    }
+
+    private function enrichTransactionHistoryRow($row, string $currentUserId, string $currentUserType): array
+    {
+        $desc            = trim((string) ($row->description ?? ''));
+        $categoryTitle   = 'Wallet Transaction';
+        $counterparty    = '';
+        $iconType        = 'wallet';
+        $rideId          = $row->ride_id ?? null;
+        $deductionType   = (string) ($row->deduction_type ?? '');
+        $type            = strtolower((string) ($row->type ?? ''));
+        $paymentMethod   = trim((string) ($row->payment_method ?? ''));
+        $paymentStatus   = strtolower(trim((string) ($row->payment_status ?? 'pending')));
+
+        if (preg_match('/Transferred\s+.+?\s+to\s+(.+)$/i', $desc, $matches)) {
+            $categoryTitle = 'Money Transfer';
+            $counterparty  = trim($matches[1]);
+            $iconType      = 'transfer';
+        } elseif (preg_match('/Received\s+.+?\s+from\s+(.+)$/i', $desc, $matches)) {
+            $categoryTitle = 'Money Received';
+            $counterparty  = trim($matches[1]);
+            $iconType      = 'transfer';
+        } elseif (stripos($desc, 'withdraw') !== false) {
+            $categoryTitle = 'Withdrawal';
+            $iconType      = 'withdraw';
+            $counterparty  = 'Wallet';
+        } elseif (stripos($desc, 'earned') !== false) {
+            $categoryTitle = 'Reward Earned';
+            $iconType      = 'reward';
+            if (preg_match('/from\s+(.+)$/i', $desc, $matches)) {
+                $counterparty = trim($matches[1]);
+            }
+        } elseif (! empty($rideId) && $rideId !== '0') {
+            $parcel = DB::table('parcel_orders')->where('id', $rideId)->first();
+            if ($parcel) {
+                $categoryTitle = 'Parcel Delivery';
+                $iconType      = 'parcel';
+                $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
+                if ($counterparty === '' && ! empty($parcel->id_conducteur)) {
+                    $counterparty = $this->resolvePersonName($parcel->id_conducteur, 'driver');
+                }
+            } else {
+                $ride = DB::table('tj_requete')->where('id', $rideId)->first();
+                if ($ride) {
+                    $counterparty = $this->resolvePersonName($ride->id_conducteur, 'driver');
+                    $vehicle      = null;
+                    if (! empty($ride->id_type_vehicule)) {
+                        $vehicle = DB::table('tj_type_vehicule')->where('id', $ride->id_type_vehicule)->first();
+                    }
+                    $vehicleLabel = strtolower((string) ($vehicle->libelle ?? $ride->ride_type ?? ''));
+                    if (str_contains($vehicleLabel, 'bike') || str_contains($vehicleLabel, 'motor')) {
+                        $categoryTitle = 'Bike Ride';
+                        $iconType      = 'bike';
+                    } elseif (str_contains($vehicleLabel, 'auto') || str_contains($vehicleLabel, 'rickshaw')) {
+                        $categoryTitle = 'Auto Ride';
+                        $iconType      = 'auto';
+                    } else {
+                        $categoryTitle = 'Cab Ride';
+                        $iconType      = 'cab';
+                    }
+                } else {
+                    $categoryTitle = 'Ride Payment';
+                    $iconType      = 'cab';
+                }
+            }
+        } elseif ($deductionType === '1' || $type === 'credit') {
+            if ($paymentMethod !== '' && strtolower($paymentMethod) !== 'wallet') {
+                $categoryTitle = 'Wallet Top-up';
+                $counterparty  = $paymentMethod;
+                $iconType      = 'topup';
+            } else {
+                $categoryTitle = 'Wallet Credit';
+                $iconType      = 'wallet';
+            }
+        } elseif ($deductionType === '0' || $type === 'debit') {
+            if (stripos($paymentMethod, 'wallet') !== false) {
+                $categoryTitle = 'Wallet Payment';
+                $iconType      = 'wallet';
+            }
+        }
+
+        if ($counterparty === '') {
+            $receiverId   = $row->receiver_user_id ?? null;
+            $receiverType = $row->receiver_user_type ?? $row->user_type ?? null;
+            $senderId     = $row->sender_user_id ?? null;
+            $senderType   = $row->sender_user_type ?? null;
+
+            if (! empty($receiverId) && (string) $receiverId !== $currentUserId) {
+                $counterparty = $this->resolvePersonName($receiverId, $receiverType);
+            } elseif (! empty($senderId) && (string) $senderId !== $currentUserId) {
+                $counterparty = $this->resolvePersonName($senderId, $senderType);
+            }
+        }
+
+        if ($counterparty === '' && $desc !== '') {
+            $counterparty = $this->guessCounterpartyFromDescription($desc);
+        }
+
+        if ($counterparty === '' && $categoryTitle === 'Wallet Payment') {
+            $counterparty = 'Service Payment';
+        }
+
+        $categoryFromDesc = $this->detectCategoryFromKeywords($desc);
+        if ($categoryFromDesc !== null && in_array($categoryTitle, ['Wallet Transaction', 'Wallet Payment'], true)) {
+            $categoryTitle = $categoryFromDesc['title'];
+            $iconType      = $categoryFromDesc['icon'];
+        }
+
+        $rawDate = $row->creer ?? null;
+        if (empty($rawDate) || $rawDate === '0000-00-00 00:00:00') {
+            $rawDate = ! empty($row->date) ? $row->date . ' 00:00:00' : null;
+        }
+
+        $formattedDate = '';
+        if (! empty($rawDate) && $rawDate !== '0000-00-00 00:00:00') {
+            try {
+                $formattedDate = Carbon::parse($rawDate, 'Asia/Kolkata')->format('d M Y');
+            } catch (\Exception $e) {
+                $formattedDate = (string) ($row->date ?? '');
+            }
+        }
+
+        $statusLabel = 'Pending';
+        if (in_array($paymentStatus, ['success', 'paid', 'completed'], true)) {
+            $statusLabel = 'Paid';
+        } elseif (in_array($paymentStatus, ['failed', 'cancelled', 'canceled', 'rejected'], true)) {
+            $statusLabel = ucfirst($paymentStatus);
+        } elseif ($paymentStatus !== '' && $paymentStatus !== 'pending') {
+            $statusLabel = ucfirst($paymentStatus);
+        }
+
+        return [
+            'id'                => (string) $row->id,
+            'amount'            => (string) $row->amount,
+            'id_user_app'       => (string) ($row->id_user_app ?? ''),
+            'deduction_type'    => $deductionType,
+            'ride_id'           => (string) ($rideId ?? ''),
+            'payment_method'    => $paymentMethod,
+            'payment_status'    => (string) ($row->payment_status ?? ''),
+            'creer'             => (string) ($row->creer ?? ''),
+            'modifier'          => (string) ($row->modifier ?? ''),
+            'description'       => $desc,
+            'txn_id'            => (string) ($row->txn_id ?? ''),
+            'type'              => (string) ($row->type ?? ''),
+            'date'              => (string) ($row->date ?? ''),
+            'category_title'    => $categoryTitle,
+            'counterparty_name' => $counterparty,
+            'formatted_date'    => $formattedDate,
+            'status_label'      => $statusLabel,
+            'icon_type'         => $iconType,
+        ];
+    }
+
+    private function resolvePersonName($userId, ?string $userType): string
+    {
+        if (empty($userId)) {
+            return '';
+        }
+
+        if ($userType === 'driver') {
+            $person = DB::table('tj_conducteur')->where('id', $userId)->first();
+        } else {
+            $person = DB::table('tj_user_app')->where('id', $userId)->first();
+        }
+
+        if (! $person) {
+            return '';
+        }
+
+        return trim(((string) ($person->nom ?? '')) . ' ' . ((string) ($person->prenom ?? '')));
+    }
+
+    private function guessCounterpartyFromDescription(string $desc): string
+    {
+        if (preg_match('/\bto\s+(.+)$/i', $desc, $matches)) {
+            return trim($matches[1]);
+        }
+        if (preg_match('/\bfrom\s+(.+)$/i', $desc, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
+    }
+
+    private function detectCategoryFromKeywords(string $desc): ?array
+    {
+        $text = strtolower($desc);
+        $map  = [
+            ['food order', 'food', ['food', 'swiggy', 'zomato', 'restaurant']],
+            ['Education Fee', 'education', ['education', 'school', 'college', 'fee']],
+            ['Home Service', 'home_service', ['mechanic', 'plumber', 'electrician', 'home service', 'ac mechanic']],
+            ['Merchant Transfer', 'merchant', ['merchant', 'kirana', 'store', 'shop']],
+            ['Parcel Delivery', 'parcel', ['parcel', 'courier', 'bluedart']],
+            ['Cab Ride', 'cab', ['cab', 'taxi', 'ola', 'uber']],
+            ['Bike Ride', 'bike', ['bike', 'rapido', 'motorcycle']],
+        ];
+
+        foreach ($map as [$title, $icon, $keywords]) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($text, $keyword)) {
+                    return ['title' => $title, 'icon' => $icon];
+                }
+            }
+        }
+
+        return null;
     }
 
     public function show_reward_history(Request $request)
