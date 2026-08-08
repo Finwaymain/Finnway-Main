@@ -321,216 +321,266 @@
                 </div>
             </div>
 
-            <!-- Section 3: Service Discounts -->
+            <!-- Section 3: Category Benefits, Quotas & Discounts Table -->
             <div class="section-card">
                 <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-percent-outline"></i></div>
-                    <h5>Category Discounts (%)</h5>
+                    <div class="icon-badge"><i class="mdi mdi-table-edit"></i></div>
+                    <h5>Category Benefits, Quotas & Discounts</h5>
                 </div>
-                <div class="section-body">
-                    <div class="row">
-                        @php
-                        $discounts = [
-                            'discount_home_service' => ['Home Service', 'mdi-home-outline'],
-                            'discount_travel'       => ['Travel', 'mdi-airplane-takeoff'],
-                            'discount_hotel'        => ['Hotel', 'mdi-office-building'],
-                            'discount_food'         => ['Food', 'mdi-food-fork-drink'],
-                            'discount_medical'      => ['Medical', 'mdi-medical-bag'],
-                            'discount_marketplace'  => ['Marketplace', 'mdi-store-outline'],
-                            'shopping_discount'     => ['Shopping', 'mdi-cart-outline']
-                        ];
-                        @endphp
-                        @foreach($discounts as $field => [$label, $icon])
-                        <div class="col-md-3 col-6 mb-3">
-                            <div class="discount-box">
-                                <label><i class="mdi {{ $icon }} text-primary mr-1"></i>{{ $label }}</label>
-                                <div class="input-group input-group-sm">
-                                    <input type="number" name="{{ $field }}" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old($field, $plan->$field ?? 0) }}">
-                                    <div class="input-group-append"><span class="input-group-text">%</span></div>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
+                <div class="section-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered align-middle mb-0 text-center">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-left pl-4" style="width: 28%;">Category / Service</th>
+                                    <th style="width: 24%;">Max Amount (₹)</th>
+                                    <th style="width: 24%;">Booking Quota / Month</th>
+                                    <th style="width: 24%;">Discount (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-office-building text-primary mr-2"></i>Hotel Booking
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_hotel" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_hotel', $plan->min_amount_hotel ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quota_hotel_booking" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_hotel_booking', $plan->quota_hotel_booking ?? 0) }}" placeholder="e.g. 5">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_hotel" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_hotel', $plan->discount_hotel ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-home-outline text-primary mr-2"></i>Home Services
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_home_service" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_home_service', $plan->min_amount_home_service ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quota_home_service" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_home_service', $plan->quota_home_service ?? 0) }}" placeholder="e.g. 5">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_home_service" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_home_service', $plan->discount_home_service ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-store-outline text-primary mr-2"></i>Shopping & Marketplace
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_shopping" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_shopping', $plan->min_amount_shopping ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quota_shopping" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_shopping', $plan->quota_shopping ?? 0) }}" placeholder="e.g. 10">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_marketplace" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_marketplace', $plan->discount_marketplace ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-food-fork-drink text-primary mr-2"></i>Food Delivery
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_food" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_food', $plan->min_amount_food ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quota_food" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_food', $plan->quota_food ?? 0) }}" placeholder="e.g. 15">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_food" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_food', $plan->discount_food ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-airplane-takeoff text-primary mr-2"></i>Travel Booking
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_travel" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_travel', $plan->min_amount_travel ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm text-center bg-light text-muted" disabled value="Unlimited">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_travel" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_travel', $plan->discount_travel ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-medical-bag text-primary mr-2"></i>Medical & Healthcare
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_medical" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_medical', $plan->min_amount_medical ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quota_medical" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_medical', $plan->quota_medical ?? 0) }}" placeholder="e.g. 3">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_healthcare" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_healthcare', $plan->discount_healthcare ?? $plan->discount_medical ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-car text-primary mr-2"></i>Cab & Rides
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="min_amount_cab" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_cab', $plan->min_amount_cab ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="free_ride_limit" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('free_ride_limit', $plan->free_ride_limit ?? 0) }}" placeholder="e.g. 20">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_cab" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_cab', $plan->discount_cab ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-left font-weight-bold pl-4">
+                                        <i class="mdi mdi-truck-delivery-outline text-primary mr-2"></i>Shipping & Delivery
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
+                                            <input type="number" name="shipping_min_order" class="form-control text-center font-weight-bold" min="0" step="0.01" value="{{ old('shipping_min_order', $plan->shipping_min_order ?? 0) }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="free_shipping_count" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('free_shipping_count', $plan->free_shipping_count ?? 0) }}" placeholder="e.g. 10">
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="discount_delivery" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery', $plan->discount_delivery ?? 0) }}">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-            </div>
 
-            <!-- Section 4: Shipping, Quotas & Virtual Credit -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="icon-badge"><i class="mdi mdi-truck-delivery-outline"></i></div>
-                    <h5>Shipping, Quotas & Minimum Benefit Thresholds</h5>
-                </div>
-                <div class="section-body">
-                    <!-- Category Quotas / Month -->
-                    <label class="form-label-custom mb-2"><i class="mdi mdi-ticket-percent text-primary mr-1"></i>Category Free Booking / Order Quotas (Per Month)</label>
-                    <div class="row mb-3">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Hotel Booking Quota / Month</label>
-                            <input type="number" name="quota_hotel_booking" class="form-control form-control-custom" min="0" value="{{ old('quota_hotel_booking', $plan->quota_hotel_booking ?? 0) }}" placeholder="e.g. 5">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Home Service Quota / Month</label>
-                            <input type="number" name="quota_home_service" class="form-control form-control-custom" min="0" value="{{ old('quota_home_service', $plan->quota_home_service ?? 0) }}" placeholder="e.g. 5">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Shopping Quota / Month</label>
-                            <input type="number" name="quota_shopping" class="form-control form-control-custom" min="0" value="{{ old('quota_shopping', $plan->quota_shopping ?? 0) }}" placeholder="e.g. 10">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Food Delivery Quota / Month</label>
-                            <input type="number" name="quota_food" class="form-control form-control-custom" min="0" value="{{ old('quota_food', $plan->quota_food ?? 0) }}" placeholder="e.g. 15">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Medical Booking Quota / Month</label>
-                            <input type="number" name="quota_medical" class="form-control form-control-custom" min="0" value="{{ old('quota_medical', $plan->quota_medical ?? 0) }}" placeholder="e.g. 3">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Free Rides / Month</label>
-                            <input type="number" name="free_ride_limit" class="form-control form-control-custom" min="0" value="{{ old('free_ride_limit', $plan->free_ride_limit ?? 0) }}" placeholder="e.g. 20">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label-custom">Free Shipping Quota / Month</label>
-                            <input type="number" name="free_shipping_count" class="form-control form-control-custom" min="0" value="{{ old('free_shipping_count', $plan->free_shipping_count ?? 0) }}" placeholder="e.g. 10">
-                        </div>
-                    </div>
-
-                    <!-- Per-Service Minimum Order Amount Benefit Thresholds -->
-                    <div class="border-top pt-3 mb-3">
-                        <label class="form-label-custom mb-1"><i class="mdi mdi-cash-multiple text-success mr-1"></i>Minimum Order / Booking Amount for Benefit (₹) (Per Service)</label>
-                        <p class="text-muted small mb-3">Set the minimum transaction amount required on each service (Pre-Hotel booking, Home Services, Shopping, etc.) to unlock plan benefits:</p>
+                    <div class="p-3 bg-light border-top">
+                        <!-- Per-Service Delivery Discounts -->
+                        <label class="form-label-custom mb-1"><i class="mdi mdi-truck-fast-outline text-warning mr-1"></i>Per-Service Delivery Fee Discounts (%)</label>
                         <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Hotel Booking Min Amount</label>
+                            <div class="col-md-4 mb-2">
+                                <label class="small text-muted mb-1">Food Delivery Discount</label>
                                 <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_hotel" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_hotel', $plan->min_amount_hotel ?? 0) }}" placeholder="e.g. 1000">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Home Services Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_home_service" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_home_service', $plan->min_amount_home_service ?? 0) }}" placeholder="e.g. 500">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Shopping Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_shopping" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_shopping', $plan->min_amount_shopping ?? 0) }}" placeholder="e.g. 400">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Food Delivery Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_food" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_food', $plan->min_amount_food ?? 0) }}" placeholder="e.g. 200">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Travel Booking Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_travel" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_travel', $plan->min_amount_travel ?? 0) }}" placeholder="e.g. 1500">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Medical Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_medical" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_medical', $plan->min_amount_medical ?? 0) }}" placeholder="e.g. 300">
-                                </div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom font-weight-bold">Cab / Rides Min Amount</label>
-                                <div class="input-group input-group-sm">
-                                    <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="min_amount_cab" class="form-control form-control-custom font-weight-bold" min="0" step="0.01" value="{{ old('min_amount_cab', $plan->min_amount_cab ?? 0) }}" placeholder="e.g. 150">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Per-Service Delivery Discounts -->
-                    <div class="border-top pt-3 mb-3">
-                        <label class="form-label-custom mb-1"><i class="mdi mdi-truck-fast-outline text-warning mr-1"></i>Delivery Discounts (%) (Per Service)</label>
-                        <p class="text-muted small mb-3">Set different delivery fee discount percentages for each service type:</p>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Food Delivery Discount (%)</label>
-                                <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_food', $plan->discount_delivery_food ?? 0) }}">
+                                    <input type="number" name="discount_delivery_food" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_food', $plan->discount_delivery_food ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Shopping Delivery Discount (%)</label>
+                            <div class="col-md-4 mb-2">
+                                <label class="small text-muted mb-1">Shopping Delivery Discount</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_shopping" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_shopping', $plan->discount_delivery_shopping ?? 0) }}">
+                                    <input type="number" name="discount_delivery_shopping" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_shopping', $plan->discount_delivery_shopping ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Home Service Delivery Discount (%)</label>
+                            <div class="col-md-4 mb-2">
+                                <label class="small text-muted mb-1">Home Service Delivery Discount</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_home_service', $plan->discount_delivery_home_service ?? 0) }}">
+                                    <input type="number" name="discount_delivery_home_service" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_home_service', $plan->discount_delivery_home_service ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Medical Delivery Discount (%)</label>
+                            <div class="col-md-4 mb-2">
+                                <label class="small text-muted mb-1">Medical Delivery Discount</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_medical', $plan->discount_delivery_medical ?? 0) }}">
+                                    <input type="number" name="discount_delivery_medical" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_medical', $plan->discount_delivery_medical ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Parcel / Courier Delivery Discount (%)</label>
+                            <div class="col-md-4 mb-2">
+                                <label class="small text-muted mb-1">Parcel / Courier Delivery Discount</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_parcel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_parcel', $plan->discount_delivery_parcel ?? 0) }}">
+                                    <input type="number" name="discount_delivery_parcel" class="form-control text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_parcel', $plan->discount_delivery_parcel ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Credit & Vouchers -->
-                    <div class="border-top pt-3 mb-3">
-                        <label class="form-label-custom mb-2"><i class="mdi mdi-wallet-outline text-info mr-1"></i>Virtual Credit, Bonuses & Vouchers</label>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Virtual Credit Limit (₹)</label>
-                                <input type="number" name="virtual_credit_limit" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Monthly Bonus (₹)</label>
-                                <input type="number" name="wallet_monthly_bonus" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label-custom">Annual Voucher Value (₹)</label>
-                                <input type="number" name="annual_voucher_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
+                        <!-- Credit & Vouchers -->
+                        <div class="border-top pt-3 mt-2">
+                            <label class="form-label-custom mb-2"><i class="mdi mdi-wallet-outline text-info mr-1"></i>Virtual Credit, Bonuses & Vouchers</label>
+                            <div class="row">
+                                <div class="col-md-4 mb-2">
+                                    <label class="small text-muted mb-1">Virtual Credit Limit (₹)</label>
+                                    <input type="number" name="virtual_credit_limit" class="form-control form-control-sm" min="0" step="0.01" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="small text-muted mb-1">Monthly Bonus (₹)</label>
+                                    <input type="number" name="wallet_monthly_bonus" class="form-control form-control-sm" min="0" step="0.01" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="small text-muted mb-1">Annual Voucher Value (₹)</label>
+                                    <input type="number" name="annual_voucher_value" class="form-control form-control-sm" min="0" step="0.01" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="border-top pt-3 mt-2">
-                        <div class="row align-items-center">
-                            <div class="col-md-6 mb-3">
-                                <div class="prof-option-box">
-                                    <div>
-                                        <p class="opt-title">Enable Loan Access</p>
-                                        <p class="opt-sub">Allow consumers on this plan to request loans</p>
+                        <div class="border-top pt-3 mt-2">
+                            <div class="row align-items-center">
+                                <div class="col-md-6 mb-2">
+                                    <div class="prof-option-box">
+                                        <div>
+                                            <p class="opt-title mb-0 font-weight-bold">Enable Loan Access</p>
+                                            <p class="opt-sub mb-0 text-muted small">Allow consumers on this plan to request loans</p>
+                                        </div>
+                                        <label class="switch-label ml-3">
+                                            <input type="checkbox" name="loan_enabled" id="loanSwitch" {{ old('loan_enabled', $plan->loan_enabled ?? false) ? 'checked' : '' }}>
+                                            <span class="switch-slider"></span>
+                                        </label>
                                     </div>
-                                    <label class="switch-label">
-                                        <input type="checkbox" name="loan_enabled" id="loanSwitch" {{ old('loan_enabled', $plan->loan_enabled ?? false) ? 'checked' : '' }}>
-                                        <span class="switch-slider"></span>
-                                    </label>
                                 </div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label-custom">Max Loan Amount (₹)</label>
-                                <input type="number" name="loan_max_amount" class="form-control form-control-custom" min="0" value="{{ old('loan_max_amount', $plan->loan_max_amount ?? 0) }}">
+                                <div class="col-md-6 mb-2">
+                                    <label class="small text-muted mb-1">Max Loan Amount (₹)</label>
+                                    <input type="number" name="loan_max_amount" class="form-control form-control-sm" min="0" step="0.01" value="{{ old('loan_max_amount', $plan->loan_max_amount ?? 0) }}">
+                                </div>
                             </div>
                         </div>
                     </div>
