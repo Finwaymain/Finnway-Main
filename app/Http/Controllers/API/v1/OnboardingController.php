@@ -114,7 +114,7 @@ class OnboardingController extends Controller
 
             // 4. Secondary Services Mapping
             $transportDeliveryMap = [
-                'Cab Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)', 'Logistics Partner'],
+                'Cab Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
                 'Bike Rider' => ['Food Delivery', 'Parcel Delivery', 'Pickup & Drop (Personal runner)'],
                 'Auto Driver' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
                 'E-Rickshaw' => ['Parcel Delivery', 'Pickup & Drop (Personal runner)'],
