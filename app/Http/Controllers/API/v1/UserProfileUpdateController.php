@@ -642,6 +642,20 @@ class UserProfileUpdateController extends Controller
 
         $receiver_user_id   = $receiver->user_id;
         $receiver_user_type = $receiver->user_type;
+        $date_heure         = date('Y-m-d H:i:s');
+
+        if ($receiver_user_type === 'customer') {
+            $receiverTable  = 'tj_transaction';
+            $receiverColumn = 'id_user_app';
+        } elseif ($receiver_user_type === 'driver') {
+            $receiverTable  = 'tj_conducteur_transaction';
+            $receiverColumn = 'id_conducteur';
+        } else {
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'Unsupported receiver type',
+            ]);
+        }
 
         // Step 4: Fetch sender data based on sender type
         if ($sender_type == 'customer') {
@@ -649,10 +663,8 @@ class UserProfileUpdateController extends Controller
                 ->where('ac_no', $sender_ac_no)
                 ->where('statut', 'yes')
                 ->first();
-            $senderTable    = 'tj_transaction';
-            $senderColumn   = 'id_user_app';
-            $receiverTable  = 'tj_transaction';
-            $receiverColumn = 'id_user_app';
+            $senderTable  = 'tj_transaction';
+            $senderColumn = 'id_user_app';
 
             // Fetch sender settings
             $sender_data = DB::table('tj_user_app')
@@ -665,10 +677,8 @@ class UserProfileUpdateController extends Controller
                 ->where('ac_no', $sender_ac_no)
                 ->where('statut', 'yes')
                 ->first();
-            $senderTable    = 'tj_conducteur_transaction';
-            $senderColumn   = 'id_conducteur';
-            $receiverTable  = 'tj_conducteur_transaction';
-            $receiverColumn = 'id_conducteur';
+            $senderTable  = 'tj_conducteur_transaction';
+            $senderColumn = 'id_conducteur';
 
             // Fetch sender settings
             $sender_data = DB::table('tj_conducteur')
@@ -745,11 +755,14 @@ class UserProfileUpdateController extends Controller
             'ac_no'            => $receiver_ac_no,
             'txn_id'           => $txn_id,
             'payment_status'   => 'pending',
+            'payment_method'   => '',
             'description'      => $senderDesc,
             'amount'           => $amount,
             'type'             => 'debit',
             'deduction_type'   => 0,
             'date'             => date('Y-m-d'),
+            'creer'            => $date_heure,
+            'modifier'         => $date_heure,
         ];
         DB::table($senderTable)->insert($senderData);
 
@@ -757,17 +770,24 @@ class UserProfileUpdateController extends Controller
         $receiverDataInsert = [
             'user_type'        => $receiver_user_type,
             $receiverColumn    => $receiver_user_id,
-            'sender_user_id'   => $sender->id,
             'sender_user_type' => $sender_type,
             'ac_no'            => $receiver_ac_no,
             'txn_id'           => $txn_id,
             'payment_status'   => 'pending',
+            'payment_method'   => '',
             'description'      => $receiverDesc,
             'amount'           => $amount,
             'type'             => 'credit',
             'deduction_type'   => 1,
             'date'             => date('Y-m-d'),
+            'creer'            => $date_heure,
+            'modifier'         => $date_heure,
         ];
+
+        if ($receiverTable === 'tj_transaction') {
+            $receiverDataInsert['sender_user_id'] = $sender->id;
+        }
+
         DB::table($receiverTable)->insert($receiverDataInsert);
 
         // Step 12: Sender Earnings logic
