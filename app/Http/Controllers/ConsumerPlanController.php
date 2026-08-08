@@ -143,6 +143,7 @@ class ConsumerPlanController extends Controller
             'quota_shopping'            => intval($request->quota_shopping ?? 0),
             'quota_food'                => intval($request->quota_food ?? 0),
             'quota_medical'             => intval($request->quota_medical ?? 0),
+            'quota_travel'              => intval($request->quota_travel ?? 0),
             'min_order_amount_benefit'  => $f($request->min_order_amount_benefit),
             'wallet_monthly_bonus'      => $f($request->wallet_monthly_bonus),
             'annual_voucher_value'      => $f($request->annual_voucher_value),

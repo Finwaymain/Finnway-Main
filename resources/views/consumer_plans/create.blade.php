@@ -430,7 +430,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <input type="text" class="form-control form-control-sm text-center bg-light text-muted" disabled value="Unlimited">
+                                        <input type="number" name="quota_travel" class="form-control form-control-sm text-center font-weight-bold" min="0" value="{{ old('quota_travel', $plan->quota_travel ?? 0) }}" placeholder="e.g. 5">
                                     </td>
                                     <td>
                                         <div class="input-group input-group-sm">
