@@ -1386,8 +1386,9 @@ class UserProfileUpdateController extends Controller
         }
 
         $userColumn = $userType === 'driver' ? 'id_conducteur' : 'id_user_app';
+        $table      = $userType === 'driver' ? 'tj_conducteur_transaction' : 'tj_transaction';
 
-        $query = DB::table('tj_transaction')
+        $query = DB::table($table)
             ->where($userColumn, $user->id)
             ->orderBy('id', 'desc');
 
@@ -1408,6 +1409,14 @@ class UserProfileUpdateController extends Controller
         $output       = [];
 
         foreach ($transactions as $row) {
+            if ($userType === 'driver') {
+                $row->ride_id    = $row->id_ride ?? null;
+                $row->parcel_id  = $row->id_parcel ?? null;
+                $row->plan_id    = $row->planId ?? null;
+                $amountValue     = (string) ($row->amount ?? '0');
+                $row->amount     = ltrim($amountValue, '-');
+            }
+
             $output[] = $this->enrichTransactionHistoryRow($row, (string) $user->id, $userType);
         }
 
@@ -1424,13 +1433,19 @@ class UserProfileUpdateController extends Controller
         $categoryTitle   = 'Wallet Transaction';
         $counterparty    = '';
         $iconType        = 'wallet';
-        $rideId          = $row->ride_id ?? null;
-        $deductionType   = (string) ($row->deduction_type ?? '');
-        $type            = strtolower((string) ($row->type ?? ''));
-        $paymentMethod   = trim((string) ($row->payment_method ?? ''));
-        $paymentStatus   = strtolower(trim((string) ($row->payment_status ?? 'pending')));
+        $rideId        = $row->ride_id ?? null;
+        $parcelId      = $row->parcel_id ?? null;
+        $planId        = $row->plan_id ?? ($row->planId ?? null);
+        $deductionType = (string) ($row->deduction_type ?? '');
+        $type          = strtolower((string) ($row->type ?? ''));
+        $paymentMethod = trim((string) ($row->payment_method ?? ''));
+        $paymentStatus = strtolower(trim((string) ($row->payment_status ?? 'pending')));
 
-        if (preg_match('/Transferred\s+.+?\s+to\s+(.+)$/i', $desc, $matches)) {
+        if (! empty($planId)) {
+            $categoryTitle = 'Subscription';
+            $iconType      = 'subscription';
+            $counterparty  = 'Subscription Plan';
+        } elseif (preg_match('/Transferred\s+.+?\s+to\s+(.+)$/i', $desc, $matches)) {
             $categoryTitle = 'Money Transfer';
             $counterparty  = trim($matches[1]);
             $iconType      = 'transfer';
@@ -1448,19 +1463,36 @@ class UserProfileUpdateController extends Controller
             if (preg_match('/from\s+(.+)$/i', $desc, $matches)) {
                 $counterparty = trim($matches[1]);
             }
+        } elseif (! empty($parcelId) && $parcelId !== '0') {
+            $parcel = DB::table('parcel_orders')->where('id', $parcelId)->first();
+            if ($parcel) {
+                $categoryTitle = 'Parcel Delivery';
+                $iconType      = 'parcel';
+                $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
+                if ($counterparty === '' && ! empty($parcel->id_user_app)) {
+                    $counterparty = $this->resolvePersonName($parcel->id_user_app, 'customer');
+                }
+            } else {
+                $categoryTitle = 'Parcel Delivery';
+                $iconType      = 'parcel';
+            }
         } elseif (! empty($rideId) && $rideId !== '0') {
             $parcel = DB::table('parcel_orders')->where('id', $rideId)->first();
             if ($parcel) {
                 $categoryTitle = 'Parcel Delivery';
                 $iconType      = 'parcel';
                 $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
-                if ($counterparty === '' && ! empty($parcel->id_conducteur)) {
-                    $counterparty = $this->resolvePersonName($parcel->id_conducteur, 'driver');
+                if ($counterparty === '' && ! empty($parcel->id_user_app)) {
+                    $counterparty = $this->resolvePersonName($parcel->id_user_app, 'customer');
                 }
             } else {
                 $ride = DB::table('tj_requete')->where('id', $rideId)->first();
                 if ($ride) {
-                    $counterparty = $this->resolvePersonName($ride->id_conducteur, 'driver');
+                    if ($currentUserType === 'driver') {
+                        $counterparty = $this->resolvePersonName($ride->id_user_app, 'customer');
+                    } else {
+                        $counterparty = $this->resolvePersonName($ride->id_conducteur, 'driver');
+                    }
                     $vehicle      = null;
                     if (! empty($ride->id_type_vehicule)) {
                         $vehicle = DB::table('tj_type_vehicule')->where('id', $ride->id_type_vehicule)->first();
