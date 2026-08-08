@@ -614,8 +614,10 @@ class UserProfileUpdateController extends Controller
         $current_date   = date('Y-m-d');
         $earn_time      = Carbon::now('Asia/Kolkata')->format('h:i:s'); // Earn time for record
 
+        $mpin = trim($request->mpin ?? '');
+
         // Basic validation for required fields
-        if (! $sender_ac_no || ! $receiver_ac_no || ! $amount || ! $sender_type) {
+        if (! $sender_ac_no || ! $receiver_ac_no || ! $amount || ! $sender_type || empty($mpin)) {
             return response()->json([
                 'res' => 'error',
                 'msg' => 'All parameters are required',
@@ -684,6 +686,17 @@ class UserProfileUpdateController extends Controller
             return response()->json([
                 'res' => 'error',
                 'msg' => 'Sender not found',
+            ]);
+        }
+
+        $hashedMpin = md5($mpin);
+        $mpinValid  = ($sender->mdp === $hashedMpin)
+            || (! empty($sender->m_pin) && $sender->m_pin === $mpin);
+
+        if (! $mpinValid) {
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'Incorrect MPIN',
             ]);
         }
 
@@ -1053,6 +1066,7 @@ class UserProfileUpdateController extends Controller
                 ->where('id', $userId)
                 ->update([
                     'm_pin' => $npass,
+                    'mdp'   => md5($npass),
                 ]);
 
             // Even if update returns 0 (if new pass is same as old), we treat it as success or check logic

@@ -677,9 +677,9 @@ class AuthOtpController extends Controller
         // Get user and update MPIN (mdp)
         $hashedMpin = md5($mpin);
         if ($user_cat === 'customer') {
-            DB::table('tj_user_app')->where('phone', $phone)->update(['mdp' => $hashedMpin]);
+            DB::table('tj_user_app')->where('phone', $phone)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
         } else {
-            DB::table('tj_conducteur')->where('phone', $phone)->update(['mdp' => $hashedMpin]);
+            DB::table('tj_conducteur')->where('phone', $phone)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
         }
 
         return response()->json([
@@ -729,9 +729,9 @@ class AuthOtpController extends Controller
         if ($existingUser) {
             $hashedMpin = md5($mpin);
             if ($user_cat === 'customer') {
-                DB::table('tj_user_app')->where('id', $existingUser->id)->update(['mdp' => $hashedMpin]);
+                DB::table('tj_user_app')->where('id', $existingUser->id)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
             } else {
-                DB::table('tj_conducteur')->where('id', $existingUser->id)->update(['mdp' => $hashedMpin]);
+                DB::table('tj_conducteur')->where('id', $existingUser->id)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
             }
             $row = $existingUser->toArray();
             unset($row['mdp']);
@@ -760,7 +760,7 @@ class AuthOtpController extends Controller
             $sequential    = $lastId + 1;
             $ac_no         = '7080' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
 
-            DB::table('tj_user_app')->where('id', $id)->update(['ac_no' => $ac_no]);
+            DB::table('tj_user_app')->where('id', $id)->update(['ac_no' => $ac_no, 'm_pin' => $mpin]);
 
             // Insert into common_user_base
             DB::table('common_user_base')->insert([
@@ -797,7 +797,7 @@ class AuthOtpController extends Controller
             $sequential = $lastId + 1;
             $ac_no      = '7060' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
 
-            DB::table('tj_conducteur')->where('id', $id)->update(['ac_no' => $ac_no]);
+            DB::table('tj_conducteur')->where('id', $id)->update(['ac_no' => $ac_no, 'm_pin' => $mpin]);
 
             // Assign default free subscription plan
             $freePlan = DB::table('subscription_plans')->where('type', 'free')->first();
