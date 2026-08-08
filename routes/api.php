@@ -770,6 +770,8 @@ Route::post('v1/book-service', [\App\Http\Controllers\API\v1\ServiceRequestAPICo
 Route::get('v1/service-history', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getHistory']);
 Route::get('v1/home-services', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getHomeServices']);
 Route::get('v1/service-categories', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getServiceCategories']);
+Route::get('v1/driver/bookings', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getDriverBookings']);
+Route::post('v1/driver/bookings/service-status', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'updateServiceBookingStatus']);
 
 // ── Dynamic Public API Keys Endpoint ──────────────────────────────────────
 Route::get('v1/app-settings/keys', function() {
