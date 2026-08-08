@@ -344,7 +344,7 @@
                             <div class="discount-box">
                                 <label><i class="mdi {{ $icon }} text-primary mr-1"></i>{{ $label }}</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="{{ $field }}" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old($field, $plan->$field ?? 0) }}">
+                                    <input type="number" name="{{ $field }}" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old($field, $plan->$field ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -459,35 +459,35 @@
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Food Delivery Discount (%)</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_food', $plan->discount_delivery_food ?? 0) }}">
+                                    <input type="number" name="discount_delivery_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_food', $plan->discount_delivery_food ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Shopping Delivery Discount (%)</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_shopping" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_shopping', $plan->discount_delivery_shopping ?? 0) }}">
+                                    <input type="number" name="discount_delivery_shopping" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_shopping', $plan->discount_delivery_shopping ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Home Service Delivery Discount (%)</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_home_service', $plan->discount_delivery_home_service ?? 0) }}">
+                                    <input type="number" name="discount_delivery_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_home_service', $plan->discount_delivery_home_service ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Medical Delivery Discount (%)</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_medical', $plan->discount_delivery_medical ?? 0) }}">
+                                    <input type="number" name="discount_delivery_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_medical', $plan->discount_delivery_medical ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Parcel / Courier Delivery Discount (%)</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="number" name="discount_delivery_parcel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.1" value="{{ old('discount_delivery_parcel', $plan->discount_delivery_parcel ?? 0) }}">
+                                    <input type="number" name="discount_delivery_parcel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_delivery_parcel', $plan->discount_delivery_parcel ?? 0) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -500,15 +500,15 @@
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Virtual Credit Limit (₹)</label>
-                                <input type="number" name="virtual_credit_limit" class="form-control form-control-custom" min="0" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
+                                <input type="number" name="virtual_credit_limit" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('virtual_credit_limit', $plan->virtual_credit_limit ?? 0) }}">
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Monthly Bonus (₹)</label>
-                                <input type="number" name="wallet_monthly_bonus" class="form-control form-control-custom" min="0" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
+                                <input type="number" name="wallet_monthly_bonus" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('wallet_monthly_bonus', $plan->wallet_monthly_bonus ?? 0) }}">
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label-custom">Annual Voucher Value (₹)</label>
-                                <input type="number" name="annual_voucher_value" class="form-control form-control-custom" min="0" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
+                                <input type="number" name="annual_voucher_value" class="form-control form-control-custom" min="0" step="0.01" value="{{ old('annual_voucher_value', $plan->annual_voucher_value ?? 0) }}">
                             </div>
                         </div>
                     </div>

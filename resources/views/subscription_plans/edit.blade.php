@@ -418,7 +418,7 @@
                             <div class="discount-item-row">
                                 <label>Home Services</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_home_service', $subscriptionPlan->discount_home_service ?? 20) }}">
+                                    <input type="number" name="discount_home_service" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_home_service', $subscriptionPlan->discount_home_service ?? 20) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -426,7 +426,7 @@
                             <div class="discount-item-row">
                                 <label>Travel</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_travel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_travel', $subscriptionPlan->discount_travel ?? 15) }}">
+                                    <input type="number" name="discount_travel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_travel', $subscriptionPlan->discount_travel ?? 15) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -434,7 +434,7 @@
                             <div class="discount-item-row">
                                 <label>Hotels</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_hotel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_hotel', $subscriptionPlan->discount_hotel ?? 10) }}">
+                                    <input type="number" name="discount_hotel" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_hotel', $subscriptionPlan->discount_hotel ?? 10) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -442,7 +442,7 @@
                             <div class="discount-item-row">
                                 <label>Food</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_food', $subscriptionPlan->discount_food ?? 25) }}">
+                                    <input type="number" name="discount_food" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_food', $subscriptionPlan->discount_food ?? 25) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -450,7 +450,7 @@
                             <div class="discount-item-row">
                                 <label>Medical</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_medical', $subscriptionPlan->discount_medical ?? 12) }}">
+                                    <input type="number" name="discount_medical" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_medical', $subscriptionPlan->discount_medical ?? 12) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -458,7 +458,7 @@
                             <div class="discount-item-row">
                                 <label>Marketplace</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_marketplace" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_marketplace', $subscriptionPlan->discount_marketplace ?? 18) }}">
+                                    <input type="number" name="discount_marketplace" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_marketplace', $subscriptionPlan->discount_marketplace ?? 18) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -466,7 +466,7 @@
                             <div class="discount-item-row">
                                 <label>Transaction</label>
                                 <div class="input-group input-group-sm" style="width: 120px;">
-                                    <input type="number" name="discount_transaction" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" value="{{ old('discount_transaction', $subscriptionPlan->discount_transaction ?? 10) }}">
+                                    <input type="number" name="discount_transaction" class="form-control form-control-custom text-center font-weight-bold" min="0" max="100" step="0.01" value="{{ old('discount_transaction', $subscriptionPlan->discount_transaction ?? 10) }}">
                                     <div class="input-group-append"><span class="input-group-text">%</span></div>
                                 </div>
                             </div>
@@ -495,7 +495,7 @@
                                 <label class="form-label-custom">Base Loan Amount</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="loan_min_amount" class="form-control form-control-custom font-weight-bold" placeholder="50000" value="{{ old('loan_min_amount', $subscriptionPlan->loan_min_amount ?? 50000) }}">
+                                    <input type="number" name="loan_min_amount" class="form-control form-control-custom font-weight-bold" placeholder="50000" min="0" step="0.01" value="{{ old('loan_min_amount', $subscriptionPlan->loan_min_amount ?? 50000) }}">
                                 </div>
                             </div>
 
@@ -503,7 +503,7 @@
                                 <label class="form-label-custom">Maximum Loan Amount</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                    <input type="number" name="loan_max_amount" class="form-control form-control-custom font-weight-bold" placeholder="500000" value="{{ old('loan_max_amount', $subscriptionPlan->loan_max_amount ?? 500000) }}">
+                                    <input type="number" name="loan_max_amount" class="form-control form-control-custom font-weight-bold" placeholder="500000" min="0" step="0.01" value="{{ old('loan_max_amount', $subscriptionPlan->loan_max_amount ?? 500000) }}">
                                 </div>
                             </div>
 
