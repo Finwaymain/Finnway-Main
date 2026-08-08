@@ -15,6 +15,7 @@ class ConsumerPremiumPlan extends Model
         'name', 'price', 'validity_days', 'description', 'status',
         'sender_cashback_type', 'sender_cashback_value',
         'receiver_cashback_type', 'receiver_cashback_value',
+        'cashback_on_purchase',
         'discount_cab', 'discount_bike', 'discount_home_service',
         'discount_food', 'discount_travel', 'discount_hotel',
         'free_shipping', 'shipping_min_order', 'free_shipping_count', 'free_ride_limit',

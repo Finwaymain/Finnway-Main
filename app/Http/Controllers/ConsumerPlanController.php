@@ -120,6 +120,7 @@ class ConsumerPlanController extends Controller
             'sender_cashback_value'  => $f($request->sender_cashback_value),
             'receiver_cashback_type' => $request->receiver_cashback_type ?? 'percentage',
             'receiver_cashback_value'=> $f($request->receiver_cashback_value),
+            'cashback_on_purchase'   => $f($request->cashback_on_purchase),
 
             // Service Discounts
             'discount_cab'              => $f($request->discount_cab),

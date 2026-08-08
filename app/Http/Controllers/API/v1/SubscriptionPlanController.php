@@ -70,6 +70,12 @@ class SubscriptionPlanController extends Controller
                     }
                 }
 
+                $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: []);
+                if (floatval($row->cashback_on_purchase ?? 0) > 0) {
+                    $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
+                }
+                $row->plan_points = $planPoints;
+
                 $output[] = $row;
             }
 
@@ -120,6 +126,9 @@ class SubscriptionPlanController extends Controller
                 if ($row->discount_bike > 0) $planPoints[] = "{$row->discount_bike}% discount on Bike rides";
                 if ($row->sender_cashback_value > 0) $planPoints[] = "{$row->sender_cashback_value}% cashback on sending money";
                 if ($row->receiver_cashback_value > 0) $planPoints[] = "{$row->receiver_cashback_value}% cashback on receiving money";
+                if (floatval($row->cashback_on_purchase ?? 0) > 0) {
+                    $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
+                }
                 if ($row->free_shipping) $planPoints[] = "Free shipping on marketplace orders";
                 if ($row->loan_personal) $planPoints[] = "Personal loan access";
                 if ($row->loan_business) $planPoints[] = "Business loan access";
@@ -165,6 +174,13 @@ class SubscriptionPlanController extends Controller
             $response['message'] = 'Invalid plan ID';
             return response()->json($response);
         }
+
+        if (!$user) {
+            $response['success'] = 'Failed';
+            $response['error'] = 'User not found';
+            $response['message'] = 'Invalid user ID';
+            return response()->json($response);
+        }
         
         if(strtolower($paymentType)=='wallet'){
             if(floatval($user->amount) < floatval($planData->price)){
@@ -172,32 +188,28 @@ class SubscriptionPlanController extends Controller
                 $response['error'] = 'Insufficient wallet balance';
                 $response['message'] = "You don't have sufficient balance to purchase this plan";
                 return response()->json($response);
-            }else{
-                $newWalletBalance = floatval($user->amount) - floatval($planData->price);
-                UserApp::where('id', $userId)->update(['amount'=>$newWalletBalance]);
-                $date = date('Y-m-d H:i:s');
-
-                DB::table('tj_transaction')->insert([
-                    'amount' => $planData->price,
-                    'payment_method' => 'Wallet',
-                    'id_user' => $userId,
-                    'creer' => $date,
-                    'planId'=> $planData->id
-                ]);
             }
+
+            $newWalletBalance = floatval($user->amount) - floatval($planData->price);
+            UserApp::where('id', $userId)->update(['amount'=>$newWalletBalance]);
+            $this->recordPlanWalletDebit($user, floatval($planData->price), $planData->name, (int) $planData->id, 'customer');
         }
         
         $expiryDate = Carbon::now()->addDays($planData->validity_days);
         
-        $updateResult = UserApp::where('id', $userId)->update([
+        UserApp::where('id', $userId)->update([
             'consumer_plan_id'=>$planData->id,
             'consumer_plan_expiry_date'=> $expiryDate,
             'consumer_plan'=> json_encode($planData->toArray())
         ]);
+
+        $cashbackAmount = floatval($planData->cashback_on_purchase ?? 0);
+        $this->applyPlanPurchaseCashback($user, $cashbackAmount, $planData->name, (int) $planData->id, 'customer');
         
         $response['success'] = 'success';
         $response['error'] = null;
         $response['message'] = 'Consumer subscription added successfully';
+        $response['cashback_credited'] = $cashbackAmount;
         return response()->json($response);
     }
 
@@ -214,25 +226,25 @@ class SubscriptionPlanController extends Controller
             $response['message'] = 'Invalid plan ID';
             return response()->json($response);
         }
+
+        if (!$driver) {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Driver not found';
+            $response['message'] = 'Invalid driver ID';
+            return response()->json($response);
+        }
+
         if(strtolower($paymentType)=='wallet'){
             if(floatval($driver->amount)<floatval($subscriptionData->price)){
                 $response['success'] = 'Failed';
                 $response['error'] = 'Insufficient wallet balance';
                 $response['message'] = "You don't have sufficient balance to purchase this plan";
                 return response()->json($response);
-            }else{
-                $newWalletBalance = floatval($driver->amount) - floatval($subscriptionData->price);
-                Driver::where('id', $driverId)->update(['amount'=>$newWalletBalance]);
-                $date = date('Y-m-d H:i:s');
-
-                DB::table('tj_conducteur_transaction')->insert([
-                    'amount' => $subscriptionData->price,
-                    'payment_method' => 'Wallet',
-                    'id_conducteur' => $driverId,
-                    'creer' => $date,
-                    'planId'=> $subscriptionData->id
-                ]);
             }
+
+            $newWalletBalance = floatval($driver->amount) - floatval($subscriptionData->price);
+            Driver::where('id', $driverId)->update(['amount'=>$newWalletBalance]);
+            $this->recordPlanWalletDebit($driver, floatval($subscriptionData->price), $subscriptionData->name, (int) $subscriptionData->id, 'driver');
         }
         
         $subscriptionPlanId = $subscriptionData->id;
@@ -240,7 +252,7 @@ class SubscriptionPlanController extends Controller
         $expiryDay = $subscriptionData->expiryDay;
         $expiryDate = intval($expiryDay) !== -1 ? Carbon::now()->addDays($expiryDay) : null;
         
-        $updateResult = Driver::where('id', $driverId)->update([
+        Driver::where('id', $driverId)->update([
             'subscriptionPlanId'=>$subscriptionPlanId,
             'subscriptionExpiryDate'=> $expiryDate,
             'subscriptionTotalOrders'=> $subscriptionTotalOrders,
@@ -260,9 +272,14 @@ class SubscriptionPlanController extends Controller
             $response['message'] = 'Database error';
             return response()->json($response);             
         }
+
+        $cashbackAmount = floatval($subscriptionData->cashback_on_purchase ?? 0);
+        $this->applyPlanPurchaseCashback($driver, $cashbackAmount, $subscriptionData->name, (int) $subscriptionData->id, 'driver');
+
         $response['success'] = 'success';
         $response['error'] = null;
         $response['message'] = 'Subscription added successfully';
+        $response['cashback_credited'] = $cashbackAmount;
         return response()->json($response);
     }
 
@@ -317,6 +334,94 @@ class SubscriptionPlanController extends Controller
 
 
         return response()->json($response);
+    }
+
+    private function recordPlanWalletDebit($entity, float $amount, string $planName, int $planId, string $userType): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $txnId = (string) time();
+        $description = "Purchased {$planName} plan";
+
+        if ($userType === 'driver') {
+            DB::table('tj_conducteur_transaction')->insert([
+                'amount'          => $amount,
+                'payment_method'  => 'Wallet',
+                'id_conducteur'   => $entity->id,
+                'deduction_type'  => '0',
+                'payment_status'  => 'success',
+                'type'            => 'debit',
+                'description'     => $description,
+                'txn_id'          => $txnId,
+                'planId'          => (string) $planId,
+                'creer'           => $now,
+                'modifier'        => $now,
+                'date'            => date('Y-m-d'),
+            ]);
+        } else {
+            DB::table('tj_transaction')->insert([
+                'amount'          => $amount,
+                'payment_method'  => 'Wallet',
+                'id_user_app'     => $entity->id,
+                'deduction_type'  => '0',
+                'payment_status'  => 'success',
+                'type'            => 'debit',
+                'description'     => $description,
+                'txn_id'          => $txnId,
+                'user_type'       => 'customer',
+                'creer'           => $now,
+                'modifier'        => $now,
+                'date'            => date('Y-m-d'),
+            ]);
+        }
+    }
+
+    private function applyPlanPurchaseCashback($entity, float $cashbackAmount, string $planName, int $planId, string $userType): void
+    {
+        if ($cashbackAmount <= 0) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $txnId = (string) (time() + 1);
+        $description = "Cashback on purchasing {$planName} plan";
+
+        if ($userType === 'driver') {
+            DB::table('tj_conducteur')->where('id', $entity->id)->increment('amount', $cashbackAmount);
+            DB::table('tj_conducteur_transaction')->insert([
+                'amount'          => $cashbackAmount,
+                'payment_method'  => 'Wallet',
+                'id_conducteur'   => $entity->id,
+                'deduction_type'  => '1',
+                'payment_status'  => 'success',
+                'type'            => 'credit',
+                'description'     => $description,
+                'txn_id'          => $txnId,
+                'planId'          => (string) $planId,
+                'creer'           => $now,
+                'modifier'        => $now,
+                'date'            => date('Y-m-d'),
+            ]);
+        } else {
+            DB::table('tj_user_app')->where('id', $entity->id)->increment('amount', $cashbackAmount);
+            DB::table('tj_transaction')->insert([
+                'amount'          => $cashbackAmount,
+                'payment_method'  => 'Wallet',
+                'id_user_app'     => $entity->id,
+                'deduction_type'  => '1',
+                'payment_status'  => 'success',
+                'type'            => 'credit',
+                'description'     => $description,
+                'txn_id'          => $txnId,
+                'user_type'       => 'customer',
+                'creer'           => $now,
+                'modifier'        => $now,
+                'date'            => date('Y-m-d'),
+            ]);
+        }
     }
 
 }

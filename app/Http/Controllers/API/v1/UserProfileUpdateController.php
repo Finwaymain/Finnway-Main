@@ -1463,6 +1463,20 @@ class UserProfileUpdateController extends Controller
             if (preg_match('/from\s+(.+)$/i', $desc, $matches)) {
                 $counterparty = trim($matches[1]);
             }
+        } elseif (stripos($desc, 'cashback on purchasing') !== false) {
+            $categoryTitle = 'Plan Cashback Reward';
+            $iconType      = 'reward';
+            if (preg_match('/purchasing\s+(.+?)\s+plan/i', $desc, $matches)) {
+                $counterparty = trim($matches[1]);
+            }
+        } elseif (stripos($desc, 'purchased') !== false && stripos($desc, 'plan') !== false) {
+            $categoryTitle = 'Subscription';
+            $iconType      = 'subscription';
+            if (preg_match('/purchased\s+(.+?)\s+plan/i', $desc, $matches)) {
+                $counterparty = trim($matches[1]);
+            } else {
+                $counterparty = 'Subscription Plan';
+            }
         } elseif (! empty($parcelId) && $parcelId !== '0') {
             $parcel = DB::table('parcel_orders')->where('id', $parcelId)->first();
             if ($parcel) {

@@ -26,6 +26,7 @@ class SubscriptionPlan extends Model
         'plan_tier',
         'sender_cashback_type', 'sender_cashback_value',
         'receiver_cashback_type', 'receiver_cashback_value',
+        'cashback_on_purchase',
         'discount_home_service', 'discount_travel', 'discount_hotel',
         'discount_food', 'discount_medical', 'discount_marketplace',
         'discount_transaction',
