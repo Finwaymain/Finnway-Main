@@ -119,13 +119,38 @@ class ServiceRequestAPIController extends Controller
 
         $parentId = $request->input('parent_id');
 
-        $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
-            ->where('statut', true);
-
         if ($parentId) {
-            $query->where('parent_id', $parentId);
+            $hasDirectSub = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                ->where('parent_id', $parentId)
+                ->where('statut', true)
+                ->exists();
+
+            if ($hasDirectSub) {
+                $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                    ->where('statut', true)
+                    ->where('parent_id', $parentId);
+            } else {
+                $parentRow = \Illuminate\Support\Facades\DB::table('tj_categorie_user')->where('id', $parentId)->first();
+                if ($parentRow && !empty($parentRow->libelle)) {
+                    $cleanName = trim(preg_replace('/[^\p{L}\p{N}\s]/u', '', $parentRow->libelle));
+                    $matchingParentIds = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                        ->where('libelle', 'LIKE', '%' . $cleanName . '%')
+                        ->pluck('id');
+
+                    $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                        ->where('statut', true)
+                        ->whereIn('parent_id', $matchingParentIds);
+                } else {
+                    $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                        ->where('statut', true)
+                        ->where('parent_id', $parentId);
+                }
+            }
         } else {
-            $query->where('type', 'consumer_service')->whereNull('parent_id');
+            $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                ->where('statut', true)
+                ->where('type', 'consumer_service')
+                ->whereNull('parent_id');
         }
 
         $rows = $query->select('id', 'libelle', 'image')->orderBy('id')->get();
@@ -135,6 +160,18 @@ class ServiceRequestAPIController extends Controller
                 ->where('parent_id', $row->id)
                 ->where('statut', true)
                 ->exists();
+
+            if (!$hasChildren && !empty($row->libelle)) {
+                $cleanName = trim(preg_replace('/[^\p{L}\p{N}\s]/u', '', $row->libelle));
+                $matchingParentIds = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                    ->where('libelle', 'LIKE', '%' . $cleanName . '%')
+                    ->pluck('id');
+
+                $hasChildren = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+                    ->whereIn('parent_id', $matchingParentIds)
+                    ->where('statut', true)
+                    ->exists();
+            }
 
             return [
                 'id' => $row->id,
