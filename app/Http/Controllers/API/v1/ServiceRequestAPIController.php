@@ -120,10 +120,13 @@ class ServiceRequestAPIController extends Controller
         $parentId = $request->input('parent_id');
 
         $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
-            ->where('statut', true)
-            ->where('type', 'consumer_service');
+            ->where('statut', true);
 
-        $query = $parentId ? $query->where('parent_id', $parentId) : $query->whereNull('parent_id');
+        if ($parentId) {
+            $query->where('parent_id', $parentId);
+        } else {
+            $query->where('type', 'consumer_service')->whereNull('parent_id');
+        }
 
         $rows = $query->select('id', 'libelle', 'image')->orderBy('id')->get();
 
@@ -131,7 +134,6 @@ class ServiceRequestAPIController extends Controller
             $hasChildren = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
                 ->where('parent_id', $row->id)
                 ->where('statut', true)
-                ->where('type', 'consumer_service')
                 ->exists();
 
             return [
