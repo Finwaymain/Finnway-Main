@@ -141,7 +141,7 @@
 
                                     <tr>
                                     <!-- <td>{{ $data->id }}</td> -->
-                                        <td>{{ $data->id }}</td>
+                                        <td>{{ $data->transaction_id }}</td>
                                         @if($id=='')
                                         <td>
                                             <a href="{{ route('driver.show',['id'=>$data->userId]) }}">{{ $data->firstname }} {{ $data->lastname }}</a>
@@ -189,10 +189,7 @@
                                 </tbody>
 
                             </table>
-                            <nav aria-label="Page navigation example" class="custom-pagination">
-                            {{$transaction->appends(request()->query())->links()}}
-                            </nav>
-                            {{ $transaction->links('pagination.pagination') }}
+                            {{ $transaction->appends(request()->query())->links('pagination.pagination') }}
                         </div>
 
                     </div>

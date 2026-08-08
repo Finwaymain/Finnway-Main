@@ -64,6 +64,9 @@
                                                             <option value="payment_status" @if ($_GET[
                                             'selected_search']=='payment_status')
                                                             selected="selected" @endif>{{trans('lang.payment_status')}}</option>
+                                                            <option value="description" @if ($_GET[
+                                            'selected_search']=='description')
+                                                            selected="selected" @endif>Description</option>
 
 
                                                         </select>
@@ -72,6 +75,7 @@
                                                                 class="form-control input-sm">
                                                             <option value="transaction_id">{{ trans('lang.transaction_id')}}</option>
                                                             <option value="payment_status">{{ trans('lang.payment_status')}}</option>
+                                                            <option value="description">Description</option>
                                                         </select>
                                                     @endif
                                                     <div class="form-group">
@@ -159,8 +163,11 @@
 
                                 <tr>
                                     <th>{{ trans('lang.transaction_id')}}</th>
+                                    <th>Account Type</th>
                                     <th>{{ trans('lang.users')}}</th>
                                     <th>{{trans('lang.amount')}}</th>
+                                    <th>Description</th>
+                                    <th>Txn Ref</th>
                                     <th>{{trans('lang.date')}}</th>
                                     <th>{{trans('lang.payment_method')}}</th>
                                     <th>{{trans('lang.payment_status')}}</th>
@@ -173,10 +180,20 @@
                                 @foreach($transaction as $data)
 
                                     <tr>
-                                    <!-- <td>{{ $data->id }}</td> -->
-                                        <td>{{ $data->id }}</td>
+                                        <td>{{ $data->transaction_id }}</td>
                                         <td>
-                                            <a href="{{ route('users.show',['id'=>$data->userId]) }}">{{ $data->firstname }} {{ $data->lastname }}</a>
+                                            @if(($data->account_type ?? 'customer') === 'driver')
+                                                <span class="badge badge-info">Driver</span>
+                                            @else
+                                                <span class="badge badge-primary">Customer</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if(($data->account_type ?? 'customer') === 'driver')
+                                                <a href="{{ route('driver.show', ['id' => $data->userId]) }}">{{ $data->firstname }} {{ $data->lastname }}</a>
+                                            @else
+                                                <a href="{{ route('users.show', ['id' => $data->userId]) }}">{{ $data->firstname }} {{ $data->lastname }}</a>
+                                            @endif
                                         </td>
                                         <td>
                                          @if($currency->symbol_at_right=="true")
@@ -195,16 +212,22 @@
                                          @endif   
                                            
                                         </td>
+                                        <td>{{ $data->description ?: '-' }}</td>
+                                        <td>{{ $data->txn_id ?: '-' }}</td>
                                         <td>
+                                            @if(!empty($data->creer) && $data->creer != '0000-00-00 00:00:00')
                                             <span class="date">{{ date('d F Y',strtotime($data->creer))}}</span>
                                             <span class="time">{{ date('h:i A',strtotime($data->creer))}}</span>
+                                            @else
+                                                -
+                                            @endif
                                         </td>
                                         @if($data->image)
                                             <td><img class="rounded" style="width:50px"
                                                 src="{{asset('/assets/images/payment_method/'.$data->image)}}"
                                                  alt="image"></td>
 											@else
-											<td>{{ $data->payment_method}}</td>
+											<td>{{ $data->payment_method ?: 'Wallet' }}</td>
                                         @endif
                                         <td>
                                             @if($data->payment_status == 'success')
@@ -215,21 +238,20 @@
                                                 <span class="badge badge-danger">{{ $data->payment_status }}</span>
                                             @elseif($data->payment_status == 'rufund success')
                                                 <span class="badge badge-success">{{ $data->payment_status }}</span>
+                                            @else
+                                                <span class="badge badge-secondary">{{ $data->payment_status ?: 'N/A' }}</span>
                                             @endif
                                         </td>
                                     </tr>
                                 @endforeach
                                  @else
-                                	<tr><td colspan="11" align="center">{{trans("lang.no_result")}}</td></tr>
+                                	<tr><td colspan="9" align="center">{{trans("lang.no_result")}}</td></tr>
                                 @endif
 
                                 </tbody>
 
                             </table>
-                            <nav aria-label="Page navigation example" class="custom-pagination">
-                            {{$transaction->appends(request()->query())->links()}}
-                            </nav>
-                            {{ $transaction->links('pagination.pagination') }}
+                            {{ $transaction->appends(request()->query())->links('pagination.pagination') }}
                         </div>
 
                     </div>
@@ -256,9 +278,13 @@
     <script>
         $(document).ready(function () {
             $(".shadow-sm").hide();
-            if($('#selected_search').val()=="transaction_id"){
+            if($('#selected_search').val()=="transaction_id" || $('#selected_search').val()=="description"){
+              jQuery('#payment_status').hide();
               jQuery('#payment_status').val('');
-            }else{
+              jQuery('#search').show();
+            }else if($('#selected_search').val()=="payment_status"){
+              jQuery('#payment_status').show();
+              jQuery('#search').hide();
               jQuery('#search').val('');
             }
         })
