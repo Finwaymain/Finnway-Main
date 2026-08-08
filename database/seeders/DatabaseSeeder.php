@@ -134,6 +134,7 @@ class DatabaseSeeder extends Seeder
         // 9. Call other seeders
         $this->call(MarketplaceCategorySeeder::class);
         $this->call(UserCategorySeeder::class);
+        $this->call(AllServicesCategorySeeder::class);
         $this->call(VehicleDataSeeder::class);
     }
 }

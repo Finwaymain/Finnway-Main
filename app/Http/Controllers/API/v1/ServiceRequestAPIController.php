@@ -107,11 +107,8 @@ class ServiceRequestAPIController extends Controller
     }
     
     /**
-     * Generic replacement for getHomeServices(): returns the children of any
-     * tj_categorie_user node (or the top-level "All Services" categories when
-     * no parent_id is given), each flagged with has_children so the Flutter
-     * client knows whether to drill into another category screen or open the
-     * booking form directly.
+     * Returns Home Services catalog for user-app "More" / All Services.
+     * Top-level rows are type=consumer_service only (never provider signup categories).
      */
     public function getServiceCategories(Request $request)
     {
@@ -123,16 +120,18 @@ class ServiceRequestAPIController extends Controller
         $parentId = $request->input('parent_id');
 
         $query = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
-            ->where('statut', true);
+            ->where('statut', true)
+            ->where('type', 'consumer_service');
 
         $query = $parentId ? $query->where('parent_id', $parentId) : $query->whereNull('parent_id');
 
-        $rows = $query->select('id', 'libelle', 'image')->get();
+        $rows = $query->select('id', 'libelle', 'image')->orderBy('id')->get();
 
         $data = $rows->map(function ($row) {
             $hasChildren = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
                 ->where('parent_id', $row->id)
                 ->where('statut', true)
+                ->where('type', 'consumer_service')
                 ->exists();
 
             return [
@@ -153,6 +152,7 @@ class ServiceRequestAPIController extends Controller
     {
         $rows = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
             ->where('statut', true)
+            ->where('type', 'consumer_service')
             ->where('libelle', 'like', '%' . $search . '%')
             ->select('id', 'libelle', 'image', 'parent_id')
             ->orderBy('libelle')
@@ -160,6 +160,7 @@ class ServiceRequestAPIController extends Controller
             ->get();
 
         $allNodes = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
+            ->where('type', 'consumer_service')
             ->select('id', 'libelle', 'parent_id')
             ->get()
             ->keyBy('id');
@@ -182,6 +183,7 @@ class ServiceRequestAPIController extends Controller
             $hasChildren = \Illuminate\Support\Facades\DB::table('tj_categorie_user')
                 ->where('parent_id', $row->id)
                 ->where('statut', true)
+                ->where('type', 'consumer_service')
                 ->exists();
 
             return [
