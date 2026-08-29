@@ -220,10 +220,11 @@ class PaymentByCashParcelController extends Controller
             ]);
         }
 
-        if (!empty($totalamount)) {
+        $driverBaseAmount = floatval($amount_new) - floatval($discount) + floatval($tip);
+        if (!empty($driverBaseAmount)) {
             DB::table('tj_conducteur_transaction')->insert([
                 'id_conducteur' => $id_user,
-                'amount' => strtolower($paymethod) == 'cash' ? $totalamount : $totalDriverAmount,
+                'amount' => $driverBaseAmount,
                 'payment_method' => $paymethod,
                 'id_ride' => $id_requete,
                 'creer' => $date

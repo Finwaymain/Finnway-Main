@@ -467,6 +467,11 @@ class DriverWalletHistoryController extends Controller
             $wt->depart_name      = 'Admin Commission Deduction';
             $wt->destination_name = 'Admin Panel';
             $wt->libelle          = 'Admin Commission';
+        } elseif ($paymentMethod === 'Tax/GST' || stripos($note, 'tax') !== false || stripos($paymentMethod, 'tax') !== false || stripos($paymentMethod, 'gst') !== false) {
+            $wt->order_type       = 'tax';
+            $wt->depart_name      = 'Tax & Charges Deduction';
+            $wt->destination_name = 'Taxes & Fees';
+            $wt->libelle          = 'GST & Taxes';
         } elseif (!empty($wt->id_ride) && DB::table('service_requests')->where('id', $wt->id_ride)->exists()) {
             $svc                  = DB::table('service_requests')->where('id', $wt->id_ride)->first();
             $wt->order_type       = 'service';
