@@ -139,105 +139,58 @@ class PayRequeteWalletController extends Controller
 
                 $taxHtml = $taxHtml . "<p><b>" . $taxlabel . "(" . $value . "): </b>" . $taxValueAmount . "</p>";
             }
-
-            $totalAmount = floatval($totalAmount) + $totalTaxAmount;
         }
 
         if ($taxHtml == '') {
-
-            $taxHtml = $taxHtml . "0";
+            $taxHtml = "0";
         }
 
-
-
-        if (!empty($tip)) {
-
-
-
-            $totalAmount = $totalAmount + $tip;
-        }
-
-        $totalDriverAmount = floatval($totalAmount) - floatval($commission_amount);
-
-
+        $totalUserAmount = floatval($totalAmount) + floatval($totalTaxAmount) + floatval($tip);
+        $driverBaseAmount = floatval($totalAmount) + floatval($tip);
+        $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
 
         $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
-
         $userWallet = 0;
-
         if (!empty($row_amount)) {
-
             if ($row_amount->amount != '' && $row_amount->amount != null) {
-
                 $userWallet = $row_amount->amount;
             }
-
-            $userWallet = $userWallet - $totalAmount;
-
+            $userWallet = $userWallet - $totalUserAmount;
             DB::update('update tj_user_app set amount = ? where id = ?', [$userWallet, $id_user_app]);
         }
 
-
-
         DB::insert("insert into tj_transaction(amount,deduction_type,ride_id,payment_method, payment_status,id_user_app, creer,modifier)
-
-        values($totalAmount,0,'" . $id_requete . "','" . $paymethod . "','" . $payment_status . "','" . $id_user_app . "','" . $date_heure . "','" . $date_heure . "')");
-
-
-
-
+        values($totalUserAmount,0,'" . $id_requete . "','" . $paymethod . "','" . $payment_status . "','" . $id_user_app . "','" . $date_heure . "','" . $date_heure . "')");
 
         $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-
         $driverWallet = 0;
-
         if (!empty($row_driver)) {
-
             if ($row_driver->amount != '' && $row_driver->amount != null) {
-
                 $driverWallet = $row_driver->amount;
             }
-
             $driverWallet = $driverWallet + $totalDriverAmount;
-
             DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
         }
 
         $date = date('Y-m-d H:i:s');
-
         if (!empty($commission_amount)) {
-
             DB::table('tj_conducteur_transaction')->insert([
-
                 'id_conducteur' => $id_user,
-
                 'amount' => "-" . $commission_amount,
-
                 'payment_method' => 'Commission',
-
                 'id_ride' => $id_requete,
-
                 'creer' => $date
-
             ]);
         }
 
-        if (!empty($totalAmount)) {
-
+        if (!empty($driverBaseAmount)) {
             DB::table('tj_conducteur_transaction')->insert([
-
-                'amount' => $totalAmount,
-
+                'amount' => $driverBaseAmount,
                 'payment_method' => $paymethod,
-
                 'id_conducteur' => $id_user,
-
                 'id_ride' => $id_requete,
-
                 'creer' => $date
-
             ]);
-
         }
 
 

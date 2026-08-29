@@ -169,99 +169,50 @@ class PayRequeteController extends Controller
                 }
 
                 $taxHtml = $taxHtml . "<p><b>" . $taxlabel . "(" . $value . "): </b>" . $taxValueAmount . "</p>";
-
-
-
             }
-
-            $totalamount = floatval($totalamount) + $totalTaxAmount;
-
-
-
         }
 
         if ($taxHtml == '') {
-
-            $taxHtml = $taxHtml . "0";
-
+            $taxHtml = "0";
         }
 
-
-
-        if (!empty($tip)) {
-
-
-
-            $totalamount = $totalamount + $tip;
-
-        }
-
-        $totalDriverAmount = floatval($totalamount) - floatval($commission_amount);
-
-        
+        $totalUserAmount = floatval($totalamount) + floatval($totalTaxAmount) + floatval($tip);
+        $driverBaseAmount = floatval($totalamount) + floatval($tip);
+        $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
 
         $sql_driver = DB::table('tj_conducteur')
-
             ->select('amount')
-
             ->where('id', '=', $id_user)
-
             ->first();
 
         $driverWallet = 0;
-
         if (!empty($sql_driver)) {
-
             if ($sql_driver->amount != '' && $sql_driver->amount != null) {
-
                 $driverWallet = $sql_driver->amount;
-
             }
-
             $driverWallet = $driverWallet + $totalDriverAmount;
-
             DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
-
-
-
         }
 
         $date = date('Y-m-d H:i:s');
-
         if (!empty($commission_amount)) {
-
             DB::table('tj_conducteur_transaction')->insert([
-
                 'id_conducteur' => $id_user,
-
                 'amount' => "-" . $commission_amount,
-
                 'payment_method' => 'Commission',
-
                 'id_ride' => $id_requete,
-
                 'creer' => $date
-
             ]);
-
         }
 
-        if (!empty($totalAmount)) {
-
+        if (!empty($driverBaseAmount)) {
             DB::table('tj_conducteur_transaction')->insert([
-
-                'amount' => $totalAmount,
-
+                'amount' => $driverBaseAmount,
                 'payment_method' => $paymethod,
-
                 'id_conducteur' => $id_user,
-
                 'id_ride' => $id_requete,
-
                 'creer' => $date
-
             ]);
-
         }
 
 
