@@ -1,0 +1,19 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+
+    paths:
+        - app/
+
+    # Level 9 is the highest level. Start with level 5 as a reasonable default.
+    level: 5
+
+    excludePaths:
+        - app/Http/Controllers/API/v1/AutoloadController.php
+        - app/Http/Controllers/API/v1/AutoLoadRealController.php
+        - app/Http/Controllers/API/v1/PayfastAutoLoadController.php
+        - app/Http/Controllers/API/v1/PayfastAutoLoadRealController.php
+        - app/Http/Controllers/API/v1/PayfastClassLoaderController.php
+        - app/Http/Controllers/API/v1/classLoaderController.php
+
