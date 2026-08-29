@@ -163,6 +163,11 @@ class InvoiceController extends Controller
         }
 
         $dateStr = $request->query('date');
+        $rawDate = !empty($dateStr) 
+            ? $dateStr 
+            : ($booking->date_heure ?? ($booking->creer ?? ($transaction->creer ?? date('Y-m-d H:i:s'))));
+        $date = (strtotime((string)$rawDate)) ? date('d M Y, h:i A', strtotime((string)$rawDate)) : (string)$rawDate;
+
         $paymentMethod = $request->query('payment_method', $booking->payment_status ?? ($transaction->payment_method ?? 'Smart Value Wallet'));
         $pmRaw = strtolower(trim((string)$paymentMethod));
         if (str_contains($pmRaw, 'cash')) {
