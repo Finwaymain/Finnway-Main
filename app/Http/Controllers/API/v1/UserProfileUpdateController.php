@@ -1498,22 +1498,31 @@ class UserProfileUpdateController extends Controller
         $userId   = $all['user_id'] ?? $all['id_user'] ?? $all['driver_id'] ?? $all['id'] ?? $request->input('user_id') ?? $request->input('id_user') ?? $request->input('driver_id') ?? $request->input('id');
         $userType = $all['user_type'] ?? $request->input('user_type');
 
-        $user = null;
-        if (! empty($acNo)) {
-            $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
-            if (! $user) $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
-            if (! $user) $user = DB::table('tj_user_app')->where('id', $acNo)->first();
-            if (! $user) $user = DB::table('tj_conducteur')->where('id', $acNo)->first();
-        }
+        $isDriverReq = ($userType === 'driver' || $request->is('*driver*') || !empty($all['driver_id']) || $request->has('driver_id'));
 
-        if (! $user && ! empty($userId)) {
-            if ($userType === 'driver') {
+        $user = null;
+        if ($isDriverReq) {
+            if (!empty($userId)) {
                 $user = DB::table('tj_conducteur')->where('id', $userId)->first();
-            } else {
+            }
+            if (!$user && !empty($acNo)) {
+                $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->orWhere('id', $acNo)->first();
+            }
+            if (!$user && !empty($userId)) {
                 $user = DB::table('tj_user_app')->where('id', $userId)->first();
             }
-            if (! $user) $user = DB::table('tj_user_app')->where('id', $userId)->first();
-            if (! $user) $user = DB::table('tj_conducteur')->where('id', $userId)->first();
+        } else {
+            if (!empty($acNo)) {
+                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+                if (!$user) $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
+                if (!$user) $user = DB::table('tj_user_app')->where('id', $acNo)->first();
+                if (!$user) $user = DB::table('tj_conducteur')->where('id', $acNo)->first();
+            }
+
+            if (!$user && !empty($userId)) {
+                $user = DB::table('tj_user_app')->where('id', $userId)->first();
+                if (!$user) $user = DB::table('tj_conducteur')->where('id', $userId)->first();
+            }
         }
 
         if (! $user) {
