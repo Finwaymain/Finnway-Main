@@ -1498,7 +1498,14 @@ class UserProfileUpdateController extends Controller
         $userId   = $all['user_id'] ?? $all['id_user'] ?? $all['driver_id'] ?? $all['id'] ?? $request->input('user_id') ?? $request->input('id_user') ?? $request->input('driver_id') ?? $request->input('id');
         $userType = $all['user_type'] ?? $request->input('user_type');
 
-        $isDriverReq = ($userType === 'driver' || $request->is('*driver*') || !empty($all['driver_id']) || $request->has('driver_id'));
+        $isDriverReq = false;
+        if ($userType === 'driver' || $request->is('*show_wallet_amount/driver*')) {
+            $isDriverReq = true;
+        } else if ($userType !== 'customer' && $userType !== 'user' && $userType !== 'user_app') {
+            if (!empty($all['driver_id']) || !empty($all['id_driver']) || $request->has('driver_id') || $request->is('*driver*')) {
+                $isDriverReq = true;
+            }
+        }
 
         $user = null;
         if ($isDriverReq) {
@@ -1512,16 +1519,14 @@ class UserProfileUpdateController extends Controller
                 $user = DB::table('tj_user_app')->where('id', $userId)->first();
             }
         } else {
-            if (!empty($acNo)) {
-                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
-                if (!$user) $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
-                if (!$user) $user = DB::table('tj_user_app')->where('id', $acNo)->first();
-                if (!$user) $user = DB::table('tj_conducteur')->where('id', $acNo)->first();
-            }
-
-            if (!$user && !empty($userId)) {
+            if (!empty($userId)) {
                 $user = DB::table('tj_user_app')->where('id', $userId)->first();
-                if (!$user) $user = DB::table('tj_conducteur')->where('id', $userId)->first();
+            }
+            if (!$user && !empty($acNo)) {
+                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->orWhere('id', $acNo)->first();
+            }
+            if (!$user && !empty($userId)) {
+                $user = DB::table('tj_conducteur')->where('id', $userId)->first();
             }
         }
 
@@ -1533,8 +1538,8 @@ class UserProfileUpdateController extends Controller
         }
 
         $totalEarnings = (string) ($user->earn_amount ?? '0');
-        $driverBalance = floatval($user->amount ?? 0);
-        if ($userType === 'driver' || isset($user->statut_vehicule)) {
+        $userBalance = floatval($user->amount ?? 0);
+        if ($isDriverReq || isset($user->statut_vehicule)) {
             $rideEarnings = DB::table('tj_requete')
                 ->where('id_conducteur', $user->id)
                 ->where('statut', 'completed')
@@ -1558,16 +1563,30 @@ class UserProfileUpdateController extends Controller
                 $totalEarnings = strval($calcEarn);
             }
 
-            // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
-            $driverBalance = round(floatval($user->amount ?? 0), 2);
+            $userBalance = round(floatval($user->amount ?? 0), 2);
+        } else {
+            $earningWalletSum = 0;
+            if (!empty($user->ac_no) && Schema::hasTable('tbl_earning')) {
+                $earningWalletSum = DB::table('tbl_earning')
+                    ->where('ac_no', $user->ac_no)
+                    ->where(function ($q) {
+                        $q->where('created_at', 'credit')
+                          ->orWhere('created_at', 'LIKE', '%credit%')
+                          ->orWhere('earn_wallet', '>', 0);
+                    })
+                    ->sum('earn_wallet');
+            }
+            $finalEarn = max(floatval($user->earn_amount ?? 0), floatval($earningWalletSum));
+            $totalEarnings = strval(number_format($finalEarn, 2, '.', ''));
+            $userBalance = round(floatval($user->amount ?? 0), 2);
         }
 
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Wallet amount fetched successfully',
             'data' => [
-                'amount'         => (string) $driverBalance,
-                'wallet_amount'  => (string) $driverBalance,
+                'amount'         => (string) $userBalance,
+                'wallet_amount'  => (string) $userBalance,
                 'earn_amount'    => $totalEarnings,
                 'total_earnings' => $totalEarnings,
             ],
