@@ -35,8 +35,8 @@ class ServiceWiseRewardConfigTest extends TestCase
         $response->assertStatus(200)
             ->assertSee('Business Value')
             ->assertSee('Customer Value')
-            ->assertSee('Percentage (%)')
-            ->assertSee('Flat (₹)')
+            ->assertSee('Percentage')
+            ->assertSee('Flat')
             ->assertDontSee('Max Limit');
     }
 

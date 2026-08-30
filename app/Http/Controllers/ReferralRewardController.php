@@ -143,53 +143,69 @@ class ReferralRewardController extends Controller
 
         // 6. Referral Event Rules Configuration
         $eventRules = [
-            'app_install' => [
-                'name'    => 'App Install',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_app_install_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_app_install_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_app_install_value', '1'),
+            'app_install_user' => [
+                'name'         => 'App Install User',
+                'enable'       => (ApiKeySetting::getApiKeyValue('event_rule_app_install_user_enable', ApiKeySetting::getApiKeyValue('event_rule_app_install_enable', '1')) == '1'),
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_app_install_user_type', ApiKeySetting::getApiKeyValue('event_rule_app_install_type', 'flat')),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_app_install_user_value', ApiKeySetting::getApiKeyValue('event_rule_app_install_value', '10')),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_services', ApiKeySetting::getApiKeyValue('event_rule_app_install_min_services', '1')),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_amount', ApiKeySetting::getApiKeyValue('event_rule_app_install_min_amount', '0')),
             ],
-            'registration' => [
-                'name'    => 'Registration',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_registration_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_registration_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_registration_value', '1'),
+            'app_install_business' => [
+                'name'         => 'App Install Business',
+                'enable'       => (ApiKeySetting::getApiKeyValue('event_rule_app_install_business_enable', ApiKeySetting::getApiKeyValue('event_rule_registration_enable', '1')) == '1'),
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_app_install_business_type', ApiKeySetting::getApiKeyValue('event_rule_registration_type', 'flat')),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_app_install_business_value', ApiKeySetting::getApiKeyValue('event_rule_registration_value', '5')),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_services', ApiKeySetting::getApiKeyValue('event_rule_registration_min_services', '1')),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_amount', ApiKeySetting::getApiKeyValue('event_rule_registration_min_amount', '0')),
             ],
             'user_subscription' => [
-                'name'    => 'User Subscription',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_value', '2'),
+                'name'         => 'User Subscription',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_type', 'percentage'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_value', '2'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_user_subscription_min_amount', '0'),
             ],
             'service_booking' => [
-                'name'    => 'Service Booking',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_service_booking_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_service_booking_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_service_booking_value', '2'),
+                'name'         => 'Service Booking',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_service_booking_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_service_booking_type', 'percentage'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_service_booking_value', '2'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_service_booking_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_service_booking_min_amount', '0'),
             ],
             'marketplace_purchase' => [
-                'name'    => 'Marketplace Purchase',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_value', '2'),
+                'name'         => 'Marketplace Purchase',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_type', 'percentage'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_value', '2'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_marketplace_purchase_min_amount', '0'),
             ],
             'wallet_payment_transfer' => [
-                'name'    => 'Wallet Payment / Transfer',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_value', '2'),
+                'name'         => 'Wallet Payment / Transfer',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_type', 'percentage'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_value', '2'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_wallet_payment_transfer_min_amount', '0'),
             ],
             'qr_payment' => [
-                'name'    => 'QR Payment',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_type', 'percentage'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_value', '2'),
+                'name'         => 'QR Payment',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_type', 'percentage'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_value', '2'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_qr_payment_min_amount', '0'),
             ],
             'system_accepted' => [
-                'name'    => 'System Accepted',
-                'enable'  => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_enable', '1') == '1',
-                'type'    => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_type', 'flat'),
-                'value'   => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_value', '10'),
+                'name'         => 'System Accepted',
+                'enable'       => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_enable', '1') == '1',
+                'type'         => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_type', 'flat'),
+                'value'        => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_value', '10'),
+                'min_services' => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_min_services', '0'),
+                'min_amount'   => ApiKeySetting::getApiKeyValue('event_rule_system_accepted_min_amount', '0'),
             ],
         ];
 
@@ -312,11 +328,16 @@ class ReferralRewardController extends Controller
             }
 
             if ($request->has('event_rules_submit')) {
-                $events = ['app_install', 'registration', 'user_subscription', 'service_booking', 'marketplace_purchase', 'wallet_payment_transfer', 'qr_payment', 'system_accepted'];
+                $events = ['app_install_user', 'app_install_business', 'app_install', 'registration', 'user_subscription', 'service_booking', 'marketplace_purchase', 'wallet_payment_transfer', 'qr_payment', 'system_accepted'];
                 foreach ($events as $evt) {
-                    $enableVal = $request->has("event_{$evt}_enable") ? '1' : '0';
-                    $typeVal   = $request->input("event_{$evt}_type", 'percentage');
-                    $valueVal  = $request->input("event_{$evt}_value", '0');
+                    if (!$request->has("event_{$evt}_type") && !$request->has("event_{$evt}_value") && !$request->has("event_{$evt}_min_services") && !$request->has("event_{$evt}_enable")) {
+                        continue;
+                    }
+                    $enableVal      = $request->has("event_{$evt}_enable") ? '1' : '0';
+                    $typeVal        = $request->input("event_{$evt}_type", 'percentage');
+                    $valueVal       = $request->input("event_{$evt}_value", '0');
+                    $minServicesVal = (int) $request->input("event_{$evt}_min_services", '0');
+                    $minAmountVal   = (float) $request->input("event_{$evt}_min_amount", '0');
 
                     if ($typeVal === 'percentage') {
                         $valueVal = (string) min(100.0, max(0.0, floatval($valueVal)));
@@ -333,6 +354,14 @@ class ReferralRewardController extends Controller
                     ApiKeySetting::updateOrCreate(
                         ['key_name' => "event_rule_{$evt}_value"],
                         ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$valueVal, 'is_active' => true]
+                    );
+                    ApiKeySetting::updateOrCreate(
+                        ['key_name' => "event_rule_{$evt}_min_services"],
+                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minServicesVal, 'is_active' => true]
+                    );
+                    ApiKeySetting::updateOrCreate(
+                        ['key_name' => "event_rule_{$evt}_min_amount"],
+                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minAmountVal, 'is_active' => true]
                     );
                 }
                 return redirect()->back()->with('success', 'Referral Event Rules Saved Successfully!');

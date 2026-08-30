@@ -283,6 +283,9 @@ class ReferralRewardService
             );
         }
 
+        // 7. Check if App Install / Registration referral reward threshold is now unlocked
+        self::checkAndProcessAppInstallReward($refereeId, $refereeType);
+
         return [
             'reward_processed' => true,
             'referrer_id' => $referrerId,
@@ -291,6 +294,247 @@ class ReferralRewardService
             'reward_value' => $rewardValue,
             'event_slug' => $eventSlug,
             'event_title' => $displayTitle
+        ];
+    }
+
+    /**
+     * Check if a referred user/driver has completed the required minimum services
+     * and minimum purchase amount to qualify the referrer for the App Install / Registration reward.
+     *
+     * @param int $refereeId
+     * @param string $refereeType 'customer' or 'driver'
+     * @return array
+     */
+    public static function checkAndProcessAppInstallReward($refereeId, $refereeType = 'customer')
+    {
+        if (empty($refereeId)) {
+            return ['reward_processed' => false, 'reason' => 'Invalid referee ID'];
+        }
+
+        // 1. Resolve Referrer
+        $refereeUser = ($refereeType === 'driver') 
+            ? Driver::find($refereeId) 
+            : UserApp::find($refereeId);
+
+        if (!$refereeUser) {
+            return ['reward_processed' => false, 'reason' => 'Referee user not found'];
+        }
+
+        $referrerId = null;
+        $referrerType = 'customer';
+        $refRecord = null;
+
+        if (Schema::hasTable('referral')) {
+            $refRecord = DB::table('referral')
+                ->where('user_id', $refereeId)
+                ->where('user_type', $refereeType)
+                ->first();
+
+            if (!$refRecord) {
+                $refRecord = DB::table('referral')->where('user_id', $refereeId)->first();
+            }
+
+            if ($refRecord && !empty($refRecord->app_install_reward_paid)) {
+                return ['reward_processed' => false, 'reason' => 'App install referral reward already credited'];
+            }
+
+            if ($refRecord && !empty($refRecord->referral_by_id)) {
+                $referrerId = (int)$refRecord->referral_by_id;
+                $referrerType = $refRecord->referral_by_type ?? 'customer';
+            }
+        }
+
+        if (!$referrerId && !empty($refereeUser->ref_by)) {
+            $codeLower = strtolower(trim($refereeUser->ref_by));
+            $refTableRow = DB::table('referral')->whereRaw('LOWER(referral_code) = ?', [$codeLower])->first();
+            if ($refTableRow && !empty($refTableRow->user_id)) {
+                $referrerId = (int)$refTableRow->user_id;
+                $referrerType = $refTableRow->user_type ?? 'customer';
+            }
+        }
+
+        if (!$referrerId || $referrerId == $refereeId) {
+            return ['reward_processed' => false, 'reason' => 'No valid referrer linked'];
+        }
+
+        // 2. Fetch Admin Rules for App Install
+        $ruleKey = ($refereeType === 'driver') ? 'app_install_business' : 'app_install_user';
+        $fallbackKey = ($refereeType === 'driver') ? 'registration' : 'app_install';
+
+        $enable = DB::table('api_key_settings')->where('key_name', "event_rule_{$ruleKey}_enable")->value('key_value')
+            ?? DB::table('api_key_settings')->where('key_name', "event_rule_{$fallbackKey}_enable")->value('key_value')
+            ?? '1';
+
+        if ($enable === '0') {
+            return ['reward_processed' => false, 'reason' => 'App install reward rule is disabled'];
+        }
+
+        $type = DB::table('api_key_settings')->where('key_name', "event_rule_{$ruleKey}_type")->value('key_value')
+            ?? DB::table('api_key_settings')->where('key_name', "event_rule_{$fallbackKey}_type")->value('key_value')
+            ?? 'flat';
+
+        $value = DB::table('api_key_settings')->where('key_name', "event_rule_{$ruleKey}_value")->value('key_value')
+            ?? DB::table('api_key_settings')->where('key_name', "event_rule_{$fallbackKey}_value")->value('key_value')
+            ?? (($refereeType === 'driver') ? '5' : '10');
+
+        $minServices = (int) (DB::table('api_key_settings')->where('key_name', "event_rule_{$ruleKey}_min_services")->value('key_value')
+            ?? DB::table('api_key_settings')->where('key_name', "event_rule_{$fallbackKey}_min_services")->value('key_value')
+            ?? '0');
+
+        $minAmount = (float) (DB::table('api_key_settings')->where('key_name', "event_rule_{$ruleKey}_min_amount")->value('key_value')
+            ?? DB::table('api_key_settings')->where('key_name', "event_rule_{$fallbackKey}_min_amount")->value('key_value')
+            ?? '0');
+
+        // 3. Count Completed Services and Calculate Total Purchase Amount
+        $completedCount = 0;
+        $totalSpend = 0.0;
+
+        if ($refereeType === 'driver') {
+            if (Schema::hasTable('tj_requete')) {
+                $rides = DB::table('tj_requete')->where('id_conducteur', $refereeId)->where('statut', 'completed')->get();
+                $completedCount += $rides->count();
+                $totalSpend += (float)$rides->sum('montant');
+            }
+            if (Schema::hasTable('service_requests')) {
+                $services = DB::table('service_requests')->where('driver_id', $refereeId)->whereIn('status', ['Completed', 'completed'])->get();
+                $completedCount += $services->count();
+                $totalSpend += (float)$services->sum('amount');
+            }
+            if (Schema::hasTable('parcel_orders')) {
+                $parcels = DB::table('parcel_orders')->where('id_conducteur', $refereeId)->where('status', 'completed')->get();
+                $completedCount += $parcels->count();
+                $totalSpend += (float)$parcels->sum('amount');
+            }
+        } else {
+            if (Schema::hasTable('tj_requete')) {
+                $rides = DB::table('tj_requete')->where('id_user_app', $refereeId)->where('statut', 'completed')->get();
+                $completedCount += $rides->count();
+                $totalSpend += (float)$rides->sum('montant');
+            }
+            if (Schema::hasTable('service_requests')) {
+                $services = DB::table('service_requests')->where('user_id', $refereeId)->whereIn('status', ['Completed', 'completed'])->get();
+                $completedCount += $services->count();
+                $totalSpend += (float)$services->sum('amount');
+            }
+            if (Schema::hasTable('parcel_orders')) {
+                $parcels = DB::table('parcel_orders')->where('id_user_app', $refereeId)->where('status', 'completed')->get();
+                $completedCount += $parcels->count();
+                $totalSpend += (float)$parcels->sum('amount');
+            }
+        }
+
+        // 4. Verify Qualification Thresholds
+        if ($completedCount < $minServices) {
+            return [
+                'reward_processed' => false,
+                'qualified' => false,
+                'reason' => "Completed services ({$completedCount}) below minimum required ({$minServices})",
+                'completed_services' => $completedCount,
+                'min_services' => $minServices,
+                'total_spend' => $totalSpend,
+                'min_amount' => $minAmount
+            ];
+        }
+
+        if ($totalSpend < $minAmount) {
+            return [
+                'reward_processed' => false,
+                'qualified' => false,
+                'reason' => "Total spend (₹{$totalSpend}) below minimum required (₹{$minAmount})",
+                'completed_services' => $completedCount,
+                'min_services' => $minServices,
+                'total_spend' => $totalSpend,
+                'min_amount' => $minAmount
+            ];
+        }
+
+        // 5. Calculate Reward Amount
+        $rewardAmount = 0.0;
+        $cleanVal = floatval(preg_replace('/[^0-9.]/', '', (string)$value));
+
+        if (strtolower($type) === 'flat') {
+            $rewardAmount = $cleanVal;
+        } else {
+            $rewardAmount = round(($totalSpend * $cleanVal) / 100, 2);
+        }
+
+        if ($rewardAmount <= 0) {
+            return ['reward_processed' => false, 'reason' => 'Calculated reward amount is 0'];
+        }
+
+        // 6. Credit Referrer Wallet & Record Ledger Entry
+        $dateNow = date('Y-m-d H:i:s');
+        $ruleTitle = ($refereeType === 'driver') ? 'App Install Business' : 'App Install User';
+        $partnerLabel = ($refereeType === 'driver') ? "business partner #{$refereeId}" : "user #{$refereeId}";
+        $desc = "{$ruleTitle} Referral Reward (Qualified: {$completedCount} services, ₹" . number_format($totalSpend, 2) . " spend) by {$partnerLabel}";
+        $note = "{$ruleTitle} Referral: #{$refereeId}";
+
+        if ($referrerType === 'driver') {
+            $currBal = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('amount');
+            DB::table('tj_conducteur')->where('id', $referrerId)->update(['amount' => $currBal + $rewardAmount]);
+
+            if (Schema::hasTable('tj_conducteur_transaction')) {
+                DB::table('tj_conducteur_transaction')->insert([
+                    'id_conducteur'    => $referrerId,
+                    'amount'           => $rewardAmount,
+                    'deduction_type'   => 'credit',
+                    'payment_method'   => 'Referral Reward',
+                    'payment_status'   => 'success',
+                    'withdraw_status'  => 'completed',
+                    'user_type'        => 'driver',
+                    'receiver_user_id' => $refereeId,
+                    'sender_user_type' => $refereeType,
+                    'description'      => $desc,
+                    'note'             => $note,
+                    'type'             => 'credit',
+                    'date'             => date('Y-m-d'),
+                    'creer'            => $dateNow,
+                    'modifier'         => $dateNow,
+                ]);
+            }
+        } else {
+            $currBal = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('amount');
+            DB::table('tj_user_app')->where('id', $referrerId)->update(['amount' => $currBal + $rewardAmount]);
+
+            if (Schema::hasTable('tj_transaction')) {
+                DB::table('tj_transaction')->insert([
+                    'id_user_app'      => $referrerId,
+                    'sender_user_id'   => $refereeId,
+                    'sender_user_type' => $refereeType,
+                    'amount'           => $rewardAmount,
+                    'deduction_type'   => 1,
+                    'user_type'        => 'customer',
+                    'payment_method'   => 'Referral Reward',
+                    'payment_status'   => 'success',
+                    'withdraw_status'  => 'completed',
+                    'description'      => $desc,
+                    'type'             => 'credit',
+                    'date'             => date('Y-m-d'),
+                    'creer'            => $dateNow,
+                    'modifier'         => $dateNow,
+                ]);
+            }
+        }
+
+        // 7. Mark App Install Reward as Paid in Referral Table
+        if (Schema::hasTable('referral')) {
+            DB::table('referral')->where('user_id', $refereeId)->update([
+                'app_install_reward_paid'   => 1,
+                'app_install_reward_amount' => $rewardAmount,
+                'app_install_reward_date'   => $dateNow,
+                'code_used'                 => 'true',
+            ]);
+        }
+
+        return [
+            'reward_processed'   => true,
+            'qualified'          => true,
+            'referrer_id'        => $referrerId,
+            'referrer_type'      => $referrerType,
+            'reward_amount'      => $rewardAmount,
+            'completed_services' => $completedCount,
+            'total_spend'        => $totalSpend,
+            'rule_name'          => $ruleTitle,
         ];
     }
 }

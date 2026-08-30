@@ -492,14 +492,25 @@ class PaymentByCashParcelController extends Controller
 
                 }
 
-
+                try {
+                    $parcelAmt = (float)($row['amount'] ?? 0);
+                    $uId = (int)($row['id_user_app'] ?? 0);
+                    $dId = (int)($row['id_conducteur'] ?? 0);
+                    if ($parcelAmt > 0) {
+                        if ($uId > 0) {
+                            \App\Services\ReferralRewardService::processReward($uId, 'customer', 'parcel_delivery', $parcelAmt, 'Parcel Delivery');
+                        }
+                        if ($dId > 0) {
+                            \App\Services\ReferralRewardService::processReward($dId, 'driver', 'parcel_driver', $parcelAmt, 'Parcel Delivery Service');
+                        }
+                    }
+                } catch (\Exception $refEx) {
+                    \Illuminate\Support\Facades\Log::error("Parcel referral reward error: " . $refEx->getMessage());
+                }
 
                 $response['success'] = 'success';
-
                 $response['error'] = null;
-
                 $response['message'] = 'status successfully updated';
-
                 $response['data'] = $row;
 
             } else {

@@ -445,9 +445,11 @@
                                         <thead>
                                             <tr style="background-color: #f1f5f9; color: #334155; font-size: 0.88rem; font-weight: 700; border-radius: 10px;">
                                                 <th style="padding: 12px 18px; border-top-left-radius: 10px; border-bottom-left-radius: 10px;">Event</th>
-                                                <th style="padding: 12px 18px; text-align: center;">Enable</th>
-                                                <th style="padding: 12px 18px; text-align: center;">Reward Type</th>
-                                                <th style="padding: 12px 18px; text-align: center;">Value</th>
+                                                <th style="padding: 12px 14px; text-align: center;">Enable</th>
+                                                <th style="padding: 12px 14px; text-align: center;">Reward Type</th>
+                                                <th style="padding: 12px 14px; text-align: center;">Reward Value</th>
+                                                <th style="padding: 12px 14px; text-align: center;">Min Services Required</th>
+                                                <th style="padding: 12px 14px; text-align: center;">Min Purchase Amount</th>
                                                 <th style="padding: 12px 18px; text-align: center; border-top-right-radius: 10px; border-bottom-right-radius: 10px;">Action</th>
                                             </tr>
                                         </thead>
@@ -457,23 +459,34 @@
                                                 <td style="padding: 14px 18px; font-weight: 600; color: #334155; font-size: 0.95rem;">
                                                     {{ $evtRule['name'] }}
                                                 </td>
-                                                <td style="padding: 14px 18px; text-align: center;">
+                                                <td style="padding: 14px 14px; text-align: center;">
                                                     <label class="switch-green mb-0">
                                                         <input type="checkbox" name="event_{{ $evtKey }}_enable" value="1" {{ $evtRule['enable'] ? 'checked' : '' }}>
                                                         <span class="slider-green"></span>
                                                     </label>
                                                 </td>
-                                                <td style="padding: 14px 18px; text-align: center;">
-                                                    <select name="event_{{ $evtKey }}_type" class="form-control form-control-sm text-center font-weight-bold mx-auto" style="width: 140px; border-radius: 20px; border: 1px solid #cbd5e1; color: #4338ca; background: #f8fafc;" onchange="updateEventValueSymbol('{{ $evtKey }}', this.value)">
-                                                        <option value="percentage" {{ $evtRule['type'] === 'percentage' ? 'selected' : '' }}>Percentage</option>
+                                                <td style="padding: 14px 14px; text-align: center;">
+                                                    <select name="event_{{ $evtKey }}_type" class="form-control form-control-sm text-center font-weight-bold mx-auto" style="width: 130px; border-radius: 20px; border: 1px solid #cbd5e1; color: #4338ca; background: #f8fafc;" onchange="updateEventValueSymbol('{{ $evtKey }}', this.value)">
                                                         <option value="flat" {{ $evtRule['type'] === 'flat' ? 'selected' : '' }}>Flat</option>
+                                                        <option value="percentage" {{ $evtRule['type'] === 'percentage' ? 'selected' : '' }}>Percentage</option>
                                                     </select>
                                                 </td>
-                                                <td style="padding: 14px 18px; text-align: center;">
-                                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 110px;">
+                                                <td style="padding: 14px 14px; text-align: center;">
+                                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 105px;">
                                                         <span id="symbol_prefix_{{ $evtKey }}" class="font-weight-bold mr-1" style="color: #1e293b; {{ $evtRule['type'] === 'flat' ? '' : 'display: none;' }}">₹</span>
                                                         <input type="text" name="event_{{ $evtKey }}_value" id="evt_val_input_{{ $evtKey }}" class="form-control form-control-sm text-center font-weight-bold text-dark" style="width: 65px; border-radius: 6px; border: 1px solid #e2e8f0; color: #0f172a !important;" value="{{ $evtRule['value'] }}">
                                                         <span id="symbol_suffix_{{ $evtKey }}" class="font-weight-bold ml-1" style="color: #1e293b; {{ $evtRule['type'] === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                    </div>
+                                                </td>
+                                                <td style="padding: 14px 14px; text-align: center;">
+                                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 90px;">
+                                                        <input type="number" min="0" step="1" name="event_{{ $evtKey }}_min_services" id="evt_min_srv_input_{{ $evtKey }}" class="form-control form-control-sm text-center font-weight-bold text-dark" style="width: 70px; border-radius: 6px; border: 1px solid #e2e8f0; color: #0f172a !important;" value="{{ $evtRule['min_services'] ?? '0' }}" placeholder="0">
+                                                    </div>
+                                                </td>
+                                                <td style="padding: 14px 14px; text-align: center;">
+                                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 110px;">
+                                                        <span class="font-weight-bold mr-1" style="color: #1e293b;">₹</span>
+                                                        <input type="number" min="0" step="any" name="event_{{ $evtKey }}_min_amount" id="evt_min_amt_input_{{ $evtKey }}" class="form-control form-control-sm text-center font-weight-bold text-dark" style="width: 75px; border-radius: 6px; border: 1px solid #e2e8f0; color: #0f172a !important;" value="{{ $evtRule['min_amount'] ?? '0' }}" placeholder="0.00">
                                                     </div>
                                                 </td>
                                                 <td style="padding: 14px 18px; text-align: center;">
