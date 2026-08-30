@@ -423,28 +423,30 @@ class ReferralRewardService
             }
         }
 
-        // 4. Verify Qualification Thresholds
-        if ($completedCount < $minServices) {
-            return [
-                'reward_processed' => false,
-                'qualified' => false,
-                'reason' => "Completed services ({$completedCount}) below minimum required ({$minServices})",
-                'completed_services' => $completedCount,
-                'min_services' => $minServices,
-                'total_spend' => $totalSpend,
-                'min_amount' => $minAmount
-            ];
+        // 4. Verify Qualification Thresholds (ANY ONE condition qualifies the reward)
+        $isServicesQualified = ($minServices > 0 && $completedCount >= $minServices);
+        $isAmountQualified   = ($minAmount > 0 && $totalSpend >= $minAmount);
+
+        if ($minServices > 0 && $minAmount > 0) {
+            $isQualified = ($isServicesQualified || $isAmountQualified);
+        } elseif ($minServices > 0) {
+            $isQualified = $isServicesQualified;
+        } elseif ($minAmount > 0) {
+            $isQualified = $isAmountQualified;
+        } else {
+            // Default: qualify after at least 1 completed service
+            $isQualified = ($completedCount >= 1);
         }
 
-        if ($totalSpend < $minAmount) {
+        if (!$isQualified) {
             return [
-                'reward_processed' => false,
-                'qualified' => false,
-                'reason' => "Total spend (₹{$totalSpend}) below minimum required (₹{$minAmount})",
+                'reward_processed'   => false,
+                'qualified'          => false,
+                'reason'             => "Neither min services ({$completedCount}/{$minServices}) nor min spend (₹{$totalSpend}/₹{$minAmount}) milestone reached",
                 'completed_services' => $completedCount,
-                'min_services' => $minServices,
-                'total_spend' => $totalSpend,
-                'min_amount' => $minAmount
+                'min_services'       => $minServices,
+                'total_spend'        => $totalSpend,
+                'min_amount'         => $minAmount
             ];
         }
 

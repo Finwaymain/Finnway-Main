@@ -1135,149 +1135,15 @@ class AuthOtpController extends Controller
 
     public function creditReferralReward(int $referrerId, string $referrerType, int $referredUserId, string $referredUserType = 'customer'): float
     {
-        $referrerId       = (int)$referrerId;
-        $referredUserId   = (int)$referredUserId;
-        $referrerType     = in_array(strtolower(trim($referrerType)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
         $referredUserType = in_array(strtolower(trim($referredUserType)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
 
-        // ── Read Admin Event Rules from api_key_settings (source of truth) ──────
-        $rewardAmount = 0.0;
-        $rulesFound   = false;
+        $result = \App\Services\ReferralRewardService::checkAndProcessAppInstallReward((int)$referredUserId, $referredUserType);
 
-        $events = ['app_install', 'registration'];
-
-        foreach ($events as $evt) {
-            $enabled = DB::table('api_key_settings')
-                ->where('key_name', "event_rule_{$evt}_enable")
-                ->value('key_value');
-
-            // Skip if rule is explicitly disabled
-            if ($enabled === '0') continue;
-
-            $type  = DB::table('api_key_settings')->where('key_name', "event_rule_{$evt}_type")->value('key_value') ?? 'flat';
-            $value = DB::table('api_key_settings')->where('key_name', "event_rule_{$evt}_value")->value('key_value') ?? '0';
-            $val   = floatval(preg_replace('/[^0-9.]/', '', (string)$value));
-
-            if ($val <= 0) continue;
-
-            $rulesFound = true;
-
-            if (strtolower($type) === 'flat') {
-                $rewardAmount += $val;
-            } else {
-                // Percentage: apply to a base amount — default ₹100 signup value
-                $base = 100.0;
-                $rewardAmount += round(($base * $val) / 100, 2);
-            }
+        if (!empty($result['reward_processed'])) {
+            return (float)($result['reward_amount'] ?? 0.0);
         }
 
-        // ── Fallback 1: tj_settings->referral_amount ─────────────────────────────
-        if (!$rulesFound || $rewardAmount <= 0) {
-            $settings = DB::table('tj_settings')->first();
-            if ($settings && isset($settings->referral_amount) && (float)$settings->referral_amount > 0) {
-                $rewardAmount = (float)$settings->referral_amount;
-                $rulesFound   = true;
-            }
-        }
-
-        if ($rewardAmount <= 0) {
-            $rewardAmount = 10.0; // Default ₹10 referral reward
-        }
-
-        // Check if referral reward was already credited for this exact referrer + referred user pair
-        $alreadyCredited = false;
-        if ($referrerType === 'driver') {
-            $alreadyCredited = DB::table('tj_conducteur_transaction')
-                ->where('id_conducteur', $referrerId)
-                ->where('payment_method', 'Referral Reward')
-                ->where(function($q) use ($referredUserId, $referredUserType) {
-                    if (Schema::hasColumn('tj_conducteur_transaction', 'receiver_user_id')) {
-                        $q->where('receiver_user_id', $referredUserId);
-                    }
-                    if (Schema::hasColumn('tj_conducteur_transaction', 'sender_user_type')) {
-                        $q->where('sender_user_type', $referredUserType);
-                    }
-                })
-                ->exists();
-        } else {
-            $alreadyCredited = DB::table('tj_transaction')
-                ->where('id_user_app', $referrerId)
-                ->where('payment_method', 'Referral Reward')
-                ->where(function($q) use ($referredUserId, $referredUserType) {
-                    if (Schema::hasColumn('tj_transaction', 'sender_user_id')) {
-                        $q->where('sender_user_id', $referredUserId);
-                    }
-                    if (Schema::hasColumn('tj_transaction', 'sender_user_type')) {
-                        $q->where('sender_user_type', $referredUserType);
-                    }
-                })
-                ->exists();
-        }
-
-        if ($alreadyCredited) {
-            return $rewardAmount;
-        }
-
-        $dateNow = date('Y-m-d H:i:s');
-        $desc = "Referral reward credited for referring " . ($referredUserType === 'driver' ? "business partner #" : "user #") . $referredUserId;
-
-        // 1. Credit wallet & create transaction record in the respective table
-        if ($referrerType === 'driver') {
-            $currVal = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('amount');
-            DB::table('tj_conducteur')->where('id', $referrerId)->update(['amount' => $currVal + $rewardAmount]);
-
-            $txData = [
-                'id_conducteur'    => $referrerId,
-                'amount'           => $rewardAmount,
-                'deduction_type'   => 'credit',
-                'payment_method'   => 'Referral Reward',
-                'payment_status'   => 'success',
-                'withdraw_status'  => 'completed',
-                'user_type'        => 'driver',
-                'description'      => $desc,
-                'note'             => "Referral Reward: " . ($referredUserType === 'driver' ? 'Driver #' : 'User #') . $referredUserId,
-                'type'             => 'credit',
-                'date'             => date('Y-m-d'),
-                'creer'            => $dateNow,
-                'modifier'         => $dateNow,
-            ];
-            if (Schema::hasColumn('tj_conducteur_transaction', 'receiver_user_id')) {
-                $txData['receiver_user_id'] = $referredUserId;
-            }
-            if (Schema::hasColumn('tj_conducteur_transaction', 'sender_user_type')) {
-                $txData['sender_user_type'] = $referredUserType;
-            }
-
-            DB::table('tj_conducteur_transaction')->insert($txData);
-        } else {
-            $currVal = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('amount');
-            DB::table('tj_user_app')->where('id', $referrerId)->update(['amount' => $currVal + $rewardAmount]);
-
-            $txData = [
-                'id_user_app'      => $referrerId,
-                'amount'           => $rewardAmount,
-                'deduction_type'   => 1,
-                'user_type'        => 'customer',
-                'payment_method'   => 'Referral Reward',
-                'payment_status'   => 'success',
-                'withdraw_status'  => 'completed',
-                'description'      => $desc,
-                'type'             => 'credit',
-                'date'             => date('Y-m-d'),
-                'creer'            => $dateNow,
-                'modifier'         => $dateNow,
-            ];
-            if (Schema::hasColumn('tj_transaction', 'sender_user_id')) {
-                $txData['sender_user_id'] = $referredUserId;
-            }
-            if (Schema::hasColumn('tj_transaction', 'sender_user_type')) {
-                $txData['sender_user_type'] = $referredUserType;
-            }
-
-            DB::table('tj_transaction')->insert($txData);
-        }
-
-        return $rewardAmount;
+        return 0.0;
     }
 
     public function handleReferral($userId, string $referralCode, string $dateHeure, string $userCat = 'customer'): void

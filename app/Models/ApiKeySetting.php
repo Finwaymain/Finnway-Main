@@ -37,8 +37,11 @@ class ApiKeySetting extends Model
         if (!Schema::hasTable('api_key_settings')) {
             return $default;
         }
-        $setting = self::where('key_name', $key)->orWhere('provider', $key)->where('is_active', true)->first();
-        return $setting ? $setting->key_value : $default;
+        $setting = self::where('key_name', $key)->first();
+        if (!$setting) {
+            $setting = self::where('provider', $key)->where('is_active', true)->first();
+        }
+        return ($setting && $setting->key_value !== null) ? (string)$setting->key_value : $default;
     }
 
     /**

@@ -46,6 +46,12 @@ class CrossReferralFlowTest extends TestCase
         ]);
         $authController->handleReferral($consumerBId, $consumerACode, $now, 'customer');
 
+        // Consumer B completes a qualifying service (₹500 meets min_amount threshold)
+        DB::table('tj_requete')->insert([
+            'id_user_app' => $consumerBId, 'id_conducteur' => 1, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now
+        ]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($consumerBId, 'customer');
+
         // Verify Consumer A wallet credited
         $consumerABalance = (float)DB::table('tj_user_app')->where('id', $consumerAId)->value('amount');
         $this->assertGreaterThan(0, $consumerABalance);
@@ -65,6 +71,12 @@ class CrossReferralFlowTest extends TestCase
             'amount' => 0.00, 'statut' => 'yes', 'online' => 'yes', 'creer' => $now, 'modifier' => $now
         ]);
         $authController->handleReferral($driverCId, $consumerACode, $now, 'driver');
+
+        // Driver C completes qualifying ride (₹500 meets threshold)
+        DB::table('tj_requete')->insert([
+            'id_user_app' => 1, 'id_conducteur' => $driverCId, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now
+        ]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($driverCId, 'driver');
 
         // Verify Consumer A wallet received SECOND reward for Driver C
         $consumerABalanceAfterC = (float)DB::table('tj_user_app')->where('id', $consumerAId)->value('amount');
@@ -86,6 +98,12 @@ class CrossReferralFlowTest extends TestCase
         ]);
         $authController->handleReferral($consumerEId, $driverDCode, $now, 'customer');
 
+        // Consumer E completes qualifying service (₹500 meets threshold)
+        DB::table('tj_requete')->insert([
+            'id_user_app' => $consumerEId, 'id_conducteur' => 1, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now
+        ]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($consumerEId, 'customer');
+
         // Verify Driver D wallet credited
         $driverDBalance = (float)DB::table('tj_conducteur')->where('id', $driverDId)->value('amount');
         $this->assertGreaterThan(0, $driverDBalance);
@@ -105,6 +123,12 @@ class CrossReferralFlowTest extends TestCase
             'amount' => 0.00, 'statut' => 'yes', 'online' => 'yes', 'creer' => $now, 'modifier' => $now
         ]);
         $authController->handleReferral($driverFId, $driverDCode, $now, 'driver');
+
+        // Driver F completes qualifying ride (₹500 meets threshold)
+        DB::table('tj_requete')->insert([
+            'id_user_app' => 1, 'id_conducteur' => $driverFId, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now
+        ]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($driverFId, 'driver');
 
         // Verify Driver D wallet received SECOND reward for Driver F
         $driverDBalanceAfterF = (float)DB::table('tj_conducteur')->where('id', $driverDId)->value('amount');

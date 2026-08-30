@@ -328,13 +328,13 @@ class ReferralRewardController extends Controller
             }
 
             if ($request->has('event_rules_submit')) {
-                $events = ['app_install_user', 'app_install_business', 'app_install', 'registration', 'user_subscription', 'service_booking', 'marketplace_purchase', 'wallet_payment_transfer', 'qr_payment', 'system_accepted'];
+                $events = ['app_install_user', 'app_install_business', 'user_subscription', 'service_booking', 'marketplace_purchase', 'wallet_payment_transfer', 'qr_payment', 'system_accepted'];
                 foreach ($events as $evt) {
-                    if (!$request->has("event_{$evt}_type") && !$request->has("event_{$evt}_value") && !$request->has("event_{$evt}_min_services") && !$request->has("event_{$evt}_enable")) {
+                    if (!$request->has("event_{$evt}_type") && !$request->has("event_{$evt}_value") && !$request->has("event_{$evt}_min_services") && !$request->has("event_{$evt}_enable") && !$request->has("event_{$evt}_min_amount")) {
                         continue;
                     }
                     $enableVal      = $request->has("event_{$evt}_enable") ? '1' : '0';
-                    $typeVal        = $request->input("event_{$evt}_type", 'percentage');
+                    $typeVal        = $request->input("event_{$evt}_type", 'flat');
                     $valueVal       = $request->input("event_{$evt}_value", '0');
                     $minServicesVal = (int) $request->input("event_{$evt}_min_services", '0');
                     $minAmountVal   = (float) $request->input("event_{$evt}_min_amount", '0');
@@ -343,26 +343,35 @@ class ReferralRewardController extends Controller
                         $valueVal = (string) min(100.0, max(0.0, floatval($valueVal)));
                     }
 
-                    ApiKeySetting::updateOrCreate(
-                        ['key_name' => "event_rule_{$evt}_enable"],
-                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$enableVal, 'is_active' => true]
-                    );
-                    ApiKeySetting::updateOrCreate(
-                        ['key_name' => "event_rule_{$evt}_type"],
-                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$typeVal, 'is_active' => true]
-                    );
-                    ApiKeySetting::updateOrCreate(
-                        ['key_name' => "event_rule_{$evt}_value"],
-                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$valueVal, 'is_active' => true]
-                    );
-                    ApiKeySetting::updateOrCreate(
-                        ['key_name' => "event_rule_{$evt}_min_services"],
-                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minServicesVal, 'is_active' => true]
-                    );
-                    ApiKeySetting::updateOrCreate(
-                        ['key_name' => "event_rule_{$evt}_min_amount"],
-                        ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minAmountVal, 'is_active' => true]
-                    );
+                    $keysToUpdate = [$evt];
+                    if ($evt === 'app_install_user') {
+                        $keysToUpdate[] = 'app_install';
+                    } elseif ($evt === 'app_install_business') {
+                        $keysToUpdate[] = 'registration';
+                    }
+
+                    foreach ($keysToUpdate as $targetEvt) {
+                        ApiKeySetting::updateOrCreate(
+                            ['key_name' => "event_rule_{$targetEvt}_enable"],
+                            ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$enableVal, 'is_active' => true]
+                        );
+                        ApiKeySetting::updateOrCreate(
+                            ['key_name' => "event_rule_{$targetEvt}_type"],
+                            ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$typeVal, 'is_active' => true]
+                        );
+                        ApiKeySetting::updateOrCreate(
+                            ['key_name' => "event_rule_{$targetEvt}_value"],
+                            ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$valueVal, 'is_active' => true]
+                        );
+                        ApiKeySetting::updateOrCreate(
+                            ['key_name' => "event_rule_{$targetEvt}_min_services"],
+                            ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minServicesVal, 'is_active' => true]
+                        );
+                        ApiKeySetting::updateOrCreate(
+                            ['key_name' => "event_rule_{$targetEvt}_min_amount"],
+                            ['group' => 'referral_event', 'provider' => 'rule', 'key_value' => (string)$minAmountVal, 'is_active' => true]
+                        );
+                    }
                 }
                 return redirect()->back()->with('success', 'Referral Event Rules Saved Successfully!');
             }

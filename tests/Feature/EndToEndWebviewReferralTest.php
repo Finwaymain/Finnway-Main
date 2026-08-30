@@ -162,6 +162,19 @@ class EndToEndWebviewReferralTest extends TestCase
         ]);
         $authController->handleReferral($refDriver2Id, $driverRefCode, $now, 'driver');
 
+        // Complete qualifying services for the 4 referees
+        DB::table('tj_requete')->insert(['id_user_app' => $refUser1Id, 'id_conducteur' => 1, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($refUser1Id, 'customer');
+
+        DB::table('tj_requete')->insert(['id_user_app' => 1, 'id_conducteur' => $refDriver1Id, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($refDriver1Id, 'driver');
+
+        DB::table('tj_requete')->insert(['id_user_app' => $refUser2Id, 'id_conducteur' => 1, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($refUser2Id, 'customer');
+
+        DB::table('tj_requete')->insert(['id_user_app' => 1, 'id_conducteur' => $refDriver2Id, 'montant' => '500', 'statut' => 'completed', 'statut_paiement' => 'yes', 'creer' => $now]);
+        \App\Services\ReferralRewardService::checkAndProcessAppInstallReward($refDriver2Id, 'driver');
+
         // ══════════════════════════════════════════════════════════════════════
         // 7. VERIFY CUSTOMER WEBVIEW DASHBOARD AFTER CONNECTIONS
         // ══════════════════════════════════════════════════════════════════════
