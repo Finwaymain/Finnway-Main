@@ -320,6 +320,64 @@ class ReferralDashboardAPIController extends Controller
 
             $isActive = ($servicesCount > 0) || ($uObj->statut === 'yes') || ($uObj->online === 'yes');
 
+            // ── Referee Qualification & Spend Tracking ──────────────────────
+            $refRecord = null;
+            if (Schema::hasTable('referral')) {
+                $refRecord = DB::table('referral')
+                    ->where('user_id', $refId)
+                    ->where('user_type', $ent['type'])
+                    ->first()
+                    ?? DB::table('referral')->where('user_id', $refId)->first();
+            }
+            $isPaid = $refRecord ? (bool)($refRecord->app_install_reward_paid ?? 0) : false;
+
+            // Admin Rules for this Referee Type
+            if ($isDriver) {
+                $ruleMinSrv = (int)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_services', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_min_services', '2'));
+                $ruleMinAmt = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_amount', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_min_amount', '200'));
+                $ruleRewardVal = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_value', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_value', '50'));
+            } else {
+                $ruleMinSrv = (int)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_services', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_min_services', '5'));
+                $ruleMinAmt = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_amount', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_min_amount', '500'));
+                $ruleRewardVal = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_value', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_value', '10'));
+            }
+
+            // Real Completed Services & Spend
+            $completedCount = 0;
+            $totalSpend = 0.0;
+            if ($isDriver) {
+                if (Schema::hasTable('tj_requete')) {
+                    $rides = DB::table('tj_requete')->where('id_conducteur', $refId)->where('statut', 'completed')->get();
+                    $completedCount += $rides->count();
+                    $totalSpend += (float)$rides->sum('montant');
+                }
+                if (Schema::hasTable('service_requests')) {
+                    $services = DB::table('service_requests')->where('driver_id', $refId)->whereIn('status', ['Completed', 'completed'])->get();
+                    $completedCount += $services->count();
+                    $totalSpend += (float)$services->sum('amount');
+                }
+                if (Schema::hasTable('parcel_orders')) {
+                    $parcels = DB::table('parcel_orders')->where('id_conducteur', $refId)->where('status', 'completed')->get();
+                    $completedCount += $parcels->count();
+                    $totalSpend += (float)$parcels->sum('amount');
+                }
+            } else {
+                if (Schema::hasTable('tj_requete')) {
+                    $rides = DB::table('tj_requete')->where('id_user_app', $refId)->where('statut', 'completed')->get();
+                    $completedCount += $rides->count();
+                    $totalSpend += (float)$rides->sum('montant');
+                }
+                if (Schema::hasTable('service_requests')) {
+                    $services = DB::table('service_requests')->where('user_id', $refId)->whereIn('status', ['Completed', 'completed'])->get();
+                    $completedCount += $services->count();
+                    $totalSpend += (float)$services->sum('amount');
+                }
+                if (Schema::hasTable('parcel_orders')) {
+                    $parcels = DB::table('parcel_orders')->where('id_user_app', $refId)->where('status', 'completed')->get();
+                    $completedCount += $parcels->count();
+                    $totalSpend += (float)$parcels->sum('amount');
+                }
+            }
 
             // Referral bonus earned for this specific user
             $earnedForThisUser = 0.0;
@@ -360,19 +418,40 @@ class ReferralDashboardAPIController extends Controller
                 }
             }
 
+            // Status and Frozen/Unlocked Cashback
+            $isFrozen = !$isPaid;
+            $frozenCashback = $isFrozen ? $ruleRewardVal : 0.0;
+            $unlockedCashback = $earnedForThisUser;
+
+            $conditionNote = $isPaid 
+                ? 'Reward Unlocked & Credited to Wallet' 
+                : "Cashback ₹{$ruleRewardVal} Frozen. Unlocks when referee completes {$ruleMinSrv} services or ₹" . number_format($ruleMinAmt, 0) . " spend (Progress: {$completedCount}/{$ruleMinSrv} services, ₹" . number_format($totalSpend, 2) . "/₹" . number_format($ruleMinAmt, 0) . ")";
+
             $historyList[] = [
-                'id'              => $refId,
-                'name'            => $fullName,
-                'phone'           => $uObj->phone ?? '',
-                'user_type'       => $userCat,
-                'status'          => $isVerified ? 'Verified' : 'Registered',
-                'app_installed'   => true,
-                'registered'      => true,
-                'verified'        => $isVerified,
-                'is_active'       => $isActive,
-                'services_count'  => $servicesCount,
-                'referral_earned' => $earnedForThisUser,
-                'date'            => date('d M Y', strtotime($uObj->creer ?? $uObj->created_at ?? 'now')),
+                'id'                          => $refId,
+                'name'                        => $fullName,
+                'phone'                       => $uObj->phone ?? '',
+                'user_type'                   => $userCat,
+                'status'                      => $isPaid ? 'Unlocked' : 'Frozen',
+                'status_label'                => $isPaid ? 'Credited to Wallet' : 'Cashback Frozen',
+                'reward_status'               => $isPaid ? 'Unlocked' : 'Frozen',
+                'is_frozen'                   => $isFrozen,
+                'app_installed'               => true,
+                'registered'                  => true,
+                'verified'                    => $isVerified,
+                'is_active'                   => $isActive,
+                'services_count'              => $completedCount ?: $servicesCount,
+                'completed_services'          => $completedCount,
+                'total_spend'                 => $totalSpend,
+                'min_services_required'       => $ruleMinSrv,
+                'min_purchase_amount_required'=> $ruleMinAmt,
+                'frozen_cashback'             => $frozenCashback,
+                'unlocked_cashback'           => $unlockedCashback,
+                'referral_earned'             => $unlockedCashback,
+                'potential_reward'            => $ruleRewardVal,
+                'condition_fulfilled'         => $isPaid,
+                'condition_note'              => $conditionNote,
+                'date'                        => date('d M Y', strtotime($uObj->creer ?? $uObj->created_at ?? 'now')),
             ];
         }
 
@@ -385,17 +464,20 @@ class ReferralDashboardAPIController extends Controller
         $consumerActiveCount = count(array_filter($consumerHistory, fn($item) => !empty($item['is_active'])));
         $consumerServicesCount = array_sum(array_column($consumerHistory, 'services_count'));
         $consumerIncome = array_sum(array_column($consumerHistory, 'referral_earned'));
+        $consumerFrozenIncome = array_sum(array_column($consumerHistory, 'frozen_cashback'));
 
         $businessCount = count($businessHistory);
         $businessVerifiedCount = count(array_filter($businessHistory, fn($item) => !empty($item['verified'])));
         $businessActiveCount = count(array_filter($businessHistory, fn($item) => !empty($item['is_active'])));
         $businessServicesCount = array_sum(array_column($businessHistory, 'services_count'));
         $businessIncome = array_sum(array_column($businessHistory, 'referral_earned'));
+        $businessFrozenIncome = array_sum(array_column($businessHistory, 'frozen_cashback'));
 
         $totalReferralsCount = $consumerCount + $businessCount;
         $totalVerifiedCount = $consumerVerifiedCount + $businessVerifiedCount;
         $totalActiveCount = $consumerActiveCount + $businessActiveCount;
         $totalServicesCount = $consumerServicesCount + $businessServicesCount;
+        $totalFrozenIncome = $consumerFrozenIncome + $businessFrozenIncome;
 
         // 3. Real financial earnings calculation from relevant transaction table for this referrer ($id)
         if ($userType === 'driver') {
@@ -522,6 +604,9 @@ class ReferralDashboardAPIController extends Controller
             'inactive_users'        => max(0, $consumerCount - $consumerActiveCount),
             'total_transactions'    => $consumerServicesCount,
             'total_referral_income' => (int)$consumerIncome,
+            'unlocked_income'       => (int)$consumerIncome,
+            'frozen_income'         => (int)$consumerFrozenIncome,
+            'pending_cashback'      => (int)$consumerFrozenIncome,
             'avg_monthly_income'    => $consumerAvgMonthly,
             'recent_earnings'       => $consumerRecentEarnings,
             'history'               => $consumerHistory,
@@ -537,6 +622,9 @@ class ReferralDashboardAPIController extends Controller
             'inactive_users'        => max(0, $businessCount - $businessActiveCount),
             'total_transactions'    => $businessServicesCount,
             'total_referral_income' => (int)$businessIncome,
+            'unlocked_income'       => (int)$businessIncome,
+            'frozen_income'         => (int)$businessFrozenIncome,
+            'pending_cashback'      => (int)$businessFrozenIncome,
             'avg_monthly_income'    => $businessAvgMonthly,
             'recent_earnings'       => $businessRecentEarnings,
             'history'               => $businessHistory,
@@ -550,6 +638,7 @@ class ReferralDashboardAPIController extends Controller
                 'active_business'    => $businessActiveCount,
                 'active_services'    => $businessActiveCount,
                 'total_transactions' => $businessServicesCount,
+                'frozen_income'      => (int)$businessFrozenIncome,
             ],
             'recent_business_users' => $businessHistory,
         ];
@@ -564,6 +653,9 @@ class ReferralDashboardAPIController extends Controller
             'business_count'    => $businessCount,
             'total_transactions'=> $totalServicesCount,
             'total_income'      => (int)$dbTotalIncome,
+            'unlocked_income'   => (int)$dbTotalIncome,
+            'frozen_income'     => (int)$totalFrozenIncome,
+            'pending_cashback'  => (int)$totalFrozenIncome,
         ];
 
         $aadharNumber = '';
@@ -607,6 +699,9 @@ class ReferralDashboardAPIController extends Controller
                 'share_url'        => 'https://api.fiinway.com/ref/' . $refCode,
                 'wallet_balance'   => (int)$walletBalance,
                 'referral_earnings'=> (int)$dbTotalIncome,
+                'unlocked_income'  => (int)$dbTotalIncome,
+                'frozen_income'    => (int)$totalFrozenIncome,
+                'pending_cashback' => (int)$totalFrozenIncome,
                 'total_referrals'  => $totalReferralsCount,
                 'installed'        => $totalReferralsCount,
                 'registered'       => $totalReferralsCount,
