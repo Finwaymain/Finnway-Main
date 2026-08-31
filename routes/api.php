@@ -401,7 +401,7 @@ Route::match(['delete', 'post'], 'v1/marketplace/products/{id}', [ProductControl
 Route::match(['delete', 'post'], 'v1/marketplace/products/{id}/delete', [ProductController::class, 'destroy']);
 
 Route::post('v1/marketplace/upload-image', [ProductController::class, 'uploadImage']);
-Route::get('v1/marketplace/image/{filename}', [ProductController::class, 'serveMarketplaceImage']);
+Route::get('v1/marketplace/image/{filename}', [ProductController::class, 'serveMarketplaceImage'])->where('filename', '.*');
 
 // Marketplace Order Routes
 Route::post('v1/marketplace/orders', [MarketplaceOrderController::class, 'store']);
