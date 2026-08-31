@@ -309,16 +309,24 @@
             <!-- Details Info Grid -->
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="info-label">Customer / Member</div>
-                    <div class="info-val">{{ $userName }}</div>
+                    <div class="info-label">Paid From (Sender)</div>
+                    <div class="info-val">{{ $paidFrom ?? $userName }}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Date & Time</div>
-                    <div class="info-val">{{ \Carbon\Carbon::parse($date)->format('d M Y, h:i A') }}</div>
+                    <div class="info-label">Paid To (Beneficiary)</div>
+                    <div class="info-val">{{ $paidTo ?? 'Fiinway Services' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Service / Category</div>
+                    <div class="info-val">{{ $title }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Payment Channel</div>
                     <div class="info-val">{{ strtoupper($paymentMethod) }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Date & Time</div>
+                    <div class="info-val">{{ \Carbon\Carbon::parse($date)->format('d M Y, h:i A') }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Reference ID</div>
@@ -338,7 +346,7 @@
                     <tr>
                         <td>
                             <strong style="color:#0f172a; font-size:13.5px;">{{ $title }}</strong><br>
-                            <span style="font-size:11.5px; color:#64748b;">Ref: #{{ $id }} &bull; Base Service Charge</span>
+                            <span style="font-size:11.5px; color:#64748b;">Ref: #{{ $id }} &bull; Transaction Value</span>
                         </td>
                         <td>{{ $currencySymbol }}{{ number_format($baseAmount ?? $amount, 2) }}</td>
                     </tr>
@@ -359,11 +367,11 @@
                     @else
                         <tr>
                             <td style="color:#64748b; font-size:12px;">Platform Fee / Taxes</td>
-                            <td style="color:#15803D; font-size:12px;">₹0.00 (Exempt)</td>
+                            <td style="color:#15803D; font-size:12px;">₹0.00 (Inclusive/Exempt)</td>
                         </tr>
                     @endif
                     <tr style="background:#f8fafc; font-weight:800;">
-                        <td><strong>Total Payable</strong></td>
+                        <td><strong>Total Amount</strong></td>
                         <td style="color:#15803D; font-size:16px; font-weight:900;">{{ $currencySymbol }}{{ number_format($finalTotal ?? $amount, 2) }}</td>
                     </tr>
                 </tbody>
@@ -374,10 +382,10 @@
         <div class="invoice-footer">
             <div class="seal-tag">
                 <span>●</span>
-                <span>Fiinway Digital Verified</span>
+                <span>Fiinway Digital Verified Receipt</span>
             </div>
             <div>
-                https://fiinway.online
+                https://api.fiinway.com
             </div>
         </div>
     </div>

@@ -137,8 +137,10 @@ class InvoiceController extends Controller
 
         // Resolve user
         $userName = $request->query('user_name');
-        $userPhone = 'N/A';
-        $userEmail = 'N/A';
+        // Resolve sender (Paid From) and receiver (Paid To)
+        $paidFrom = $request->query('paid_from');
+        $paidTo = $request->query('paid_to');
+        $driverObj = null;
 
         if ($booking) {
             $userId = $booking->user_id ?? $booking->id_user_app ?? 0;
@@ -156,10 +158,49 @@ class InvoiceController extends Controller
                 $userPhone = $userObj->phone ?? $userObj->telephone ?? 'N/A';
                 $userEmail = $userObj->email ?? 'N/A';
             }
+
+            // Driver / Expert
+            $driverId = $booking->driver_id ?? $booking->id_conducteur ?? 0;
+            if (!empty($driverId) && Schema::hasTable('tj_conducteur')) {
+                $driverObj = DB::table('tj_conducteur')->where('id', $driverId)->first();
+            }
         }
 
         if (empty($userName) || $userName === 'Customer' || $userName === 'User') {
             $userName = $request->query('user_name', 'Fiinway Valued Member');
+        }
+
+        $driverName = $driverObj ? trim(($driverObj->nom ?? '') . ' ' . ($driverObj->prenom ?? '')) : '';
+        $driverPhone = $driverObj->phone ?? $driverObj->telephone ?? '';
+
+        if (empty($paidFrom)) {
+            if ($isDebit) {
+                $paidFrom = $userName;
+            } else {
+                if (stripos($title, 'referral') !== false) {
+                    $paidFrom = 'Fiinway Referral Program';
+                } elseif (stripos($title, 'cashback') !== false) {
+                    $paidFrom = 'Fiinway Smart Value Rewards';
+                } elseif (!empty($driverName)) {
+                    $paidFrom = $driverName;
+                } else {
+                    $paidFrom = 'Fiinway Services';
+                }
+            }
+        }
+
+        if (empty($paidTo)) {
+            if ($isDebit) {
+                if (!empty($driverName)) {
+                    $paidTo = $driverName . ' (Service Partner)';
+                } elseif (stripos($title, 'withdraw') !== false) {
+                    $paidTo = 'Linked Bank Account';
+                } else {
+                    $paidTo = 'Fiinway Technologies';
+                }
+            } else {
+                $paidTo = $userName . ' (Wallet)';
+            }
         }
 
         $dateStr = $request->query('date');
@@ -196,6 +237,10 @@ class InvoiceController extends Controller
             'userName',
             'userPhone',
             'userEmail',
+            'paidFrom',
+            'paidTo',
+            'driverName',
+            'driverPhone',
             'date',
             'paymentMethod',
             'isDebit',

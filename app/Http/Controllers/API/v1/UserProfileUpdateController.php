@@ -1877,14 +1877,16 @@ class UserProfileUpdateController extends Controller
         $note            = trim((string) ($row->note ?? ''));
         $categoryTitle   = 'Wallet Transaction';
         $counterparty    = '';
+        $paidFrom        = '';
+        $paidTo          = '';
         $iconType        = 'wallet';
-        $rideId        = $row->ride_id ?? null;
-        $parcelId      = $row->parcel_id ?? null;
+        $rideId        = $row->ride_id ?? ($row->id_ride ?? null);
+        $parcelId      = $row->parcel_id ?? ($row->id_parcel ?? null);
         $planId        = $row->plan_id ?? ($row->planId ?? null);
         $deductionType = (string) ($row->deduction_type ?? '');
         $type          = strtolower((string) ($row->type ?? ''));
         $paymentMethod = trim((string) ($row->payment_method ?? ''));
-        $paymentStatus = strtolower(trim((string) ($row->payment_status ?? 'pending')));
+        $paymentStatus = strtolower(trim((string) ($row->payment_status ?? 'completed')));
         $isRawNegative = !empty($row->is_raw_negative) || str_starts_with(trim((string) ($row->amount ?? '')), '-');
 
         $isServiceBooking = ($deductionType === 'Service Booking') ||
@@ -1896,154 +1898,151 @@ class UserProfileUpdateController extends Controller
                         stripos($note, 'commission') !== false ||
                         ($currentUserType === 'driver' && $isRawNegative);
 
+        $isReferral = ($paymentMethod === 'Referral Reward') ||
+                      stripos($desc, 'referral') !== false ||
+                      stripos($note, 'referral') !== false ||
+                      stripos($paymentMethod, 'referral') !== false;
+
+        $isCashback = stripos($desc, 'smart value') !== false ||
+                      stripos($desc, 'cashback') !== false ||
+                      stripos($note, 'cashback') !== false ||
+                      $paymentMethod === 'Smart Value Cashback';
+
         if ($isCommission) {
             $categoryTitle = 'Admin Commission';
             $iconType      = 'commission';
-            $counterparty  = 'Admin Panel';
+            $counterparty  = 'Fiinway Platform';
+            $paidFrom      = 'Partner Wallet';
+            $paidTo        = 'Fiinway Platform';
             $deductionType = '0';
-        }
-
-        // For customer transactions: ensure service/ride payments show Service/Ride Name and Expert Name instead of Admin Panel
-        if ($currentUserType === 'customer' && ($counterparty === 'Admin Panel' || $counterparty === 'Admin' || $counterparty === 'Admin Account' || $counterparty === '' || $counterparty === 'Fiinway User')) {
-            if (! empty($rideId) && (string) $rideId !== '0') {
-                $svc = DB::table('service_requests')->where('id', $rideId)->first();
-                if ($svc) {
-                    $categoryTitle = ! empty($svc->service_name) ? trim($svc->service_name) : 'Home Service';
-                    $iconType      = 'home_service';
-                    $driverName    = $this->resolvePersonName($svc->driver_id, 'driver');
-                    $counterparty  = ! empty($driverName) ? $driverName : 'Service Expert';
-                } else {
-                    $ride = DB::table('tj_requete')->where('id', $rideId)->first();
-                    if ($ride) {
-                        $driverName   = $this->resolvePersonName($ride->id_conducteur, 'driver');
-                        $counterparty = ! empty($driverName) ? $driverName : 'Driver';
-                    }
-                }
-            }
-        }
-
-        if ($counterparty === '' && ! empty($planId)) {
-            $categoryTitle = 'Subscription';
-            $iconType      = 'subscription';
-            $counterparty  = 'Subscription Plan';
-        } elseif ($counterparty === '' && preg_match('/Transferred\s+.+?\s+to\s+(.+)$/i', $desc, $matches)) {
-            $categoryTitle = 'Money Transfer';
-            $counterparty  = trim($matches[1]);
-            $iconType      = 'transfer';
-        } elseif ($counterparty === '' && preg_match('/Received\s+.+?\s+from\s+(.+)$/i', $desc, $matches)) {
-            $categoryTitle = 'Money Received';
-            $counterparty  = trim($matches[1]);
-            $iconType      = 'transfer';
-        } elseif ($counterparty === '' && stripos($desc, 'withdraw') !== false) {
-            $categoryTitle = 'Withdrawal';
-            $iconType      = 'withdraw';
-            $counterparty  = 'Wallet';
-        } elseif ($counterparty === '' && stripos($desc, 'earned') !== false) {
-            $categoryTitle = 'Reward Earned';
+        } elseif ($isReferral) {
+            $categoryTitle = 'Referral Cashback';
+            $iconType      = 'referral';
+            $refereeId     = $row->receiver_user_id ?? ($row->sender_user_id ?? null);
+            $refereeName   = !empty($refereeId) ? $this->resolvePersonName($refereeId, $row->sender_user_type ?? null) : '';
+            $counterparty  = !empty($refereeName) ? ("Referred: " . $refereeName) : 'Fiinway Referral Program';
+            $paidFrom      = 'Fiinway Referral Program';
+            $paidTo        = 'Your Wallet';
+            $deductionType = '1';
+        } elseif ($isCashback) {
+            $categoryTitle = 'Smart Value Cashback';
             $iconType      = 'reward';
-            if (preg_match('/from\s+(.+)$/i', $desc, $matches)) {
-                $counterparty = trim($matches[1]);
-            }
-        } elseif ($counterparty === '' && stripos($desc, 'cashback on purchasing') !== false) {
-            $categoryTitle = 'Plan Cashback Reward';
-            $iconType      = 'reward';
-            if (preg_match('/purchasing\s+(.+?)\s+plan/i', $desc, $matches)) {
-                $counterparty = trim($matches[1]);
-            }
-        } elseif ($counterparty === '' && (stripos($desc, 'medical card') !== false || stripos($desc, 'medical cashback') !== false)) {
-            $categoryTitle = (stripos($desc, 'cashback') !== false || $deductionType === '1' || $deductionType === 'credit') ? 'Medical Cashback Credited' : 'Medical Card Purchase';
-            $iconType      = 'medical';
-            $counterparty  = 'Fiinway Medical Cashback';
-        } elseif ($counterparty === '' && (stripos($desc, 'marketplace') !== false || stripos($note, 'marketplace') !== false || stripos($paymentMethod, 'marketplace') !== false)) {
-            $categoryTitle = 'Marketplace Transaction';
-            $iconType      = 'marketplace';
-            $counterparty  = 'Fiinway Marketplace';
-        } elseif ($counterparty === '' && ((stripos($desc, 'purchased') !== false && stripos($desc, 'plan') !== false) || stripos($desc, 'admission') !== false || stripos($desc, 'subscription') !== false)) {
-            $categoryTitle = 'Admission / Plan Deduction';
-            $iconType      = 'subscription';
-            $deductionType = '0';
-            if (preg_match('/purchased\s+(.+?)\s+plan/i', $desc, $matches)) {
-                $counterparty = trim($matches[1]);
-            } else {
-                $counterparty = 'Admission Plan';
-            }
-        } elseif ($counterparty === '' && ! empty($parcelId) && $parcelId !== '0') {
-            $parcel = DB::table('parcel_orders')->where('id', $parcelId)->first();
-            if ($parcel) {
-                $categoryTitle = 'Parcel Delivery';
-                $iconType      = 'parcel';
-                $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
-                if ($counterparty === '' && ! empty($parcel->id_user_app)) {
-                    $counterparty = $this->resolvePersonName($parcel->id_user_app, 'customer');
-                }
-            } else {
-                $categoryTitle = 'Parcel Delivery';
-                $iconType      = 'parcel';
-            }
-        } elseif ($counterparty === '' && ! empty($rideId) && $rideId !== '0') {
+            $counterparty  = 'Smart Value Rewards';
+            $paidFrom      = 'Smart Value Rewards';
+            $paidTo        = 'Your Wallet';
+            $deductionType = '1';
+        } elseif (!empty($rideId) && (string) $rideId !== '0') {
             $svc = DB::table('service_requests')->where('id', $rideId)->first();
             if ($svc && ($isServiceBooking || !DB::table('tj_requete')->where('id', $rideId)->exists())) {
-                $categoryTitle = !empty($svc->service_name) ? trim($svc->service_name) : 'Home Service';
+                $serviceName = !empty($svc->service_name) ? trim($svc->service_name) : 'Home Service';
+                $categoryTitle = $currentUserType === 'driver' ? ($serviceName . ' Earnings') : ($serviceName . ' Booking');
                 $iconType      = 'home_service';
+                $clientName    = $this->resolvePersonName($svc->user_id, 'customer');
+                $providerName  = $this->resolvePersonName($svc->driver_id, 'driver');
+
                 if ($currentUserType === 'driver') {
-                    $counterparty = $this->resolvePersonName($svc->user_id, 'customer');
-                    if ($counterparty === '') $counterparty = 'Home Service Customer';
+                    $counterparty = !empty($clientName) ? $clientName : 'Service Client';
+                    $paidFrom     = !empty($clientName) ? $clientName : 'Customer';
+                    $paidTo       = 'Your Wallet';
+                    $deductionType= '1';
                 } else {
-                    $counterparty = $this->resolvePersonName($svc->driver_id, 'driver');
-                    if ($counterparty === '') $counterparty = 'Service Expert';
+                    $counterparty = !empty($providerName) ? $providerName : 'Service Expert';
+                    $paidFrom     = 'Your Wallet';
+                    $paidTo       = !empty($providerName) ? $providerName : 'Service Expert';
+                    $deductionType= '0';
                 }
             } else {
                 $parcel = DB::table('parcel_orders')->where('id', $rideId)->first();
                 if ($parcel) {
-                    $categoryTitle = 'Parcel Delivery';
+                    $categoryTitle = $currentUserType === 'driver' ? 'Parcel Delivery Earnings' : 'Parcel Delivery Payment';
                     $iconType      = 'parcel';
-                    $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
-                    if ($counterparty === '' && ! empty($parcel->id_user_app)) {
-                        $counterparty = $this->resolvePersonName($parcel->id_user_app, 'customer');
-                    }
+                    $clientName    = !empty($parcel->id_user_app) ? $this->resolvePersonName($parcel->id_user_app, 'customer') : '';
+                    $receiverName  = trim((string) ($parcel->receiver_name ?? ''));
+                    $counterparty  = !empty($receiverName) ? ("To: " . $receiverName) : (!empty($clientName) ? $clientName : 'Parcel Order');
+                    $paidFrom      = $currentUserType === 'driver' ? ($clientName ?: 'Sender') : 'Your Wallet';
+                    $paidTo        = $currentUserType === 'driver' ? 'Your Wallet' : ($receiverName ?: 'Courier');
+                    $deductionType = $currentUserType === 'driver' ? '1' : '0';
                 } else {
                     $ride = DB::table('tj_requete')->where('id', $rideId)->first();
                     if ($ride) {
+                        $vehicle = !empty($ride->id_type_vehicule) ? DB::table('tj_type_vehicule')->where('id', $ride->id_type_vehicule)->first() : null;
+                        $vehicleLabel = strtolower((string) ($vehicle->libelle ?? $ride->ride_type ?? 'Cab'));
+                        $rideTypeTitle = str_contains($vehicleLabel, 'bike') ? 'Bike Ride' : (str_contains($vehicleLabel, 'auto') ? 'Auto Ride' : 'Cab Ride');
+                        $categoryTitle = $currentUserType === 'driver' ? ($rideTypeTitle . ' Fare') : ($rideTypeTitle . ' Payment');
+                        $iconType      = str_contains($vehicleLabel, 'bike') ? 'bike' : (str_contains($vehicleLabel, 'auto') ? 'auto' : 'cab');
+
+                        $riderName  = !empty($ride->id_user_app) ? $this->resolvePersonName($ride->id_user_app, 'customer') : '';
+                        $driverName = !empty($ride->id_conducteur) ? $this->resolvePersonName($ride->id_conducteur, 'driver') : '';
+
                         if ($currentUserType === 'driver') {
-                            $counterparty = $this->resolvePersonName($ride->id_user_app, 'customer');
+                            $counterparty = !empty($riderName) ? $riderName : 'Passenger';
+                            $paidFrom     = !empty($riderName) ? $riderName : 'Passenger';
+                            $paidTo       = 'Your Wallet';
+                            $deductionType= '1';
                         } else {
-                            $counterparty = $this->resolvePersonName($ride->id_conducteur, 'driver');
-                        }
-                        $vehicle      = null;
-                        if (! empty($ride->id_type_vehicule)) {
-                            $vehicle = DB::table('tj_type_vehicule')->where('id', $ride->id_type_vehicule)->first();
-                        }
-                        $vehicleLabel = strtolower((string) ($vehicle->libelle ?? $ride->ride_type ?? ''));
-                        if (str_contains($vehicleLabel, 'bike') || str_contains($vehicleLabel, 'motor')) {
-                            $categoryTitle = 'Bike Ride';
-                            $iconType      = 'bike';
-                        } elseif (str_contains($vehicleLabel, 'auto') || str_contains($vehicleLabel, 'rickshaw')) {
-                            $categoryTitle = 'Auto Ride';
-                            $iconType      = 'auto';
-                        } else {
-                            $categoryTitle = 'Cab Ride';
-                            $iconType      = 'cab';
+                            $counterparty = !empty($driverName) ? $driverName : 'Driver Partner';
+                            $paidFrom     = 'Your Wallet';
+                            $paidTo       = !empty($driverName) ? $driverName : 'Driver Partner';
+                            $deductionType= '0';
                         }
                     } else {
-                        $categoryTitle = 'Ride Payment';
+                        $categoryTitle = $currentUserType === 'driver' ? 'Ride Fare' : 'Ride Payment';
                         $iconType      = 'cab';
+                        $counterparty  = $currentUserType === 'driver' ? 'Passenger' : 'Driver Partner';
+                        $deductionType = $currentUserType === 'driver' ? '1' : '0';
                     }
                 }
             }
+        } elseif (!empty($parcelId) && (string) $parcelId !== '0') {
+            $parcel = DB::table('parcel_orders')->where('id', $parcelId)->first();
+            $categoryTitle = 'Parcel Delivery';
+            $iconType      = 'parcel';
+            $counterparty  = trim((string) ($parcel->receiver_name ?? ''));
+            $paidFrom      = 'Your Wallet';
+            $paidTo        = $counterparty ?: 'Parcel Service';
+            $deductionType = '0';
+        } elseif (!empty($planId)) {
+            $categoryTitle = 'Subscription Plan';
+            $iconType      = 'subscription';
+            $counterparty  = 'Fiinway Membership Plan';
+            $paidFrom      = 'Your Wallet';
+            $paidTo        = 'Fiinway Membership';
+            $deductionType = '0';
+        } elseif (preg_match('/Transferred\s+.+?\s+to\s+(.+)$/i', $desc, $matches)) {
+            $categoryTitle = 'Money Transfer';
+            $counterparty  = trim($matches[1]);
+            $paidFrom      = 'Your Wallet';
+            $paidTo        = $counterparty;
+            $iconType      = 'transfer';
+            $deductionType = '0';
+        } elseif (preg_match('/Received\s+.+?\s+from\s+(.+)$/i', $desc, $matches)) {
+            $categoryTitle = 'Money Received';
+            $counterparty  = trim($matches[1]);
+            $paidFrom      = $counterparty;
+            $paidTo        = 'Your Wallet';
+            $iconType      = 'transfer';
+            $deductionType = '1';
+        } elseif (stripos($desc, 'withdraw') !== false || stripos($note, 'withdraw') !== false) {
+            $categoryTitle = 'Bank Withdrawal';
+            $iconType      = 'withdraw';
+            $counterparty  = 'Linked Bank Account';
+            $paidFrom      = 'Your Wallet';
+            $paidTo        = 'Bank Account';
+            $deductionType = '0';
         } elseif ($deductionType === '1' || $type === 'credit') {
-            if ($paymentMethod !== '' && strtolower($paymentMethod) !== 'wallet') {
-                $categoryTitle = 'Wallet Top-up';
-                $counterparty  = $paymentMethod;
-                $iconType      = 'topup';
-            } else {
-                $categoryTitle = 'Wallet Credit';
-                $iconType      = 'wallet';
-            }
+            $categoryTitle = 'Wallet Top-Up';
+            $counterparty  = !empty($paymentMethod) ? ('Recharge via ' . $paymentMethod) : 'Self Top-Up';
+            $paidFrom      = !empty($paymentMethod) ? $paymentMethod : 'Payment Gateway';
+            $paidTo        = 'Your Wallet';
+            $iconType      = 'topup';
+            $deductionType = '1';
         } elseif ($deductionType === '0' || $type === 'debit') {
-            if (stripos($paymentMethod, 'wallet') !== false) {
-                $categoryTitle = 'Wallet Payment';
-                $iconType      = 'wallet';
-            }
+            $categoryTitle = 'Wallet Payment';
+            $counterparty  = !empty($paymentMethod) ? $paymentMethod : 'Fiinway Services';
+            $paidFrom      = 'Your Wallet';
+            $paidTo        = 'Fiinway Services';
+            $iconType      = 'wallet';
+            $deductionType = '0';
         }
 
         if ($deductionType === '') {
@@ -2131,6 +2130,8 @@ class UserProfileUpdateController extends Controller
             'category_title'    => $categoryTitle,
             'counterparty'      => $counterparty,
             'counterparty_name' => $counterparty,
+            'paid_from'         => !empty($paidFrom) ? $paidFrom : ($deductionType === '0' ? 'Your Wallet' : $counterparty),
+            'paid_to'           => !empty($paidTo) ? $paidTo : ($deductionType === '0' ? $counterparty : 'Your Wallet'),
             'user_name'         => $counterparty,
             'customer_name'     => $counterparty,
             'formatted_date'    => $formattedDate,
