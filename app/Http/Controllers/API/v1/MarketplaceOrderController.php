@@ -85,6 +85,71 @@ class MarketplaceOrderController extends Controller
     }
 
     /**
+     * Calculate all active taxes applicable for the order based on payment method.
+     */
+    public function calculateMarketplaceTaxes(float $subtotal, string $paymentMethod = 'wallet'): array
+    {
+        $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+        $taxBreakdown = [];
+        $totalTaxAmount = 0;
+        $taxLabels = [];
+        $totalRate = 0;
+
+        $normMethod = strtolower(trim($paymentMethod));
+        if (str_contains($normMethod, 'wallet')) $normMethod = 'wallet';
+        elseif (str_contains($normMethod, 'razorpay') || str_contains($normMethod, 'online') || str_contains($normMethod, 'card')) $normMethod = 'online';
+        elseif (str_contains($normMethod, 'upi') || str_contains($normMethod, 'gpay') || str_contains($normMethod, 'phonepe')) $normMethod = 'upi';
+        elseif (str_contains($normMethod, 'cash') || str_contains($normMethod, 'cod')) $normMethod = 'cash';
+
+        foreach ($activeTaxes as $tax) {
+            $applicable = strtolower($tax->applicable_on ?? '');
+            $methods = array_map('trim', explode(',', $applicable));
+
+            $isApplicable = empty($applicable) 
+                || in_array($normMethod, $methods) 
+                || in_array('all', $methods)
+                || ($normMethod === 'online' && (in_array('online', $methods) || in_array('upi', $methods) || in_array('card', $methods)))
+                || ($normMethod === 'upi' && (in_array('upi', $methods) || in_array('online', $methods)))
+                || ($normMethod === 'wallet' && in_array('wallet', $methods))
+                || ($normMethod === 'cash' && in_array('cash', $methods));
+
+            if ($isApplicable) {
+                $val = floatval($tax->value ?? 0);
+                $isPercent = (strtolower($tax->type ?? '') === 'percentage' || str_contains(strtolower($tax->type ?? ''), 'percent'));
+
+                if ($isPercent) {
+                    $amt = round(($subtotal * $val) / 100, 2);
+                    $label = "{$tax->libelle} ({$val}%)";
+                    $totalRate += $val;
+                } else {
+                    $amt = round($val, 2);
+                    $label = "{$tax->libelle} (₹{$val})";
+                }
+
+                $taxBreakdown[] = [
+                    'id'         => $tax->id,
+                    'name'       => $tax->libelle,
+                    'type'       => $tax->type,
+                    'rate'       => $val,
+                    'rate_label' => $isPercent ? "{$val}%" : "₹{$val}",
+                    'amount'     => $amt,
+                    'label'      => $label,
+                ];
+
+                $totalTaxAmount += $amt;
+                $taxLabels[] = $label;
+            }
+        }
+
+        return [
+            'total_tax_amount' => round($totalTaxAmount, 2),
+            'taxes'            => $taxBreakdown,
+            'tax_name'         => !empty($taxLabels) ? implode(', ', $taxLabels) : 'GST',
+            'tax_rate'         => $totalRate,
+        ];
+    }
+
+    /**
      * Get checkout summary breakdown with active taxes and commission calculations.
      */
     public function checkoutSummary(Request $request)
@@ -105,24 +170,12 @@ class MarketplaceOrderController extends Controller
         }
 
         $deliveryCharge = floatval($request->input('delivery_charge', 0));
+        $paymentMethod = strtolower($request->input('payment_method', 'wallet'));
 
-        // 1. Fetch active Tax from tj_tax
-        $taxRecord = DB::table('tj_tax')->where('statut', 'yes')->first();
-        $taxName = 'GST';
-        $taxRate = 0;
-        $taxAmount = 0;
-
-        if ($taxRecord) {
-            $taxName = $taxRecord->libelle ?: 'GST';
-            $taxRate = floatval($taxRecord->value);
-            if (strtolower($taxRecord->type ?? '') === 'percentage' || str_contains(strtolower($taxRecord->type ?? ''), 'percent')) {
-                $taxAmount = round(($subtotal * $taxRate) / 100, 2);
-            } else {
-                $taxAmount = round($taxRate, 2);
-            }
-        }
-
-        $totalPayable = round($subtotal + $deliveryCharge + $taxAmount, 2);
+        // 1. Calculate All Active Applicable Taxes from tj_tax
+        $taxCalc = $this->calculateMarketplaceTaxes($subtotal, $paymentMethod);
+        $totalTaxAmount = $taxCalc['total_tax_amount'];
+        $totalPayable = round($subtotal + $deliveryCharge + $totalTaxAmount, 2);
 
         // 2. Fetch active Commission Settings
         $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
@@ -142,10 +195,12 @@ class MarketplaceOrderController extends Controller
             'data' => [
                 'subtotal'                 => $subtotal,
                 'delivery_charge'          => $deliveryCharge,
+                'taxes'                    => $taxCalc['taxes'],
+                'total_tax_amount'         => $totalTaxAmount,
                 'tax'                      => [
-                    'name'   => $taxName,
-                    'rate'   => $taxRate,
-                    'amount' => $taxAmount,
+                    'name'   => $taxCalc['tax_name'],
+                    'rate'   => $taxCalc['tax_rate'],
+                    'amount' => $totalTaxAmount,
                 ],
                 'total_payable'            => $totalPayable,
                 'admin_commission'         => [
@@ -295,26 +350,14 @@ class MarketplaceOrderController extends Controller
         }
 
         $deliveryCharge = floatval($request->input('delivery_charge', 0));
+        $paymentMethod = strtolower($request->input('payment_method', 'wallet'));
 
-        // 1. Calculate Active Tax from tj_tax
-        $taxRecord = DB::table('tj_tax')->where('statut', 'yes')->first();
-        $taxName = 'GST';
-        $taxRate = 10.7;
-        $taxAmount = 0;
-
-        if ($taxRecord) {
-            $taxName = $taxRecord->libelle ?: 'GST';
-            $taxRate = floatval($taxRecord->value);
-            if (strtolower($taxRecord->type ?? '') === 'percentage' || str_contains(strtolower($taxRecord->type ?? ''), 'percent')) {
-                $taxAmount = round(($subtotal * $taxRate) / 100, 2);
-            } else {
-                $taxAmount = round($taxRate, 2);
-            }
-        } else {
-            $taxAmount = round(($subtotal * $taxRate) / 100, 2);
-        }
-
-        $totalPayable = round($subtotal + $deliveryCharge + $taxAmount, 2);
+        // 1. Calculate All Active Applicable Taxes from tj_tax
+        $taxCalc = $this->calculateMarketplaceTaxes($subtotal, $paymentMethod);
+        $totalTaxAmount = $taxCalc['total_tax_amount'];
+        $taxName = $taxCalc['tax_name'];
+        $taxRate = $taxCalc['tax_rate'];
+        $totalPayable = round($subtotal + $deliveryCharge + $totalTaxAmount, 2);
 
         // 2. Calculate Admin Commission & Seller Net Payout
         $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
@@ -329,7 +372,6 @@ class MarketplaceOrderController extends Controller
         }
         $sellerPayoutAmount = max(0, round($subtotal - $adminCommissionAmount, 2));
 
-        $paymentMethod = strtolower($request->input('payment_method', 'wallet'));
         $txnId = $request->input('txn_id', 'TXN_' . time() . '_' . rand(1000, 9999));
         $buyerBalance = floatval($buyer->amount ?? 0);
 
@@ -410,7 +452,7 @@ class MarketplaceOrderController extends Controller
                 'delivery_charge'         => $deliveryCharge,
                 'tax_name'                => $taxName,
                 'tax_rate'                => $taxRate,
-                'tax_amount'              => $taxAmount,
+                'tax_amount'              => $totalTaxAmount,
                 'payment_method'          => $paymentMethod === 'wallet' ? 'Fiinway Wallet' : ucfirst($paymentMethod),
                 'payment_status'          => 'success',
                 'txn_id'                  => $txnId,
@@ -468,7 +510,7 @@ class MarketplaceOrderController extends Controller
             if ($paymentMethod === 'wallet') {
                 $buyerType = ($buyer instanceof \App\Models\Driver) ? 'driver' : 'customer';
                 $productSummary = implode(', ', array_map(fn($v) => $v['product']->title, $validatedItems));
-                $taxNote = $taxAmount > 0 ? " (Incl. {$taxName} ₹{$taxAmount})" : "";
+                $taxNote = $totalTaxAmount > 0 ? " (Incl. {$taxName} ₹{$totalTaxAmount})" : "";
                 $this->recordWalletTransaction(
                     $userId,
                     $buyerType,
