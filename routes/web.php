@@ -29,11 +29,13 @@ use App\Helpers\OnboardingAccess;
 
 */
 
-// clear cache
 Route::get('/clear', function() {
+   if (function_exists('opcache_reset')) {
+       @opcache_reset();
+   }
    Artisan::call('cache:clear');
    Artisan::call('config:clear');
-   Artisan::call('config:cache');
+   Artisan::call('route:clear');
    Artisan::call('view:clear');
    Artisan::call('optimize:clear');
    return "Cleared!";
