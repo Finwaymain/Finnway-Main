@@ -895,6 +895,34 @@ class ProductController extends Controller
     }
 
     /**
+     * Serve marketplace product images directly from storage or public paths.
+     */
+    public function serveMarketplaceImage($filename)
+    {
+        $filename = basename($filename);
+        $paths = [
+            public_path('assets/images/marketplace/' . $filename),
+            storage_path('app/public/marketplace/' . $filename),
+            storage_path('app/public/' . $filename),
+            public_path('images/marketplace/' . $filename),
+            public_path('assets/images/' . $filename),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                $mime = mime_content_type($path) ?: 'image/jpeg';
+                return response()->file($path, [
+                    'Content-Type' => $mime,
+                    'Access-Control-Allow-Origin' => '*',
+                    'Cache-Control' => 'public, max-age=31536000',
+                ]);
+            }
+        }
+
+        return redirect('https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80');
+    }
+
+    /**
      * Save an uploaded file locally with multiple folder fallbacks, or as Base64 Data URL if disk is read-only.
      */
     private function saveUploadedFileLocal($file): string
@@ -904,11 +932,12 @@ class ProductController extends Controller
 
         $paths = [
             public_path('assets/images/marketplace/'),
+            storage_path('app/public/marketplace/'),
             public_path('images/marketplace/'),
             public_path('assets/images/'),
-            storage_path('app/public/marketplace/')
         ];
 
+        $saved = false;
         foreach ($paths as $path) {
             try {
                 if (!file_exists($path)) {
@@ -918,19 +947,19 @@ class ProductController extends Controller
 
                 $file->move($path, $filename);
                 @chmod($path . $filename, 0644);
-
-                $relativePath = str_replace(public_path(), '', $path);
-                $cleanRelative = '/' . ltrim(str_replace('\\', '/', $relativePath), '/');
-
-                $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
-                if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
-                    $baseUrl = 'https://api.fiinway.com';
-                }
-
-                return $baseUrl . $cleanRelative . $filename;
+                $saved = true;
+                break;
             } catch (\Exception $e) {
-                // Continue to next path
+                // Try next path
             }
+        }
+
+        if ($saved) {
+            $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+            if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                $baseUrl = 'https://api.fiinway.com';
+            }
+            return $baseUrl . '/assets/images/marketplace/' . $filename;
         }
 
         // Ultimate fallback: Convert file to Base64 data URL (saved into LONGTEXT column)
@@ -1077,9 +1106,9 @@ class ProductController extends Controller
             $filename = 'product_' . time() . '_' . uniqid() . '.' . $imageType;
             $paths = [
                 public_path('assets/images/marketplace/'),
+                storage_path('app/public/marketplace/'),
                 public_path('images/marketplace/'),
                 public_path('assets/images/'),
-                storage_path('app/public/marketplace/')
             ];
 
             foreach ($paths as $path) {
@@ -1090,13 +1119,11 @@ class ProductController extends Controller
                     @chmod($path, 0777);
                     if (@file_put_contents($path . $filename, $imageData) !== false) {
                         @chmod($path . $filename, 0644);
-                        $relativePath = str_replace(public_path(), '', $path);
-                        $cleanRelative = '/' . ltrim(str_replace('\\', '/', $relativePath), '/');
                         $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
                         if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
                             $baseUrl = 'https://api.fiinway.com';
                         }
-                        return $baseUrl . $cleanRelative . $filename;
+                        return $baseUrl . '/assets/images/marketplace/' . $filename;
                     }
                 } catch (\Exception $ex) {
                     // Continue to next path

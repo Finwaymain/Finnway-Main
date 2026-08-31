@@ -42,6 +42,11 @@ Route::get('/clear', function() {
 
 Auth::routes();
 
+// Serve Marketplace Product Images dynamically from storage or public
+Route::get('/assets/images/marketplace/{filename}', [App\Http\Controllers\API\v1\ProductController::class, 'serveMarketplaceImage']);
+Route::get('/storage/marketplace/{filename}', [App\Http\Controllers\API\v1\ProductController::class, 'serveMarketplaceImage']);
+Route::get('/storage/app/public/marketplace/{filename}', [App\Http\Controllers\API\v1\ProductController::class, 'serveMarketplaceImage']);
+
 Route::get('/onboarding/marketplace.html', function () {
     return response()->file(public_path('onboarding-assets/marketplace.html'));
 });
