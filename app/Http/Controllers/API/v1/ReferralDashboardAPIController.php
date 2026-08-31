@@ -687,6 +687,51 @@ class ReferralDashboardAPIController extends Controller
             $aadharNumber = $hasSubmittedAadhar ? $cleanAadhar : '';
         }
 
+        // ── Referral Benefits from Admin Panel Configuration ──────────────────────────
+        $userInstallVal = \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_value', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_value', '10'));
+        $userInstallType = \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_type', 'flat');
+        $userMinServices = (int)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_services', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_min_services', '5'));
+        $userMinAmount = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_user_min_amount', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_min_amount', '500'));
+
+        $bizInstallVal = \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_value', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_value', '50'));
+        $bizInstallType = \App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_type', 'flat');
+        $bizMinServices = (int)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_services', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_min_services', '2'));
+        $bizMinAmount = (float)\App\Models\ApiKeySetting::getApiKeyValue('event_rule_app_install_business_min_amount', \App\Models\ApiKeySetting::getApiKeyValue('event_rule_registration_min_amount', '200'));
+
+        $defaultCommission = \App\Models\ApiKeySetting::getApiKeyValue('referral_reward_value', '2.5');
+        $defaultCommissionMode = \App\Models\ApiKeySetting::getApiKeyValue('referral_reward_mode', 'percentage');
+
+        $userCashbackFmt = $userInstallType === 'percentage' ? ($userInstallVal . '%') : ('₹' . $userInstallVal);
+        $bizCashbackFmt = $bizInstallType === 'percentage' ? ($bizInstallVal . '%') : ('₹' . $bizInstallVal);
+
+        $benefitsData = [
+            'consumer' => [
+                'cashback_amount' => $userCashbackFmt,
+                'cashback_value'  => (float)$userInstallVal,
+                'type'            => $userInstallType,
+                'min_services'    => $userMinServices,
+                'min_amount'      => $userMinAmount,
+                'title'           => 'User Referral',
+                'description'     => "Get {$userCashbackFmt} cashback per user referral after " . ($userMinServices > 0 ? "{$userMinServices} completed services" : "registration") . ($userMinAmount > 0 ? " (min ₹{$userMinAmount})" : "") . ".",
+            ],
+            'business' => [
+                'cashback_amount' => $bizCashbackFmt,
+                'cashback_value'  => (float)$bizInstallVal,
+                'type'            => $bizInstallType,
+                'min_services'    => $bizMinServices,
+                'min_amount'      => $bizMinAmount,
+                'title'           => 'Business Partner',
+                'description'     => "Get {$bizCashbackFmt} cashback per business partner after " . ($bizMinServices > 0 ? "{$bizMinServices} completed services" : "registration") . ($bizMinAmount > 0 ? " (min ₹{$bizMinAmount})" : "") . ".",
+            ],
+            'commission_rate' => $defaultCommissionMode === 'percentage' ? ($defaultCommission . '%') : ('₹' . $defaultCommission),
+        ];
+
+        // Total Referral Cashback earned from User + Business referrals
+        $totalReferralEarned = (int)round((float)($consumerIncome + $businessIncome));
+        if ($totalReferralEarned == 0 && $dbTotalIncome > 0) {
+            $totalReferralEarned = (int)round((float)$dbTotalIncome);
+        }
+
         $userName = $user ? trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')) : '';
 
         return response()->json([
@@ -697,9 +742,9 @@ class ReferralDashboardAPIController extends Controller
                 'user_name'        => $userName,
                 'referral_code'    => $refCode,
                 'share_url'        => 'https://api.fiinway.com/ref/' . $refCode,
-                'wallet_balance'   => (int)$walletBalance,
-                'referral_earnings'=> (int)$dbTotalIncome,
-                'unlocked_income'  => (int)$dbTotalIncome,
+                'wallet_balance'   => $totalReferralEarned,
+                'referral_earnings'=> $totalReferralEarned,
+                'unlocked_income'  => $totalReferralEarned,
                 'frozen_income'    => (int)$totalFrozenIncome,
                 'pending_cashback' => (int)$totalFrozenIncome,
                 'total_referrals'  => $totalReferralsCount,
@@ -707,6 +752,7 @@ class ReferralDashboardAPIController extends Controller
                 'registered'       => $totalReferralsCount,
                 'verified'         => $totalVerifiedCount,
                 'active_users'     => $totalActiveCount,
+                'benefits'         => $benefitsData,
                 'summary'          => $summaryData,
                 'consumer'         => $consumerData,
                 'business'         => $businessData,
