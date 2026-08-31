@@ -415,12 +415,18 @@ class ProductController extends Controller
                                         @mkdir($path, 0777, true);
                                     }
                                     file_put_contents($path . $filename, $imageData);
-                                    $finalUrl = asset('assets/images/marketplace/' . $filename);
+                                    $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+                                    if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                                        $baseUrl = 'https://api.fiinway.com';
+                                    }
+                                    $finalUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
                                 }
                             } catch (\Exception $e) {
                                 Log::warning('Base64 image conversion error in store: ' . $e->getMessage());
                             }
                         }
+
+                        $finalUrl = $this->normalizeMarketplaceImageUrl((string) $finalUrl);
 
                         MarketplaceProductImage::create([
                             'product_id' => $product->id,
@@ -432,6 +438,7 @@ class ProductController extends Controller
                     $images = $request->file('images');
                     foreach ($images as $index => $imageFile) {
                         $imagePath = $this->uploadToFirebase($imageFile);
+                        $imagePath = $this->normalizeMarketplaceImageUrl((string) $imagePath);
                         MarketplaceProductImage::create([
                             'product_id' => $product->id,
                             'image_path' => $imagePath,
@@ -538,9 +545,10 @@ class ProductController extends Controller
         if ($request->has('image_urls') && !empty($request->image_urls) && is_array($request->image_urls)) {
             MarketplaceProductImage::where('product_id', $product->id)->delete();
             foreach ($request->image_urls as $index => $imageUrl) {
+                $finalUrl = $this->normalizeMarketplaceImageUrl((string) $imageUrl);
                 MarketplaceProductImage::create([
                     'product_id' => $product->id,
-                    'image_path' => $imageUrl,
+                    'image_path' => $finalUrl,
                     'is_primary' => ($index === 0)
                 ]);
             }
@@ -845,7 +853,12 @@ class ProductController extends Controller
                         @mkdir($path, 0777, true);
                     }
                     file_put_contents($path . $filename, $imageData);
-                    $localUrl = asset('assets/images/marketplace/' . $filename);
+                    
+                    $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+                    if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                        $baseUrl = 'https://api.fiinway.com';
+                    }
+                    $localUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
 
                     return response()->json([
                         'success' => 'Success',
@@ -882,7 +895,12 @@ class ProductController extends Controller
                     @mkdir($path, 0777, true);
                 }
                 $file->move($path, $filename);
-                $localUrl = asset('assets/images/marketplace/' . $filename);
+                
+                $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+                if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                    $baseUrl = 'https://api.fiinway.com';
+                }
+                $localUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
 
                 return response()->json([
                     'success' => 'Success',
@@ -970,7 +988,45 @@ class ProductController extends Controller
                 @mkdir($path, 0777, true);
             }
             $file->move($path, $filename);
-            return asset('assets/images/marketplace/' . $filename);
+            
+            $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+            if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                $baseUrl = 'https://api.fiinway.com';
+            }
+            return $baseUrl . '/assets/images/marketplace/' . $filename;
         }
     }
+
+    /**
+     * Helper to normalize any marketplace image URL to a clean, absolute HTTPS URL.
+     */
+    private function normalizeMarketplaceImageUrl(string $url): string
+    {
+        if (empty($url)) {
+            return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
+        }
+
+        $baseAppUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+        if (str_contains($baseAppUrl, 'localhost') || str_contains($baseAppUrl, '127.0.0.1')) {
+            $baseAppUrl = 'https://api.fiinway.com';
+        }
+
+        if (str_starts_with($url, 'http://localhost') || str_starts_with($url, 'https://localhost') || str_starts_with($url, 'http://127.0.0.1') || str_starts_with($url, 'https://127.0.0.1')) {
+            $parsed = parse_url($url);
+            $path = $parsed['path'] ?? '';
+            return $baseAppUrl . $path;
+        }
+
+        if (str_starts_with($url, 'assets/') || str_starts_with($url, '/assets/') || str_starts_with($url, 'public/')) {
+            $cleanPath = '/' . ltrim(str_replace('public/', '', $url), '/');
+            return $baseAppUrl . $cleanPath;
+        }
+
+        if (str_starts_with($url, 'http://api.fiinway.com')) {
+            return str_replace('http://api.fiinway.com', 'https://api.fiinway.com', $url);
+        }
+
+        return $url;
+    }
 }
+
