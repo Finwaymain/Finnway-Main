@@ -163,13 +163,6 @@ class MarketplaceOrderController extends Controller
      */
     public function store(Request $request)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->query('user_id')
-               ?? $request->input('driver_id')
-               ?? $request->query('driver_id')
-               ?? 1;
-
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
@@ -185,10 +178,72 @@ class MarketplaceOrderController extends Controller
             ], 420);
         }
 
-        $buyer = UserApp::find($userId) ?? \App\Models\Driver::find($userId);
+        // 1. Identify Buyer accurately (Driver vs UserApp)
+        $userType = $request->input('user_type') ?? $request->query('user_type') ?? $request->header('user_type');
+        $driverId = $request->input('driver_id') ?? $request->query('driver_id') ?? $request->header('driver_id');
+        $userIdInput = $request->input('user_id') ?? $request->query('user_id') ?? $request->header('user_id');
+        $phoneInput = $request->input('phone') ?? $request->query('phone') ?? $request->header('phone');
+        $accessToken = $request->header('accesstoken') ?? $request->query('accesstoken') ?? $request->input('accesstoken');
+
+        $buyer = null;
+        $buyerType = 'customer';
+
+        if ($accessToken) {
+            $userAccess = DB::table('users_access')->where('accesstoken', $accessToken)->first();
+            if ($userAccess && !empty($userAccess->user_id)) {
+                $uType = ($userAccess->user_type === 'driver') ? 'driver' : 'user';
+                if ($uType === 'driver') {
+                    $buyer = \App\Models\Driver::find($userAccess->user_id);
+                    if ($buyer) $buyerType = 'driver';
+                } else {
+                    $buyer = UserApp::find($userAccess->user_id);
+                    if ($buyer) $buyerType = 'customer';
+                }
+            }
+        }
+
+        if (!$buyer && (!empty($driverId) || $userType === 'driver')) {
+            $id = $driverId ?: $userIdInput;
+            if ($id) {
+                $buyer = \App\Models\Driver::find($id);
+                if ($buyer) $buyerType = 'driver';
+            }
+        }
+
+        if (!$buyer && !empty($userIdInput)) {
+            if ($userType === 'driver') {
+                $buyer = \App\Models\Driver::find($userIdInput);
+                if ($buyer) $buyerType = 'driver';
+            }
+            if (!$buyer) {
+                $buyer = UserApp::find($userIdInput);
+                if ($buyer) $buyerType = 'customer';
+            }
+            if (!$buyer) {
+                $buyer = \App\Models\Driver::find($userIdInput);
+                if ($buyer) $buyerType = 'driver';
+            }
+        }
+
+        if (!$buyer && !empty($phoneInput)) {
+            $cleanPhone = preg_replace('/[^0-9]/', '', $phoneInput);
+            if (strlen($cleanPhone) >= 10) {
+                $last10 = substr($cleanPhone, -10);
+                $buyer = UserApp::where('phone', 'like', "%{$last10}%")->first();
+                if ($buyer) {
+                    $buyerType = 'customer';
+                } else {
+                    $buyer = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                    if ($buyer) $buyerType = 'driver';
+                }
+            }
+        }
+
         if (!$buyer) {
             $buyer = UserApp::first();
         }
+
+        $userId = $buyer->id;
 
         $itemsData = $request->input('items');
         $subtotal = 0;
@@ -212,7 +267,7 @@ class MarketplaceOrderController extends Controller
                 ], 422);
             }
 
-            if (strval($product->user_id) === strval($userId)) {
+            if (strval($product->user_id) === strval($userId) && $buyerType !== 'driver') {
                 return response()->json([
                     'success' => 'Failed',
                     'error' => 'You cannot purchase your own product: ' . $product->title
@@ -244,7 +299,7 @@ class MarketplaceOrderController extends Controller
         // 1. Calculate Active Tax from tj_tax
         $taxRecord = DB::table('tj_tax')->where('statut', 'yes')->first();
         $taxName = 'GST';
-        $taxRate = 0;
+        $taxRate = 10.7;
         $taxAmount = 0;
 
         if ($taxRecord) {
@@ -255,6 +310,8 @@ class MarketplaceOrderController extends Controller
             } else {
                 $taxAmount = round($taxRate, 2);
             }
+        } else {
+            $taxAmount = round(($subtotal * $taxRate) / 100, 2);
         }
 
         $totalPayable = round($subtotal + $deliveryCharge + $taxAmount, 2);
@@ -275,6 +332,24 @@ class MarketplaceOrderController extends Controller
         $paymentMethod = strtolower($request->input('payment_method', 'wallet'));
         $txnId = $request->input('txn_id', 'TXN_' . time() . '_' . rand(1000, 9999));
         $buyerBalance = floatval($buyer->amount ?? 0);
+
+        // Check transaction sum fallback if balance is 0
+        if ($buyerBalance == 0) {
+            $uType = ($buyerType === 'driver') ? 'driver' : 'customer';
+            $txnSum = DB::table('tj_transaction')
+                ->where('id_user_app', $buyer->id)
+                ->where(function($q) use ($uType) {
+                    $q->where('user_type', $uType)
+                      ->orWhereNull('user_type')
+                      ->orWhere('user_type', '');
+                })
+                ->sum('amount');
+            if ($txnSum > 0) {
+                $buyerBalance = floatval($txnSum);
+                $buyer->amount = $buyerBalance;
+                $buyer->save();
+            }
+        }
 
         // Check wallet balance & M-PIN ONLY if payment method is wallet
         if ($paymentMethod === 'wallet') {
