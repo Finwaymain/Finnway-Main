@@ -365,6 +365,18 @@ class ProductController extends Controller
 
         try {
             $product = DB::transaction(function () use ($request, $userId) {
+                $userType = $request->input('user_type');
+                if (!$userType) {
+                    $token = $request->header('accesstoken') ?? $request->query('accesstoken') ?? $request->input('accesstoken');
+                    if ($token) {
+                        $ua = DB::table('users_access')->where('accesstoken', $token)->first();
+                        if ($ua && !empty($ua->user_type)) $userType = $ua->user_type;
+                    }
+                }
+                if (!$userType) {
+                    $userType = ($request->has('driver_id') || $request->input('user_type') === 'driver') ? 'driver' : 'customer';
+                }
+
                 // 1. Create Product safely matching available database columns
                 $productData = [
                     'title' => $request->title,
@@ -372,6 +384,7 @@ class ProductController extends Controller
                     'price' => $request->price,
                     'stock_quantity' => $request->stock_quantity ?? 1,
                     'user_id' => $userId,
+                    'user_type' => $userType,
                     'category_id' => $request->category_id,
                     'subcategory_id' => $request->subcategory_id,
                     'condition' => $request->condition,

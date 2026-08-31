@@ -29,21 +29,19 @@ class NotificationListController extends Controller
 
     if(!empty($driver_id)){
         $sql = DB::table('tj_notification')
-        ->crossJoin('tj_conducteur')
+        ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
         ->select('tj_notification.*', 'tj_conducteur.nom', 'tj_conducteur.prenom', 'tj_conducteur.photo_path')
-        ->where('tj_conducteur.id','=',DB::raw('tj_notification.to_id'))
         ->where('tj_notification.to_id','=',$driver_id)
-        ->whereIn('tj_notification.type',['ridenewrider', 'userconfirmed', 'forgotitem', 'paymentcompleted'])
+        ->whereIn('tj_notification.type',['ridenewrider', 'userconfirmed', 'forgotitem', 'paymentcompleted', 'marketplace', 'marketplace_order_status'])
         ->orderBy('tj_notification.id','desc')
         ->get();
 
     }else{
         $sql = DB::table('tj_notification')
-        ->crossJoin('tj_user_app')
+        ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'tj_notification.to_id')
         ->select('tj_notification.*', 'tj_user_app.nom', 'tj_user_app.prenom', 'tj_user_app.photo_path')
-        ->where('tj_user_app.id','=',DB::raw('tj_notification.to_id'))
         ->where('tj_notification.to_id','=',$user_id)
-        ->whereIn('tj_notification.type',['riderejected', 'rideonride', 'rideconfirmed', 'ridecompleted'])
+        ->whereIn('tj_notification.type',['riderejected', 'rideonride', 'rideconfirmed', 'ridecompleted', 'marketplace', 'marketplace_order_status'])
         ->orderBy('tj_notification.id','desc')
         ->get();
     }

@@ -2188,13 +2188,14 @@ class UserProfileUpdateController extends Controller
     {
         $text = strtolower($desc);
         $map  = [
-            ['food order', 'food', ['food', 'swiggy', 'zomato', 'restaurant']],
-            ['Education Fee', 'education', ['education', 'school', 'college', 'fee']],
+            ['Marketplace Purchase', 'marketplace', ['marketplace', 'product purchase', 'purchased', 'bought product']],
+            ['Food Order', 'food', ['food', 'swiggy', 'zomato', 'restaurant']],
+            ['Education Fee', 'education', ['education', 'school fee', 'college fee', 'tuition fee', 'exam fee', 'course fee']],
             ['Home Service', 'home_service', ['mechanic', 'plumber', 'electrician', 'home service', 'ac mechanic']],
-            ['Merchant Transfer', 'merchant', ['merchant', 'kirana', 'store', 'shop']],
+            ['Merchant Transfer', 'merchant', ['merchant', 'kirana', 'store transfer', 'shop payment']],
             ['Parcel Delivery', 'parcel', ['parcel', 'courier', 'bluedart']],
-            ['Cab Ride', 'cab', ['cab', 'taxi', 'ola', 'uber']],
-            ['Bike Ride', 'bike', ['bike', 'rapido', 'motorcycle']],
+            ['Cab Ride', 'cab', ['cab ride', 'taxi fare', 'ola', 'uber']],
+            ['Bike Ride', 'bike', ['bike ride', 'rapido', 'motorcycle']],
         ];
 
         foreach ($map as [$title, $icon, $keywords]) {

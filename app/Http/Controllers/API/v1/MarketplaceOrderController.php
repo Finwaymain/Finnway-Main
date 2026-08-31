@@ -443,10 +443,14 @@ class MarketplaceOrderController extends Controller
                 $buyer->save();
             }
 
+            $firstSellerType = $validatedItems[0]['product']->user_type ?? 'customer';
+
             // 2. Create order with full metadata, taxes, and ESCROW payout status
             $order = MarketplaceOrder::create([
                 'user_id'                 => $userId,
+                'buyer_type'              => $buyerType,
                 'seller_id'               => $firstSellerId,
+                'seller_type'             => $firstSellerType,
                 'total_amount'            => $totalPayable,
                 'subtotal'                => $subtotal,
                 'delivery_charge'         => $deliveryCharge,
@@ -495,8 +499,13 @@ class MarketplaceOrderController extends Controller
                 }
                 $product->save();
 
-                // Seller record to notify (NO immediate wallet credit — funds held in escrow)
-                $seller = UserApp::find($product->user_id) ?? \App\Models\Driver::find($product->user_id);
+                // Seller record to notify (resolving correct seller type)
+                $sellerType = $product->user_type ?? 'customer';
+                $seller = ($sellerType === 'driver') ? \App\Models\Driver::find($product->user_id) : UserApp::find($product->user_id);
+                if (!$seller) {
+                    $seller = UserApp::find($product->user_id) ?? \App\Models\Driver::find($product->user_id);
+                }
+
                 if ($seller) {
                     $sellersToNotify[$seller->id][] = [
                         'seller' => $seller,
@@ -774,12 +783,18 @@ class MarketplaceOrderController extends Controller
         $order->save();
 
         // 5. Notify Buyer on Stage / Status Change
-        $buyer = UserApp::find($order->user_id) ?? \App\Models\Driver::find($order->user_id);
+        $buyerType = $order->buyer_type ?? 'customer';
+        $buyer = ($buyerType === 'driver') ? \App\Models\Driver::find($order->user_id) : UserApp::find($order->user_id);
+        if (!$buyer) {
+            $buyer = UserApp::find($order->user_id) ?? \App\Models\Driver::find($order->user_id);
+        }
         if (!$buyer && !empty($order->phone)) {
             $clean = preg_replace('/[^0-9]/', '', $order->phone);
             if (strlen($clean) >= 10) {
                 $last10 = substr($clean, -10);
-                $buyer = UserApp::where('phone', 'like', "%{$last10}%")->first() ?? \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                $buyer = ($buyerType === 'driver')
+                    ? (\App\Models\Driver::where('phone', 'like', "%{$last10}%")->first() ?? UserApp::where('phone', 'like', "%{$last10}%")->first())
+                    : (UserApp::where('phone', 'like', "%{$last10}%")->first() ?? \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first());
             }
         }
 
