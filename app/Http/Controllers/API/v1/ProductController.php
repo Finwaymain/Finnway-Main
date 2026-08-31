@@ -49,16 +49,18 @@ class ProductController extends Controller
 
         if ($request->has('city') && !empty($request->city)) {
             $userCity = strtolower(trim($request->city));
-            $query->where(function($q) use ($userCity) {
+            $cityBase = trim(explode(',', $userCity)[0]);
+            $query->where(function($q) use ($userCity, $cityBase) {
                 // Pan India & Digital Delivery products show to all users in all zones.
-                // Local Delivery products only show to users in the same city.
+                // Local Delivery products show to users in the same city or if seller_city is empty.
                 $q->whereIn('delivery_type', ['Pan India', 'Courier Delivery', 'Digital Delivery', 'Digital'])
                   ->orWhereNull('delivery_type')
-                  ->orWhere(function($subQ) use ($userCity) {
+                  ->orWhere(function($subQ) use ($userCity, $cityBase) {
                       $subQ->whereIn('delivery_type', ['Local Delivery', 'Local', 'Self Delivery'])
-                           ->where(function($cityQ) use ($userCity) {
+                           ->where(function($cityQ) use ($userCity, $cityBase) {
                                $cityQ->whereNull('seller_city')
                                      ->orWhere('seller_city', '')
+                                     ->orWhereRaw('LOWER(seller_city) LIKE ?', ["%{$cityBase}%"])
                                      ->orWhereRaw('LOWER(seller_city) = ?', [$userCity]);
                            });
                   });
@@ -393,7 +395,19 @@ class ProductController extends Controller
                     $productData['condition_detail'] = $request->condition_detail ?? '';
                 }
                 if (Schema::hasColumn('marketplace_products', 'specifications')) {
-                    $productData['specifications'] = $request->specifications ?? '';
+                    $specs = $request->specifications;
+                    if (empty($specs)) {
+                        $productData['specifications'] = null;
+                    } elseif (is_array($specs)) {
+                        $productData['specifications'] = json_encode($specs);
+                    } else {
+                        $decoded = json_decode((string)$specs);
+                        if (json_last_error() === JSON_ERROR_NONE && !is_numeric($specs)) {
+                            $productData['specifications'] = $specs;
+                        } else {
+                            $productData['specifications'] = json_encode(['specs' => (string)$specs]);
+                        }
+                    }
                 }
 
                 $product = MarketplaceProduct::create($productData);
@@ -530,7 +544,21 @@ class ProductController extends Controller
             $updateData['seller_city'] = $request->seller_city ?? $request->city ?? $product->seller_city;
         }
         if (Schema::hasColumn('marketplace_products', 'specifications')) {
-            $updateData['specifications'] = $request->specifications ?? $product->specifications;
+            if ($request->has('specifications')) {
+                $specs = $request->specifications;
+                if (empty($specs)) {
+                    $updateData['specifications'] = null;
+                } elseif (is_array($specs)) {
+                    $updateData['specifications'] = json_encode($specs);
+                } else {
+                    $decoded = json_decode((string)$specs);
+                    if (json_last_error() === JSON_ERROR_NONE && !is_numeric($specs)) {
+                        $updateData['specifications'] = $specs;
+                    } else {
+                        $updateData['specifications'] = json_encode(['specs' => (string)$specs]);
+                    }
+                }
+            }
         }
         if (Schema::hasColumn('marketplace_products', 'original_price')) {
             $updateData['original_price'] = $request->original_price ?? ($request->price * 1.2);
