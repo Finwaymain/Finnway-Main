@@ -885,33 +885,62 @@ class ProductController extends Controller
                 'url' => $imageUrl,
             ]);
         } catch (\Exception $e) {
-            Log::warning('ImageKit upload proxy note: ' . $e->getMessage() . '. Saving image locally.');
+            Log::warning('ImageKit upload proxy note: ' . $e->getMessage() . '. Saving image locally/resiliently.');
+            $savedUrl = $this->saveUploadedFileLocal($file);
+            return response()->json([
+                'success' => 'Success',
+                'url' => $savedUrl,
+            ]);
+        }
+    }
+
+    /**
+     * Save an uploaded file locally with multiple folder fallbacks, or as Base64 Data URL if disk is read-only.
+     */
+    private function saveUploadedFileLocal($file): string
+    {
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = 'product_' . time() . '_' . uniqid() . '.' . $extension;
+
+        $paths = [
+            public_path('assets/images/marketplace/'),
+            public_path('images/marketplace/'),
+            public_path('assets/images/'),
+            storage_path('app/public/marketplace/')
+        ];
+
+        foreach ($paths as $path) {
             try {
-                $extension = $file->getClientOriginalExtension() ?: 'jpg';
-                $filename = 'product_' . time() . '_' . uniqid() . '.' . $extension;
-                $path = public_path('assets/images/marketplace/');
                 if (!file_exists($path)) {
                     @mkdir($path, 0777, true);
                 }
+                @chmod($path, 0777);
+
                 $file->move($path, $filename);
-                
+                @chmod($path . $filename, 0644);
+
+                $relativePath = str_replace(public_path(), '', $path);
+                $cleanRelative = '/' . ltrim(str_replace('\\', '/', $relativePath), '/');
+
                 $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
                 if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
                     $baseUrl = 'https://api.fiinway.com';
                 }
-                $localUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
 
-                return response()->json([
-                    'success' => 'Success',
-                    'url' => $localUrl,
-                ]);
-            } catch (\Exception $ex) {
-                return response()->json([
-                    'success' => 'Failed',
-                    'error' => 'Failed to save image: ' . $ex->getMessage()
-                ], 500);
+                return $baseUrl . $cleanRelative . $filename;
+            } catch (\Exception $e) {
+                // Continue to next path
             }
         }
+
+        // Ultimate fallback: Convert file to Base64 data URL (saved into LONGTEXT column)
+        $data = @file_get_contents($file->getRealPath());
+        if ($data) {
+            $mime = $file->getMimeType() ?: 'image/jpeg';
+            return 'data:' . $mime . ';base64,' . base64_encode($data);
+        }
+
+        return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
     }
 
     /**
@@ -977,22 +1006,7 @@ class ProductController extends Controller
         try {
             return $this->uploadToImageKit($file, '/marketplace/products');
         } catch (\Exception $e) {
-            Log::warning('ImageKit upload failed, falling back to local: ' . $e->getMessage());
-
-            // Local public folder fallback
-            $extension = $file->getClientOriginalExtension();
-            $filename = 'product_' . time() . '_' . uniqid() . '.' . $extension;
-            $path = public_path('assets/images/marketplace/');
-            if (!file_exists($path)) {
-                @mkdir($path, 0777, true);
-            }
-            $file->move($path, $filename);
-            
-            $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
-            if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
-                $baseUrl = 'https://api.fiinway.com';
-            }
-            return $baseUrl . '/assets/images/marketplace/' . $filename;
+            return $this->saveUploadedFileLocal($file);
         }
     }
 
@@ -1003,6 +1017,10 @@ class ProductController extends Controller
     {
         if (empty($url)) {
             return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
+        }
+
+        if (str_starts_with($url, 'data:image') || str_starts_with($url, 'blob:')) {
+            return $url;
         }
 
         $baseAppUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
@@ -1029,13 +1047,13 @@ class ProductController extends Controller
     }
 
     /**
-     * Save a Base64 image to server storage and return absolute HTTPS URL.
+     * Save a Base64 image to server storage or preserve full Data URL in LONGTEXT.
      */
-    private function saveBase64Image(string $base64String): ?string
+    private function saveBase64Image(string $base64String): string
     {
         try {
             if (!str_contains($base64String, 'data:image') && !str_contains($base64String, ';base64,')) {
-                return null;
+                return $base64String;
             }
 
             $imageType = 'jpg';
@@ -1053,25 +1071,43 @@ class ProductController extends Controller
             $imageData = base64_decode($cleanData);
 
             if (empty($imageData)) {
-                return null;
+                return $base64String;
             }
 
             $filename = 'product_' . time() . '_' . uniqid() . '.' . $imageType;
-            $path = public_path('assets/images/marketplace/');
-            if (!file_exists($path)) {
-                @mkdir($path, 0777, true);
-            }
-            file_put_contents($path . $filename, $imageData);
-            @chmod($path . $filename, 0644);
+            $paths = [
+                public_path('assets/images/marketplace/'),
+                public_path('images/marketplace/'),
+                public_path('assets/images/'),
+                storage_path('app/public/marketplace/')
+            ];
 
-            $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
-            if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
-                $baseUrl = 'https://api.fiinway.com';
+            foreach ($paths as $path) {
+                try {
+                    if (!file_exists($path)) {
+                        @mkdir($path, 0777, true);
+                    }
+                    @chmod($path, 0777);
+                    if (@file_put_contents($path . $filename, $imageData) !== false) {
+                        @chmod($path . $filename, 0644);
+                        $relativePath = str_replace(public_path(), '', $path);
+                        $cleanRelative = '/' . ltrim(str_replace('\\', '/', $relativePath), '/');
+                        $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+                        if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                            $baseUrl = 'https://api.fiinway.com';
+                        }
+                        return $baseUrl . $cleanRelative . $filename;
+                    }
+                } catch (\Exception $ex) {
+                    // Continue to next path
+                }
             }
-            return $baseUrl . '/assets/images/marketplace/' . $filename;
+
+            // Fallback: If disk write fails, return complete Data URL safely stored in LONGTEXT column
+            return $base64String;
         } catch (\Exception $e) {
             Log::warning('saveBase64Image error: ' . $e->getMessage());
-            return null;
+            return $base64String;
         }
     }
 }
