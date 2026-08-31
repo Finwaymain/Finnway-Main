@@ -347,6 +347,13 @@ Route::post('/earnings/seed-test-data', [App\Http\Controllers\EarningController:
 Route::get('/earnings/seed-test-data', [App\Http\Controllers\EarningController::class, 'seedSampleData']);
 
 
+################################# Marketplace Admin Management Routes ###########################
+Route::get('/marketplace/admin/orders', [\App\Http\Controllers\AdminMarketplaceOrderController::class, 'index'])->name('admin.marketplace.orders.index');
+Route::post('/marketplace/admin/orders/{id}/release-payout', [\App\Http\Controllers\AdminMarketplaceOrderController::class, 'releasePayout'])->name('admin.marketplace.orders.releasePayout');
+
+Route::get('/marketplace/admin/commission', [\App\Http\Controllers\MarketplaceCommissionController::class, 'index'])->name('admin.marketplace.commission.index');
+Route::post('/marketplace/admin/commission', [\App\Http\Controllers\MarketplaceCommissionController::class, 'update'])->name('admin.marketplace.commission.update');
+
 // Sub-routes redirection to master single-screen dashboard
 Route::get('/earnings/revenue-dashboard', [App\Http\Controllers\EarningController::class, 'revenueDashboard'])->name('earnings.revenue-dashboard');
 Route::get('/earnings/service-commission', [App\Http\Controllers\EarningController::class, 'serviceCommission'])->name('earnings.service-commission');

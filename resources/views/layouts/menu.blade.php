@@ -76,6 +76,20 @@
         </li>
         @endif
 
+        <!-- 3.6. Marketplace Management -->
+        @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('marketplace') || $authUser->isSubAdmin()))
+        <li>
+            <a class="has-arrow waves-effect waves-dark {{ request()->is('marketplace/admin*') ? 'active' : '' }}" href="#" aria-expanded="false">
+                <i class="mdi mdi-shopping text-warning"></i>
+                <span class="hide-menu font-weight-bold">Marketplace</span>
+            </a>
+            <ul aria-expanded="false" class="collapse {{ request()->is('marketplace/admin*') ? 'in' : '' }}">
+                <li><a href="{!! route('admin.marketplace.orders.index') !!}"><i class="mdi mdi-clipboard-text mr-1 text-primary"></i> Marketplace Orders</a></li>
+                <li><a href="{!! route('admin.marketplace.commission.index') !!}"><i class="mdi mdi-percent mr-1 text-success"></i> Marketplace Commission</a></li>
+            </ul>
+        </li>
+        @endif
+
         <!-- 4. Premium Plans -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('premium_plans')))
         <li>

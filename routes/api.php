@@ -404,6 +404,7 @@ Route::post('v1/marketplace/upload-image', [ProductController::class, 'uploadIma
 Route::get('v1/marketplace/image/{filename}', [ProductController::class, 'serveMarketplaceImage'])->where('filename', '.*');
 
 // Marketplace Order Routes
+Route::match(['get', 'post'], 'v1/marketplace/checkout-summary', [MarketplaceOrderController::class, 'checkoutSummary']);
 Route::post('v1/marketplace/orders', [MarketplaceOrderController::class, 'store']);
 Route::get('v1/marketplace/orders/buyer', [MarketplaceOrderController::class, 'buyerOrders']);
 Route::get('v1/marketplace/orders/seller', [MarketplaceOrderController::class, 'sellerOrders']);

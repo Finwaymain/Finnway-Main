@@ -85,7 +85,81 @@ class MarketplaceOrderController extends Controller
     }
 
     /**
-     * Place a new order.
+     * Get checkout summary breakdown with active taxes and commission calculations.
+     */
+    public function checkoutSummary(Request $request)
+    {
+        $items = $request->input('items', []);
+        $subtotal = 0;
+
+        foreach ($items as $item) {
+            $p = MarketplaceProduct::find($item['product_id'] ?? 0);
+            if ($p) {
+                $qty = intval($item['quantity'] ?? 1);
+                $subtotal += floatval($p->price) * $qty;
+            }
+        }
+
+        if ($subtotal <= 0 && $request->has('price')) {
+            $subtotal = floatval($request->input('price')) * intval($request->input('quantity', 1));
+        }
+
+        $deliveryCharge = floatval($request->input('delivery_charge', 0));
+
+        // 1. Fetch active Tax from tj_tax
+        $taxRecord = DB::table('tj_tax')->where('statut', 'yes')->first();
+        $taxName = 'GST';
+        $taxRate = 0;
+        $taxAmount = 0;
+
+        if ($taxRecord) {
+            $taxName = $taxRecord->libelle ?: 'GST';
+            $taxRate = floatval($taxRecord->value);
+            if (strtolower($taxRecord->type ?? '') === 'percentage' || str_contains(strtolower($taxRecord->type ?? ''), 'percent')) {
+                $taxAmount = round(($subtotal * $taxRate) / 100, 2);
+            } else {
+                $taxAmount = round($taxRate, 2);
+            }
+        }
+
+        $totalPayable = round($subtotal + $deliveryCharge + $taxAmount, 2);
+
+        // 2. Fetch active Commission Settings
+        $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
+        $commType = $commSetting->commission_type ?? 'percentage';
+        $commRate = floatval($commSetting->commission_value ?? 5);
+        $adminCommissionAmount = 0;
+
+        if ($commType === 'percentage') {
+            $adminCommissionAmount = round(($subtotal * $commRate) / 100, 2);
+        } else {
+            $adminCommissionAmount = round($commRate, 2);
+        }
+        $sellerPayoutAmount = max(0, round($subtotal - $adminCommissionAmount, 2));
+
+        return response()->json([
+            'success' => 'Success',
+            'data' => [
+                'subtotal'                 => $subtotal,
+                'delivery_charge'          => $deliveryCharge,
+                'tax'                      => [
+                    'name'   => $taxName,
+                    'rate'   => $taxRate,
+                    'amount' => $taxAmount,
+                ],
+                'total_payable'            => $totalPayable,
+                'admin_commission'         => [
+                    'type'   => $commType,
+                    'rate'   => $commRate,
+                    'amount' => $adminCommissionAmount,
+                ],
+                'estimated_seller_payout'  => $sellerPayoutAmount,
+            ]
+        ]);
+    }
+
+    /**
+     * Place a new order with Tax Calculation and Escrow Settlement Hold.
      */
     public function store(Request $request)
     {
@@ -117,8 +191,9 @@ class MarketplaceOrderController extends Controller
         }
 
         $itemsData = $request->input('items');
-        $totalAmount = 0;
+        $subtotal = 0;
         $validatedItems = [];
+        $firstSellerId = null;
 
         // Pre-validate products, stock, and seller
         foreach ($itemsData as $item) {
@@ -152,7 +227,11 @@ class MarketplaceOrderController extends Controller
             }
 
             $itemPrice = floatval($product->price);
-            $totalAmount += $itemPrice * $item['quantity'];
+            $subtotal += $itemPrice * $item['quantity'];
+            if (!$firstSellerId) {
+                $firstSellerId = $product->user_id;
+            }
+
             $validatedItems[] = [
                 'product' => $product,
                 'quantity' => $item['quantity'],
@@ -160,16 +239,49 @@ class MarketplaceOrderController extends Controller
             ];
         }
 
+        $deliveryCharge = floatval($request->input('delivery_charge', 0));
+
+        // 1. Calculate Active Tax from tj_tax
+        $taxRecord = DB::table('tj_tax')->where('statut', 'yes')->first();
+        $taxName = 'GST';
+        $taxRate = 0;
+        $taxAmount = 0;
+
+        if ($taxRecord) {
+            $taxName = $taxRecord->libelle ?: 'GST';
+            $taxRate = floatval($taxRecord->value);
+            if (strtolower($taxRecord->type ?? '') === 'percentage' || str_contains(strtolower($taxRecord->type ?? ''), 'percent')) {
+                $taxAmount = round(($subtotal * $taxRate) / 100, 2);
+            } else {
+                $taxAmount = round($taxRate, 2);
+            }
+        }
+
+        $totalPayable = round($subtotal + $deliveryCharge + $taxAmount, 2);
+
+        // 2. Calculate Admin Commission & Seller Net Payout
+        $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
+        $commType = $commSetting->commission_type ?? 'percentage';
+        $commRate = floatval($commSetting->commission_value ?? 5);
+        $adminCommissionAmount = 0;
+
+        if ($commType === 'percentage') {
+            $adminCommissionAmount = round(($subtotal * $commRate) / 100, 2);
+        } else {
+            $adminCommissionAmount = round($commRate, 2);
+        }
+        $sellerPayoutAmount = max(0, round($subtotal - $adminCommissionAmount, 2));
+
         $paymentMethod = strtolower($request->input('payment_method', 'wallet'));
         $txnId = $request->input('txn_id', 'TXN_' . time() . '_' . rand(1000, 9999));
         $buyerBalance = floatval($buyer->amount ?? 0);
 
         // Check wallet balance & M-PIN ONLY if payment method is wallet
         if ($paymentMethod === 'wallet') {
-            if ($buyerBalance < $totalAmount) {
+            if ($buyerBalance < $totalPayable) {
                 return response()->json([
                     'success' => 'Failed',
-                    'error' => 'Insufficient wallet balance. Required: ₹' . number_format($totalAmount, 2) . ', Available: ₹' . number_format($buyerBalance, 2)
+                    'error' => 'Insufficient wallet balance. Required: ₹' . number_format($totalPayable, 2) . ', Available: ₹' . number_format($buyerBalance, 2)
                 ], 422);
             }
 
@@ -208,32 +320,41 @@ class MarketplaceOrderController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Deduct buyer wallet if wallet payment
+            // 1. Deduct buyer wallet if wallet payment (Includes Tax & Delivery)
             if ($paymentMethod === 'wallet') {
-                $buyer->amount = max(0, $buyerBalance - $totalAmount);
+                $buyer->amount = max(0, $buyerBalance - $totalPayable);
                 $buyer->save();
             }
 
-            // 2. Create order with full metadata
+            // 2. Create order with full metadata, taxes, and ESCROW payout status
             $order = MarketplaceOrder::create([
-                'user_id'          => $userId,
-                'total_amount'     => $totalAmount,
-                'subtotal'         => $totalAmount,
-                'delivery_charge'  => floatval($request->input('delivery_charge', 0)),
-                'payment_method'   => $paymentMethod === 'wallet' ? 'Fiinway Wallet' : ucfirst($paymentMethod),
-                'payment_status'   => 'success',
-                'txn_id'           => $txnId,
-                'delivery_address' => $request->input('delivery_address'),
-                'phone'            => $request->input('phone'),
-                'contact_name'     => $request->input('contact_name', trim(($buyer->prenom ?? '') . ' ' . ($buyer->nom ?? ''))),
-                'city'             => $request->input('city', ''),
-                'pincode'          => $request->input('pincode', ''),
-                'status'           => 'placed',
-                'delivery_days'    => 3,
-                'status_notes'     => 'Order placed successfully.',
+                'user_id'                 => $userId,
+                'seller_id'               => $firstSellerId,
+                'total_amount'            => $totalPayable,
+                'subtotal'                => $subtotal,
+                'delivery_charge'         => $deliveryCharge,
+                'tax_name'                => $taxName,
+                'tax_rate'                => $taxRate,
+                'tax_amount'              => $taxAmount,
+                'payment_method'          => $paymentMethod === 'wallet' ? 'Fiinway Wallet' : ucfirst($paymentMethod),
+                'payment_status'          => 'success',
+                'txn_id'                  => $txnId,
+                'delivery_address'        => $request->input('delivery_address'),
+                'phone'                   => $request->input('phone'),
+                'contact_name'            => $request->input('contact_name', trim(($buyer->prenom ?? '') . ' ' . ($buyer->nom ?? ''))),
+                'city'                    => $request->input('city', ''),
+                'pincode'                 => $request->input('pincode', ''),
+                'status'                  => 'placed',
+                'delivery_days'           => 3,
+                'status_notes'            => 'Order placed successfully. Awaiting seller dispatch & admin confirmation.',
+                'admin_commission_type'   => $commType,
+                'admin_commission_rate'   => $commRate,
+                'admin_commission_amount' => $adminCommissionAmount,
+                'seller_payout_amount'    => $sellerPayoutAmount,
+                'payout_status'           => 'pending', // ESCROW: Seller wallet will be credited after admin confirmation!
             ]);
 
-            // 3. Process items
+            // 3. Process items & reduce stock
             $date = date('Y-m-d H:i:s');
             $sellersToNotify = [];
 
@@ -244,10 +365,10 @@ class MarketplaceOrderController extends Controller
 
                 // Create order item
                 MarketplaceOrderItem::create([
-                    'order_id' => $order->id,
+                    'order_id'   => $order->id,
                     'product_id' => $product->id,
-                    'quantity' => $qty,
-                    'price' => $price,
+                    'quantity'   => $qty,
+                    'price'      => $price,
                 ]);
 
                 // Update product stock
@@ -257,25 +378,9 @@ class MarketplaceOrderController extends Controller
                 }
                 $product->save();
 
-                // Credit seller wallet
+                // Seller record to notify (NO immediate wallet credit — funds held in escrow)
                 $seller = UserApp::find($product->user_id) ?? \App\Models\Driver::find($product->user_id);
                 if ($seller) {
-                    $sellerBalance = floatval($seller->amount ?? 0);
-                    $seller->amount = $sellerBalance + ($price * $qty);
-                    $seller->save();
-
-                    // Transaction record for seller (Credit)
-                    $sellerType = ($seller instanceof \App\Models\Driver) ? 'driver' : 'customer';
-                    $this->recordWalletTransaction(
-                        $seller->id,
-                        $sellerType,
-                        $price * $qty,
-                        'credit',
-                        "Marketplace Sale: Sold '{$product->title}' (x{$qty}) - Order #{$order->id}",
-                        $txnId
-                    );
-
-                    // Queue push notification & database notification for seller
                     $sellersToNotify[$seller->id][] = [
                         'seller' => $seller,
                         'product_title' => $product->title,
@@ -284,37 +389,38 @@ class MarketplaceOrderController extends Controller
                 }
             }
 
-            // Transaction record for buyer (Deduction)
+            // 4. Transaction record for buyer (Deduction)
             if ($paymentMethod === 'wallet') {
                 $buyerType = ($buyer instanceof \App\Models\Driver) ? 'driver' : 'customer';
                 $productSummary = implode(', ', array_map(fn($v) => $v['product']->title, $validatedItems));
+                $taxNote = $taxAmount > 0 ? " (Incl. {$taxName} ₹{$taxAmount})" : "";
                 $this->recordWalletTransaction(
                     $userId,
                     $buyerType,
-                    $totalAmount,
+                    $totalPayable,
                     'debit',
-                    "Marketplace Purchase: Purchased '{$productSummary}' - Order #{$order->id}",
+                    "Marketplace Purchase: Purchased '{$productSummary}'{$taxNote} - Order #{$order->id}",
                     $txnId
                 );
             }
 
             DB::commit();
 
-            // Trigger dynamic referral cashback reward based on admin rules
+            // Trigger dynamic referral cashback reward
             try {
                 $buyerType = ($buyer instanceof \App\Models\Driver) ? 'driver' : 'customer';
                 \App\Services\ReferralRewardService::processReward(
                     $userId,
                     $buyerType,
                     'marketplace_order',
-                    $totalAmount,
+                    $totalPayable,
                     "Marketplace Order #{$order->id}"
                 );
             } catch (\Exception $ex) {
                 \Illuminate\Support\Facades\Log::error("Marketplace referral reward error: " . $ex->getMessage());
             }
 
-            // 4. Send Notifications to Sellers
+            // 5. Send Notifications to Sellers
             foreach ($sellersToNotify as $sellerId => $notifs) {
                 $seller = $notifs[0]['seller'];
                 $productTitles = [];
@@ -328,7 +434,7 @@ class MarketplaceOrderController extends Controller
                     'to_id' => $sellerId,
                     'from_id' => $userId,
                     'titre' => 'New Order Received',
-                    'message' => "You have received a new order for {$productsStr} from {$buyer->prenom} {$buyer->nom}.",
+                    'message' => "New order for {$productsStr} from {$buyer->prenom} {$buyer->nom}. Payout of ₹" . number_format($sellerPayoutAmount, 2) . " will be credited upon delivery and admin confirmation.",
                     'statut' => 'unread',
                     'type' => 'marketplace',
                     'creer' => $date,
@@ -340,7 +446,7 @@ class MarketplaceOrderController extends Controller
                     try {
                         $fcmMessage = [
                             'title' => 'New Order Received',
-                            'body' => "You have received a new order for {$productsStr}!",
+                            'body' => "You have received a new order for {$productsStr}! Payout will be released upon fulfillment.",
                             'tag' => 'marketplace_order',
                             'order_id' => (string)$order->id,
                         ];
