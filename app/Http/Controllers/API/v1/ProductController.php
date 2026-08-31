@@ -416,27 +416,11 @@ class ProductController extends Controller
                 if ($request->has('image_urls') && !empty($request->image_urls)) {
                     $imageUrls = $request->image_urls;
                     foreach ($imageUrls as $index => $imageUrl) {
-                        $finalUrl = $imageUrl;
-                        if (is_string($imageUrl) && strpos($imageUrl, 'data:image') === 0) {
-                            try {
-                                preg_match('/data:image\/(?<type>.*?);base64,(?<data>.*)/', $imageUrl, $matches);
-                                $imageType = $matches['type'] ?? 'jpg';
-                                $imageData = base64_decode($matches['data'] ?? '');
-                                if (!empty($imageData)) {
-                                    $filename = 'product_' . time() . '_' . uniqid() . '.' . $imageType;
-                                    $path = public_path('assets/images/marketplace/');
-                                    if (!file_exists($path)) {
-                                        @mkdir($path, 0777, true);
-                                    }
-                                    file_put_contents($path . $filename, $imageData);
-                                    $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
-                                    if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
-                                        $baseUrl = 'https://api.fiinway.com';
-                                    }
-                                    $finalUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
-                                }
-                            } catch (\Exception $e) {
-                                Log::warning('Base64 image conversion error in store: ' . $e->getMessage());
+                        $finalUrl = (string) $imageUrl;
+                        if (is_string($imageUrl) && (strpos($imageUrl, 'data:image') === 0 || str_contains($imageUrl, ';base64,'))) {
+                            $savedLocal = $this->saveBase64Image($imageUrl);
+                            if ($savedLocal) {
+                                $finalUrl = $savedLocal;
                             }
                         }
 
@@ -573,7 +557,14 @@ class ProductController extends Controller
         if ($request->has('image_urls') && !empty($request->image_urls) && is_array($request->image_urls)) {
             MarketplaceProductImage::where('product_id', $product->id)->delete();
             foreach ($request->image_urls as $index => $imageUrl) {
-                $finalUrl = $this->normalizeMarketplaceImageUrl((string) $imageUrl);
+                $finalUrl = (string) $imageUrl;
+                if (is_string($imageUrl) && (strpos($imageUrl, 'data:image') === 0 || str_contains($imageUrl, ';base64,'))) {
+                    $savedLocal = $this->saveBase64Image($imageUrl);
+                    if ($savedLocal) {
+                        $finalUrl = $savedLocal;
+                    }
+                }
+                $finalUrl = $this->normalizeMarketplaceImageUrl((string) $finalUrl);
                 MarketplaceProductImage::create([
                     'product_id' => $product->id,
                     'image_path' => $finalUrl,
@@ -868,33 +859,13 @@ class ProductController extends Controller
 
         // 1. Handle Base64 string upload if provided
         $base64Input = $request->input('image_base64') ?? ($request->isJson() ? $request->input('image') : null);
-        if (!empty($base64Input) && is_string($base64Input) && strpos($base64Input, 'data:image') === 0) {
-            try {
-                preg_match('/data:image\/(?<type>.*?);base64,(?<data>.*)/', $base64Input, $matches);
-                $imageType = $matches['type'] ?? 'jpg';
-                $imageData = base64_decode($matches['data'] ?? '');
-
-                if (!empty($imageData)) {
-                    $filename = 'product_' . time() . '_' . uniqid() . '.' . $imageType;
-                    $path = public_path('assets/images/marketplace/');
-                    if (!file_exists($path)) {
-                        @mkdir($path, 0777, true);
-                    }
-                    file_put_contents($path . $filename, $imageData);
-                    
-                    $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
-                    if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
-                        $baseUrl = 'https://api.fiinway.com';
-                    }
-                    $localUrl = $baseUrl . '/assets/images/marketplace/' . $filename;
-
-                    return response()->json([
-                        'success' => 'Success',
-                        'url' => $localUrl,
-                    ]);
-                }
-            } catch (\Exception $e) {
-                Log::warning('Base64 image upload error: ' . $e->getMessage());
+        if (!empty($base64Input) && is_string($base64Input) && (strpos($base64Input, 'data:image') === 0 || str_contains($base64Input, ';base64,'))) {
+            $savedUrl = $this->saveBase64Image($base64Input);
+            if ($savedUrl) {
+                return response()->json([
+                    'success' => 'Success',
+                    'url' => $savedUrl,
+                ]);
             }
         }
 
@@ -1055,6 +1026,53 @@ class ProductController extends Controller
         }
 
         return $url;
+    }
+
+    /**
+     * Save a Base64 image to server storage and return absolute HTTPS URL.
+     */
+    private function saveBase64Image(string $base64String): ?string
+    {
+        try {
+            if (!str_contains($base64String, 'data:image') && !str_contains($base64String, ';base64,')) {
+                return null;
+            }
+
+            $imageType = 'jpg';
+            if (preg_match('/data:image\/(?<type>[a-zA-Z0-9\+\-\.]+);base64,/i', $base64String, $matches)) {
+                $rawType = strtolower($matches['type']);
+                if ($rawType === 'jpeg' || $rawType === 'jpg') $imageType = 'jpg';
+                elseif ($rawType === 'png') $imageType = 'png';
+                elseif ($rawType === 'webp') $imageType = 'webp';
+                elseif ($rawType === 'gif') $imageType = 'gif';
+            }
+
+            $pos = strpos($base64String, ',');
+            $rawPayload = ($pos !== false) ? substr($base64String, $pos + 1) : $base64String;
+            $cleanData = preg_replace('/\s+/', '', $rawPayload);
+            $imageData = base64_decode($cleanData);
+
+            if (empty($imageData)) {
+                return null;
+            }
+
+            $filename = 'product_' . time() . '_' . uniqid() . '.' . $imageType;
+            $path = public_path('assets/images/marketplace/');
+            if (!file_exists($path)) {
+                @mkdir($path, 0777, true);
+            }
+            file_put_contents($path . $filename, $imageData);
+            @chmod($path . $filename, 0644);
+
+            $baseUrl = rtrim(config('app.url') ?: 'https://api.fiinway.com', '/');
+            if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
+                $baseUrl = 'https://api.fiinway.com';
+            }
+            return $baseUrl . '/assets/images/marketplace/' . $filename;
+        } catch (\Exception $e) {
+            Log::warning('saveBase64Image error: ' . $e->getMessage());
+            return null;
+        }
     }
 }
 
