@@ -959,7 +959,7 @@ class ProductController extends Controller
             if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
                 $baseUrl = 'https://api.fiinway.com';
             }
-            return $baseUrl . '/assets/images/marketplace/' . $filename;
+            return $baseUrl . '/api/v1/marketplace/image/' . $filename;
         }
 
         // Ultimate fallback: Convert file to Base64 data URL (saved into LONGTEXT column)
@@ -1057,6 +1057,14 @@ class ProductController extends Controller
             $baseAppUrl = 'https://api.fiinway.com';
         }
 
+        if (str_contains($url, '/marketplace/product_') || str_contains($url, '/var/www/') || str_contains($url, '/assets/images/marketplace/product_') || str_contains($url, 'product_')) {
+            $parsed = parse_url($url, PHP_URL_PATH);
+            $filename = basename($parsed ?: $url);
+            if (str_starts_with($filename, 'product_')) {
+                return $baseAppUrl . '/api/v1/marketplace/image/' . $filename;
+            }
+        }
+
         if (str_starts_with($url, 'http://localhost') || str_starts_with($url, 'https://localhost') || str_starts_with($url, 'http://127.0.0.1') || str_starts_with($url, 'https://127.0.0.1')) {
             $parsed = parse_url($url);
             $path = $parsed['path'] ?? '';
@@ -1123,7 +1131,7 @@ class ProductController extends Controller
                         if (str_contains($baseUrl, 'localhost') || str_contains($baseUrl, '127.0.0.1')) {
                             $baseUrl = 'https://api.fiinway.com';
                         }
-                        return $baseUrl . '/assets/images/marketplace/' . $filename;
+                        return $baseUrl . '/api/v1/marketplace/image/' . $filename;
                     }
                 } catch (\Exception $ex) {
                     // Continue to next path
