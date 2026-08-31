@@ -37,10 +37,19 @@ class MarketplaceProductImage extends Model
             $baseAppUrl = 'https://api.fiinway.com';
         }
 
+        // Fix Linux server absolute paths saved previously
+        if (str_contains($value, '/var/www/') || str_contains($value, 'storage/app/public/marketplace')) {
+            $filename = basename($value);
+            return $baseAppUrl . '/assets/images/marketplace/' . $filename;
+        }
+
         // Fix localhost or 127.0.0.1 image URLs saved previously
         if (str_starts_with($value, 'http://localhost') || str_starts_with($value, 'https://localhost') || str_starts_with($value, 'http://127.0.0.1') || str_starts_with($value, 'https://127.0.0.1')) {
             $parsed = parse_url($value);
             $path = $parsed['path'] ?? '';
+            if (str_contains($path, '/var/www/')) {
+                $path = '/assets/images/marketplace/' . basename($path);
+            }
             return $baseAppUrl . $path;
         }
 
