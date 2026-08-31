@@ -773,45 +773,91 @@ class MarketplaceOrderController extends Controller
 
         $order->save();
 
-        // Notify Buyer
-        $buyer = UserApp::find($order->user_id);
-        if ($buyer) {
-            $date = date('Y-m-d H:i:s');
-            $statusLabel = ucfirst(str_replace('_', ' ', $status));
-            $notesPart = $order->status_notes ? " (Notes: {$order->status_notes})" : "";
-            $daysPart = $order->delivery_days ? " within {$order->delivery_days} days" : "";
+        // 5. Notify Buyer on Stage / Status Change
+        $buyer = UserApp::find($order->user_id) ?? \App\Models\Driver::find($order->user_id);
+        if (!$buyer && !empty($order->phone)) {
+            $clean = preg_replace('/[^0-9]/', '', $order->phone);
+            if (strlen($clean) >= 10) {
+                $last10 = substr($clean, -10);
+                $buyer = UserApp::where('phone', 'like', "%{$last10}%")->first() ?? \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+            }
+        }
 
+        // Get product titles for clear notification
+        $productTitles = [];
+        foreach ($order->items as $it) {
+            if ($it->product) {
+                $productTitles[] = "'{$it->product->title}'";
+            }
+        }
+        $productsStr = !empty($productTitles) ? implode(', ', $productTitles) : 'your item';
+
+        $statusTitles = [
+            'placed'           => 'Placed',
+            'processing'       => 'In Processing',
+            'dispatched'       => 'Dispatched',
+            'shipped'          => 'Shipped',
+            'out_for_delivery' => 'Out for Delivery',
+            'delivered'        => 'Delivered',
+            'completed'        => 'Completed',
+            'cancelled'        => 'Cancelled',
+        ];
+
+        $statusLabel = $statusTitles[$status] ?? ucfirst(str_replace('_', ' ', $status));
+        $date = date('Y-m-d H:i:s');
+
+        $shippingInfo = '';
+        if (!empty($order->courier_name)) {
+            $shippingInfo .= " Courier: {$order->courier_name}.";
+        }
+        if (!empty($order->tracking_id)) {
+            $shippingInfo .= " Tracking ID: {$order->tracking_id}.";
+        }
+        if (!empty($order->delivery_days)) {
+            $shippingInfo .= " Estimated delivery: {$order->delivery_days} days.";
+        }
+        if (!empty($order->status_notes)) {
+            $shippingInfo .= " Note: {$order->status_notes}";
+        }
+
+        $notificationMessage = "Your order #{$order->id} for {$productsStr} is now {$statusLabel}.{$shippingInfo}";
+
+        if ($buyer) {
+            // Save in-app notification to tj_notification table
             DB::table('tj_notification')->insert([
-                'to_id' => $buyer->id,
-                'from_id' => $userId,
-                'titre' => 'Order Status Updated',
-                'message' => "Your order status has been updated to {$statusLabel}{$daysPart}{$notesPart}.",
-                'statut' => 'unread',
-                'type' => 'marketplace',
-                'creer' => $date,
+                'to_id'    => $buyer->id,
+                'from_id'  => $userId,
+                'titre'    => "Order #{$order->id}: {$statusLabel}",
+                'message'  => $notificationMessage,
+                'statut'   => 'unread',
+                'type'     => 'marketplace',
+                'creer'    => $date,
                 'modifier' => $date,
             ]);
 
+            // Send Real-Time Firebase Push Notification
             if (!empty($buyer->fcm_id)) {
                 try {
                     $fcmMessage = [
-                        'title' => 'Order Status Updated',
-                        'body' => "Your order status is now {$statusLabel}{$daysPart}!",
-                        'tag' => 'marketplace_order_status',
-                        'status' => $status,
-                        'order_id' => (string)$order->id,
+                        'title'        => "Order #{$order->id}: {$statusLabel}",
+                        'body'         => "Your order for {$productsStr} is now {$statusLabel}!{$shippingInfo}",
+                        'tag'          => 'marketplace_order_status',
+                        'status'       => $status,
+                        'order_id'     => (string)$order->id,
+                        'courier_name' => (string)($order->courier_name ?? ''),
+                        'tracking_id'  => (string)($order->tracking_id ?? ''),
                     ];
                     GcmController::sendNotification($buyer->fcm_id, $fcmMessage);
                 } catch (\Exception $e) {
-                    // ignore GCM errors
+                    \Illuminate\Support\Facades\Log::warning('FCM Buyer Notification error: ' . $e->getMessage());
                 }
             }
         }
 
         return response()->json([
             'success' => 'Success',
-            'message' => 'Order status updated successfully',
-            'data' => MarketplaceOrder::with(['items.product.images', 'buyer'])->find($order->id)
+            'message' => "Order status updated to '{$statusLabel}' and buyer has been notified.",
+            'data'    => MarketplaceOrder::with(['items.product.images', 'buyer'])->find($order->id)
         ]);
     }
 }
