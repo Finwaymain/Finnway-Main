@@ -445,12 +445,23 @@ class MarketplaceOrderController extends Controller
 
             $firstSellerType = $validatedItems[0]['product']->user_type ?? 'customer';
 
-            // 2. Create order with full metadata, taxes, and ESCROW payout status
+            // Resolve seller phone number
+            $firstSeller = ($firstSellerType === 'driver') ? \App\Models\Driver::find($firstSellerId) : UserApp::find($firstSellerId);
+            if (!$firstSeller) {
+                $firstSeller = UserApp::find($firstSellerId) ?? \App\Models\Driver::find($firstSellerId);
+            }
+            $sellerPhone = $firstSeller->phone ?? '';
+
+            $buyerPhone = $request->input('phone') ?? ($buyer->phone ?? '');
+
+            // 2. Create order with full metadata, taxes, unique Purchasing ID & Order Number
             $order = MarketplaceOrder::create([
                 'user_id'                 => $userId,
                 'buyer_type'              => $buyerType,
                 'seller_id'               => $firstSellerId,
                 'seller_type'             => $firstSellerType,
+                'buyer_phone'             => $buyerPhone,
+                'seller_phone'            => $sellerPhone,
                 'total_amount'            => $totalPayable,
                 'subtotal'                => $subtotal,
                 'delivery_charge'         => $deliveryCharge,
@@ -461,7 +472,7 @@ class MarketplaceOrderController extends Controller
                 'payment_status'          => 'success',
                 'txn_id'                  => $txnId,
                 'delivery_address'        => $request->input('delivery_address'),
-                'phone'                   => $request->input('phone'),
+                'phone'                   => $buyerPhone,
                 'contact_name'            => $request->input('contact_name', trim(($buyer->prenom ?? '') . ' ' . ($buyer->nom ?? ''))),
                 'city'                    => $request->input('city', ''),
                 'pincode'                 => $request->input('pincode', ''),
@@ -474,6 +485,13 @@ class MarketplaceOrderController extends Controller
                 'seller_payout_amount'    => $sellerPayoutAmount,
                 'payout_status'           => 'pending', // ESCROW: Seller wallet will be credited after admin confirmation!
             ]);
+
+            // Assign standard unique Order Number & Purchase Tracking ID
+            $uniqueOrderNum = 'FW-ORD-' . str_pad($order->id, 5, '0', STR_PAD_LEFT);
+            $uniquePurchaseId = 'FWMP-' . date('Ymd') . '-' . str_pad($order->id, 4, '0', STR_PAD_LEFT);
+            $order->order_number = $uniqueOrderNum;
+            $order->purchase_id  = $uniquePurchaseId;
+            $order->save();
 
             // 3. Process items & reduce stock
             $date = date('Y-m-d H:i:s');
@@ -499,7 +517,7 @@ class MarketplaceOrderController extends Controller
                 }
                 $product->save();
 
-                // Seller record to notify (resolving correct seller type)
+                // Seller record to notify (resolving accurately by phone & user record)
                 $sellerType = $product->user_type ?? 'customer';
                 $seller = ($sellerType === 'driver') ? \App\Models\Driver::find($product->user_id) : UserApp::find($product->user_id);
                 if (!$seller) {
@@ -525,7 +543,7 @@ class MarketplaceOrderController extends Controller
                     $buyerType,
                     $totalPayable,
                     'debit',
-                    "Marketplace Purchase: Purchased '{$productSummary}'{$taxNote} - Order #{$order->id}",
+                    "Marketplace Purchase: Purchased '{$productSummary}'{$taxNote} - {$order->order_number}",
                     $txnId
                 );
             }
@@ -540,13 +558,13 @@ class MarketplaceOrderController extends Controller
                     $buyerType,
                     'marketplace_order',
                     $totalPayable,
-                    "Marketplace Order #{$order->id}"
+                    "Marketplace Order {$order->order_number}"
                 );
             } catch (\Exception $ex) {
                 \Illuminate\Support\Facades\Log::error("Marketplace referral reward error: " . $ex->getMessage());
             }
 
-            // 5. Send Notifications to Sellers
+            // 5. Send Notifications to Sellers (Targeted via phone & user model)
             foreach ($sellersToNotify as $sellerId => $notifs) {
                 $seller = $notifs[0]['seller'];
                 $productTitles = [];
@@ -557,10 +575,10 @@ class MarketplaceOrderController extends Controller
 
                 // Save to database notifications
                 DB::table('tj_notification')->insert([
-                    'to_id' => $sellerId,
+                    'to_id' => $seller->id,
                     'from_id' => $userId,
-                    'titre' => 'New Order Received',
-                    'message' => "New order for {$productsStr} from {$buyer->prenom} {$buyer->nom}. Payout of ₹" . number_format($sellerPayoutAmount, 2) . " will be credited upon delivery and admin confirmation.",
+                    'titre' => "New Order {$order->order_number}",
+                    'message' => "New order {$order->order_number} (Purchase ID: {$order->purchase_id}) for {$productsStr} from {$buyer->prenom} {$buyer->nom} (Phone: {$order->buyer_phone}). Payout: ₹" . number_format($sellerPayoutAmount, 2),
                     'statut' => 'unread',
                     'type' => 'marketplace',
                     'creer' => $date,
@@ -571,10 +589,12 @@ class MarketplaceOrderController extends Controller
                 if (!empty($seller->fcm_id)) {
                     try {
                         $fcmMessage = [
-                            'title' => 'New Order Received',
-                            'body' => "You have received a new order for {$productsStr}! Payout will be released upon fulfillment.",
+                            'title' => "New Order {$order->order_number}",
+                            'body' => "You received order {$order->order_number} for {$productsStr}! Payout will be released upon fulfillment.",
                             'tag' => 'marketplace_order',
                             'order_id' => (string)$order->id,
+                            'order_number' => (string)$order->order_number,
+                            'purchase_id' => (string)$order->purchase_id,
                         ];
                         GcmController::sendNotification($seller->fcm_id, $fcmMessage);
                     } catch (\Exception $e) {
@@ -782,19 +802,24 @@ class MarketplaceOrderController extends Controller
 
         $order->save();
 
-        // 5. Notify Buyer on Stage / Status Change
-        $buyerType = $order->buyer_type ?? 'customer';
-        $buyer = ($buyerType === 'driver') ? \App\Models\Driver::find($order->user_id) : UserApp::find($order->user_id);
-        if (!$buyer) {
-            $buyer = UserApp::find($order->user_id) ?? \App\Models\Driver::find($order->user_id);
-        }
-        if (!$buyer && !empty($order->phone)) {
-            $clean = preg_replace('/[^0-9]/', '', $order->phone);
+        // 5. Notify Buyer on Stage / Status Change (Targeted strictly via unique phone number)
+        $buyerPhone = $order->buyer_phone ?: $order->phone;
+        $buyer = null;
+        if (!empty($buyerPhone)) {
+            $clean = preg_replace('/[^0-9]/', '', $buyerPhone);
             if (strlen($clean) >= 10) {
                 $last10 = substr($clean, -10);
-                $buyer = ($buyerType === 'driver')
-                    ? (\App\Models\Driver::where('phone', 'like', "%{$last10}%")->first() ?? UserApp::where('phone', 'like', "%{$last10}%")->first())
-                    : (UserApp::where('phone', 'like', "%{$last10}%")->first() ?? \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first());
+                if ($order->buyer_type === 'driver') {
+                    $buyer = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first() ?? UserApp::where('phone', 'like', "%{$last10}%")->first();
+                } else {
+                    $buyer = UserApp::where('phone', 'like', "%{$last10}%")->first() ?? \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                }
+            }
+        }
+        if (!$buyer) {
+            $buyer = ($order->buyer_type === 'driver') ? \App\Models\Driver::find($order->user_id) : UserApp::find($order->user_id);
+            if (!$buyer) {
+                $buyer = UserApp::find($order->user_id) ?? \App\Models\Driver::find($order->user_id);
             }
         }
 
@@ -835,14 +860,17 @@ class MarketplaceOrderController extends Controller
             $shippingInfo .= " Note: {$order->status_notes}";
         }
 
-        $notificationMessage = "Your order #{$order->id} for {$productsStr} is now {$statusLabel}.{$shippingInfo}";
+        $orderDisplayNum = $order->order_number ?: ('FW-ORD-' . str_pad($order->id, 5, '0', STR_PAD_LEFT));
+        $purchaseDisplayId = $order->purchase_id ?: ('FWMP-' . date('Ymd') . '-' . str_pad($order->id, 4, '0', STR_PAD_LEFT));
+
+        $notificationMessage = "Your order {$orderDisplayNum} (Purchase ID: {$purchaseDisplayId}) for {$productsStr} is now {$statusLabel}.{$shippingInfo}";
 
         if ($buyer) {
             // Save in-app notification to tj_notification table
             DB::table('tj_notification')->insert([
                 'to_id'    => $buyer->id,
                 'from_id'  => $userId,
-                'titre'    => "Order #{$order->id}: {$statusLabel}",
+                'titre'    => "Order {$orderDisplayNum}: {$statusLabel}",
                 'message'  => $notificationMessage,
                 'statut'   => 'unread',
                 'type'     => 'marketplace',
@@ -854,11 +882,14 @@ class MarketplaceOrderController extends Controller
             if (!empty($buyer->fcm_id)) {
                 try {
                     $fcmMessage = [
-                        'title'        => "Order #{$order->id}: {$statusLabel}",
+                        'title'        => "Order {$orderDisplayNum}: {$statusLabel}",
                         'body'         => "Your order for {$productsStr} is now {$statusLabel}!{$shippingInfo}",
                         'tag'          => 'marketplace_order_status',
                         'status'       => $status,
                         'order_id'     => (string)$order->id,
+                        'order_number' => (string)$orderDisplayNum,
+                        'purchase_id'  => (string)$purchaseDisplayId,
+                        'phone'        => (string)($order->buyer_phone ?: $order->phone),
                         'courier_name' => (string)($order->courier_name ?? ''),
                         'tracking_id'  => (string)($order->tracking_id ?? ''),
                     ];
@@ -873,6 +904,46 @@ class MarketplaceOrderController extends Controller
             'success' => 'Success',
             'message' => "Order status updated to '{$statusLabel}' and buyer has been notified.",
             'data'    => MarketplaceOrder::with(['items.product.images', 'buyer'])->find($order->id)
+        ]);
+    }
+
+    /**
+     * Track Order by Order Number, Purchasing ID, or Order ID.
+     */
+    public function trackOrder(Request $request, $identifier)
+    {
+        $order = MarketplaceOrder::where('order_number', $identifier)
+            ->orWhere('purchase_id', $identifier)
+            ->orWhere('id', $identifier)
+            ->with(['items.product.images', 'buyer'])
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Order not found for tracking identifier: ' . $identifier
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => 'Success',
+            'data' => [
+                'order_number'     => $order->order_number,
+                'purchase_id'      => $order->purchase_id,
+                'order_id'         => $order->id,
+                'status'           => $order->status,
+                'status_label'     => ucfirst(str_replace('_', ' ', $order->status)),
+                'status_notes'     => $order->status_notes,
+                'courier_name'     => $order->courier_name,
+                'tracking_id'      => $order->tracking_id,
+                'delivery_days'    => $order->delivery_days,
+                'delivery_address' => $order->delivery_address,
+                'buyer_phone'      => $order->buyer_phone ?: $order->phone,
+                'contact_name'     => $order->contact_name,
+                'total_amount'     => $order->total_amount,
+                'created_at'       => $order->created_at,
+                'items'            => $order->items,
+            ]
         ]);
     }
 }

@@ -408,6 +408,7 @@ Route::match(['get', 'post'], 'v1/marketplace/checkout-summary', [MarketplaceOrd
 Route::post('v1/marketplace/orders', [MarketplaceOrderController::class, 'store']);
 Route::get('v1/marketplace/orders/buyer', [MarketplaceOrderController::class, 'buyerOrders']);
 Route::get('v1/marketplace/orders/seller', [MarketplaceOrderController::class, 'sellerOrders']);
+Route::get('v1/marketplace/orders/track/{identifier}', [MarketplaceOrderController::class, 'trackOrder']);
 Route::get('v1/marketplace/orders/{id}', [MarketplaceOrderController::class, 'show']);
 Route::post('v1/marketplace/orders/{id}/status', [MarketplaceOrderController::class, 'updateStatus']);
 
