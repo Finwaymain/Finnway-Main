@@ -65,7 +65,10 @@ class AdminMarketplaceOrderController extends Controller
 
         $orders = $query->paginate(15)->appends($request->all());
 
-        // Attach resolved seller info for each item / order
+        $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
+        $defaultCommRate = floatval($commSetting->commission_value ?? 5);
+
+        // Attach resolved seller info and compute commission for each order
         foreach ($orders as $order) {
             $firstItem = $order->items->first();
             $sellerId = $order->seller_id ?? ($firstItem && $firstItem->product ? $firstItem->product->user_id : null);
@@ -74,6 +77,16 @@ class AdminMarketplaceOrderController extends Controller
                 $seller = UserApp::find($sellerId) ?? Driver::find($sellerId);
             }
             $order->resolved_seller = $seller;
+
+            // Auto-compute commission & payout if 0 for legacy orders
+            $sub = floatval($order->subtotal ?: $order->total_amount);
+            if ($order->seller_payout_amount <= 0 && $sub > 0) {
+                $cRate = $order->admin_commission_rate > 0 ? $order->admin_commission_rate : $defaultCommRate;
+                $cAmount = round(($sub * $cRate) / 100, 2);
+                $order->admin_commission_rate = $cRate;
+                $order->admin_commission_amount = $cAmount;
+                $order->seller_payout_amount = max(0, round($sub - $cAmount, 2));
+            }
         }
 
         // Summary Statistics for Stage Filter Badges
