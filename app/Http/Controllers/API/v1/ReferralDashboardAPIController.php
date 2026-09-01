@@ -418,24 +418,26 @@ class ReferralDashboardAPIController extends Controller
                 }
             }
 
-            // Status and Frozen/Unlocked Cashback
-            $isFrozen = !$isPaid;
-            $frozenCashback = $isFrozen ? $ruleRewardVal : 0.0;
-            $unlockedCashback = $earnedForThisUser;
+            // Status and Pending/Credited Cashback
+            $isPending = !$isPaid;
+            $pendingCashback = $isPending ? $ruleRewardVal : 0.0;
+            $earnedCashback = $isPaid ? ($earnedForThisUser > 0 ? $earnedForThisUser : $ruleRewardVal) : 0.0;
+            $displayRewardAmount = $isPaid ? $earnedCashback : $ruleRewardVal;
 
             $conditionNote = $isPaid 
                 ? 'Reward Unlocked & Credited to Wallet' 
-                : "Cashback ₹{$ruleRewardVal} Frozen. Unlocks when referee completes {$ruleMinSrv} services or ₹" . number_format($ruleMinAmt, 0) . " spend (Progress: {$completedCount}/{$ruleMinSrv} services, ₹" . number_format($totalSpend, 2) . "/₹" . number_format($ruleMinAmt, 0) . ")";
+                : "Cashback ₹{$ruleRewardVal} Pending. Unlocks when referee completes {$ruleMinSrv} services or ₹" . number_format($ruleMinAmt, 0) . " spend (Progress: {$completedCount}/{$ruleMinSrv} services, ₹" . number_format($totalSpend, 2) . "/₹" . number_format($ruleMinAmt, 0) . ")";
 
             $historyList[] = [
                 'id'                          => $refId,
                 'name'                        => $fullName,
                 'phone'                       => $uObj->phone ?? '',
                 'user_type'                   => $userCat,
-                'status'                      => $isPaid ? 'Unlocked' : 'Frozen',
-                'status_label'                => $isPaid ? 'Credited to Wallet' : 'Cashback Frozen',
-                'reward_status'               => $isPaid ? 'Unlocked' : 'Frozen',
-                'is_frozen'                   => $isFrozen,
+                'status'                      => $isPaid ? 'Credited' : 'Pending',
+                'status_label'                => $isPaid ? 'Credited to Wallet' : 'Cashback Pending',
+                'reward_status'               => $isPaid ? 'Credited' : 'Pending',
+                'is_pending'                  => $isPending,
+                'is_frozen'                   => false,
                 'app_installed'               => true,
                 'registered'                  => true,
                 'verified'                    => $isVerified,
@@ -445,10 +447,12 @@ class ReferralDashboardAPIController extends Controller
                 'total_spend'                 => $totalSpend,
                 'min_services_required'       => $ruleMinSrv,
                 'min_purchase_amount_required'=> $ruleMinAmt,
-                'frozen_cashback'             => $frozenCashback,
-                'unlocked_cashback'           => $unlockedCashback,
-                'referral_earned'             => $unlockedCashback,
+                'pending_cashback'            => $pendingCashback,
+                'frozen_cashback'             => $pendingCashback,
+                'unlocked_cashback'           => $earnedCashback,
+                'referral_earned'             => $isPaid ? $earnedCashback : $ruleRewardVal,
                 'potential_reward'            => $ruleRewardVal,
+                'reward_amount'               => $displayRewardAmount,
                 'condition_fulfilled'         => $isPaid,
                 'condition_note'              => $conditionNote,
                 'date'                        => date('d M Y', strtotime($uObj->creer ?? $uObj->created_at ?? 'now')),
