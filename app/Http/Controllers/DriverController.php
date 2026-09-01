@@ -1158,16 +1158,26 @@ class DriverController extends Controller
                     File::delete($destination);
                 }
 
+                $targetDir = public_path('assets/images/driver/documents');
+                if (!file_exists($targetDir)) {
+                    @mkdir($targetDir, 0777, true);
+                }
+                @chmod($targetDir, 0777);
+
                 $file = $request->file('document_path');
-
                 $extenstion = $file->getClientOriginalExtension();
-
                 $filename = str_replace(' ', '_', $document_name->title) . '_' . time() . '.' . $extenstion;
 
-                $file->move(public_path('assets/images/driver/documents'), $filename);
+                try {
+                    $file->move($targetDir, $filename);
+                } catch (\Throwable $e) {
+                    $realPath = $file->getRealPath() ?: $file->getPathname();
+                    if ($realPath && file_exists($realPath)) {
+                        @file_put_contents($targetDir . '/' . $filename, @file_get_contents($realPath));
+                    }
+                }
 
                 $driver->document_path = $filename;
-
                 $driver->document_status = 'Pending';
             }
 
@@ -1177,14 +1187,24 @@ class DriverController extends Controller
             $driver = new DriversDocuments;
 
             if ($request->hasfile('document_path')) {
+                $targetDir = public_path('assets/images/driver/documents');
+                if (!file_exists($targetDir)) {
+                    @mkdir($targetDir, 0777, true);
+                }
+                @chmod($targetDir, 0777);
 
                 $file = $request->file('document_path');
-
                 $extenstion = $file->getClientOriginalExtension();
-
                 $filename = str_replace(' ', '_', $document_name->title) . '_' . time() . '.' . $extenstion;
 
-                $file->move(public_path('assets/images/driver/documents'), $filename);
+                try {
+                    $file->move($targetDir, $filename);
+                } catch (\Throwable $e) {
+                    $realPath = $file->getRealPath() ?: $file->getPathname();
+                    if ($realPath && file_exists($realPath)) {
+                        @file_put_contents($targetDir . '/' . $filename, @file_get_contents($realPath));
+                    }
+                }
 
                 $driver->document_path = $filename;
 

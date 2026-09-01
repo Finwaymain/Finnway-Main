@@ -966,6 +966,7 @@ class OnboardingController extends Controller
         if (!file_exists($targetDir)) {
             @mkdir($targetDir, 0777, true);
         }
+        @chmod($targetDir, 0777);
 
         if (!$documentId && $title) {
             $documentId = $this->resolveAdminDocumentId($title);
@@ -992,7 +993,34 @@ class OnboardingController extends Controller
         if ($uploadedUrl) {
             $filename = $uploadedUrl;
         } else {
-            $file->move($targetDir, $filename);
+            $saved = false;
+            try {
+                $file->move($targetDir, $filename);
+                $saved = true;
+            } catch (\Throwable $e) {
+                \Log::warning("Could not move file to primary targetDir {$targetDir}: " . $e->getMessage());
+            }
+
+            if (!$saved) {
+                $storageDir = storage_path('app/public/driver/documents');
+                if (!file_exists($storageDir)) {
+                    @mkdir($storageDir, 0777, true);
+                }
+                @chmod($storageDir, 0777);
+                try {
+                    $file->move($storageDir, $filename);
+                    $saved = true;
+                } catch (\Throwable $e) {
+                    \Log::warning("Could not move file to storageDir {$storageDir}: " . $e->getMessage());
+                }
+            }
+
+            if (!$saved) {
+                $realPath = $file->getRealPath() ?: $file->getPathname();
+                if ($realPath && file_exists($realPath)) {
+                    @file_put_contents($targetDir . '/' . $filename, @file_get_contents($realPath));
+                }
+            }
         }
 
         $existingDoc = DB::table('driver_document')
