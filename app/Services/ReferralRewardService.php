@@ -39,7 +39,12 @@ class ReferralRewardService
         $referrerRefCode = $refereeUser->ref_by ?? null;
 
         if (empty($referrerRefCode) && Schema::hasTable('referral')) {
-            $refRow = DB::table('referral')->where('user_id', $refereeId)->first();
+            $refRow = DB::table('referral')
+                ->where('user_id', $refereeId)
+                ->where(function($q) use ($refereeType) {
+                    $q->where('user_type', $refereeType)->orWhereNull('user_type');
+                })
+                ->first();
             if ($refRow && !empty($refRow->referral_by_id)) {
                 $referrerId = (int)$refRow->referral_by_id;
                 $referrerRefCode = $refRow->referral_code ?? null;
@@ -526,12 +531,17 @@ class ReferralRewardService
 
         // 7. Mark App Install Reward as Paid in Referral Table
         if (Schema::hasTable('referral')) {
-            DB::table('referral')->where('user_id', $refereeId)->update([
-                'app_install_reward_paid'   => 1,
-                'app_install_reward_amount' => $rewardAmount,
-                'app_install_reward_date'   => $dateNow,
-                'code_used'                 => 'true',
-            ]);
+            DB::table('referral')
+                ->where('user_id', $refereeId)
+                ->where(function($q) use ($refereeType) {
+                    $q->where('user_type', $refereeType)->orWhereNull('user_type');
+                })
+                ->update([
+                    'app_install_reward_paid'   => 1,
+                    'app_install_reward_amount' => $rewardAmount,
+                    'app_install_reward_date'   => $dateNow,
+                    'code_used'                 => 'true',
+                ]);
         }
 
         return [

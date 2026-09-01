@@ -1030,7 +1030,12 @@ class AuthOtpController extends Controller
         }
 
         // Check if user already has a referral entry with a referrer set
-        $existingReferral = DB::table('referral')->where('user_id', $userId)->first();
+        $existingReferral = DB::table('referral')
+            ->where('user_id', $userId)
+            ->where(function($q) use ($userCat) {
+                $q->where('user_type', $userCat)->orWhereNull('user_type');
+            })
+            ->first();
 
         if ($existingReferral && !empty($existingReferral->referral_by_id)) {
             return response()->json(['success' => 'Failed', 'error' => 'A referral code has already been applied to your account.']);
@@ -1038,6 +1043,7 @@ class AuthOtpController extends Controller
 
         if ($existingReferral) {
             $refUpdate = [
+                'user_type'      => $userCat,
                 'referral_by_id' => $referrerId,
                 'code_used'      => 'true',
             ];
@@ -1075,14 +1081,18 @@ class AuthOtpController extends Controller
             DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
         }
 
-        // Credit referral reward money to referrer's wallet
+        // Credit referral reward money to referrer's wallet (if milestone already met)
         $bonus = $this->creditReferralReward($referrerId, $referrerType, $userId, $userCat);
 
         \Log::info("applyReferral: user $userId ($userCat) applied code '$referralCode' by referrer $referrerId ($referrerType), credited ₹$bonus");
 
+        $msg = ($bonus > 0)
+            ? "Referral code applied successfully! ₹{$bonus} referral reward credited to your referrer."
+            : "Referral code applied successfully! Cashback will unlock upon completing your first service.";
+
         return response()->json([
             'success' => 'success',
-            'message' => "Referral code applied successfully! ₹$bonus referral bonus credited to your referrer.",
+            'message' => $msg,
         ]);
     }
 
