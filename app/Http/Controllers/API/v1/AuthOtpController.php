@@ -1002,11 +1002,30 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Invalid referral code. Please check and try again.']);
         }
 
-        $referrerId   = $referrer['user_id'];
-        $referrerType = $referrer['user_type'];
+        $referrerId   = (int)$referrer['user_id'];
+        $referrerType = $referrer['user_type'] ?? 'customer';
 
-        // Don't allow self-referral
-        if ((int)$referrerId === (int)$userId) {
+        // Don't allow genuine self-referral: Same user_id AND same user_type, OR same mobile number
+        $isSelfReferral = ($referrerId === (int)$userId && $referrerType === $userCat);
+
+        if (!$isSelfReferral) {
+            $currentUserPhone = ($userCat === 'driver')
+                ? DB::table('tj_conducteur')->where('id', $userId)->value('phone')
+                : DB::table('tj_user_app')->where('id', $userId)->value('phone');
+            $referrerPhone = ($referrerType === 'driver')
+                ? DB::table('tj_conducteur')->where('id', $referrerId)->value('phone')
+                : DB::table('tj_user_app')->where('id', $referrerId)->value('phone');
+
+            if (!empty($currentUserPhone) && !empty($referrerPhone)) {
+                $cleanCur = substr(preg_replace('/\D/', '', (string)$currentUserPhone), -10);
+                $cleanRef = substr(preg_replace('/\D/', '', (string)$referrerPhone), -10);
+                if (!empty($cleanCur) && $cleanCur === $cleanRef) {
+                    $isSelfReferral = true;
+                }
+            }
+        }
+
+        if ($isSelfReferral) {
             return response()->json(['success' => 'Failed', 'error' => 'You cannot use your own referral code.']);
         }
 
@@ -1153,7 +1172,15 @@ class AuthOtpController extends Controller
             $userCat = in_array(strtolower(trim($userCat)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
             $referralCode = trim($referralCode);
             $referrer = !empty($referralCode) ? $this->resolveReferrerUserId($referralCode) : null;
-            $referrerId = ($referrer && (int)$referrer['user_id'] !== $userId) ? (int)$referrer['user_id'] : null;
+            $isSelf = false;
+            if ($referrer) {
+                $rId = (int)$referrer['user_id'];
+                $rType = $referrer['user_type'] ?? 'customer';
+                if ($rId === $userId && $rType === $userCat) {
+                    $isSelf = true;
+                }
+            }
+            $referrerId = ($referrer && !$isSelf) ? (int)$referrer['user_id'] : null;
             $referrerType = $referrer ? ($referrer['user_type'] ?? 'customer') : null;
 
             // Generate or fetch 100% globally unique, distinct referral code

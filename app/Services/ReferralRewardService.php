@@ -96,8 +96,8 @@ class ReferralRewardService
             }
         }
 
-        if (!$referrerId || $referrerId == $refereeId) {
-            return ['reward_processed' => false, 'reason' => 'Referrer invalid or self-referral'];
+        if (!$referrerId) {
+            return ['reward_processed' => false, 'reason' => 'No valid referrer linked'];
         }
 
         // Determine Referrer Type if not resolved
@@ -111,6 +111,11 @@ class ReferralRewardService
                     $referrerType = 'driver';
                 }
             }
+        }
+
+        $isSelfReferral = ($referrerId && (int)$referrerId === (int)$refereeId && $referrerType === $refereeType);
+        if ($isSelfReferral) {
+            return ['reward_processed' => false, 'reason' => 'Referrer invalid or self-referral'];
         }
 
         // 2. Fetch Admin Reward Rule dynamically from service_reward_configs, api_key_settings, or tj_settings
@@ -353,8 +358,9 @@ class ReferralRewardService
             }
         }
 
-        if (!$referrerId || $referrerId == $refereeId) {
-            return ['reward_processed' => false, 'reason' => 'No valid referrer linked'];
+        $isSelfReferral = ($referrerId && (int)$referrerId === (int)$refereeId && $referrerType === $refereeType);
+        if (!$referrerId || $isSelfReferral) {
+            return ['reward_processed' => false, 'reason' => 'No valid referrer linked or self-referral'];
         }
 
         // 2. Fetch Admin Rules for App Install
