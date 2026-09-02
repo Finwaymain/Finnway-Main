@@ -107,15 +107,8 @@ class DriverWithdrawalsController extends Controller
             ]);
         }
 
-        $syncedWithdrawable = \App\Helpers\WalletBalanceHelper::syncUserWithdrawableBalance(
-            $chkid->id,
-            $isDriver ? 'driver' : 'customer',
-            $chkid->phone ?? $cleanPhone
-        );
-        $chkid = $isDriver ? Driver::where('id', $chkid->id)->first() : UserApp::where('id', $chkid->id)->first();
-
         $userAmount = floatval($chkid->amount ?? 0);
-        $withdrawableAmount = floatval($chkid->withdrawable_balance ?? $syncedWithdrawable);
+        $withdrawableAmount = floatval($chkid->withdrawable_balance ?? 0);
         $reqAmount = floatval($amount);
 
         if ($reqAmount > $withdrawableAmount) {

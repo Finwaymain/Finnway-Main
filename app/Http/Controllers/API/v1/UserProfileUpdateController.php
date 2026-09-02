@@ -589,14 +589,8 @@ class UserProfileUpdateController extends Controller
         }
 
         // STEP 3: CHECK IF SENDER HAS ENOUGH WITHDRAWABLE BALANCE (EARNINGS ONLY)
-        $syncedWithdrawable = \App\Helpers\WalletBalanceHelper::syncUserWithdrawableBalance(
-            $sender->id,
-            $user_type,
-            $sender->phone ?? ($request->phone ?? $request->mobile)
-        );
-        $sender = DB::table($senderTable)->where('id', $sender->id)->first();
         $currentBalance = floatval($sender->amount ?? 0);
-        $withdrawableBalance = floatval($sender->withdrawable_balance ?? $syncedWithdrawable);
+        $withdrawableBalance = floatval($sender->withdrawable_balance ?? 0);
         $topupBalance = floatval($sender->topup_balance ?? max(0, $currentBalance - $withdrawableBalance));
 
         if ($amount > $withdrawableBalance) {
@@ -1598,13 +1592,8 @@ class UserProfileUpdateController extends Controller
             $userBalance = round(floatval($user->amount ?? 0), 2);
         }
 
-        $syncedWithdrawable = \App\Helpers\WalletBalanceHelper::syncUserWithdrawableBalance(
-            $user->id,
-            $userType,
-            $user->phone ?? ($request->phone ?? $request->mobile)
-        );
-        $withdrawableBal = round(floatval($syncedWithdrawable), 2);
-        $topupBal = round(max(0, $userBalance - $withdrawableBal), 2);
+        $withdrawableBal = round(floatval($user->withdrawable_balance ?? 0), 2);
+        $topupBal = round(floatval($user->topup_balance ?? max(0, $userBalance - $withdrawableBal)), 2);
 
         return response()->json([
             'res'  => 'success',
