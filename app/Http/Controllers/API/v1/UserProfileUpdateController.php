@@ -588,15 +588,22 @@ class UserProfileUpdateController extends Controller
             ];
         }
 
-        // STEP 3: CHECK IF SENDER HAS ENOUGH BALANCE
+        // STEP 3: CHECK IF SENDER HAS ENOUGH WITHDRAWABLE BALANCE (EARNINGS ONLY)
         $currentBalance = floatval($sender->amount ?? 0);
+        $earnBalance = floatval($sender->earn_amount ?? 0);
+        $withdrawableBalance = min($currentBalance, $earnBalance);
 
-        if ($currentBalance < $amount) {
+        if ($amount > $withdrawableBalance) {
+            $topupBalance = max(0, $currentBalance - $withdrawableBalance);
+            $errText = 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableBalance, 2) . '.';
+            if ($topupBalance > 0) {
+                $errText .= ' Self top-up funds (₹' . number_format($topupBalance, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
+            }
             return response()->json([
                 'res'     => 'error',
                 'success' => 'Failed',
-                'msg'     => 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your available wallet balance of ₹' . number_format($currentBalance, 2) . '.',
-                'error'   => 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your available wallet balance of ₹' . number_format($currentBalance, 2) . '.',
+                'msg'     => $errText,
+                'error'   => $errText,
             ]);
         }
 

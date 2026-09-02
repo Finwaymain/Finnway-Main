@@ -31,48 +31,47 @@ class BankAccountDetailsController extends Controller
   	public function getData(Request $request)
   	{
 
-   		$user_id = $request->get('driver_id');
+        $user_id   = $request->get('user_id') ?: $request->get('driver_id') ?: $request->get('id_user') ?: $request->get('id_conducteur');
+        $user_type = strtolower($request->get('user_type') ?: ($request->has('user_id') && !$request->has('driver_id') ? 'customer' : 'driver'));
 
 	    if(!empty($user_id)){
-		    $row = DB::table('tj_conducteur')
-	    	->select('bank_name','branch_name','holder_name','account_no','other_info','ifsc_code')
+            $table = ($user_type === 'customer') ? 'tj_user_app' : 'tj_conducteur';
+            $selectCols = ['bank_name','branch_name','holder_name','account_no','ifsc_code'];
+            if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'other_info')) {
+                $selectCols[] = 'other_info';
+            }
+
+		    $row = DB::table($table)
+	    	->select($selectCols)
 	    	->where('id',$user_id)
 	    	->first();
-        
-        if($row->bank_name==null){
-          $row->bank_name='';
-        }
-        if($row->branch_name==null){
-          $row->branch_name='';
-        }
-        if($row->holder_name==null){
-          $row->holder_name='';
-        }
-        if($row->account_no==null){
-          $row->account_no='';
-        }
-        if($row->other_info==null){
-          $row->other_info='';
-        }
-        if($row->ifsc_code==null){
-          $row->ifsc_code='';
-        }
 
-         if($row->bank_name=='' && $row->branch_name=='' && $row->holder_name=='' && $row->account_no=='' && $row->other_info=='' && $row->ifsc_code==''){
-           $response['success']= 'Failed';
-           $response['error']= 'Failed to fetch bank details';
-         }
-	    	else{
-	        	$response['success']= 'success';
-	        	$response['error']= null;
-	        	$response['message']= 'Bank details fetch successfully';
-	        	$response['data'] = $row;
-	    	}
+            if ($row) {
+                $row->bank_name   = $row->bank_name ?? '';
+                $row->branch_name = $row->branch_name ?? '';
+                $row->holder_name = $row->holder_name ?? '';
+                $row->account_no  = $row->account_no ?? '';
+                $row->other_info  = $row->other_info ?? '';
+                $row->ifsc_code   = $row->ifsc_code ?? '';
 
-	  }else{
+                if($row->bank_name=='' && $row->branch_name=='' && $row->holder_name=='' && $row->account_no=='' && $row->other_info=='' && $row->ifsc_code==''){
+                    $response['success']= 'Failed';
+                    $response['error']= 'Failed to fetch bank details';
+                }
+                else{
+                    $response['success']= 'success';
+                    $response['error']= null;
+                    $response['message']= 'Bank details fetch successfully';
+                    $response['data'] = $row;
+                }
+            } else {
+                $response['success']= 'Failed';
+                $response['error']= 'Bank details not found';
+            }
+	    }else{
 	    	$response['success']= 'Failed';
-		    $response['error']= 'Driver Id required';
-	  }
+		    $response['error']= 'Driver Id or User Id required';
+	    }
 
 	    return response()->json($response);
 	}

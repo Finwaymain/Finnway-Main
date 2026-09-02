@@ -80,7 +80,11 @@ class DriverWithdrawalsController extends Controller
             ]);
         }
 
-        $isDriver = ($user_type === 'driver' || Driver::where('id', $user_id)->exists());
+        $isDriver = ($user_type === 'driver');
+        if (!$request->has('user_type') && ($request->has('driver_id') || $request->has('id_conducteur'))) {
+            $isDriver = true;
+        }
+
         $chkid = $isDriver ? Driver::where('id', $user_id)->first() : UserApp::where('id', $user_id)->first();
 
         if (!$chkid) {
@@ -91,12 +95,19 @@ class DriverWithdrawalsController extends Controller
         }
 
         $userAmount = floatval($chkid->amount ?? 0);
+        $userEarn = floatval($chkid->earn_amount ?? 0);
+        $withdrawableAmount = min($userAmount, $userEarn);
         $reqAmount = floatval($amount);
 
-        if ($reqAmount > $userAmount) {
+        if ($reqAmount > $withdrawableAmount) {
+            $topupAmount = max(0, $userAmount - $withdrawableAmount);
+            $msg = 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableAmount, 2) . '.';
+            if ($topupAmount > 0) {
+                $msg .= ' Self top-up funds (₹' . number_format($topupAmount, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
+            }
             return response()->json([
                 'success' => 'Failed',
-                'error'   => 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your available balance of ₹' . number_format($userAmount, 2) . '.'
+                'error'   => $msg
             ]);
         }
 

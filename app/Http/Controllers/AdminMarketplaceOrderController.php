@@ -139,7 +139,21 @@ class AdminMarketplaceOrderController extends Controller
             return redirect()->back()->with('error', 'Unable to determine seller for this order.');
         }
 
-        $seller = UserApp::find($sellerId) ?? Driver::find($sellerId);
+        $seller = null;
+        if (!empty($order->seller_phone)) {
+            $cleanPhone = substr(preg_replace('/\D/', '', (string)$order->seller_phone), -10);
+            if (!empty($cleanPhone)) {
+                $seller = ($order->seller_type === 'driver')
+                    ? Driver::where('phone', 'like', "%{$cleanPhone}%")->first()
+                    : UserApp::where('phone', 'like', "%{$cleanPhone}%")->first();
+            }
+        }
+        if (!$seller && $sellerId) {
+            $seller = ($order->seller_type === 'driver') ? Driver::find($sellerId) : UserApp::find($sellerId);
+        }
+        if (!$seller && $sellerId) {
+            $seller = UserApp::find($sellerId) ?? Driver::find($sellerId);
+        }
         if (!$seller) {
             return redirect()->back()->with('error', "Seller user record (ID: {$sellerId}) not found.");
         }
@@ -168,9 +182,11 @@ class AdminMarketplaceOrderController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Credit seller wallet with net payout
+            // 1. Credit seller wallet with net payout & platform earnings
             $sellerBalance = floatval($seller->amount ?? 0);
+            $sellerEarn = floatval($seller->earn_amount ?? 0);
             $seller->amount = $sellerBalance + $payoutAmount;
+            $seller->earn_amount = $sellerEarn + $payoutAmount;
             $seller->save();
 
             $txnId = 'PAYOUT_' . time() . '_' . rand(1000, 9999);
