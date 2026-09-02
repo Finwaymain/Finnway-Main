@@ -65,14 +65,12 @@ class DriversPayoutController extends Controller
       $driverId=$request->input('driverId');
       $driver = Driver::find($driverId);
 
-      $driverWithdrawable = floatval($driver->withdrawable_balance ?? 0);
-      if ($driverWithdrawable <= 0 || $driverWithdrawable < $amount) {
-        Session::flash('msg', 'Insufficient Withdrawable Earnings (Available for Payout: ₹' . number_format($driverWithdrawable, 2) . ')');
-        return redirect()->back();
-      } else {
+      if($driver->amount<0 || $driver->amount<$amount ){
+        Session::flash('msg', 'Unsufficient Balance');
+            return redirect()->back();
+      }else{
 
-        $driver->amount = max(0, floatval($driver->amount) - floatval($amount));
-        $driver->withdrawable_balance = max(0, floatval($driver->withdrawable_balance) - floatval($amount));
+        $driver->amount=intval($driver->amount)-intval($amount);
         $driver->save();
 
         $withdrawal = new Withdrawal;

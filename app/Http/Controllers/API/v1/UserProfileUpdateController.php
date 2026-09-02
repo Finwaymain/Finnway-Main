@@ -588,21 +588,15 @@ class UserProfileUpdateController extends Controller
             ];
         }
 
-        // STEP 3: CHECK IF SENDER HAS ENOUGH WITHDRAWABLE BALANCE (EARNINGS ONLY)
+        // STEP 3: CHECK IF SENDER HAS ENOUGH BALANCE
         $currentBalance = floatval($sender->amount ?? 0);
-        $withdrawableBalance = floatval($sender->withdrawable_balance ?? 0);
-        $topupBalance = floatval($sender->topup_balance ?? max(0, $currentBalance - $withdrawableBalance));
 
-        if ($amount > $withdrawableBalance) {
-            $errText = 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableBalance, 2) . '.';
-            if ($topupBalance > 0) {
-                $errText .= ' Self top-up funds (₹' . number_format($topupBalance, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
-            }
+        if ($currentBalance < $amount) {
             return response()->json([
                 'res'     => 'error',
                 'success' => 'Failed',
-                'msg'     => $errText,
-                'error'   => $errText,
+                'msg'     => 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your available wallet balance of ₹' . number_format($currentBalance, 2) . '.',
+                'error'   => 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your available wallet balance of ₹' . number_format($currentBalance, 2) . '.',
             ]);
         }
 
@@ -806,24 +800,19 @@ class UserProfileUpdateController extends Controller
         $senderDesc   = "Transferred $amount to $receiver_fullname";
         $receiverDesc = "Received $amount from $sender_fullname";
 
-        // Step 8: Update sender's wallet (priority deduction from topup_balance first, then withdrawable_balance)
-        $senderTopup = floatval($sender->topup_balance ?? 0);
-        $deductTopup = min($senderTopup, $amount);
-        $deductWithdrawable = $amount - $deductTopup;
+        // Step 8: Update sender's wallet (decrement)
+        if ($sender_type == 'customer') {
+            DB::table('tj_user_app')->where('ac_no', $sender_ac_no)->decrement('amount', $amount);
+        } elseif ($sender_type == 'driver') {
+            DB::table('tj_conducteur')->where('ac_no', $sender_ac_no)->decrement('amount', $amount);
+        }
 
-        $senderTableToUpdate = ($sender_type == 'customer') ? 'tj_user_app' : 'tj_conducteur';
-        DB::table($senderTableToUpdate)->where('ac_no', $sender_ac_no)->update([
-            'amount'               => DB::raw("GREATEST(0, amount - $amount)"),
-            'topup_balance'        => DB::raw("GREATEST(0, topup_balance - $deductTopup)"),
-            'withdrawable_balance' => DB::raw("GREATEST(0, withdrawable_balance - $deductWithdrawable)"),
-        ]);
-
-        // Step 9: Update receiver's wallet (transferred funds are non-withdrawable spend-only funds)
-        $receiverTableToUpdate = ($receiver_user_type == 'customer') ? 'tj_user_app' : 'tj_conducteur';
-        DB::table($receiverTableToUpdate)->where('ac_no', $receiver_ac_no)->update([
-            'amount'        => DB::raw("amount + $amount"),
-            'topup_balance' => DB::raw("topup_balance + $amount"),
-        ]);
+        // Step 9: Update receiver's wallet (increment)
+        if ($receiver_user_type == 'customer') {
+            DB::table('tj_user_app')->where('ac_no', $receiver_ac_no)->increment('amount', $amount);
+        } elseif ($receiver_user_type == 'driver') {
+            DB::table('tj_conducteur')->where('ac_no', $receiver_ac_no)->increment('amount', $amount);
+        }
 
         // Step 10: Insert sender transaction history
         $senderData = [
@@ -1592,19 +1581,14 @@ class UserProfileUpdateController extends Controller
             $userBalance = round(floatval($user->amount ?? 0), 2);
         }
 
-        $withdrawableBal = round(floatval($user->withdrawable_balance ?? 0), 2);
-        $topupBal = round(floatval($user->topup_balance ?? max(0, $userBalance - $withdrawableBal)), 2);
-
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Wallet amount fetched successfully',
             'data' => [
-                'amount'               => (string) $userBalance,
-                'wallet_amount'        => (string) $userBalance,
-                'withdrawable_balance' => (string) $withdrawableBal,
-                'topup_balance'        => (string) $topupBal,
-                'earn_amount'          => $totalEarnings,
-                'total_earnings'       => $totalEarnings,
+                'amount'         => (string) $userBalance,
+                'wallet_amount'  => (string) $userBalance,
+                'earn_amount'    => $totalEarnings,
+                'total_earnings' => $totalEarnings,
             ],
         ]);
     }

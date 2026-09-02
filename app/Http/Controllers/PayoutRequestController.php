@@ -103,12 +103,8 @@ class PayoutRequestController extends Controller
         // Check driver first
         $driver = DB::table('tj_conducteur')->where('id', '=', $userId)->first();
         if ($driver) {
-            $newAmount = max(0, floatval($driver->amount ?? 0) - $withdraw_amount);
-            $newWithdrawable = max(0, floatval($driver->withdrawable_balance ?? 0) - $withdraw_amount);
-            DB::table('tj_conducteur')->where('id', '=', $userId)->update([
-                'amount'               => $newAmount,
-                'withdrawable_balance' => $newWithdrawable,
-            ]);
+            $newAmount = floatval($driver->amount ?? 0) - $withdraw_amount;
+            DB::table('tj_conducteur')->where('id', '=', $userId)->update(['amount' => max(0, $newAmount)]);
 
             // Record transaction in history so it appears in history ONLY AFTER admin approval
             $txnId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
@@ -128,12 +124,8 @@ class PayoutRequestController extends Controller
             // Check consumer user
             $user = DB::table('tj_user_app')->where('id', '=', $userId)->first();
             if ($user) {
-                $newAmount = max(0, floatval($user->amount ?? 0) - $withdraw_amount);
-                $newWithdrawable = max(0, floatval($user->withdrawable_balance ?? 0) - $withdraw_amount);
-                DB::table('tj_user_app')->where('id', '=', $userId)->update([
-                    'amount'               => $newAmount,
-                    'withdrawable_balance' => $newWithdrawable,
-                ]);
+                $newAmount = floatval($user->amount ?? 0) - $withdraw_amount;
+                DB::table('tj_user_app')->where('id', '=', $userId)->update(['amount' => max(0, $newAmount)]);
 
                 // Record transaction in history so it appears in history ONLY AFTER admin approval
                 $txnId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);

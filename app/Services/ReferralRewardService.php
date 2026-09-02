@@ -234,11 +234,7 @@ class ReferralRewardService
         // 4. Credit reward to Referrer's Wallet & create transaction in respective table
         if ($referrerType === 'driver') {
             $currVal = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('amount');
-            $currWithdrawable = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('withdrawable_balance');
-            DB::table('tj_conducteur')->where('id', $referrerId)->update([
-                'amount'               => $currVal + $rewardAmount,
-                'withdrawable_balance' => $currWithdrawable + $rewardAmount,
-            ]);
+            DB::table('tj_conducteur')->where('id', $referrerId)->update(['amount' => $currVal + $rewardAmount]);
 
             if (Schema::hasTable('tj_conducteur_transaction')) {
                 DB::table('tj_conducteur_transaction')->insert([
@@ -248,7 +244,6 @@ class ReferralRewardService
                     'payment_method'   => 'Referral Reward',
                     'payment_status'   => 'success',
                     'withdraw_status'  => 'completed',
-                    'wallet_bucket'    => 'earning',
                     'user_type'        => 'driver',
                     'receiver_user_id' => $refereeId,
                     'sender_user_type' => $refereeType,
@@ -262,11 +257,7 @@ class ReferralRewardService
             }
         } else {
             $currVal = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('amount');
-            $currWithdrawable = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('withdrawable_balance');
-            DB::table('tj_user_app')->where('id', $referrerId)->update([
-                'amount'               => $currVal + $rewardAmount,
-                'withdrawable_balance' => $currWithdrawable + $rewardAmount,
-            ]);
+            DB::table('tj_user_app')->where('id', $referrerId)->update(['amount' => $currVal + $rewardAmount]);
 
             if (Schema::hasTable('tj_transaction')) {
                 $txData = [
@@ -275,7 +266,6 @@ class ReferralRewardService
                     'sender_user_type' => $refereeType,
                     'amount'           => $rewardAmount,
                     'deduction_type'   => 1,
-                    'wallet_bucket'    => 'earning',
                     'user_type'        => 'customer',
                     'payment_method'   => 'Referral Reward',
                     'payment_status'   => 'success',
@@ -494,11 +484,7 @@ class ReferralRewardService
 
         if ($referrerType === 'driver') {
             $currBal = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('amount');
-            $currWithdrawable = (float)DB::table('tj_conducteur')->where('id', $referrerId)->value('withdrawable_balance');
-            DB::table('tj_conducteur')->where('id', $referrerId)->update([
-                'amount'               => $currBal + $rewardAmount,
-                'withdrawable_balance' => $currWithdrawable + $rewardAmount,
-            ]);
+            DB::table('tj_conducteur')->where('id', $referrerId)->update(['amount' => $currBal + $rewardAmount]);
 
             if (Schema::hasTable('tj_conducteur_transaction')) {
                 DB::table('tj_conducteur_transaction')->insert([
@@ -508,7 +494,6 @@ class ReferralRewardService
                     'payment_method'   => 'Referral Reward',
                     'payment_status'   => 'success',
                     'withdraw_status'  => 'completed',
-                    'wallet_bucket'    => 'earning',
                     'user_type'        => 'driver',
                     'receiver_user_id' => $refereeId,
                     'sender_user_type' => $refereeType,
@@ -522,11 +507,7 @@ class ReferralRewardService
             }
         } else {
             $currBal = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('amount');
-            $currWithdrawable = (float)DB::table('tj_user_app')->where('id', $referrerId)->value('withdrawable_balance');
-            DB::table('tj_user_app')->where('id', $referrerId)->update([
-                'amount'               => $currBal + $rewardAmount,
-                'withdrawable_balance' => $currWithdrawable + $rewardAmount,
-            ]);
+            DB::table('tj_user_app')->where('id', $referrerId)->update(['amount' => $currBal + $rewardAmount]);
 
             if (Schema::hasTable('tj_transaction')) {
                 DB::table('tj_transaction')->insert([
@@ -535,7 +516,6 @@ class ReferralRewardService
                     'sender_user_type' => $refereeType,
                     'amount'           => $rewardAmount,
                     'deduction_type'   => 1,
-                    'wallet_bucket'    => 'earning',
                     'user_type'        => 'customer',
                     'payment_method'   => 'Referral Reward',
                     'payment_status'   => 'success',
