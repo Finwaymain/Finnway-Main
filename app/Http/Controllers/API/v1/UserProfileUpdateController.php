@@ -1686,14 +1686,23 @@ class UserProfileUpdateController extends Controller
 
         // Auto-detect userType if not explicitly specified
         if (empty($userType)) {
-            if (!empty($userId)) {
-                if (DB::table('tj_conducteur')->where('id', $userId)->orWhere('ac_no', $userId)->exists()) {
+            if ($request->has('driver_id') || $request->has('id_conducteur')) {
+                $userType = 'driver';
+            } elseif ($request->has('id_user_app') || $request->has('user_app_id')) {
+                $userType = 'customer';
+            } elseif (!empty($userId)) {
+                // If both exist (e.g. ID 1), default to customer unless specifically driver
+                if (DB::table('tj_user_app')->where('id', $userId)->orWhere('ac_no', $userId)->exists()) {
+                    $userType = 'customer';
+                } elseif (DB::table('tj_conducteur')->where('id', $userId)->orWhere('ac_no', $userId)->exists()) {
                     $userType = 'driver';
                 } else {
                     $userType = 'customer';
                 }
             } elseif (!empty($acNo)) {
-                if (DB::table('tj_conducteur')->where('ac_no', $acNo)->orWhere('id', $acNo)->exists()) {
+                if (DB::table('tj_user_app')->where('ac_no', $acNo)->orWhere('id', $acNo)->exists()) {
+                    $userType = 'customer';
+                } elseif (DB::table('tj_conducteur')->where('ac_no', $acNo)->orWhere('id', $acNo)->exists()) {
                     $userType = 'driver';
                 } else {
                     $userType = 'customer';

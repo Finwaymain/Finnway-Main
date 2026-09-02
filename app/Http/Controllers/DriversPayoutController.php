@@ -27,11 +27,13 @@ class DriversPayoutController extends Controller
           $search = $request->input('search');
           $withdrawal = Withdrawal::join('tj_conducteur','tj_conducteur.id','=','withdrawals.id_conducteur')
           ->select('tj_conducteur.nom','tj_conducteur.prenom','withdrawals.*')
+          ->where('withdrawals.note', 'NOT LIKE', '%[User]%')
           ->where('note', 'LIKE', '%' . $search . '%')->where('withdrawals.statut','=','success')->orderBy('id','desc')->paginate(20);
       }
       else{
         $withdrawal=Withdrawal::join('tj_conducteur','tj_conducteur.id','=','withdrawals.id_conducteur')
         ->select('tj_conducteur.nom','tj_conducteur.prenom','withdrawals.*')
+        ->where('withdrawals.note', 'NOT LIKE', '%[User]%')
         ->where('withdrawals.statut','=','success')->orderBy('id','desc')->paginate(20);
       }
 

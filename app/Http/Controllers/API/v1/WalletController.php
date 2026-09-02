@@ -24,8 +24,15 @@ class WalletController extends Controller
   {
     $id_user = $request->get('id_user') ?? $request->get('user_id') ?? $request->get('driver_id');
     $cat_user = strtolower($request->get('user_cat') ?? $request->get('user_type') ?? '');
+    if (empty($cat_user)) {
+        if ($request->has('driver_id') || $request->has('id_conducteur')) {
+            $cat_user = 'driver';
+        } else {
+            $cat_user = 'user_app';
+        }
+    }
     if(!empty($id_user)){
-    if($cat_user == "user_app" || $cat_user == "user" || $cat_user == "customer" || empty($cat_user)){
+    if($cat_user == "user_app" || $cat_user == "user" || $cat_user == "customer"){
         $sql = DB::table('tj_user_app')
         ->select('id', 'ac_no', 'amount', 'earn_amount')
         ->where('id','=',$id_user)
