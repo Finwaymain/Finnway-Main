@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AdminMarketplaceOrderController extends Controller
 {
@@ -139,7 +140,23 @@ class AdminMarketplaceOrderController extends Controller
             return redirect()->back()->with('error', 'Unable to determine seller for this order.');
         }
 
-        $seller = UserApp::find($sellerId) ?? Driver::find($sellerId);
+        $sellerType = $order->seller_type ?? ($firstItem && $firstItem->product && !empty($firstItem->product->driver_id) ? 'driver' : 'customer');
+        $seller = null;
+        if (!empty($order->seller_phone)) {
+            $cleanPhone = substr(preg_replace('/\D/', '', (string)$order->seller_phone), -10);
+            if (!empty($cleanPhone)) {
+                $seller = ($sellerType === 'driver')
+                    ? Driver::where('phone', 'like', "%{$cleanPhone}%")->first()
+                    : UserApp::where('phone', 'like', "%{$cleanPhone}%")->first();
+            }
+        }
+        if (!$seller && $sellerId) {
+            $seller = ($sellerType === 'driver') ? Driver::find($sellerId) : UserApp::find($sellerId);
+        }
+        if (!$seller && $sellerId) {
+            $seller = UserApp::find($sellerId) ?? Driver::find($sellerId);
+        }
+
         if (!$seller) {
             return redirect()->back()->with('error', "Seller user record (ID: {$sellerId}) not found.");
         }
@@ -168,9 +185,14 @@ class AdminMarketplaceOrderController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Credit seller wallet with net payout
+            // 1. Credit seller wallet with net payout (EARNINGS: Withdrawable Balance)
             $sellerBalance = floatval($seller->amount ?? 0);
+            $sellerWithdrawable = floatval($seller->withdrawable_balance ?? 0);
+            $sellerEarn = floatval($seller->earn_amount ?? 0);
+
             $seller->amount = $sellerBalance + $payoutAmount;
+            $seller->withdrawable_balance = $sellerWithdrawable + $payoutAmount;
+            $seller->earn_amount = $sellerEarn + $payoutAmount;
             $seller->save();
 
             $txnId = 'PAYOUT_' . time() . '_' . rand(1000, 9999);
@@ -180,7 +202,7 @@ class AdminMarketplaceOrderController extends Controller
 
             // 2. Record Transaction 1: Marketplace Sale Earning Credit
             if ($sellerType === 'driver') {
-                DB::table('tj_conducteur_transaction')->insert([
+                $driverTx = [
                     'id_conducteur'   => $seller->id,
                     'amount'          => (string)$subtotal,
                     'type'            => 'credit',
@@ -192,11 +214,15 @@ class AdminMarketplaceOrderController extends Controller
                     'date'            => $dateOnly,
                     'creer'           => $dateTime,
                     'modifier'        => $dateTime,
-                ]);
+                ];
+                if (Schema::hasColumn('tj_conducteur_transaction', 'wallet_bucket')) {
+                    $driverTx['wallet_bucket'] = 'earning';
+                }
+                DB::table('tj_conducteur_transaction')->insert($driverTx);
 
                 // Record Transaction 2: Marketplace Admin Commission Deduction
                 if ($commissionAmount > 0) {
-                    DB::table('tj_conducteur_transaction')->insert([
+                    $driverCommTx = [
                         'id_conducteur'   => $seller->id,
                         'amount'          => (string)$commissionAmount,
                         'type'            => 'debit',
@@ -208,10 +234,14 @@ class AdminMarketplaceOrderController extends Controller
                         'date'            => $dateOnly,
                         'creer'           => $dateTime,
                         'modifier'        => $dateTime,
-                    ]);
+                    ];
+                    if (Schema::hasColumn('tj_conducteur_transaction', 'wallet_bucket')) {
+                        $driverCommTx['wallet_bucket'] = 'spend';
+                    }
+                    DB::table('tj_conducteur_transaction')->insert($driverCommTx);
                 }
             } else {
-                DB::table('tj_transaction')->insert([
+                $userTx = [
                     'id_user_app'     => $seller->id,
                     'user_type'       => 'customer',
                     'amount'          => (string)$subtotal,
@@ -224,11 +254,15 @@ class AdminMarketplaceOrderController extends Controller
                     'date'            => $dateOnly,
                     'creer'           => $dateTime,
                     'modifier'        => $dateTime,
-                ]);
+                ];
+                if (Schema::hasColumn('tj_transaction', 'wallet_bucket')) {
+                    $userTx['wallet_bucket'] = 'earning';
+                }
+                DB::table('tj_transaction')->insert($userTx);
 
                 // Record Transaction 2: Marketplace Admin Commission Deduction
                 if ($commissionAmount > 0) {
-                    DB::table('tj_transaction')->insert([
+                    $userCommTx = [
                         'id_user_app'     => $seller->id,
                         'user_type'       => 'customer',
                         'amount'          => (string)$commissionAmount,
@@ -241,7 +275,11 @@ class AdminMarketplaceOrderController extends Controller
                         'date'            => $dateOnly,
                         'creer'           => $dateTime,
                         'modifier'        => $dateTime,
-                    ]);
+                    ];
+                    if (Schema::hasColumn('tj_transaction', 'wallet_bucket')) {
+                        $userCommTx['wallet_bucket'] = 'spend';
+                    }
+                    DB::table('tj_transaction')->insert($userCommTx);
                 }
             }
 
