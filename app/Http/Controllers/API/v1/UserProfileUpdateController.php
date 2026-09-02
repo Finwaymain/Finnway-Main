@@ -1903,7 +1903,11 @@ class UserProfileUpdateController extends Controller
         $isCommission = ($paymentMethod === 'Commission') ||
                         stripos($desc, 'commission') !== false ||
                         stripos($note, 'commission') !== false ||
-                        ($currentUserType === 'driver' && $isRawNegative);
+                        ($currentUserType === 'driver' && $isRawNegative && empty($row->id_ride) && empty($row->id_parcel));
+
+        $isMarketplace = stripos($desc, 'marketplace') !== false ||
+                         stripos($note, 'marketplace') !== false ||
+                         stripos($paymentMethod, 'marketplace') !== false;
 
         $isReferral = ($paymentMethod === 'Referral Reward') ||
                       stripos($desc, 'referral') !== false ||
@@ -1922,6 +1926,29 @@ class UserProfileUpdateController extends Controller
             $paidFrom      = 'Partner Wallet';
             $paidTo        = 'Fiinway Platform';
             $deductionType = '0';
+        } elseif ($isMarketplace) {
+            if ($deductionType === '0' || $type === 'debit' || stripos($desc, 'commission') !== false || stripos($note, 'commission') !== false) {
+                $categoryTitle = 'Admin Commission';
+                $iconType      = 'commission';
+                $counterparty  = 'Fiinway Platform';
+                $paidFrom      = 'Your Wallet';
+                $paidTo        = 'Fiinway Platform';
+                $deductionType = '0';
+            } elseif (stripos($desc, 'purchase') !== false || stripos($note, 'purchase') !== false) {
+                $categoryTitle = 'Marketplace Purchase';
+                $iconType      = 'marketplace';
+                $counterparty  = 'Marketplace Store';
+                $paidFrom      = 'Your Wallet';
+                $paidTo        = 'Marketplace Store';
+                $deductionType = '0';
+            } else {
+                $categoryTitle = 'Marketplace Sale';
+                $iconType      = 'marketplace';
+                $counterparty  = 'Marketplace Escrow';
+                $paidFrom      = 'Marketplace Escrow';
+                $paidTo        = 'Your Wallet';
+                $deductionType = '1';
+            }
         } elseif ($isReferral) {
             $categoryTitle = 'Referral Cashback';
             $iconType      = 'referral';
@@ -2029,16 +2056,25 @@ class UserProfileUpdateController extends Controller
             $paidTo        = 'Your Wallet';
             $iconType      = 'transfer';
             $deductionType = '1';
-        } elseif (stripos($desc, 'withdraw') !== false || stripos($note, 'withdraw') !== false) {
+        } elseif (stripos($desc, 'withdraw') !== false || stripos($note, 'withdraw') !== false || stripos($desc, 'payout') !== false || stripos($note, 'payout') !== false) {
             $categoryTitle = 'Bank Withdrawal';
             $iconType      = 'withdraw';
             $counterparty  = 'Linked Bank Account';
             $paidFrom      = 'Your Wallet';
             $paidTo        = 'Bank Account';
             $deductionType = '0';
-        } elseif ($deductionType === '1' || $type === 'credit') {
+        } elseif (
+            $deductionType === '1' || 
+            $type === 'credit' ||
+            stripos($desc, 'top-up') !== false ||
+            stripos($desc, 'topup') !== false ||
+            stripos($note, 'top-up') !== false ||
+            stripos($note, 'topup') !== false ||
+            stripos($desc, 'recharge') !== false ||
+            stripos($note, 'recharge') !== false
+        ) {
             $categoryTitle = 'Wallet Top-Up';
-            $counterparty  = !empty($paymentMethod) ? ('Recharge via ' . $paymentMethod) : 'Self Top-Up';
+            $counterparty  = !empty($paymentMethod) ? ('Recharge via ' . $paymentMethod) : 'Wallet Top-Up';
             $paidFrom      = !empty($paymentMethod) ? $paymentMethod : 'Payment Gateway';
             $paidTo        = 'Your Wallet';
             $iconType      = 'topup';

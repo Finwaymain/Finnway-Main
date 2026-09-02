@@ -59,8 +59,17 @@ class AddAmountController extends Controller
 
         $updatedata = DB::update('update tj_user_app set amount = ?,modifier = ? where id = ?',[$amount,$date_heure,$id_user]);
 
-        $query = DB::insert("insert into tj_transaction(amount,deduction_type,payment_method,payment_status,id_user_app, creer,modifier)
-        values('".$amount_init."',1,'".$paymethod."','".$payStatus."','".$id_user."','".$date_heure."','".$date_heure."')");
+        $query = DB::table('tj_transaction')->insert([
+            'amount'         => (string)$amount_init,
+            'deduction_type' => 1,
+            'type'           => 'credit',
+            'payment_method' => $paymethod,
+            'payment_status' => $payStatus,
+            'id_user_app'    => $id_user,
+            'description'    => 'Wallet Top-Up',
+            'creer'          => $date_heure,
+            'modifier'       => $date_heure,
+        ]);
         }
         $sql_notification = UserApp::where('id',$id_user)->first();
         $data = $sql_notification ? $sql_notification->toArray() : [];
@@ -110,8 +119,9 @@ class AddAmountController extends Controller
         // Always set content-type when sending HTML email
         $headers = "MIME-Version: 1.0" . "\r\n";
         $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-        $headers .= 'From: ' . $app_name . '<' . $contact_us_email . '>' . "\r\n";
-        mail($to, $emailsubject, $emailmessage, $headers);
+        try {
+            @mail($to, $emailsubject, $emailmessage, $headers);
+        } catch (\Throwable $e) {}
 
       }
 
@@ -141,8 +151,17 @@ class AddAmountController extends Controller
           $updatedata = DB::update('update tj_conducteur set amount = ? where id = ?',[$amount,$id_user]);
           $amount=$amount_init;
 
-          DB::insert("insert into tj_conducteur_transaction(amount,payment_method,id_conducteur, creer,modifier)
-          values('".$amount_init."','".$paymethod."','".$id_user."','".$date_heure."','".$date_heure."')");
+          DB::table('tj_conducteur_transaction')->insert([
+              'amount'         => (string)$amount_init,
+              'deduction_type' => 1,
+              'type'           => 'credit',
+              'payment_method' => $paymethod,
+              'id_conducteur'  => $id_user,
+              'description'    => 'Wallet Top-Up',
+              'note'           => 'Wallet Top-Up via ' . $paymethod,
+              'creer'          => $date_heure,
+              'modifier'       => $date_heure,
+          ]);
         
         $sql_notification = Driver::where('id',$id_user)->first();
         $data = $sql_notification->toArray();
@@ -196,8 +215,9 @@ class AddAmountController extends Controller
         // Always set content-type when sending HTML email
         $headers = "MIME-Version: 1.0" . "\r\n";
         $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-        $headers .= 'From: ' . $app_name . '<' . $contact_us_email . '>' . "\r\n";
-        mail($to, $emailsubject, $emailmessage, $headers);
+        try {
+            @mail($to, $emailsubject, $emailmessage, $headers);
+        } catch (\Throwable $e) {}
 
       }
 

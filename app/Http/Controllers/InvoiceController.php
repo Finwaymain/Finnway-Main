@@ -15,6 +15,7 @@ class InvoiceController extends Controller
         $searchId = !empty($rideId) ? $rideId : $id;
         $amount = (float) ($request->query('amount') ?? 0);
         $paymentMethod = $request->query('payment_method') ?? '';
+        $isDebit = $request->query('is_debit', '1') === '1';
 
         // 1. Try to find in service_requests
         $booking = null;
@@ -32,7 +33,13 @@ class InvoiceController extends Controller
             $booking = DB::table('parcel_orders')->where('id', $searchId)->first();
         }
 
-        // 4. Try to find in tj_transaction
+        // 4. Try to find in marketplace_orders
+        $mpOrder = null;
+        if (Schema::hasTable('marketplace_orders')) {
+            $mpOrder = DB::table('marketplace_orders')->where('id', $searchId)->first();
+        }
+
+        // 5. Try to find in tj_transaction
         $transaction = null;
         if (Schema::hasTable('tj_transaction')) {
             $transaction = DB::table('tj_transaction')->where('id', $id)->first();
@@ -42,7 +49,7 @@ class InvoiceController extends Controller
         }
 
         if (empty($paymentMethod)) {
-            $paymentMethod = $booking->payment_status ?? ($transaction->payment_method ?? 'Wallet');
+            $paymentMethod = $booking->payment_status ?? ($mpOrder->payment_method ?? ($transaction->payment_method ?? 'Wallet'));
         }
 
         // Resolve title
@@ -50,100 +57,36 @@ class InvoiceController extends Controller
         if (empty($title)) {
             if ($booking) {
                 $title = $booking->service_name ?? $booking->destination_name ?? 'Service Booking';
+            } elseif ($mpOrder) {
+                $title = 'Marketplace Sale';
             } elseif ($transaction) {
-                $title = $transaction->deduction_type ?? $transaction->note ?? 'Wallet Transaction';
+                $title = $transaction->description ?? ($transaction->note ?? 'Wallet Transaction');
             } else {
                 $title = 'Fiinway Wallet Transaction';
             }
         }
 
-        // Resolve base amount and tax breakdown
-        $baseAmount = 0.0;
-        $taxTotal = 0.0;
-        $taxList = [];
-
-        if ($booking) {
-            $baseAmount = (float) ($booking->amount ?? $booking->montant ?? 0);
-            if ($baseAmount <= 0) {
-                $baseAmount = (float) $amount;
+        // Base amount
+        if ($amount <= 0) {
+            if ($booking) {
+                $amount = (float) ($booking->amount ?? ($booking->montant ?? 0));
+            } elseif ($mpOrder) {
+                $amount = (float) ($mpOrder->seller_payout_amount ?? ($mpOrder->total_amount ?? 0));
+            } elseif ($transaction) {
+                $amount = abs((float) ($transaction->amount ?? 0));
             }
-
-            // Check if tax column has JSON
-            if (!empty($booking->tax)) {
-                $decoded = is_string($booking->tax) ? json_decode($booking->tax, true) : $booking->tax;
-                if (is_array($decoded)) {
-                    foreach ($decoded as $t) {
-                        if (is_array($t)) {
-                            $tLabel = $t['libelle'] ?? ($t['name'] ?? 'Tax');
-                            $tVal = $t['value'] ?? '';
-                            $tType = $t['type'] ?? 'Percentage';
-                            $tAmt = isset($t['amount']) ? (float) $t['amount'] : 0.0;
-                            if ($tAmt <= 0 && is_numeric($tVal) && (float) $tVal > 0) {
-                                $tAmt = ($tType === 'Percentage') ? round(($baseAmount * (float)$tVal) / 100, 2) : (float) $tVal;
-                            }
-                            $taxTotal += $tAmt;
-                            $taxList[] = [
-                                'label' => $tLabel . ($tType === 'Percentage' && !empty($tVal) ? " ({$tVal}%)" : ''),
-                                'amount' => $tAmt,
-                            ];
-                        }
-                    }
-                }
-            } elseif (!empty($booking->tax_amount) && (float) $booking->tax_amount > 0) {
-                $taxTotal = (float) $booking->tax_amount;
-                $taxList[] = [
-                    'label' => 'Taxes & Service Fees',
-                    'amount' => $taxTotal,
-                ];
-            } else {
-                // Check active taxes from tj_tax if booking is paid with taxes
-                $pmClean = strtolower(trim((string) $paymentMethod));
-                if (Schema::hasTable('tj_tax') && !empty($pmClean) && $pmClean !== 'exempt') {
-                    $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
-                    foreach ($activeTaxes as $taxRow) {
-                        $appOn = !empty($taxRow->applicable_on) ? explode(',', $taxRow->applicable_on) : ['cash','upi','wallet','online'];
-                        $matches = in_array($pmClean, $appOn) || 
-                                   ($pmClean === 'upi' && in_array('online', $appOn)) || 
-                                   ($pmClean === 'online' && in_array('upi', $appOn)) ||
-                                   (str_contains($pmClean, 'cash') && in_array('cash', $appOn)) ||
-                                   (str_contains($pmClean, 'wallet') && in_array('wallet', $appOn));
-                        if ($matches) {
-                            $tVal = (float) ($taxRow->value ?? 0);
-                            $tAmt = ($taxRow->type === 'Percentage') ? round(($baseAmount * $tVal) / 100, 2) : $tVal;
-                            if ($tAmt > 0) {
-                                $taxTotal += $tAmt;
-                                $taxList[] = [
-                                    'label' => ($taxRow->libelle ?? 'Tax') . ($taxRow->type === 'Percentage' ? " ({$taxRow->value}%)" : ''),
-                                    'amount' => $tAmt,
-                                ];
-                            }
-                        }
-                    }
-                }
-            }
-        } elseif ($transaction) {
-            $totalTxAmount = abs((float) ($transaction->amount ?? 0));
-            $baseAmount = $totalTxAmount;
-            $taxTotal = 0.0;
-        }
-
-        if ($baseAmount <= 0) {
-            $baseAmount = (float) $amount;
-        }
-        $finalTotal = round($baseAmount + $taxTotal, 2);
-        if ($amount > 0 && ($amount >= $finalTotal || empty($taxList))) {
-            $finalTotal = $amount;
         }
 
         // Resolve user
         $userName = $request->query('user_name');
-        // Resolve sender (Paid From) and receiver (Paid To)
+        $userPhone = 'N/A';
+        $userEmail = 'N/A';
         $paidFrom = $request->query('paid_from');
         $paidTo = $request->query('paid_to');
         $driverObj = null;
 
         if ($booking) {
-            $userId = $booking->user_id ?? $booking->id_user_app ?? 0;
+            $userId = $booking->user_id ?? ($booking->id_user_app ?? 0);
             $userObj = null;
             if (Schema::hasTable('tj_user_app')) {
                 $userObj = DB::table('tj_user_app')->where('id', $userId)->first();
@@ -155,32 +98,35 @@ class InvoiceController extends Controller
                 if (empty($userName)) {
                     $userName = trim(($userObj->nom ?? '') . ' ' . ($userObj->prenom ?? ''));
                 }
-                $userPhone = $userObj->phone ?? $userObj->telephone ?? 'N/A';
+                $userPhone = $userObj->phone ?? ($userObj->telephone ?? 'N/A');
                 $userEmail = $userObj->email ?? 'N/A';
             }
 
-            // Driver / Expert
-            $driverId = $booking->driver_id ?? $booking->id_conducteur ?? 0;
+            $driverId = $booking->driver_id ?? ($booking->id_conducteur ?? 0);
             if (!empty($driverId) && Schema::hasTable('tj_conducteur')) {
                 $driverObj = DB::table('tj_conducteur')->where('id', $driverId)->first();
             }
         }
 
         if (empty($userName) || $userName === 'Customer' || $userName === 'User') {
-            $userName = $request->query('user_name', 'Fiinway Valued Member');
+            $userName = $request->query('user_name', 'Fiinway Member');
         }
 
         $driverName = $driverObj ? trim(($driverObj->nom ?? '') . ' ' . ($driverObj->prenom ?? '')) : '';
-        $driverPhone = $driverObj->phone ?? $driverObj->telephone ?? '';
+        $driverPhone = $driverObj->phone ?? ($driverObj->telephone ?? '');
 
         if (empty($paidFrom)) {
             if ($isDebit) {
                 $paidFrom = $userName;
             } else {
-                if (stripos($title, 'referral') !== false) {
+                if (stripos($title, 'marketplace') !== false) {
+                    $paidFrom = 'Marketplace Escrow';
+                } elseif (stripos($title, 'referral') !== false) {
                     $paidFrom = 'Fiinway Referral Program';
                 } elseif (stripos($title, 'cashback') !== false) {
                     $paidFrom = 'Fiinway Smart Value Rewards';
+                } elseif (stripos($title, 'top-up') !== false || stripos($title, 'topup') !== false) {
+                    $paidFrom = !empty($paymentMethod) ? $paymentMethod : 'Payment Gateway';
                 } elseif (!empty($driverName)) {
                     $paidFrom = $driverName;
                 } else {
@@ -196,7 +142,7 @@ class InvoiceController extends Controller
                 } elseif (stripos($title, 'withdraw') !== false) {
                     $paidTo = 'Linked Bank Account';
                 } else {
-                    $paidTo = 'Fiinway Technologies';
+                    $paidTo = 'Fiinway Services';
                 }
             } else {
                 $paidTo = $userName . ' (Wallet)';
@@ -206,10 +152,13 @@ class InvoiceController extends Controller
         $dateStr = $request->query('date');
         $rawDate = !empty($dateStr) 
             ? $dateStr 
-            : ($booking->date_heure ?? ($booking->creer ?? ($transaction->creer ?? date('Y-m-d H:i:s'))));
-        $date = (strtotime((string)$rawDate)) ? date('d M Y, h:i A', strtotime((string)$rawDate)) : (string)$rawDate;
+            : ($booking->date_heure ?? ($booking->creer ?? ($mpOrder->created_at ?? ($transaction->creer ?? date('Y-m-d H:i:s')))));
+        
+        $date = (string)$rawDate;
+        if (strtotime((string)$rawDate)) {
+            $date = date('d M Y, h:i A', strtotime((string)$rawDate));
+        }
 
-        $paymentMethod = $request->query('payment_method', $booking->payment_status ?? ($transaction->payment_method ?? 'Smart Value Wallet'));
         $pmRaw = strtolower(trim((string)$paymentMethod));
         if (str_contains($pmRaw, 'cash')) {
             $paymentMethod = 'Cash Paid';
@@ -218,7 +167,6 @@ class InvoiceController extends Controller
         } elseif (str_contains($pmRaw, 'upi') || str_contains($pmRaw, 'razorpay')) {
             $paymentMethod = 'UPI / Online';
         }
-        $isDebit = $request->query('is_debit', '1') === '1';
 
         $currencySymbol = Helper::getCurrencySymbol();
         $invoiceNo = 'FIIN-' . str_pad((string) $id, 7, '0', STR_PAD_LEFT);
@@ -226,13 +174,7 @@ class InvoiceController extends Controller
         return view('invoices.invoice', compact(
             'id',
             'invoiceNo',
-            'booking',
-            'transaction',
             'title',
-            'baseAmount',
-            'taxList',
-            'taxTotal',
-            'finalTotal',
             'amount',
             'userName',
             'userPhone',

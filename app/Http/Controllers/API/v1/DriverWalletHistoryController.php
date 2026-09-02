@@ -460,13 +460,30 @@ class DriverWalletHistoryController extends Controller
         $wt->montant             = $wt->amount;
 
         $note = (string) ($wt->note ?? '');
+        $desc = (string) ($wt->description ?? '');
         $paymentMethod = (string) ($wt->payment_method ?? '');
+        $dedType = (string) ($wt->deduction_type ?? '');
 
-        if ($paymentMethod === 'Commission' || stripos($note, 'commission') !== false) {
+        if ($paymentMethod === 'Commission' || stripos($note, 'commission') !== false || stripos($desc, 'commission') !== false) {
             $wt->order_type       = 'commission';
             $wt->depart_name      = 'Admin Commission Deduction';
             $wt->destination_name = 'Admin Panel';
             $wt->libelle          = 'Admin Commission';
+        } elseif (stripos($desc, 'marketplace') !== false || stripos($note, 'marketplace') !== false || stripos($paymentMethod, 'marketplace') !== false) {
+            $wt->order_type       = 'marketplace';
+            $wt->depart_name      = 'Marketplace Sale Earnings';
+            $wt->destination_name = 'Wallet';
+            $wt->libelle          = 'Marketplace Sale';
+        } elseif (stripos($desc, 'withdraw') !== false || stripos($note, 'withdraw') !== false || stripos($desc, 'payout') !== false) {
+            $wt->order_type       = 'withdraw';
+            $wt->depart_name      = 'Bank Withdrawal';
+            $wt->destination_name = 'Linked Bank Account';
+            $wt->libelle          = 'Bank Withdrawal';
+        } elseif ($dedType === '1' || stripos($desc, 'top-up') !== false || stripos($desc, 'topup') !== false || stripos($note, 'topup') !== false || stripos($note, 'top-up') !== false || stripos($desc, 'recharge') !== false) {
+            $wt->order_type       = 'topup';
+            $wt->depart_name      = 'Wallet Top-Up';
+            $wt->destination_name = 'Wallet';
+            $wt->libelle          = 'Wallet Top-Up';
         } elseif ($paymentMethod === 'Tax/GST' || stripos($note, 'tax') !== false || stripos($paymentMethod, 'tax') !== false || stripos($paymentMethod, 'gst') !== false) {
             $wt->order_type       = 'tax';
             $wt->depart_name      = 'Tax & Charges Deduction';

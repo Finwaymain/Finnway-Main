@@ -302,7 +302,7 @@
             <!-- Amount Hero Tile -->
             <div class="amount-tile">
                 <div class="amount-label">{{ $isDebit ? 'Total Paid Amount' : 'Total Credited Amount' }}</div>
-                <div class="amount-value">{{ $currencySymbol }}{{ number_format($finalTotal ?? $amount, 2) }}</div>
+                <div class="amount-value">{{ $currencySymbol }}{{ number_format($amount, 2) }}</div>
                 <div class="status-tag">✓ Payment Successful</div>
             </div>
 
@@ -326,7 +326,7 @@
                 </div>
                 <div class="info-item">
                     <div class="info-label">Date & Time</div>
-                    <div class="info-val">{{ \Carbon\Carbon::parse($date)->format('d M Y, h:i A') }}</div>
+                    <div class="info-val">{{ $date }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Reference ID</div>
@@ -334,7 +334,7 @@
                 </div>
             </div>
 
-            <!-- Transaction Particulars Table -->
+            <!-- Simple Transaction Particulars Table (No Breakdown) -->
             <table class="txn-table">
                 <thead>
                     <tr>
@@ -346,33 +346,13 @@
                     <tr>
                         <td>
                             <strong style="color:#0f172a; font-size:13.5px;">{{ $title }}</strong><br>
-                            <span style="font-size:11.5px; color:#64748b;">Ref: #{{ $id }} &bull; Transaction Value</span>
+                            <span style="font-size:11.5px; color:#64748b;">Ref: #{{ $id }} &bull; Successful Payment</span>
                         </td>
-                        <td>{{ $currencySymbol }}{{ number_format($baseAmount ?? $amount, 2) }}</td>
+                        <td style="color:#15803D; font-size:15px; font-weight:800;">{{ $currencySymbol }}{{ number_format($amount, 2) }}</td>
                     </tr>
-                    @if(!empty($taxList) && count($taxList) > 0)
-                        @foreach($taxList as $taxItem)
-                            <tr>
-                                <td style="color:#475569; font-size:12.5px;">
-                                    <span>{{ $taxItem['label'] }}</span>
-                                </td>
-                                <td style="color:#15803D; font-size:12.5px;">+{{ $currencySymbol }}{{ number_format($taxItem['amount'], 2) }}</td>
-                            </tr>
-                        @endforeach
-                    @elseif(($taxTotal ?? 0) > 0)
-                        <tr>
-                            <td style="color:#475569; font-size:12.5px;">Applicable Taxes & Charges</td>
-                            <td style="color:#15803D; font-size:12.5px;">+{{ $currencySymbol }}{{ number_format($taxTotal, 2) }}</td>
-                        </tr>
-                    @else
-                        <tr>
-                            <td style="color:#64748b; font-size:12px;">Platform Fee / Taxes</td>
-                            <td style="color:#15803D; font-size:12px;">₹0.00 (Inclusive/Exempt)</td>
-                        </tr>
-                    @endif
                     <tr style="background:#f8fafc; font-weight:800;">
-                        <td><strong>Total Amount</strong></td>
-                        <td style="color:#15803D; font-size:16px; font-weight:900;">{{ $currencySymbol }}{{ number_format($finalTotal ?? $amount, 2) }}</td>
+                        <td><strong>Total {{ $isDebit ? 'Paid' : 'Received' }}</strong></td>
+                        <td style="color:#15803D; font-size:16px; font-weight:900;">{{ $currencySymbol }}{{ number_format($amount, 2) }}</td>
                     </tr>
                 </tbody>
             </table>
