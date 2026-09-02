@@ -25,17 +25,17 @@ class PayoutRequestController extends Controller
             ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'withdrawals.id_conducteur')
             ->select(
                 'withdrawals.*',
-                DB::raw("COALESCE(tj_conducteur.nom, tj_user_app.nom, '') as nom"),
-                DB::raw("COALESCE(tj_conducteur.prenom, tj_user_app.prenom, '') as prenom"),
-                DB::raw("COALESCE(tj_conducteur.phone, tj_user_app.phone, '') as phone"),
-                DB::raw("COALESCE(tj_conducteur.email, tj_user_app.email, '') as email"),
-                DB::raw("COALESCE(tj_conducteur.bank_name, tj_user_app.bank_name, '') as bank_name"),
-                DB::raw("COALESCE(tj_conducteur.branch_name, tj_user_app.branch_name, '') as branch_name"),
-                DB::raw("COALESCE(tj_conducteur.holder_name, tj_user_app.holder_name, '') as holder_name"),
-                DB::raw("COALESCE(tj_conducteur.account_no, tj_user_app.account_no, '') as account_no"),
-                DB::raw("COALESCE(tj_conducteur.other_info, '') as other_info"),
-                DB::raw("COALESCE(tj_conducteur.ifsc_code, tj_user_app.ifsc_code, '') as ifsc_code"),
-                DB::raw("CASE WHEN tj_conducteur.id IS NOT NULL THEN 'Driver' ELSE 'User' END as user_category")
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.nom ELSE COALESCE(tj_conducteur.nom, tj_user_app.nom, '') END as nom"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.prenom ELSE COALESCE(tj_conducteur.prenom, tj_user_app.prenom, '') END as prenom"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.phone ELSE COALESCE(tj_conducteur.phone, tj_user_app.phone, '') END as phone"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.email ELSE COALESCE(tj_conducteur.email, tj_user_app.email, '') END as email"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.bank_name ELSE COALESCE(tj_conducteur.bank_name, tj_user_app.bank_name, '') END as bank_name"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.branch_name ELSE COALESCE(tj_conducteur.branch_name, tj_user_app.branch_name, '') END as branch_name"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.holder_name ELSE COALESCE(tj_conducteur.holder_name, tj_user_app.holder_name, '') END as holder_name"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.account_no ELSE COALESCE(tj_conducteur.account_no, tj_user_app.account_no, '') END as account_no"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN '' ELSE COALESCE(tj_conducteur.other_info, '') END as other_info"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN tj_user_app.ifsc_code ELSE COALESCE(tj_conducteur.ifsc_code, tj_user_app.ifsc_code, '') END as ifsc_code"),
+                DB::raw("CASE WHEN withdrawals.note LIKE '%[User]%' THEN 'User' WHEN withdrawals.note LIKE '%[Driver]%' THEN 'Driver' WHEN tj_conducteur.id IS NOT NULL THEN 'Driver' ELSE 'User' END as user_category")
             );
 
         if (!empty($id)) {
@@ -43,9 +43,21 @@ class PayoutRequestController extends Controller
         }
 
         if ($tab === 'driver') {
-            $query->whereNotNull('tj_conducteur.id');
+            $query->where(function($q) {
+                $q->where('withdrawals.note', 'LIKE', '%[Driver]%')
+                  ->orWhere(function($sub) {
+                      $sub->where('withdrawals.note', 'NOT LIKE', '%[User]%')
+                          ->whereNotNull('tj_conducteur.id');
+                  });
+            });
         } elseif ($tab === 'user') {
-            $query->whereNull('tj_conducteur.id')->whereNotNull('tj_user_app.id');
+            $query->where(function($q) {
+                $q->where('withdrawals.note', 'LIKE', '%[User]%')
+                  ->orWhere(function($sub) {
+                      $sub->whereNull('tj_conducteur.id')
+                          ->whereNotNull('tj_user_app.id');
+                  });
+            });
         }
 
         $withdrawal = $query->orderBy('withdrawals.id', 'desc')->paginate(20);
@@ -62,7 +74,7 @@ class PayoutRequestController extends Controller
         $user_type = strtolower($request->input('user_type') ?? '');
 
         $bankDetails = null;
-        if ($user_type === 'user') {
+        if ($user_type === 'user' || $user_type === 'customer') {
             $bankDetails = DB::table('tj_user_app')->select('*')->where('id', '=', $id)->first();
         } else {
             $bankDetails = DB::table('tj_conducteur')->select('*')->where('id', '=', $id)->first();
@@ -99,48 +111,79 @@ class PayoutRequestController extends Controller
 
         $withdraw_amount = floatval($withdrawal->amount);
         $userId = $withdrawal->id_conducteur;
+        $note = (string) ($withdrawal->note ?? '');
+        $isUser = (stripos($note, '[User]') !== false) || ($request->input('user_type') === 'user') || ($request->input('user_type') === 'customer');
 
-        // Check driver first
-        $driver = DB::table('tj_conducteur')->where('id', '=', $userId)->first();
-        if ($driver) {
-            $newAmount = floatval($driver->amount ?? 0) - $withdraw_amount;
-            DB::table('tj_conducteur')->where('id', '=', $userId)->update(['amount' => max(0, $newAmount)]);
-
-            // Record transaction in history so it appears in history ONLY AFTER admin approval
-            $txnId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
-            DB::table('tj_conducteur_transaction')->insert([
-                'id_conducteur'   => $userId,
-                'ac_no'           => $driver->ac_no ?? $driver->phone,
-                'txn_id'          => $txnId,
-                'withdraw_status' => 'approved',
-                'payment_status'  => 'success',
-                'description'     => 'Payout Request ' . number_format($withdraw_amount, 2) . ' Approved',
-                'amount'          => $withdraw_amount,
-                'type'            => 'debit',
-                'deduction_type'  => 0,
-                'date'            => date('Y-m-d'),
-            ]);
-        } else {
-            // Check consumer user
+        if ($isUser) {
             $user = DB::table('tj_user_app')->where('id', '=', $userId)->first();
             if ($user) {
-                $newAmount = floatval($user->amount ?? 0) - $withdraw_amount;
-                DB::table('tj_user_app')->where('id', '=', $userId)->update(['amount' => max(0, $newAmount)]);
-
-                // Record transaction in history so it appears in history ONLY AFTER admin approval
-                $txnId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
-                DB::table('tj_transaction')->insert([
-                    'id_user_app'     => $userId,
-                    'ac_no'           => $user->ac_no ?? $user->phone,
-                    'txn_id'          => $txnId,
-                    'withdraw_status' => 'approved',
-                    'payment_status'  => 'success',
-                    'description'     => 'Payout Request ' . number_format($withdraw_amount, 2) . ' Approved',
-                    'amount'          => $withdraw_amount,
-                    'type'            => 'debit',
-                    'deduction_type'  => 0,
-                    'date'            => date('Y-m-d'),
-                ]);
+                $padId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
+                $existingTxn = DB::table('tj_transaction')->where('txn_id', $padId)->first();
+                if ($existingTxn) {
+                    DB::table('tj_transaction')->where('id', $existingTxn->id)->update([
+                        'withdraw_status' => 'approved',
+                        'payment_status'  => 'success',
+                        'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Approved',
+                    ]);
+                } else {
+                    // Legacy record: deduct now
+                    $newAmount = max(0, floatval($user->amount ?? 0) - $withdraw_amount);
+                    $newEarn = max(0, floatval($user->earn_amount ?? 0) - $withdraw_amount);
+                    DB::table('tj_user_app')->where('id', '=', $userId)->update([
+                        'amount'      => $newAmount,
+                        'earn_amount' => $newEarn,
+                    ]);
+                    DB::table('tj_transaction')->insert([
+                        'id_user_app'     => $userId,
+                        'ac_no'           => $user->ac_no ?? $user->phone,
+                        'txn_id'          => $padId,
+                        'withdraw_status' => 'approved',
+                        'payment_status'  => 'success',
+                        'payment_method'  => 'Bank Withdrawal',
+                        'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Approved',
+                        'amount'          => $withdraw_amount,
+                        'type'            => 'debit',
+                        'deduction_type'  => 0,
+                        'date'            => date('Y-m-d'),
+                        'creer'           => date('Y-m-d H:i:s'),
+                        'modifier'        => date('Y-m-d H:i:s'),
+                    ]);
+                }
+            }
+        } else {
+            $driver = DB::table('tj_conducteur')->where('id', '=', $userId)->first();
+            if ($driver) {
+                $padId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
+                $existingTxn = DB::table('tj_conducteur_transaction')->where('txn_id', $padId)->first();
+                if ($existingTxn) {
+                    DB::table('tj_conducteur_transaction')->where('id', $existingTxn->id)->update([
+                        'withdraw_status' => 'approved',
+                        'payment_status'  => 'success',
+                        'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Approved',
+                    ]);
+                } else {
+                    $newAmount = max(0, floatval($driver->amount ?? 0) - $withdraw_amount);
+                    $newEarn = max(0, floatval($driver->earn_amount ?? 0) - $withdraw_amount);
+                    DB::table('tj_conducteur')->where('id', '=', $userId)->update([
+                        'amount'      => $newAmount,
+                        'earn_amount' => $newEarn,
+                    ]);
+                    DB::table('tj_conducteur_transaction')->insert([
+                        'id_conducteur'   => $userId,
+                        'ac_no'           => $driver->ac_no ?? $driver->phone,
+                        'txn_id'          => $padId,
+                        'withdraw_status' => 'approved',
+                        'payment_status'  => 'success',
+                        'payment_method'  => 'Bank Withdrawal',
+                        'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Approved',
+                        'amount'          => $withdraw_amount,
+                        'type'            => 'debit',
+                        'deduction_type'  => 0,
+                        'date'            => date('Y-m-d'),
+                        'creer'           => date('Y-m-d H:i:s'),
+                        'modifier'        => date('Y-m-d H:i:s'),
+                    ]);
+                }
             }
         }
 
@@ -158,9 +201,40 @@ class PayoutRequestController extends Controller
             return response()->json(['success' => false, 'message' => 'Withdrawal request not found.']);
         }
 
+        $withdraw_amount = floatval($withdrawal->amount);
+        $userId = $withdrawal->id_conducteur;
+        $note = (string) ($withdrawal->note ?? '');
+        $isUser = (stripos($note, '[User]') !== false) || ($request->input('user_type') === 'user') || ($request->input('user_type') === 'customer');
+
+        $padId = str_pad((string)$withdrawal->id, 7, '0', STR_PAD_LEFT);
+        if ($isUser) {
+            $existingTxn = DB::table('tj_transaction')->where('txn_id', $padId)->first();
+            if ($existingTxn) {
+                // Refund wallet
+                DB::table('tj_user_app')->where('id', '=', $userId)->increment('amount', $withdraw_amount);
+                DB::table('tj_user_app')->where('id', '=', $userId)->increment('earn_amount', $withdraw_amount);
+                DB::table('tj_transaction')->where('id', $existingTxn->id)->update([
+                    'withdraw_status' => 'rejected',
+                    'payment_status'  => 'failed',
+                    'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Rejected (Refunded)',
+                ]);
+            }
+        } else {
+            $existingTxn = DB::table('tj_conducteur_transaction')->where('txn_id', $padId)->first();
+            if ($existingTxn) {
+                DB::table('tj_conducteur')->where('id', '=', $userId)->increment('amount', $withdraw_amount);
+                DB::table('tj_conducteur')->where('id', '=', $userId)->increment('earn_amount', $withdraw_amount);
+                DB::table('tj_conducteur_transaction')->where('id', $existingTxn->id)->update([
+                    'withdraw_status' => 'rejected',
+                    'payment_status'  => 'failed',
+                    'description'     => 'Payout Request ₹' . number_format($withdraw_amount, 2) . ' Rejected (Refunded)',
+                ]);
+            }
+        }
+
         $withdrawal->statut = 'rejected';
         $withdrawal->save();
 
-        return response()->json(['success' => true, 'message' => 'Withdrawal request rejected successfully.']);
+        return response()->json(['success' => true, 'message' => 'Withdrawal request rejected and refunded to wallet successfully.']);
     }
 }

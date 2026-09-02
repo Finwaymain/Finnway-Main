@@ -118,14 +118,73 @@ class DriverWithdrawalsController extends Controller
             ]);
         }
 
+        $roleTag = $isDriver ? '[Driver]' : '[User]';
+        $finalNote = $roleTag . ' ' . ($note ?? 'Payout Request');
+
+        // 1. Deduct wallet balance immediately upon payout request
+        $newAmount = max(0, $userAmount - $reqAmount);
+        $newEarn = max(0, $userEarn - $reqAmount);
+
+        if ($isDriver) {
+            DB::table('tj_conducteur')->where('id', $user_id)->update([
+                'amount'      => $newAmount,
+                'earn_amount' => $newEarn,
+                'modifier'    => $date_heure,
+            ]);
+        } else {
+            DB::table('tj_user_app')->where('id', $user_id)->update([
+                'amount'      => $newAmount,
+                'earn_amount' => $newEarn,
+                'modifier'    => $date_heure,
+            ]);
+        }
+
+        // 2. Insert into withdrawals table
         $id = DB::table('withdrawals')->insertGetId([
             'id_conducteur' => $user_id,
             'amount'        => $reqAmount,
-            'note'          => $note ?? 'Payout Request',
+            'note'          => $finalNote,
             'statut'        => 'pending',
             'creer'         => $date_heure,
             'modifier'      => $date_heure,
         ]);
+
+        // 3. Record debit transaction in wallet ledger immediately
+        $txnId = str_pad((string)$id, 7, '0', STR_PAD_LEFT);
+        if ($isDriver) {
+            DB::table('tj_conducteur_transaction')->insert([
+                'id_conducteur'   => $user_id,
+                'ac_no'           => $chkid->ac_no ?? $chkid->phone,
+                'txn_id'          => $txnId,
+                'withdraw_status' => 'pending',
+                'payment_status'  => 'pending',
+                'payment_method'  => 'Bank Withdrawal',
+                'description'     => 'Bank Withdrawal Request',
+                'note'            => 'Payout Request #' . $txnId . ' to Linked Bank Account',
+                'amount'          => $reqAmount,
+                'type'            => 'debit',
+                'deduction_type'  => 0,
+                'date'            => date('Y-m-d'),
+                'creer'           => $date_heure,
+                'modifier'        => $date_heure,
+            ]);
+        } else {
+            DB::table('tj_transaction')->insert([
+                'id_user_app'     => $user_id,
+                'ac_no'           => $chkid->ac_no ?? $chkid->phone,
+                'txn_id'          => $txnId,
+                'withdraw_status' => 'pending',
+                'payment_status'  => 'pending',
+                'payment_method'  => 'Bank Withdrawal',
+                'description'     => 'Bank Withdrawal Request #' . $txnId,
+                'amount'          => $reqAmount,
+                'type'            => 'debit',
+                'deduction_type'  => 0,
+                'date'            => date('Y-m-d'),
+                'creer'           => $date_heure,
+                'modifier'        => $date_heure,
+            ]);
+        }
 
         if ($id > 0) {
             $response['success'] = 'success';
@@ -134,6 +193,8 @@ class DriverWithdrawalsController extends Controller
             $response['data']    = [
                 'widrawals_statut' => 'pending',
                 'widrawals_amount' => $reqAmount,
+                'new_balance'      => $newAmount,
+                'new_earnings'     => $newEarn,
             ];
             return response()->json($response);
         }

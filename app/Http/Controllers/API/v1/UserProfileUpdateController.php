@@ -607,28 +607,90 @@ class UserProfileUpdateController extends Controller
             ]);
         }
 
-        // Insert into admin withdrawals table as pending request ONLY (No debit transaction created until admin approval)
+        $isDriverSender = ($user_type === 'driver');
+        $roleTag = $isDriverSender ? '[Driver]' : '[User]';
+        $finalNote = $roleTag . ' ' . ($all['note'] ?? $request->input('note') ?? 'Payout Request');
+
+        // 1. Deduct wallet balance immediately upon payout request
+        $newAmount = max(0, $currentBalance - $amount);
+        $newEarn = max(0, $earnBalance - $amount);
+        $nowDateTime = date('Y-m-d H:i:s');
+
+        if ($isDriverSender) {
+            DB::table('tj_conducteur')->where('id', $sender->id)->update([
+                'amount'      => $newAmount,
+                'earn_amount' => $newEarn,
+                'modifier'    => $nowDateTime,
+            ]);
+        } else {
+            DB::table('tj_user_app')->where('id', $sender->id)->update([
+                'amount'      => $newAmount,
+                'earn_amount' => $newEarn,
+                'modifier'    => $nowDateTime,
+            ]);
+        }
+
+        // 2. Insert into withdrawals table
         $insertedId = DB::table('withdrawals')->insertGetId([
             'id_conducteur' => $sender->id,
             'amount'        => $amount,
-            'note'          => $all['note'] ?? $request->input('note') ?? 'Payout Request',
+            'note'          => $finalNote,
             'statut'        => 'pending',
-            'creer'         => date('Y-m-d H:i:s'),
-            'modifier'      => date('Y-m-d H:i:s'),
+            'creer'         => $nowDateTime,
+            'modifier'      => $nowDateTime,
         ]);
 
         if ($insertedId) {
             $paddedTxnId = str_pad((string)$insertedId, 7, '0', STR_PAD_LEFT);
+
+            // 3. Record debit transaction in wallet ledger immediately
+            if ($isDriverSender) {
+                DB::table('tj_conducteur_transaction')->insert([
+                    'id_conducteur'   => $sender->id,
+                    'ac_no'           => $sender->ac_no ?? $sender->phone,
+                    'txn_id'          => $paddedTxnId,
+                    'withdraw_status' => 'pending',
+                    'payment_status'  => 'pending',
+                    'payment_method'  => 'Bank Withdrawal',
+                    'description'     => 'Bank Withdrawal Request',
+                    'note'            => 'Payout Request #' . $paddedTxnId . ' to Linked Bank Account',
+                    'amount'          => $amount,
+                    'type'            => 'debit',
+                    'deduction_type'  => 0,
+                    'date'            => date('Y-m-d'),
+                    'creer'           => $nowDateTime,
+                    'modifier'        => $nowDateTime,
+                ]);
+            } else {
+                DB::table('tj_transaction')->insert([
+                    'id_user_app'     => $sender->id,
+                    'ac_no'           => $sender->ac_no ?? $sender->phone,
+                    'txn_id'          => $paddedTxnId,
+                    'withdraw_status' => 'pending',
+                    'payment_status'  => 'pending',
+                    'payment_method'  => 'Bank Withdrawal',
+                    'description'     => 'Bank Withdrawal Request #' . $paddedTxnId,
+                    'amount'          => $amount,
+                    'type'            => 'debit',
+                    'deduction_type'  => 0,
+                    'date'            => date('Y-m-d'),
+                    'creer'           => $nowDateTime,
+                    'modifier'        => $nowDateTime,
+                ]);
+            }
+
             return response()->json([
                 'res'     => 'success',
                 'success' => 'success',
-                'msg'     => 'Payout request submitted successfully. It will be processed after admin approval.',
-                'message' => 'Payout request submitted successfully. It will be processed after admin approval.',
+                'msg'     => 'Payout request submitted successfully. Amount ₹' . number_format($amount, 2) . ' has been debited and will be transferred to your bank.',
+                'message' => 'Payout request submitted successfully. Amount ₹' . number_format($amount, 2) . ' has been debited and will be transferred to your bank.',
                 'data'    => [
                     'id'               => $paddedTxnId,
                     'txn_id'           => $paddedTxnId,
                     'widrawals_statut' => 'pending',
                     'widrawals_amount' => $amount,
+                    'new_balance'      => $newAmount,
+                    'new_earnings'     => $newEarn,
                 ]
             ]);
         } else {
