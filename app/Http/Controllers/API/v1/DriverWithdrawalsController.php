@@ -80,25 +80,8 @@ class DriverWithdrawalsController extends Controller
             ]);
         }
 
-        $phone = $request->get('phone') ?: $request->get('mobile');
-        $cleanPhone = \App\Helpers\WalletBalanceHelper::cleanPhone($phone);
-
-        $isDriver = ($user_type === 'driver');
-        if (!$request->has('user_type') && !$request->has('user_cat')) {
-            if ($request->has('driver_id') || $request->has('id_driver') || $request->has('id_conducteur')) {
-                $isDriver = true;
-            }
-        }
-
-        $chkid = null;
-        if (!empty($cleanPhone)) {
-            $chkid = $isDriver
-                ? Driver::where('phone', 'like', "%{$cleanPhone}%")->first()
-                : UserApp::where('phone', 'like', "%{$cleanPhone}%")->first();
-        }
-        if (!$chkid) {
-            $chkid = $isDriver ? Driver::where('id', $user_id)->first() : UserApp::where('id', $user_id)->first();
-        }
+        $isDriver = ($user_type === 'driver' || Driver::where('id', $user_id)->exists());
+        $chkid = $isDriver ? Driver::where('id', $user_id)->first() : UserApp::where('id', $user_id)->first();
 
         if (!$chkid) {
             return response()->json([
@@ -107,15 +90,8 @@ class DriverWithdrawalsController extends Controller
             ]);
         }
 
-        $syncedWithdrawable = \App\Helpers\WalletBalanceHelper::syncUserWithdrawableBalance(
-            $chkid->id,
-            $isDriver ? 'driver' : 'customer',
-            $chkid->phone ?? $cleanPhone
-        );
-        $chkid = $isDriver ? Driver::where('id', $chkid->id)->first() : UserApp::where('id', $chkid->id)->first();
-
         $userAmount = floatval($chkid->amount ?? 0);
-        $withdrawableAmount = floatval($chkid->withdrawable_balance ?? $syncedWithdrawable);
+        $withdrawableAmount = floatval($chkid->withdrawable_balance ?? 0);
         $reqAmount = floatval($amount);
 
         if ($reqAmount > $withdrawableAmount) {

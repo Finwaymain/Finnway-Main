@@ -30,142 +30,126 @@ class BankAccountDetailsController extends Controller
 
   	public function getData(Request $request)
   	{
-        $user_id   = $request->get('user_id') ?: $request->get('driver_id') ?: $request->get('id_user') ?: $request->get('id_conducteur');
-        $user_type = strtolower($request->get('user_type') ?: $request->get('user_cat') ?: ($request->has('driver_id') && !$request->has('user_id') ? 'driver' : 'customer'));
-        $phone     = $request->get('phone') ?: $request->get('mobile');
 
-        $table = ($user_type === 'driver') ? 'tj_conducteur' : 'tj_user_app';
-        $row = null;
+   		$user_id = $request->get('driver_id');
 
-        $selectCols = ['bank_name', 'branch_name', 'holder_name', 'account_no', 'ifsc_code'];
-        if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'other_info')) {
-            $selectCols[] = 'other_info';
+	    if(!empty($user_id)){
+		    $row = DB::table('tj_conducteur')
+	    	->select('bank_name','branch_name','holder_name','account_no','other_info','ifsc_code')
+	    	->where('id',$user_id)
+	    	->first();
+        
+        if($row->bank_name==null){
+          $row->bank_name='';
+        }
+        if($row->branch_name==null){
+          $row->branch_name='';
+        }
+        if($row->holder_name==null){
+          $row->holder_name='';
+        }
+        if($row->account_no==null){
+          $row->account_no='';
+        }
+        if($row->other_info==null){
+          $row->other_info='';
+        }
+        if($row->ifsc_code==null){
+          $row->ifsc_code='';
         }
 
-        // Primary: Match by unique 10-digit phone number
-        if (!empty($phone)) {
-            $cleanPhone = substr(preg_replace('/\D/', '', (string)$phone), -10);
-            if (!empty($cleanPhone)) {
-                $row = DB::table($table)
-                    ->select($selectCols)
-                    ->where('phone', 'like', "%{$cleanPhone}%")
-                    ->first();
-            }
-        }
+         if($row->bank_name=='' && $row->branch_name=='' && $row->holder_name=='' && $row->account_no=='' && $row->other_info=='' && $row->ifsc_code==''){
+           $response['success']= 'Failed';
+           $response['error']= 'Failed to fetch bank details';
+         }
+	    	else{
+	        	$response['success']= 'success';
+	        	$response['error']= null;
+	        	$response['message']= 'Bank details fetch successfully';
+	        	$response['data'] = $row;
+	    	}
 
-        // Secondary: Match strictly in the designated table by ID
-        if (!$row && !empty($user_id)) {
-            $row = DB::table($table)
-                ->select($selectCols)
-                ->where('id', $user_id)
-                ->first();
-        }
+	  }else{
+	    	$response['success']= 'Failed';
+		    $response['error']= 'Driver Id required';
+	  }
 
-        if ($row) {
-            $row->bank_name   = $row->bank_name ?? '';
-            $row->branch_name = $row->branch_name ?? '';
-            $row->holder_name = $row->holder_name ?? '';
-            $row->account_no  = $row->account_no ?? '';
-            $row->other_info  = $row->other_info ?? '';
-            $row->ifsc_code   = $row->ifsc_code ?? '';
-
-            if ($row->bank_name === '' && $row->branch_name === '' && $row->holder_name === '' && $row->account_no === '' && $row->ifsc_code === '') {
-                return response()->json([
-                    'success' => 'Failed',
-                    'error'   => 'Bank details not found'
-                ]);
-            }
-
-            return response()->json([
-                'success' => 'success',
-                'error'   => null,
-                'message' => 'Bank details fetch successfully',
-                'data'    => $row
-            ]);
-        }
-
-        return response()->json([
-            'success' => 'Failed',
-            'error'   => 'User or driver bank details not found'
-        ]);
-  	}
+	    return response()->json($response);
+	}
 
 	 public function register(Request $request)
 	 {
-        $user_id     = $request->get('user_id') ?: $request->get('driver_id') ?: $request->get('id_user_app') ?: $request->get('id_conducteur');
-        $user_type   = strtolower($request->get('user_type') ?: $request->get('user_cat') ?: ($request->has('driver_id') && !$request->has('user_id') ? 'driver' : 'customer'));
-        $phone       = $request->get('phone') ?: $request->get('mobile');
-        $bank_name   = trim((string)$request->get('bank_name'));
+        $user_id = $request->get('driver_id') ?: $request->get('user_id') ?: $request->get('id_user_app');
+        $user_type = $request->get('user_type', 'driver');
+        $bank_name = trim((string)$request->get('bank_name'));
         $branch_name = trim((string)$request->get('branch_name'));
         $holder_name = trim((string)$request->get('holder_name'));
-        $account_no  = trim((string)$request->get('account_no'));
-        $other_info  = trim((string)$request->get('information'));
-        $ifsc_code   = strtoupper(trim((string)$request->get('ifsc_code') ?: $request->get('other_info')));
-        $date_heure  = date('Y-m-d H:i:s');
+        $account_no = trim((string)$request->get('account_no'));
+        $other_info = trim((string)$request->get('information'));
+        $ifsc_code = strtoupper(trim((string)$request->get('ifsc_code') ?: $request->get('other_info')));
+        $date_heure = date('Y-m-d H:i:s');
 
-        $table = ($user_type === 'driver') ? 'tj_conducteur' : 'tj_user_app';
-        $entity = null;
-
-        // Primary: Match by unique 10-digit phone number
-        if (!empty($phone)) {
-            $cleanPhone = substr(preg_replace('/\D/', '', (string)$phone), -10);
-            if (!empty($cleanPhone)) {
-                $entity = DB::table($table)->where('phone', 'like', "%{$cleanPhone}%")->first();
-            }
-        }
-
-        // Secondary: Match strictly in designated table by ID
-        if (!$entity && !empty($user_id)) {
+        if (!empty($user_id)) {
+            $table = ($user_type === 'customer' || $request->has('user_id') || $request->has('id_user_app')) ? 'tj_user_app' : 'tj_conducteur';
             $entity = DB::table($table)->where('id', $user_id)->first();
-        }
 
-        if ($entity) {
-            $userPhone = $entity->phone ?? $phone;
-            $actualId  = $entity->id;
-
-            // Validate bank name, account number, ifsc code and cross-application uniqueness
-            $valRes = \App\Helpers\BankValidationHelper::validateBankDetails(
-                $bank_name,
-                $account_no,
-                $ifsc_code,
-                $userPhone,
-                $actualId,
-                $user_type
-            );
-
-            if (!$valRes['valid']) {
-                return response()->json([
-                    'success' => 'Failed',
-                    'error'   => $valRes['error']
-                ]);
+            if (!$entity && $table === 'tj_conducteur') {
+                $entity = DB::table('tj_user_app')->where('id', $user_id)->first();
+                if ($entity) {
+                    $table = 'tj_user_app';
+                    $user_type = 'customer';
+                }
             }
 
-            $updateData = [
-                'bank_name'   => $bank_name,
-                'branch_name' => $branch_name,
-                'holder_name' => $holder_name,
-                'account_no'  => $account_no,
-                'ifsc_code'   => $ifsc_code,
-                'modifier'    => $date_heure,
-            ];
-            if (\Schema::hasColumn($table, 'other_info')) {
-                $updateData['other_info'] = $other_info ?: $ifsc_code;
+            if ($entity) {
+                $phone = $entity->phone ?? null;
+
+                // Validate bank name, account number, ifsc code and cross-application uniqueness
+                $valRes = \App\Helpers\BankValidationHelper::validateBankDetails(
+                    $bank_name,
+                    $account_no,
+                    $ifsc_code,
+                    $phone,
+                    $user_id,
+                    $user_type
+                );
+
+                if (!$valRes['valid']) {
+                    return response()->json([
+                        'success' => 'Failed',
+                        'error'   => $valRes['error']
+                    ]);
+                }
+
+                $updateData = [
+                    'bank_name'   => $bank_name,
+                    'branch_name' => $branch_name,
+                    'holder_name' => $holder_name,
+                    'account_no'  => $account_no,
+                    'ifsc_code'   => $ifsc_code,
+                    'modifier'    => $date_heure,
+                ];
+                if (\Schema::hasColumn($table, 'other_info')) {
+                    $updateData['other_info'] = $other_info ?: $ifsc_code;
+                }
+
+                $updatedata = DB::table($table)->where('id', $user_id)->update($updateData);
+
+                $row = DB::table($table)->where('id', $user_id)->first();
+
+                $response['success'] = 'success';
+                $response['error'] = null;
+                $response['message'] = 'Bank details added successfully';
+                $response['data'] = $row;
+            } else {
+                $response['success'] = 'Failed';
+                $response['error'] = 'Account Not Found';
             }
-
-            DB::table($table)->where('id', $actualId)->update($updateData);
-            $row = DB::table($table)->where('id', $actualId)->first();
-
-            return response()->json([
-                'success' => 'success',
-                'error'   => null,
-                'message' => 'Bank details added successfully',
-                'data'    => $row
-            ]);
+        } else {
+            $response['success'] = 'Failed';
+            $response['error'] = 'User ID required';
         }
 
-        return response()->json([
-            'success' => 'Failed',
-            'error'   => 'Account Not Found'
-        ]);
-	 }
+    	return response()->json($response);
+  	}
 }
