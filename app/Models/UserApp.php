@@ -121,6 +121,10 @@ class UserApp extends Authenticatable
         'consumer_plan_id',
         'consumer_plan_expiry_date',
         'consumer_plan',
+        'ac_no',
+        'earn_amount',
+        'm_pin',
+        'referral_code',
     ];
 
 

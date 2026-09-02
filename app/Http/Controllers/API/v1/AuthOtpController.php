@@ -512,6 +512,15 @@ class AuthOtpController extends Controller
                 $row['commision_type']   = $commission->type;
             }
 
+            // Ensure ac_no is populated from common_user_base if missing in tj_user_app
+            if (empty($row['ac_no']) && Schema::hasTable('common_user_base')) {
+                $base = DB::table('common_user_base')->where('user_id', $user->id)->where('user_type', 'customer')->first();
+                if ($base && !empty($base->ac_no)) {
+                    $row['ac_no'] = $base->ac_no;
+                    DB::table('tj_user_app')->where('id', $user->id)->update(['ac_no' => $base->ac_no]);
+                }
+            }
+
         } else {
             $row['user_cat']    = 'driver';
             $accesstoken        = $this->adduseraccess($user->id, 'driver');
@@ -653,6 +662,15 @@ class AuthOtpController extends Controller
             if ($commission) {
                 $row['admin_commission'] = $commission->value;
                 $row['commision_type']   = $commission->type;
+            }
+
+            // Ensure ac_no is populated from common_user_base if missing in tj_user_app
+            if (empty($row['ac_no']) && Schema::hasTable('common_user_base')) {
+                $base = DB::table('common_user_base')->where('user_id', $user->id)->where('user_type', 'customer')->first();
+                if ($base && !empty($base->ac_no)) {
+                    $row['ac_no'] = $base->ac_no;
+                    DB::table('tj_user_app')->where('id', $user->id)->update(['ac_no' => $base->ac_no]);
+                }
             }
 
         } else {
