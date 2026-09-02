@@ -614,8 +614,20 @@ class GetProfileByPhoneController extends Controller
                             $isTransportCategory = true;
                         }
 
+                        if ($row['onboarding_completed'] === 'yes' && !$isTransportCategory) {
+                            $isHomeServiceProvider = true;
+                        }
+
                         if ($isHomeServiceProvider) {
                             $isTransportCategory = false;
+                            $row['is_verified'] = 'yes';
+                            $row['statut'] = 'yes';
+                            $row['statut_vehicule'] = 'yes';
+                            DB::table('tj_conducteur')->where('id', $id_user)->update([
+                                'is_verified' => 1,
+                                'statut' => 'yes',
+                                'statut_vehicule' => 'yes',
+                            ]);
                         }
 
                         $row['is_transport_category'] = $isTransportCategory;

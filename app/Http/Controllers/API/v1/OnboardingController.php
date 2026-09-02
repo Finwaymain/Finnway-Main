@@ -327,7 +327,8 @@ class OnboardingController extends Controller
                 $topLevelCategory = UserCategory::find($topLevelCategory->parent_id);
                 $depth++;
             }
-            $requiresManualApproval = !self::isHomeServicesProviderCategory($topLevelCategory);
+            $isHomeService = self::isHomeServicesProviderCategory($primaryCategory) || self::isHomeServicesProviderCategory($topLevelCategory);
+            $requiresManualApproval = !$isHomeService;
 
             $bankName = $request->input('bank_name');
             $accountNo = $request->input('account_no');
@@ -374,6 +375,7 @@ class OnboardingController extends Controller
                 $driverUpdateData = [
                     'is_verified' => $requiresManualApproval ? 0 : 1,
                     'statut' => $requiresManualApproval ? 'no' : 'yes',
+                    'statut_vehicule' => $requiresManualApproval ? 'no' : 'yes',
                     'bank_name' => trim((string)$bankName),
                     'account_no' => trim((string)$accountNo),
                     'ifsc_code' => strtoupper(trim((string)$ifscCode)),
@@ -602,16 +604,40 @@ class OnboardingController extends Controller
         return self::isHomeServicesProviderCategory($parent);
     }
 
-    private static function isHomeServicesProviderCategory($category): bool
+    public static function isHomeServicesProviderCategory($category): bool
     {
         if (!$category) {
             return false;
         }
 
+        $catId = is_array($category) ? ($category['id'] ?? 0) : ($category->id ?? 0);
         $label = is_array($category) ? ($category['libelle'] ?? '') : ($category->libelle ?? '');
-        $normalized = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}]/u', '', $label)));
+        $normalized = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $label)));
 
-        return str_contains($normalized, 'home services');
+        // Pure transport and commercial vehicle categories require manual vehicle verification
+        $isTransport = str_contains($normalized, 'transport') || 
+                       str_contains($normalized, 'cab') || 
+                       str_contains($normalized, 'taxi') ||
+                       str_contains($normalized, 'mobility') ||
+                       str_contains($normalized, 'auto driver') ||
+                       str_contains($normalized, 'e-rickshaw') ||
+                       str_contains($normalized, 'bike rider') ||
+                       str_contains($normalized, 'truck');
+
+        if ($isTransport) {
+            return false;
+        }
+
+        // Check if explicitly mapped to a vehicle type
+        if ($catId > 0 && Schema::hasTable('tj_category_user_vehicle_type')) {
+            $hasVeh = DB::table('tj_category_user_vehicle_type')->where('category_user_id', $catId)->exists();
+            if ($hasVeh) {
+                return false;
+            }
+        }
+
+        // All other categories (Home Services, Repair & Maintenance, Cleaning, Pest Control, Health, etc.) are home/skill services
+        return true;
     }
 
     private static function categoryRequiresHomeVisitPricing(?UserCategory $category): bool

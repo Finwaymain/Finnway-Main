@@ -551,6 +551,40 @@ class AuthOtpController extends Controller
                 ->where('driver_id', $user->id)
                 ->exists() ? 'yes' : 'no';
 
+            $isTransportCategory = false;
+            $isHomeServiceProvider = false;
+            if (!empty($row['selected_categories'])) {
+                $driverCats = DB::table('tj_categorie_user')
+                    ->whereIn('id', $row['selected_categories'])
+                    ->pluck('libelle');
+                foreach ($driverCats as $cLib) {
+                    $cLibNorm = strtolower(trim($cLib));
+                    if (str_contains($cLibNorm, 'transport') || str_contains($cLibNorm, 'cab') || str_contains($cLibNorm, 'taxi') || str_contains($cLibNorm, 'mobility')) {
+                        $isTransportCategory = true;
+                        break;
+                    }
+                }
+                if (!$isTransportCategory && $row['onboarding_completed'] === 'yes') {
+                    $isHomeServiceProvider = true;
+                }
+            }
+
+            if ($isHomeServiceProvider) {
+                $row['is_home_service_provider'] = true;
+                $row['is_transport_category'] = false;
+                $row['is_verified'] = 'yes';
+                $row['statut'] = 'yes';
+                $row['statut_vehicule'] = 'yes';
+                DB::table('tj_conducteur')->where('id', $user->id)->update([
+                    'is_verified' => 1,
+                    'statut' => 'yes',
+                    'statut_vehicule' => 'yes',
+                ]);
+            } else {
+                $row['is_home_service_provider'] = false;
+                $row['is_transport_category'] = $isTransportCategory;
+            }
+
             $rideEarnings = DB::table('tj_requete')->where('id_conducteur', $user->id)->where('statut', 'completed')->sum('montant');
             $parcelEarnings = 0;
             if (\Illuminate\Support\Facades\Schema::hasTable('parcel_orders')) {
@@ -701,6 +735,40 @@ class AuthOtpController extends Controller
             $row['onboarding_completed'] = DB::table('tj_conducteur_categories')
                 ->where('driver_id', $user->id)
                 ->exists() ? 'yes' : 'no';
+
+            $isTransportCategory = false;
+            $isHomeServiceProvider = false;
+            if (!empty($row['selected_categories'])) {
+                $driverCats = DB::table('tj_categorie_user')
+                    ->whereIn('id', $row['selected_categories'])
+                    ->pluck('libelle');
+                foreach ($driverCats as $cLib) {
+                    $cLibNorm = strtolower(trim($cLib));
+                    if (str_contains($cLibNorm, 'transport') || str_contains($cLibNorm, 'cab') || str_contains($cLibNorm, 'taxi') || str_contains($cLibNorm, 'mobility')) {
+                        $isTransportCategory = true;
+                        break;
+                    }
+                }
+                if (!$isTransportCategory && $row['onboarding_completed'] === 'yes') {
+                    $isHomeServiceProvider = true;
+                }
+            }
+
+            if ($isHomeServiceProvider) {
+                $row['is_home_service_provider'] = true;
+                $row['is_transport_category'] = false;
+                $row['is_verified'] = 'yes';
+                $row['statut'] = 'yes';
+                $row['statut_vehicule'] = 'yes';
+                DB::table('tj_conducteur')->where('id', $user->id)->update([
+                    'is_verified' => 1,
+                    'statut' => 'yes',
+                    'statut_vehicule' => 'yes',
+                ]);
+            } else {
+                $row['is_home_service_provider'] = false;
+                $row['is_transport_category'] = $isTransportCategory;
+            }
         }
 
         $row['accesstoken'] = $accesstoken;
