@@ -91,19 +91,25 @@ class DriverWithdrawalsController extends Controller
         }
 
         $userAmount = floatval($chkid->amount ?? 0);
+        $withdrawableAmount = floatval($chkid->withdrawable_balance ?? 0);
         $reqAmount = floatval($amount);
 
-        if ($reqAmount > $userAmount) {
+        if ($reqAmount > $withdrawableAmount) {
+            $topupAmount = floatval($chkid->topup_balance ?? max(0, $userAmount - $withdrawableAmount));
+            $msg = 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableAmount, 2) . '.';
+            if ($topupAmount > 0) {
+                $msg .= ' Self top-up funds (₹' . number_format($topupAmount, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
+            }
             return response()->json([
                 'success' => 'Failed',
-                'error'   => 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your available balance of ₹' . number_format($userAmount, 2) . '.'
+                'error'   => $msg,
             ]);
         }
 
-        if ($minWithdrawAmount > 0 && $userAmount < $minWithdrawAmount) {
+        if ($minWithdrawAmount > 0 && $withdrawableAmount < $minWithdrawAmount) {
             return response()->json([
                 'success' => 'Failed',
-                'error'   => 'Minimum wallet balance required for withdrawal is ₹' . number_format($minWithdrawAmount, 2) . '.'
+                'error'   => 'Minimum withdrawable earnings required for payout is ₹' . number_format($minWithdrawAmount, 2) . '.'
             ]);
         }
 

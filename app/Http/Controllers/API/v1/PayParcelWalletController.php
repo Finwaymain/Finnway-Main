@@ -154,27 +154,49 @@ class PayParcelWalletController extends Controller
         $driverBaseAmount = floatval($totalAmount) + floatval($tip);
         $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
 
-        $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
-        $userWallet = 0;
+        $row_amount = DB::table('tj_user_app')->where('id', '=', $id_user_app)->first();
         if (!empty($row_amount)) {
-            if ($row_amount->amount != '' && $row_amount->amount != null) {
-                $userWallet = $row_amount->amount;
-            }
-            $userWallet = $userWallet - $totalUserAmount;
-            DB::update('update tj_user_app set amount = ? where id = ?', [$userWallet, $id_user_app]);
+            $userWallet = floatval($row_amount->amount ?? 0);
+            $userTopup = floatval($row_amount->topup_balance ?? 0);
+            $userWithdrawable = floatval($row_amount->withdrawable_balance ?? 0);
+
+            $newUserWallet = max(0, $userWallet - $totalUserAmount);
+            $deductTopup = min($userTopup, $totalUserAmount);
+            $deductWithdrawable = $totalUserAmount - $deductTopup;
+
+            $newTopup = max(0, $userTopup - $deductTopup);
+            $newWithdrawable = max(0, $userWithdrawable - $deductWithdrawable);
+
+            DB::table('tj_user_app')->where('id', $id_user_app)->update([
+                'amount'               => $newUserWallet,
+                'topup_balance'        => $newTopup,
+                'withdrawable_balance' => $newWithdrawable,
+            ]);
         }
 
-        DB::insert("insert into tj_transaction(amount,deduction_type,ride_id,payment_method, payment_status,id_user_app, creer,modifier)
-        values($totalUserAmount,0,'" . $id_requete . "','" . $paymethod . "','" . $payment_status . "','" . $id_user_app . "','" . $date_heure . "','" . $date_heure . "')");
+        $insUserTx = [
+            'amount'         => $totalUserAmount,
+            'deduction_type' => 0,
+            'ride_id'        => $id_requete,
+            'payment_method' => $paymethod,
+            'payment_status' => $payment_status,
+            'id_user_app'    => $id_user_app,
+            'creer'          => $date_heure,
+            'modifier'       => $date_heure,
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('tj_transaction', 'wallet_bucket')) {
+            $insUserTx['wallet_bucket'] = 'spend';
+        }
+        DB::table('tj_transaction')->insert($insUserTx);
 
-        $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-        $driverWallet = 0;
+        $row_driver = DB::table('tj_conducteur')->where('id', $id_user)->first();
         if (!empty($row_driver)) {
-            if ($row_driver->amount != '' && $row_driver->amount != null) {
-                $driverWallet = $row_driver->amount;
-            }
-            $driverWallet = $driverWallet + $totalDriverAmount;
-            DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
+            $driverWallet = floatval($row_driver->amount ?? 0) + $totalDriverAmount;
+            $driverWithdrawable = floatval($row_driver->withdrawable_balance ?? 0) + $totalDriverAmount;
+            DB::table('tj_conducteur')->where('id', $id_user)->update([
+                'amount'               => $driverWallet,
+                'withdrawable_balance' => $driverWithdrawable,
+            ]);
         }
 
         $date = date('Y-m-d H:i:s');

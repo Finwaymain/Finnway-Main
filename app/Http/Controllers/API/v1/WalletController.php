@@ -27,7 +27,7 @@ class WalletController extends Controller
     if(!empty($id_user)){
     if($cat_user == "user_app" || $cat_user == "user" || $cat_user == "customer" || empty($cat_user)){
         $sql = DB::table('tj_user_app')
-        ->select('id', 'ac_no', 'amount', 'earn_amount')
+        ->select('id', 'ac_no', 'amount', 'earn_amount', 'withdrawable_balance', 'topup_balance')
         ->where('id','=',$id_user)
         ->get();
 
@@ -46,11 +46,13 @@ class WalletController extends Controller
             }
             $finalEarn = max(floatval($row->earn_amount ?? 0), floatval($earningWalletSum));
             $row->earn_amount = strval(number_format($finalEarn, 2, '.', ''));
+            $row->withdrawable_balance = strval(number_format(floatval($row->withdrawable_balance ?? 0), 2, '.', ''));
+            $row->topup_balance = strval(number_format(floatval($row->topup_balance ?? 0), 2, '.', ''));
         }
     
     }elseif($cat_user == "driver"){
         $sql = DB::table('tj_conducteur')
-        ->select('id', 'ac_no', 'amount', 'earn_amount')
+        ->select('id', 'ac_no', 'amount', 'earn_amount', 'withdrawable_balance', 'topup_balance')
         ->where('id','=',$id_user)
         ->get();
 
@@ -87,6 +89,8 @@ class WalletController extends Controller
             $row->earn_amount = strval(number_format(max($storedEarn, $calcEarn), 2, '.', ''));
             // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
             $row->amount = strval(number_format(floatval($row->amount ?? 0), 2, '.', ''));
+            $row->withdrawable_balance = strval(number_format(floatval($row->withdrawable_balance ?? 0), 2, '.', ''));
+            $row->topup_balance = strval(number_format(floatval($row->topup_balance ?? 0), 2, '.', ''));
             $response['success']= 'success';
             $response['error']= null;
             $response['message'] = 'Successfully';

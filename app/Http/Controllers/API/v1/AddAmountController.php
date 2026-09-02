@@ -50,17 +50,37 @@ class AddAmountController extends Controller
     if (!$isDriver) {
 
         $sql = DB::table('tj_user_app')
-        ->select('amount')
         ->where('id','=',$id_user)
-        ->get();
-        foreach($sql as $row){
-          $amount_ = $row->amount;
-          $amount = $amount_+$amount_init;
+        ->first();
+        $row = $sql;
+        if ($sql) {
+          $amount_ = floatval($sql->amount ?? 0);
+          $topup_ = floatval($sql->topup_balance ?? 0);
+          $amount = $amount_ + $amount_init;
+          $newTopup = $topup_ + $amount_init;
 
-        $updatedata = DB::update('update tj_user_app set amount = ?,modifier = ? where id = ?',[$amount,$date_heure,$id_user]);
+          DB::table('tj_user_app')->where('id', $id_user)->update([
+              'amount'        => $amount,
+              'topup_balance' => $newTopup,
+              'modifier'      => $date_heure,
+          ]);
 
-        $query = DB::insert("insert into tj_transaction(amount,deduction_type,payment_method,payment_status,id_user_app, creer,modifier)
-        values('".$amount_init."',1,'".$paymethod."','".$payStatus."','".$id_user."','".$date_heure."','".$date_heure."')");
+          $insTx = [
+              'amount'          => $amount_init,
+              'deduction_type'  => 1,
+              'payment_method'  => $paymethod,
+              'payment_status'  => $payStatus,
+              'id_user_app'     => $id_user,
+              'creer'           => $date_heure,
+              'modifier'        => $date_heure,
+          ];
+          if (\Illuminate\Support\Facades\Schema::hasColumn('tj_transaction', 'wallet_bucket')) {
+              $insTx['wallet_bucket'] = 'topup';
+          }
+          if (\Illuminate\Support\Facades\Schema::hasColumn('tj_transaction', 'description')) {
+              $insTx['description'] = 'Wallet Top-Up (Non-withdrawable)';
+          }
+          DB::table('tj_transaction')->insert($insTx);
         }
         $sql_notification = UserApp::where('id',$id_user)->first();
         $data = $sql_notification ? $sql_notification->toArray() : [];
@@ -111,7 +131,9 @@ class AddAmountController extends Controller
         $headers = "MIME-Version: 1.0" . "\r\n";
         $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
         $headers .= 'From: ' . $app_name . '<' . $contact_us_email . '>' . "\r\n";
-        mail($to, $emailsubject, $emailmessage, $headers);
+        try {
+            @mail($to, $emailsubject, $emailmessage, $headers);
+        } catch (\Throwable $e) {}
 
       }
 
@@ -130,19 +152,39 @@ class AddAmountController extends Controller
     }
     elseif($cat_user == "driver"){
         $row = DB::table('tj_conducteur')
-        ->select('amount')
         ->where('id','=',DB::raw($id_user))
         ->first();
 
+        if ($row) {
+          $amount_ = floatval($row->amount ?? 0);
+          $topup_ = floatval($row->topup_balance ?? 0);
+          $amount = $amount_ + $amount_init;
+          $newTopup = $topup_ + $amount_init;
 
-          $amount_ = $row->amount;
-          $amount = $amount_+$amount_init;
+          DB::table('tj_conducteur')->where('id', $id_user)->update([
+              'amount'        => $amount,
+              'topup_balance' => $newTopup,
+              'modifier'      => $date_heure,
+          ]);
 
-          $updatedata = DB::update('update tj_conducteur set amount = ? where id = ?',[$amount,$id_user]);
-          $amount=$amount_init;
-
-          DB::insert("insert into tj_conducteur_transaction(amount,payment_method,id_conducteur, creer,modifier)
-          values('".$amount_init."','".$paymethod."','".$id_user."','".$date_heure."','".$date_heure."')");
+          $insDTx = [
+              'amount'         => $amount_init,
+              'payment_method' => $paymethod,
+              'id_conducteur'  => $id_user,
+              'creer'          => $date_heure,
+              'modifier'       => $date_heure,
+          ];
+          if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'wallet_bucket')) {
+              $insDTx['wallet_bucket'] = 'topup';
+          }
+          if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'note')) {
+              $insDTx['note'] = 'Wallet Top-Up (Non-withdrawable)';
+          }
+          if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'description')) {
+              $insDTx['description'] = 'Wallet Top-Up (Non-withdrawable)';
+          }
+          DB::table('tj_conducteur_transaction')->insert($insDTx);
+        }
         
         $sql_notification = Driver::where('id',$id_user)->first();
         $data = $sql_notification->toArray();
@@ -197,7 +239,9 @@ class AddAmountController extends Controller
         $headers = "MIME-Version: 1.0" . "\r\n";
         $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
         $headers .= 'From: ' . $app_name . '<' . $contact_us_email . '>' . "\r\n";
-        mail($to, $emailsubject, $emailmessage, $headers);
+        try {
+            @mail($to, $emailsubject, $emailmessage, $headers);
+        } catch (\Throwable $e) {}
 
       }
 
