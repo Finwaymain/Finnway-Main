@@ -376,10 +376,13 @@
                         </div>
                         <div class="stat-big-value highlight-purple">₹{{ number_format($stats['netRevenue'], 2) }}</div>
                         <div class="stat-subtext mb-1 font-12 text-dark-bold">
-                            Commissions (₹{{ number_format($stats['totalCommissionEarned'], 2) }}) + Platform Fees (₹{{ number_format($stats['platformFeeTotal'] ?? 0, 2) }})
+                            Commissions (₹{{ number_format($stats['totalCommissionEarned'] + $stats['marketplaceSellerComm'], 2) }}) + Platform Fees (₹{{ number_format($stats['platformFeeTotal'] ?? 0, 2) }})
                         </div>
                         <div class="font-11 text-muted">
                             <span class="badge badge-dark-success">Realized: ₹{{ number_format($stats['realizedAdminRevenue'] ?? $stats['netRevenue'], 2) }}</span>
+                            @if(($stats['marketplacePendingComm'] ?? 0) > 0 || ($stats['marketplacePendingPFee'] ?? 0) > 0)
+                                <span class="badge badge-dark-info ml-1" title="Held in escrow until marketplace payout is released">Escrow Hold: ₹{{ number_format(($stats['marketplacePendingComm'] ?? 0) + ($stats['marketplacePendingPFee'] ?? 0), 2) }}</span>
+                            @endif
                             @if(($stats['dueAdminRevenue'] ?? 0) > 0)
                                 <span class="badge badge-dark-danger ml-1">Due Cash: ₹{{ number_format($stats['dueAdminRevenue'], 2) }}</span>
                             @endif
@@ -399,6 +402,9 @@
                         <div class="font-11 text-muted">
                             <span>Online: ₹{{ number_format($stats['platformFeeOnline'] ?? 0, 2) }}</span> • 
                             <span>Cash: ₹{{ number_format($stats['platformFeeCash'] ?? 0, 2) }}</span>
+                            @if(($stats['marketplacePendingPFee'] ?? 0) > 0)
+                                • <span class="text-info font-weight-bold" title="Marketplace platform fees waiting for payout release">Pending: ₹{{ number_format($stats['marketplacePendingPFee'], 2) }}</span>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -549,11 +555,17 @@
                 <div class="col-12 col-md-6">
                     <div class="big-stat-card">
                         <div class="stat-header">
-                            <span class="stat-tag">SELLER PLATFORM COMMISSION (10%)</span>
+                            <span class="stat-tag">SELLER PLATFORM COMMISSION</span>
                             <i class="mdi mdi-percent stat-icon text-success"></i>
                         </div>
                         <div class="stat-big-value highlight-green">₹{{ number_format($stats['marketplaceSellerComm'], 2) }}</div>
-                        <div class="stat-subtext">Admin marketplace share</div>
+                        <div class="stat-subtext">
+                            @if(($stats['marketplacePendingComm'] ?? 0) > 0)
+                                <span class="badge badge-dark-warning font-11">₹{{ number_format($stats['marketplacePendingComm'], 2) }} Pending Payout Release</span>
+                            @else
+                                Admin marketplace share (Realized)
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
@@ -567,8 +579,9 @@
                             <th>Buyer Name</th>
                             <th>Buyer Phone</th>
                             <th>Total Order Amount</th>
-                            <th>Admin Commission (10%)</th>
-                            <th>Status</th>
+                            <th>Admin Commission</th>
+                            <th>Order Status</th>
+                            <th>Payout Status</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -579,8 +592,22 @@
                             <td class="text-dark-bold font-15">{{ $order->buyer_name ?: 'Customer' }}</td>
                             <td class="text-dark-bold">{{ $order->phone ?: 'N/A' }}</td>
                             <td class="text-dark-bold font-15">₹{{ number_format((float)$order->total_amount, 2) }}</td>
-                            <td class="highlight-green font-15">₹{{ number_format($order->seller_commission, 2) }}</td>
-                            <td><span class="badge badge-dark-success">{{ ucfirst($order->status ?: 'Completed') }}</span></td>
+                            <td class="highlight-green font-15">
+                                ₹{{ number_format($order->seller_commission, 2) }}
+                                @if(!$order->is_payout_released)
+                                    <small class="text-muted d-block font-10">(Pending Payout)</small>
+                                @else
+                                    <small class="text-success d-block font-10">(Realized)</small>
+                                @endif
+                            </td>
+                            <td><span class="badge badge-dark-info">{{ ucfirst($order->status ?: 'Placed') }}</span></td>
+                            <td>
+                                @if($order->is_payout_released)
+                                    <span class="badge badge-dark-success font-11"><i class="mdi mdi-check-circle-outline"></i> Released</span>
+                                @else
+                                    <span class="badge badge-dark-warning font-11"><i class="mdi mdi-clock-outline"></i> Pending</span>
+                                @endif
+                            </td>
                             <td class="text-dark-bold font-13">{{ $order->created_at }}</td>
                         </tr>
                         @empty

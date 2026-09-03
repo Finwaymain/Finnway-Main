@@ -72,10 +72,12 @@ class TestEcosystemEarnings extends Command
                 'user_id'                 => $userId,
                 'total_amount'            => 3000.00,
                 'subtotal'                => 2700.00,
+                'tax_name'                => 'GST (18%), Platform Fee (10%)',
                 'tax_amount'              => 150.00,
                 'admin_commission_amount' => 150.00,
                 'admin_commission_rate'   => 5.00,
                 'status'                  => 'delivered',
+                'payout_status'           => 'released',
                 'payment_status'          => 'success',
                 'created_at'              => $now,
                 'updated_at'              => $now

@@ -380,7 +380,10 @@ class FinancialReportService
         // G. Marketplace Orders & Commission
         $marketGross = 0.0;
         $marketComm  = 0.0;
+        $marketPendingComm = 0.0;
         $marketGst   = 0.0;
+        $marketPFee  = 0.0;
+        $marketPendingPFee = 0.0;
         $marketTxnCount = 0;
         if ($hasMarketOrders) {
             $marketQuery = $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$startStr, $endStr]);
@@ -391,20 +394,69 @@ class FinancialReportService
                 $mAmt = (float)($mo->total_amount ?? 0);
                 $marketGross += $mAmt;
 
-                // Seller platform commission (use actual admin_commission_amount if set)
+                // Commission:
                 $mComm = (float)($mo->admin_commission_amount ?? 0);
                 if ($mComm == 0) {
                     $mRate = (float)($mo->admin_commission_rate ?? 10.0);
                     $mComm = round($mAmt * ($mRate / 100), 2);
                 }
-                $marketComm += $mComm;
 
-                // GST on marketplace orders
-                $mTax = (float)($mo->tax_amount ?? 0);
-                if ($mTax == 0 && (float)($mo->tax_rate ?? 0) > 0) {
-                    $mTax = round((float)($mo->subtotal ?? $mAmt) * ((float)$mo->tax_rate / 100), 2);
+                // Split Marketplace Tax into pure GST (18%) and Platform Fee (10%)
+                $taxAmt = (float)($mo->tax_amount ?? 0);
+                $sub = (float)($mo->subtotal ?? 0);
+                if ($sub <= 0 && $mAmt > 0) {
+                    $sub = max(0, $mAmt - $taxAmt);
                 }
-                $marketGst += $mTax;
+
+                $taxName = strtolower((string)($mo->tax_name ?? ''));
+                $taxRate = (float)($mo->tax_rate ?? 0);
+
+                $orderGst = 0.0;
+                $orderPFee = 0.0;
+
+                if ($taxAmt > 0) {
+                    if (str_contains($taxName, 'platform') && str_contains($taxName, 'gst')) {
+                        $gstRate = 18.0;
+                        $pFeeRate = 10.0;
+                        if (preg_match('/gst\s*\(([0-9.]+)%\)/i', $taxName, $m)) {
+                            $gstRate = (float)$m[1];
+                        }
+                        if (preg_match('/platform[^\(]*\(([0-9.]+)%\)/i', $taxName, $m)) {
+                            $pFeeRate = (float)$m[1];
+                        }
+                        $rateSum = $gstRate + $pFeeRate;
+                        if ($rateSum > 0) {
+                            $orderGst = round($taxAmt * ($gstRate / $rateSum), 2);
+                            $orderPFee = round($taxAmt - $orderGst, 2);
+                        } else {
+                            $orderGst = $taxAmt;
+                        }
+                    } elseif (str_contains($taxName, 'platform') && !str_contains($taxName, 'gst')) {
+                        $orderPFee = $taxAmt;
+                    } else {
+                        if ($taxRate > 18.0 && $sub > 0) {
+                            $orderGst = round($sub * 0.18, 2);
+                            $orderPFee = max(0, round($taxAmt - $orderGst, 2));
+                        } else {
+                            $orderGst = $taxAmt;
+                        }
+                    }
+                }
+
+                // Pure GST is tax liability collected from the buyer
+                $marketGst += $orderGst;
+
+                // ❗ USER DIRECTIVE:
+                // "and also in marketplace after only payout comission and platform fee should be added in earning managment"
+                $isPayoutReleased = (strtolower(trim((string)($mo->payout_status ?? ''))) === 'released');
+
+                if ($isPayoutReleased) {
+                    $marketComm += $mComm;
+                    $marketPFee += $orderPFee;
+                } else {
+                    $marketPendingComm += $mComm;
+                    $marketPendingPFee += $orderPFee;
+                }
             }
         }
 
@@ -417,12 +469,12 @@ class FinancialReportService
         }
 
         // ── 3. TOTAL ECOSYSTEM AGGREGATES ────────────────────────────────────
-        // Platform Fees
-        $platformFeeTotal  = round($homePFee + $cabPFee + $foodPFee + $parcelPFee + $travelPFee + $otherPFee, 2);
-        $platformFeeOnline = round($homePFeeOnline, 2);
+        // Platform Fees (Admin Revenue Source #2 - includes realized marketplace platform fees)
+        $platformFeeTotal  = round($homePFee + $cabPFee + $foodPFee + $parcelPFee + $travelPFee + $otherPFee + $marketPFee, 2);
+        $platformFeeOnline = round($homePFeeOnline + $marketPFee, 2);
         $platformFeeCash   = round($homePFeeCash, 2);
 
-        // GST Tax (Liability • Kept separate from Admin Revenue)
+        // GST Tax (Liability • Kept separate from Admin Revenue • Strict GST without platform fees)
         $gstCollectedTotal  = round($cabGst + $homeGst + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
         $gstCollectedOnline = round($cabGst + $homeGstOnline + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
         $gstCollectedCash   = round($homeGstCash, 2);
@@ -437,6 +489,7 @@ class FinancialReportService
         $cashGrossVolume   = round($cabCashGross + $homeCashGross, 2);
 
         // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
+        // Marketplace commission & platform fees ONLY included after payout release!
         $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);
         $totalTransactions = $cabBookings + $homeBookings + $foodBookings + $parcelBookings + $travelBookings + $otherBookings + $marketTxnCount + $subTxnCount;
 
@@ -550,7 +603,8 @@ class FinancialReportService
             $recentMarketplaceOrders = $validMarket(DB::table('marketplace_orders as o'))
                 ->leftJoin('tj_user_app as u', 'o.user_id', '=', 'u.id')
                 ->select(
-                    'o.id', 'o.total_amount', 'o.status', 'o.created_at', 'o.admin_commission_amount', 'o.admin_commission_rate',
+                    'o.id', 'o.total_amount', 'o.status', 'o.payout_status', 'o.created_at', 'o.admin_commission_amount', 'o.admin_commission_rate',
+                    'o.tax_name', 'o.tax_amount', 'o.subtotal',
                     DB::raw("TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))) as buyer_name"),
                     'u.phone'
                 )
@@ -565,6 +619,7 @@ class FinancialReportService
                         $c = round((float)$order->total_amount * ($rate / 100), 2);
                     }
                     $order->seller_commission = $c;
+                    $order->is_payout_released = (strtolower(trim((string)($order->payout_status ?? ''))) === 'released');
                     return $order;
                 });
         }
@@ -788,6 +843,9 @@ class FinancialReportService
             'totalCommissionEarned'   => round($totalCommissionEarned, 2),
             'marketplaceProductSales' => round($marketGross, 2),
             'marketplaceSellerComm'   => round($marketComm, 2),
+            'marketplacePendingComm'  => round($marketPendingComm, 2),
+            'marketplacePlatformFee'  => round($marketPFee, 2),
+            'marketplacePendingPFee'  => round($marketPendingPFee, 2),
             'categoryEarnings'        => $categoryEarnings,
             'recentMarketplaceOrders' => $recentMarketplaceOrders,
             'consumerPlansRev'        => 0.0,
