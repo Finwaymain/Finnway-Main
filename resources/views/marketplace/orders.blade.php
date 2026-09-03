@@ -229,16 +229,22 @@
 
                                 <!-- Action / Payout -->
                                 <td class="p-2 text-center align-middle">
-                                    @if($order->payout_status === 'released')
+                                    @if(in_array(strtolower($order->status), ['rejected', 'cancelled']))
+                                        <span class="badge badge-danger px-2 py-1 font-11 d-block mb-1">Cancelled</span>
+                                        <small class="text-muted font-10">No payout (Buyer refunded)</small>
+                                    @elseif($order->payout_status === 'released')
                                         <span class="badge badge-success px-2 py-1 font-11 d-block mb-1">Paid &amp; Settled</span>
                                         <small class="text-muted font-10">{{ $order->payout_released_at ? date('d M Y', strtotime($order->payout_released_at)) : '' }}</small>
-                                    @else
+                                    @elseif(in_array(strtolower($order->status), ['delivered', 'completed']))
                                         <form action="{{ route('admin.marketplace.orders.releasePayout', $order->id) }}" method="POST" onsubmit="return confirm('Release ₹{{ number_format($payoutAmount, 2) }} to seller wallet? (Commission: ₹{{ number_format($commAmount, 2) }})');">
                                             @csrf
                                             <button type="submit" class="btn btn-xs btn-success font-weight-bold px-2 py-1 rounded w-100" style="font-size: 11px;">
                                                 Release Payout
                                             </button>
                                         </form>
+                                    @else
+                                        <span class="badge badge-warning text-dark px-2 py-1 font-11 d-block mb-1">Awaiting Delivery</span>
+                                        <small class="text-muted font-10">Releases after delivery</small>
                                     @endif
                                 </td>
                             </tr>

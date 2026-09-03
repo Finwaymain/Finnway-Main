@@ -916,16 +916,60 @@ class MarketplaceOrderController extends Controller
         }
 
         $status = $inputData['status'] ?? $request->input('status');
+        $currentStatus = strtolower($order->status ?? 'pending');
+
+        // Requirement 5: Terminal states cannot be modified or reopened
+        if (in_array($currentStatus, ['delivered', 'completed'])) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "Order #{$order->order_number} has already been delivered and completed. Status cannot be modified."
+            ], 422);
+        }
+
+        if (in_array($currentStatus, ['rejected', 'cancelled'])) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "Order #{$order->order_number} has already been declined and closed. Status cannot be modified."
+            ], 422);
+        }
+
+        // Requirement 3: Enforce forward-only sequential progression
+        $allowedTransitions = [
+            'pending'          => ['confirmed', 'rejected', 'cancelled'],
+            'placed'           => ['confirmed', 'rejected', 'cancelled'],
+            'confirmed'        => ['packed', 'shipped', 'rejected', 'cancelled'],
+            'packed'           => ['shipped', 'out_for_delivery'],
+            'processing'       => ['packed', 'shipped', 'out_for_delivery'],
+            'shipped'          => ['out_for_delivery'],
+            'dispatched'       => ['out_for_delivery'],
+            'out_for_delivery' => ['delivered'],
+        ];
+
+        if (isset($allowedTransitions[$currentStatus]) && !in_array($status, $allowedTransitions[$currentStatus])) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "Invalid order transition from '{$currentStatus}' to '{$status}'. Orders must progress sequentially forward."
+            ], 422);
+        }
+
         $order->status = $status;
 
-        if (isset($inputData['delivery_days']) && Schema::hasColumn('marketplace_orders', 'delivery_days')) {
-            $order->delivery_days = $inputData['delivery_days'];
-        }
-        if (isset($inputData['courier_name']) && Schema::hasColumn('marketplace_orders', 'courier_name')) {
-            $order->courier_name = $inputData['courier_name'];
-        }
-        if (isset($inputData['tracking_id']) && Schema::hasColumn('marketplace_orders', 'tracking_id')) {
-            $order->tracking_id = $inputData['tracking_id'];
+        if (in_array($status, ['rejected', 'cancelled'])) {
+            // Requirement 1: Clear shipping partner and delivery days when rejected
+            $order->courier_name = null;
+            $order->tracking_id = null;
+            $order->delivery_days = null;
+            $order->payout_status = 'cancelled';
+        } else {
+            if (isset($inputData['delivery_days']) && Schema::hasColumn('marketplace_orders', 'delivery_days')) {
+                $order->delivery_days = $inputData['delivery_days'];
+            }
+            if (isset($inputData['courier_name']) && Schema::hasColumn('marketplace_orders', 'courier_name')) {
+                $order->courier_name = $inputData['courier_name'];
+            }
+            if (isset($inputData['tracking_id']) && Schema::hasColumn('marketplace_orders', 'tracking_id')) {
+                $order->tracking_id = $inputData['tracking_id'];
+            }
         }
 
         // Context-specific status notes
@@ -942,7 +986,7 @@ class MarketplaceOrderController extends Controller
         } elseif ($status === 'out_for_delivery') {
             $order->status_notes = 'Order is out for delivery with partner.';
         } elseif ($status === 'delivered') {
-            $order->status_notes = 'Order delivered successfully.';
+            $order->status_notes = 'Order delivered successfully. Payout will be verified and released by Company Admin.';
         } elseif ($status === 'rejected') {
             $order->status_notes = 'Order declined by seller.';
         } elseif ($status === 'cancelled') {
@@ -1005,8 +1049,8 @@ class MarketplaceOrderController extends Controller
             }
         }
 
-        // 2. If DELIVERED: Automatically credit net seller payout (Commission already collected!)
-        if ($status === 'delivered' && $order->payout_status !== 'released') {
+        // 2. Requirement 4: If DELIVERED, do NOT release payout automatically! Leave in escrow for Admin release.
+        if ($status === 'delivered') {
             $subtotal = floatval($order->subtotal ?: $order->total_amount);
             $payoutAmount = floatval($order->seller_payout_amount);
 
@@ -1020,7 +1064,11 @@ class MarketplaceOrderController extends Controller
                 $order->seller_payout_amount = $payoutAmount;
             }
 
-            // Look up seller user record
+            if ($order->payout_status !== 'released') {
+                $order->payout_status = 'pending';
+            }
+
+            // Look up seller user record for delivery notification
             $sellerModel = null;
             if (!empty($order->seller_phone)) {
                 $cleanPhone = substr(preg_replace('/\D/', '', (string)$order->seller_phone), -10);
@@ -1038,29 +1086,12 @@ class MarketplaceOrderController extends Controller
             }
 
             if ($sellerModel && $payoutAmount > 0) {
-                $sellerModel->amount = floatval($sellerModel->amount ?? 0) + $payoutAmount;
-                $sellerModel->earn_amount = floatval($sellerModel->earn_amount ?? 0) + $payoutAmount;
-                $sellerModel->save();
-
-                $sBuyerType = ($sellerModel instanceof \App\Models\Driver) ? 'driver' : 'customer';
-                $this->recordWalletTransaction(
-                    $sellerModel->id,
-                    $sBuyerType,
-                    $payoutAmount,
-                    'credit',
-                    "Marketplace Sale Earning: Order #{$order->order_number} (Net Payout after {$order->admin_commission_rate}% company commission)",
-                    'PAYOUT_' . time() . '_' . rand(1000, 9999)
-                );
-
-                $order->payout_status = 'released';
-                $order->payout_released_at = date('Y-m-d H:i:s');
-
-                // Notify seller about wallet credit
-                $sellerNotifMsg = "Congratulations! Order {$order->order_number} delivered. ₹" . number_format($payoutAmount, 2) . " net payout has been credited directly to your wallet.";
+                // Notify seller that order was delivered and payout is pending Admin release
+                $sellerNotifMsg = "Order {$order->order_number} marked as Delivered! Net payout of ₹" . number_format($payoutAmount, 2) . " is held in escrow and will be released by Company Admin to your wallet.";
                 DB::table('tj_notification')->insert([
                     'to_id'    => $sellerModel->id,
                     'from_id'  => $order->user_id,
-                    'titre'    => "Payout Credited: Order {$order->order_number}",
+                    'titre'    => "Delivered: Order {$order->order_number}",
                     'message'  => $sellerNotifMsg,
                     'statut'   => 'unread',
                     'type'     => 'marketplace',
@@ -1071,9 +1102,9 @@ class MarketplaceOrderController extends Controller
                 if (!empty($sellerModel->fcm_id)) {
                     try {
                         GcmController::sendNotification($sellerModel->fcm_id, [
-                            'title'        => "Payout Credited: Order {$order->order_number}",
+                            'title'        => "Delivered: Order {$order->order_number}",
                             'body'         => $sellerNotifMsg,
-                            'tag'          => 'marketplace_payout',
+                            'tag'          => 'marketplace_delivery',
                             'order_id'     => (string)$order->id,
                             'order_number' => (string)$order->order_number,
                         ]);
@@ -1112,23 +1143,34 @@ class MarketplaceOrderController extends Controller
         $date = date('Y-m-d H:i:s');
 
         $shippingInfo = '';
-        if (!empty($order->courier_name)) {
-            $shippingInfo .= " Courier: {$order->courier_name}.";
-        }
-        if (!empty($order->tracking_id)) {
-            $shippingInfo .= " Tracking ID: {$order->tracking_id}.";
-        }
-        if (!empty($order->delivery_days)) {
-            $shippingInfo .= " Estimated delivery: {$order->delivery_days} days.";
-        }
-        if (!empty($order->status_notes)) {
-            $shippingInfo .= " Note: {$order->status_notes}";
+        if (!in_array($status, ['rejected', 'cancelled'])) {
+            if (!empty($order->courier_name)) {
+                $shippingInfo .= " Courier: {$order->courier_name}.";
+            }
+            if (!empty($order->tracking_id)) {
+                $shippingInfo .= " Tracking ID: {$order->tracking_id}.";
+            }
+            if (!empty($order->delivery_days)) {
+                $shippingInfo .= " Estimated delivery: {$order->delivery_days} days.";
+            }
+            if (!empty($order->status_notes)) {
+                $shippingInfo .= " Note: {$order->status_notes}";
+            }
         }
 
         $orderDisplayNum = $order->order_number ?: ('FW-ORD-' . str_pad($order->id, 5, '0', STR_PAD_LEFT));
         $purchaseDisplayId = $order->purchase_id ?: ('FWMP-' . date('Ymd') . '-' . str_pad($order->id, 4, '0', STR_PAD_LEFT));
 
-        $notificationMessage = "Your order {$orderDisplayNum} (Purchase ID: {$purchaseDisplayId}) for {$productsStr} is now {$statusLabel}.{$shippingInfo}";
+        if (in_array($status, ['rejected', 'cancelled'])) {
+            $notificationMessage = "Your order {$orderDisplayNum} for {$productsStr} has been declined by the seller. Full refund has been credited to your account.";
+            $pushBody = "Your order {$orderDisplayNum} was declined by the seller. Full refund has been credited.";
+        } elseif ($status === 'delivered') {
+            $notificationMessage = "Great news! Your order {$orderDisplayNum} for {$productsStr} has been delivered successfully.";
+            $pushBody = "Great news! Your order {$orderDisplayNum} has been delivered successfully.";
+        } else {
+            $notificationMessage = "Your order {$orderDisplayNum} (Purchase ID: {$purchaseDisplayId}) for {$productsStr} is now {$statusLabel}.{$shippingInfo}";
+            $pushBody = "Your order for {$productsStr} is now {$statusLabel}!{$shippingInfo}";
+        }
 
         if ($buyer) {
             // Save in-app notification to tj_notification table
@@ -1148,7 +1190,7 @@ class MarketplaceOrderController extends Controller
                 try {
                     $fcmMessage = [
                         'title'        => "Order {$orderDisplayNum}: {$statusLabel}",
-                        'body'         => "Your order for {$productsStr} is now {$statusLabel}!{$shippingInfo}",
+                        'body'         => $pushBody,
                         'tag'          => 'marketplace_order_status',
                         'status'       => $status,
                         'order_id'     => (string)$order->id,

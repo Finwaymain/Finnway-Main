@@ -127,6 +127,14 @@ class AdminMarketplaceOrderController extends Controller
     {
         $order = MarketplaceOrder::with(['items.product'])->findOrFail($id);
 
+        if (in_array(strtolower($order->status), ['rejected', 'cancelled'])) {
+            return redirect()->back()->with('error', 'Cannot release payout for a rejected or cancelled order. The customer has already been refunded.');
+        }
+
+        if (!in_array(strtolower($order->status), ['delivered', 'completed'])) {
+            return redirect()->back()->with('error', 'Payout can only be released after the order has been delivered by the seller.');
+        }
+
         if ($order->payout_status === 'released') {
             return redirect()->back()->with('error', 'Payout for this order has already been released to the seller.');
         }
