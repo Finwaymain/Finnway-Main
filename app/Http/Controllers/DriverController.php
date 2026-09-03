@@ -638,6 +638,9 @@ class DriverController extends Controller
                         $VehicleServiceBook->delete();
                     }
 
+                    \App\Services\DriverProfileService::purgeDriverCategories($id[$i]);
+                    \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id[$i])->where('user_type', 'driver')->delete();
+
                     $user->delete();
                 }
             } else {
@@ -716,6 +719,9 @@ class DriverController extends Controller
                 if ($VehicleServiceBook) {
                     $VehicleServiceBook->delete();
                 }
+
+                \App\Services\DriverProfileService::purgeDriverCategories($id);
+                \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id)->where('user_type', 'driver')->delete();
 
                 $user->delete();
             }

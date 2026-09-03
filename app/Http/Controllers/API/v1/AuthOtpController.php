@@ -526,11 +526,8 @@ class AuthOtpController extends Controller
                 ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
                 ->toArray();
 
-            // Onboarding complete = driver has at least one category assigned
-            // Works for transport (has vehicle) and non-transport (no vehicle) drivers
-            $row['onboarding_completed'] = DB::table('tj_conducteur_categories')
-                ->where('driver_id', $user->id)
-                ->exists() ? 'yes' : 'no';
+            $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($user->id);
+            $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
 
             $isTransportCategory = false;
             $isHomeServiceProvider = false;
@@ -713,10 +710,8 @@ class AuthOtpController extends Controller
                 ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
                 ->toArray();
 
-            // Onboarding complete = driver has at least one category assigned
-            $row['onboarding_completed'] = DB::table('tj_conducteur_categories')
-                ->where('driver_id', $user->id)
-                ->exists() ? 'yes' : 'no';
+            $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($user->id);
+            $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
 
             $isTransportCategory = false;
             $isHomeServiceProvider = false;
@@ -1009,6 +1004,9 @@ class AuthOtpController extends Controller
                     DB::table('auth_otp_temp')->where('id', $record->id)->update(['verified' => 1]);
                 }
 
+                // Ensure fresh driver has zero leftover categories, skills or pricing
+                \App\Services\DriverProfileService::purgeDriverCategories($id);
+
                 $get_user = Driver::where('id', $id)->first();
                 $row      = $get_user->toArray();
                 unset($row['mdp']);
@@ -1016,6 +1014,12 @@ class AuthOtpController extends Controller
                 $row['accesstoken'] = $this->adduseraccess($id, 'driver');
                 $row['user_cat']    = 'driver';
                 $row['id']          = (string)$id;
+                $row['onboarding_completed'] = 'no';
+                $row['is_home_service_provider'] = false;
+                $row['is_transport_category'] = false;
+                $row['is_verified'] = 'no';
+                $row['statut'] = 'no';
+                $row['selected_categories'] = [];
 
                 return response()->json(['success' => 'success', 'error' => null, 'message' => 'Driver account created successfully.', 'data' => $row]);
             }

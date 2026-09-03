@@ -162,15 +162,16 @@ class UserLoginController extends Controller
 	                        	$row['numberplate'] = $row_vehicle->numberplate;
 	                    	}
 
-                            $row['selected_categories'] = DB::table('tj_conducteur_categories')
-                                ->where('driver_id', $id_user)
-                                ->get()
-                                ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
-                                ->toArray();
+                            $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($id_user);
+                            $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
 
-                            $row['onboarding_completed'] = DB::table('tj_conducteur_categories')
-                                ->where('driver_id', $id_user)
-                                ->exists() ? 'yes' : 'no';
+                            $row['selected_categories'] = $isOnboarded
+                                ? DB::table('tj_conducteur_categories')
+                                    ->where('driver_id', $id_user)
+                                    ->get()
+                                    ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
+                                    ->toArray()
+                                : [];
 
                             $isTransportCategory = false;
                             $isHomeServiceProvider = false;

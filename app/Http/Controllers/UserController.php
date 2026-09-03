@@ -872,6 +872,8 @@ class UserController extends Controller
                         $AccessToken->delete();
                     }
 
+                    \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id[$i])->where('user_type', 'customer')->delete();
+
                     $user->delete();
                 }
 
@@ -915,6 +917,8 @@ class UserController extends Controller
                 if ($AccessToken) {
                     $AccessToken->delete();
                 }
+
+                \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id)->where('user_type', 'customer')->delete();
 
                 $user->delete();
             }

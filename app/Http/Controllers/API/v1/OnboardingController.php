@@ -67,9 +67,7 @@ class OnboardingController extends Controller
             }
 
             if ($driverId && Schema::hasTable('tj_conducteur_categories')) {
-                $onboardingCompleted = DB::table('tj_conducteur_categories')
-                    ->where('driver_id', $driverId)
-                    ->exists();
+                $onboardingCompleted = \App\Services\DriverProfileService::isOnboardingCompleted($driverId);
             }
 
             // 1. Provider signup categories only (exclude consumer_service catalog rows)
