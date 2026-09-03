@@ -488,6 +488,9 @@
                             <th>Total Bookings</th>
                             <th>Gross Sales (GMV)</th>
                             <th>Admin Commission Earned</th>
+                            <th>Platform Fee Collected</th>
+                            <th>GST Tax Collected</th>
+                            <th>Net Admin Earning</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -498,11 +501,18 @@
                             <td class="text-dark-bold font-15">{{ number_format($sb['bookings']) }} Bookings</td>
                             <td class="text-dark-bold font-15">₹{{ number_format($sb['gross'], 2) }}</td>
                             <td class="highlight-green font-16">₹{{ number_format($sb['commission'], 2) }}</td>
+                            <td class="highlight-blue font-16">₹{{ number_format($sb['platform_fee'], 2) }}</td>
+                            <td class="text-warning font-16 font-weight-bold">₹{{ number_format($sb['gst'], 2) }}</td>
+                            <td class="highlight-purple font-16 font-weight-bold">₹{{ number_format($sb['admin_earning'], 2) }}</td>
                         </tr>
                         @endforeach
                         <tr class="bg-light font-weight-900" style="font-size: 16px;">
-                            <td colspan="4" class="text-dark-bold">TOTAL COMMISSION & PLATFORM EARNINGS</td>
-                            <td class="highlight-purple font-18">₹{{ number_format($stats['totalCommissionEarned'], 2) }}</td>
+                            <td colspan="3" class="text-dark-bold">TOTAL SERVICE STREAM EARNINGS</td>
+                            <td class="text-dark-bold font-16">₹{{ number_format(collect($stats['servicesBreakdown'])->sum('gross'), 2) }}</td>
+                            <td class="highlight-green font-16">₹{{ number_format($stats['totalCommissionEarned'], 2) }}</td>
+                            <td class="highlight-blue font-16">₹{{ number_format($stats['platformFeeTotal'], 2) }}</td>
+                            <td class="text-warning font-16 font-weight-bold">₹{{ number_format(collect($stats['servicesBreakdown'])->sum('gst'), 2) }}</td>
+                            <td class="highlight-purple font-18">₹{{ number_format($stats['totalCommissionEarned'] + $stats['platformFeeTotal'], 2) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -781,7 +791,10 @@
                             <i class="mdi mdi-wallet-giftcard stat-icon text-primary"></i>
                         </div>
                         <div class="stat-big-value">₹{{ number_format($stats['totalPaymentVolume'], 2) }}</div>
-                        <div class="stat-subtext">Total ecosystem volume</div>
+                        <div class="stat-subtext font-12">
+                            <span>External Inflow: ₹{{ number_format($stats['externalGatewayVolume'] ?? 0, 2) }}</span> • 
+                            <span>Wallet Spend: ₹{{ number_format($stats['internalWalletSpent'] ?? 0, 2) }}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-md-3">

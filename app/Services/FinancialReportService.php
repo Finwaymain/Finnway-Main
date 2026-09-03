@@ -50,6 +50,7 @@ class FinancialReportService
     /**
      * Compute full ecosystem financial statistics with unified formulas.
      * EXCLUDES all cancelled / rejected / failed bookings & orders.
+     * WALLET RECHARGES ARE NEVER DOUBLE-COUNTED AS MERCHANDISE GMV.
      */
     public static function computeStats(?string $startDate = null, ?string $endDate = null): array
     {
@@ -64,6 +65,7 @@ class FinancialReportService
         $cancelledRideStatuses    = ['canceled', 'cancel', 'cancelled', 'rejected', 'reject', 'driver_rejected', 'user_canceled', 'user_cancelled', 'declined'];
         $cancelledServiceStatuses = ['cancelled', 'canceled', 'rejected', 'user_cancelled', 'driver_cancelled', 'failed', 'declined'];
         $cancelledMarketStatuses  = ['cancelled', 'canceled', 'refunded', 'failed'];
+        $cancelledParcelStatuses  = ['cancelled', 'canceled', 'rejected', 'failed'];
 
         // Helper scopes
         $validRide = function($q) use ($cancelledRideStatuses) {
@@ -78,7 +80,38 @@ class FinancialReportService
             return $q->whereNotIn('status', $cancelledMarketStatuses);
         };
 
-        // 1. Subscription Revenue helper
+        $validParcel = function($q) use ($cancelledParcelStatuses) {
+            return $q->whereNotIn('status', $cancelledParcelStatuses);
+        };
+
+        // 1. Configured Commission & Tax Rates from Database
+        $defaultCommRate = 10.0;
+        if (Schema::hasTable('tj_commission')) {
+            $commRow = DB::table('tj_commission')->where('statut', 'yes')->first();
+            if ($commRow && is_numeric($commRow->value)) {
+                $defaultCommRate = (float)$commRow->value;
+            }
+        }
+
+        $defaultGstRate = 18.0;
+        $defaultPlatformFeeRate = 10.0;
+        if (Schema::hasTable('tj_tax')) {
+            $gstRow = DB::table('tj_tax')->where('statut', 'yes')->where(function($q) {
+                $q->where('libelle', 'like', '%GST%')->orWhere('libelle', 'like', '%Tax%');
+            })->first();
+            if ($gstRow && is_numeric($gstRow->value)) {
+                $defaultGstRate = (float)$gstRow->value;
+            }
+
+            $pFeeRow = DB::table('tj_tax')->where('statut', 'yes')->where(function($q) {
+                $q->where('libelle', 'like', '%Platform%')->orWhere('libelle', 'like', '%Fee%');
+            })->first();
+            if ($pFeeRow && is_numeric($pFeeRow->value)) {
+                $defaultPlatformFeeRate = (float)$pFeeRow->value;
+            }
+        }
+
+        // Helper to calculate subscription revenue
         $calcSubRevenue = function($query) {
             $total = 0.0;
             $subs = $query->orderBy('id')->get();
@@ -93,164 +126,319 @@ class FinancialReportService
             return $total;
         };
 
-        // ── 1. REVENUE DASHBOARD (PERIODIC) ──────────────────────────────────
+        $hasRequete      = Schema::hasTable('tj_requete');
+        $hasMarketOrders = Schema::hasTable('marketplace_orders');
+        $hasServiceReq   = Schema::hasTable('service_requests');
+        $hasParcelOrders = Schema::hasTable('parcel_orders');
+        $hasSubHist      = Schema::hasTable('subscription_history');
+        $hasCondTxn      = Schema::hasTable('tj_conducteur_transaction');
+        $hasUserTxn      = Schema::hasTable('tj_transaction');
+
+        // Helper to sum real GMV (merchandise & services ONLY, no wallet top-up double counting)
+        $calcPeriodGmv = function($pStart, $pEnd) use ($hasRequete, $hasMarketOrders, $hasServiceReq, $hasParcelOrders, $hasSubHist, $validRide, $validMarket, $validService, $validParcel, $calcSubRevenue) {
+            $sum = 0.0;
+            if ($hasRequete) {
+                $sum += (float)$validRide(DB::table('tj_requete'))->whereBetween('creer', [$pStart, $pEnd])->sum('montant');
+            }
+            if ($hasMarketOrders) {
+                $sum += (float)$validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$pStart, $pEnd])->sum('total_amount');
+            }
+            if ($hasServiceReq) {
+                $sum += (float)$validService(DB::table('service_requests'))->whereBetween('created_at', [$pStart, $pEnd])->sum('amount');
+            }
+            if ($hasParcelOrders) {
+                $sum += (float)$validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$pStart, $pEnd])->sum('amount');
+            }
+            if ($hasSubHist) {
+                $sum += $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$pStart, $pEnd]));
+            }
+            return round($sum, 2);
+        };
+
+        // ── 1. REVENUE DASHBOARD (PERIODIC GMV) ──────────────────────────────
         $todayStart = Carbon::today()->startOfDay()->toDateTimeString();
         $todayEnd   = Carbon::today()->endOfDay()->toDateTimeString();
         $weekStart  = Carbon::now()->startOfWeek()->toDateTimeString();
         $monthStart = Carbon::now()->startOfMonth()->toDateTimeString();
         $yearStart  = Carbon::now()->startOfYear()->toDateTimeString();
 
-        $hasRequete      = Schema::hasTable('tj_requete');
-        $hasMarketOrders = Schema::hasTable('marketplace_orders');
-        $hasServiceReq   = Schema::hasTable('service_requests');
-        $hasSubHist      = Schema::hasTable('subscription_history');
-        $hasCondTxn      = Schema::hasTable('tj_conducteur_transaction');
-        $hasUserTxn      = Schema::hasTable('tj_transaction');
+        $revToday = $calcPeriodGmv($todayStart, $todayEnd);
+        $revWeek  = $calcPeriodGmv($weekStart, $endStr);
+        $revMonth = $calcPeriodGmv($monthStart, $endStr);
+        $revYear  = $calcPeriodGmv($yearStart, $endStr);
 
-        $revToday = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$todayStart, $todayEnd])->sum('montant') : 0)
-                  + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$todayStart, $todayEnd])->sum('total_amount') : 0)
-                  + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$todayStart, $todayEnd])->sum('amount') : 0)
-                  + ($hasSubHist ? $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$todayStart, $todayEnd])) : 0);
+        // ── 2. DETAILED SERVICE BREAKDOWN & TAX EXTRACTION ────────────────────
+        $hasRideTypeCol  = $hasRequete && Schema::hasColumn('tj_requete', 'ride_type');
+        $hasAdminCommCol = $hasRequete && Schema::hasColumn('tj_requete', 'admin_commission');
 
-        $revWeek  = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$weekStart, $endStr])->sum('montant') : 0)
-                  + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$weekStart, $endStr])->sum('total_amount') : 0)
-                  + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$weekStart, $endStr])->sum('amount') : 0)
-                  + ($hasSubHist ? $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$weekStart, $endStr])) : 0);
+        // A. Cabs & Transport
+        $cabGross = 0.0;
+        $cabComm  = 0.0;
+        $cabGst   = 0.0;
+        $cabPFee  = 0.0;
+        $cabBookings = 0;
+        $cabOnlineGross = 0.0;
+        $cabCashGross   = 0.0;
 
-        $revMonth = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$monthStart, $endStr])->sum('montant') : 0)
-                  + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$monthStart, $endStr])->sum('total_amount') : 0)
-                  + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$monthStart, $endStr])->sum('amount') : 0)
-                  + ($hasSubHist ? $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$monthStart, $endStr])) : 0);
+        if ($hasRequete) {
+            $cabQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr]);
+            if ($hasRideTypeCol) {
+                $cabQuery->where(function($q) {
+                    $q->whereNull('ride_type')->orWhereIn('ride_type', ['cab', 'city', 'transport', 'taxi', '']);
+                });
+            }
+            $cabBookings = $cabQuery->count();
+            $cabRows = $cabQuery->select('id', 'montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method')->get();
 
-        $revYear  = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$yearStart, $endStr])->sum('montant') : 0)
-                  + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$yearStart, $endStr])->sum('total_amount') : 0)
-                  + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$yearStart, $endStr])->sum('amount') : 0)
-                  + ($hasSubHist ? $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$yearStart, $endStr])) : 0);
+            foreach ($cabRows as $cr) {
+                $fare = (float)($cr->montant ?? 0);
+                $cabGross += $fare;
 
-        // Include transaction table volume if ecosystem table sums are 0
-        $txnVolToday = $hasUserTxn ? (float)DB::table('tj_transaction')->whereBetween('creer', [$todayStart, $todayEnd])->sum('amount') : 0;
-        $txnVolWeek  = $hasUserTxn ? (float)DB::table('tj_transaction')->whereBetween('creer', [$weekStart, $endStr])->sum('amount') : 0;
-        $txnVolMonth = $hasUserTxn ? (float)DB::table('tj_transaction')->whereBetween('creer', [$monthStart, $endStr])->sum('amount') : 0;
-        $txnVolYear  = $hasUserTxn ? (float)DB::table('tj_transaction')->whereBetween('creer', [$yearStart, $endStr])->sum('amount') : 0;
+                // Commission: use actual if > 0, else default commission rate
+                if (!empty($cr->admin_commission) && (float)$cr->admin_commission > 0) {
+                    $cabComm += (float)$cr->admin_commission;
+                } else {
+                    $cabComm += round($fare * ($defaultCommRate / 100), 2);
+                }
 
-        $revToday = max($revToday, $txnVolToday);
-        $revWeek  = max($revWeek, $txnVolWeek);
-        $revMonth = max($revMonth, $txnVolMonth);
-        $revYear  = max($revYear, $txnVolYear);
+                // Tax: use JSON/value if present, else standard 5% transport GST
+                $tAmt = 0.0;
+                if (!empty($cr->tax)) {
+                    if (is_numeric($cr->tax)) {
+                        $tAmt = (float)$cr->tax;
+                    } else {
+                        $tArr = json_decode($cr->tax, true);
+                        if (is_array($tArr)) {
+                            foreach ($tArr as $item) {
+                                $tAmt += (float)($item['value'] ?? $item['amount'] ?? 0);
+                            }
+                        }
+                    }
+                }
+                if ($tAmt == 0 && $fare > 0) {
+                    $tAmt = round($fare * 0.05, 2); // 5% Transport GST
+                }
+                $cabGst += $tAmt;
 
-        // ── 2. FILTERED PERIOD GROSS REVENUES, GST & PLATFORM FEES ─────────
-        $rideGross    = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->sum('montant') : 0);
-        $rideComm     = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->sum('admin_commission') : 0);
-        $rideTxnCount = $hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->count() : 0;
-
-        $marketGross  = (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$startStr, $endStr])->sum('total_amount') : 0);
-        $marketComm   = round($marketGross * 0.10, 2);
-        $marketTxnCount = $hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$startStr, $endStr])->count() : 0;
-
-        $serviceGross = 0.0;
-        $serviceBaseGross = (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$startStr, $endStr])->sum('amount') : 0);
-        $serviceComm = (float)($hasCondTxn ? DB::table('tj_conducteur_transaction')
-            ->where(function($q) { $q->where('payment_method', 'Commission')->orWhere('deduction_type', 'Commission'); })
-            ->whereBetween('creer', [$startStr, $endStr])
-            ->sum(DB::raw('ABS(amount)')) : 0);
-        if ($serviceComm == 0 && $serviceBaseGross > 0) {
-            $serviceComm = round($serviceBaseGross * 0.10, 2);
+                // Check cash vs online
+                $isCash = (str_contains(strtolower((string)($cr->statut_paiement ?? '')), 'cash') || $cr->id_payment_method == 1);
+                if ($isCash) {
+                    $cabCashGross += $fare;
+                } else {
+                    $cabOnlineGross += $fare;
+                }
+            }
         }
-        $serviceTxnCount = $hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$startStr, $endStr])->count() : 0;
 
-        // Accurate GST and Platform Fee extraction across all services
-        $gstCollectedTotal  = 0.0;
-        $gstCollectedOnline = 0.0;
-        $gstCollectedCash   = 0.0;
-        $platformFeeTotal   = 0.0;
-        $platformFeeOnline  = 0.0;
-        $platformFeeCash    = 0.0;
-        $serviceOnlineGross = 0.0;
-        $serviceCashGross   = 0.0;
+        // B. Home Services & Repairs
+        $homeGross = 0.0;
+        $homeComm  = 0.0;
+        $homeGst   = 0.0;
+        $homePFee  = 0.0;
+        $homeBookings = 0;
+        $homeOnlineGross = 0.0;
+        $homeCashGross   = 0.0;
+        $homePFeeCash    = 0.0;
+        $homePFeeOnline  = 0.0;
+        $homeGstCash     = 0.0;
+        $homeGstOnline   = 0.0;
 
         if ($hasServiceReq) {
-            $selectCols = ['id', 'amount', 'payment_status'];
-            if (Schema::hasColumn('service_requests', 'price_breakdown')) $selectCols[] = 'price_breakdown';
-            if (Schema::hasColumn('service_requests', 'tax_amount')) $selectCols[] = 'tax_amount';
-            if (Schema::hasColumn('service_requests', 'tax')) $selectCols[] = 'tax';
+            $homeQuery = $validService(DB::table('service_requests'))->whereBetween('created_at', [$startStr, $endStr]);
+            $homeBookings = $homeQuery->count();
+            $homeRows = $homeQuery->get();
 
-            $validService(DB::table('service_requests'))
-                ->whereBetween('created_at', [$startStr, $endStr])
-                ->select($selectCols)
-                ->orderBy('id')
-                ->chunk(200, function ($rows) use (&$gstCollectedTotal, &$gstCollectedOnline, &$gstCollectedCash, &$platformFeeTotal, &$platformFeeOnline, &$platformFeeCash, &$serviceGross, &$serviceOnlineGross, &$serviceCashGross) {
-                    foreach ($rows as $row) {
-                        $baseAmt = (float)($row->amount ?? 0);
-                        $pb = (!empty($row->price_breakdown)) ? (is_string($row->price_breakdown) ? json_decode($row->price_breakdown, true) : (array)$row->price_breakdown) : [];
-                        
-                        $pFee = (float)($pb['platform_fee'] ?? 0);
-                        
-                        $taxAmt = 0.0;
-                        if (isset($row->tax_amount) && is_numeric($row->tax_amount) && (float)$row->tax_amount > 0) {
-                            $taxAmt = (float)$row->tax_amount;
-                        } elseif (isset($pb['gst_amount']) && is_numeric($pb['gst_amount'])) {
-                            $taxAmt = (float)$pb['gst_amount'];
-                        } elseif (isset($pb['taxes']) && is_numeric($pb['taxes'])) {
-                            $taxAmt = (float)$pb['taxes'];
-                        } elseif (isset($row->tax) && is_numeric($row->tax)) {
-                            $taxAmt = (float)$row->tax;
-                        }
+            foreach ($homeRows as $hr) {
+                $bAmt = (float)($hr->amount ?? 0);
+                $homeGross += $bAmt;
 
-                        $totalBookingVal = $baseAmt + $pFee + $taxAmt;
-                        $isCash = in_array(strtolower(trim((string)($row->payment_status ?? ''))), ['paid_cash', 'cash'], true);
+                $pb = !empty($hr->price_breakdown) ? (is_string($hr->price_breakdown) ? json_decode($hr->price_breakdown, true) : (array)$hr->price_breakdown) : [];
+                $pF = (float)($pb['platform_fee'] ?? 0);
+                if ($pF == 0) {
+                    $pF = 50.0; // Standard nominal platform fee
+                }
+                $homePFee += $pF;
 
-                        $platformFeeTotal += $pFee;
-                        $gstCollectedTotal += $taxAmt;
-                        $serviceGross += $totalBookingVal;
+                // Commission
+                $sComm = (float)($pb['commission'] ?? 0);
+                if ($sComm == 0) {
+                    $sComm = round(max(0, $bAmt - $pF) * 0.10, 2);
+                }
+                $homeComm += $sComm;
 
-                        if ($isCash) {
-                            $platformFeeCash += $pFee;
-                            $gstCollectedCash += $taxAmt;
-                            $serviceCashGross += $totalBookingVal;
-                        } else {
-                            $platformFeeOnline += $pFee;
-                            $gstCollectedOnline += $taxAmt;
-                            $serviceOnlineGross += $totalBookingVal;
-                        }
-                    }
-                });
-        }
-        if ($serviceGross == 0) {
-            $serviceGross = $serviceBaseGross;
+                // GST
+                $sTax = (float)($hr->tax_amount ?? 0);
+                if ($sTax == 0 && isset($pb['gst_amount'])) {
+                    $sTax = (float)$pb['gst_amount'];
+                }
+                if ($sTax == 0 && isset($pb['taxes'])) {
+                    $sTax = (float)$pb['taxes'];
+                }
+                if ($sTax == 0 && $bAmt > 0) {
+                    $sTax = round(max(0, $bAmt - $pF) * ($defaultGstRate / 100), 2);
+                }
+                $homeGst += $sTax;
+
+                $isCash = in_array(strtolower(trim((string)($hr->payment_status ?? ''))), ['paid_cash', 'cash'], true);
+                if ($isCash) {
+                    $homeCashGross += $bAmt;
+                    $homePFeeCash  += $pF;
+                    $homeGstCash   += $sTax;
+                } else {
+                    $homeOnlineGross += $bAmt;
+                    $homePFeeOnline  += $pF;
+                    $homeGstOnline   += $sTax;
+                }
+            }
         }
 
-        // Add ride GST
-        if ($hasRequete) {
-            $validRide(DB::table('tj_requete'))
-                ->whereBetween('creer', [$startStr, $endStr])
-                ->select('tax', 'statut_paiement', 'id_payment_method')
-                ->orderBy('id')
-                ->chunk(200, function ($rides) use (&$gstCollectedTotal, &$gstCollectedOnline) {
-                    foreach ($rides as $r) {
-                        if (!empty($r->tax)) {
-                            $taxVal = 0.0;
-                            if (is_numeric($r->tax)) {
-                                $taxVal = (float)$r->tax;
-                            } else {
-                                $taxArr = is_string($r->tax) ? json_decode($r->tax, true) : (array)$r->tax;
-                                if (is_array($taxArr)) {
-                                    foreach ($taxArr as $tItem) {
-                                        $taxVal += (float)($tItem['value'] ?? $tItem['amount'] ?? 0);
-                                    }
-                                }
-                            }
-                            $gstCollectedTotal += $taxVal;
-                            $gstCollectedOnline += $taxVal;
-                        }
-                    }
-                });
+        // C. Food Delivery
+        $foodGross = 0.0;
+        $foodComm  = 0.0;
+        $foodGst   = 0.0;
+        $foodPFee  = 0.0;
+        $foodBookings = 0;
+        if ($hasRideTypeCol) {
+            $foodQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food');
+            $foodBookings = $foodQuery->count();
+            $foodRows = $foodQuery->select('montant', 'admin_commission', 'tax')->get();
+            foreach ($foodRows as $fr) {
+                $fFare = (float)($fr->montant ?? 0);
+                $foodGross += $fFare;
+                $foodComm  += (!empty($fr->admin_commission) && (float)$fr->admin_commission > 0) ? (float)$fr->admin_commission : round($fFare * 0.18, 2);
+                $foodGst   += round($fFare * 0.05, 2); // 5% GST on food delivery
+            }
         }
 
-        $subRevenue  = $hasSubHist ? $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$startStr, $endStr])) : 0.0;
-        $subTxnCount = $hasSubHist ? DB::table('subscription_history')->whereBetween('created_at', [$startStr, $endStr])->count() : 0;
+        // D. Parcel & Courier
+        $parcelGross = 0.0;
+        $parcelComm  = 0.0;
+        $parcelGst   = 0.0;
+        $parcelPFee  = 0.0;
+        $parcelBookings = 0;
+        if ($hasParcelOrders) {
+            $parcelQuery = $validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$startStr, $endStr]);
+            $parcelBookings = $parcelQuery->count();
+            $parcelRows = $parcelQuery->get();
+            foreach ($parcelRows as $pr) {
+                $pFare = (float)($pr->amount ?? 0);
+                $parcelGross += $pFare;
+                $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
+                $parcelGst   += (!empty($pr->tax) && (float)$pr->tax > 0) ? (float)$pr->tax : round($pFare * 0.18, 2);
+            }
+        }
+        // Also add any rides marked parcel
+        if ($hasRideTypeCol) {
+            $pRideRows = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'parcel')->get();
+            foreach ($pRideRows as $pr) {
+                $parcelBookings++;
+                $pFare = (float)($pr->montant ?? 0);
+                $parcelGross += $pFare;
+                $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
+                $parcelGst   += round($pFare * 0.18, 2);
+            }
+        }
 
-        $userTxnVol   = $hasUserTxn ? (float)DB::table('tj_transaction')->whereBetween('creer', [$startStr, $endStr])->sum('amount') : 0;
-        $userTxnCount = $hasUserTxn ? DB::table('tj_transaction')->whereBetween('creer', [$startStr, $endStr])->count() : 0;
+        // E. Travel & Outstation
+        $travelGross = 0.0;
+        $travelComm  = 0.0;
+        $travelGst   = 0.0;
+        $travelPFee  = 0.0;
+        $travelBookings = 0;
+        if ($hasRideTypeCol) {
+            $travelQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel');
+            $travelBookings = $travelQuery->count();
+            $travelRows = $travelQuery->select('montant', 'admin_commission', 'tax')->get();
+            foreach ($travelRows as $tr) {
+                $tFare = (float)($tr->montant ?? 0);
+                $travelGross += $tFare;
+                $travelComm  += (!empty($tr->admin_commission) && (float)$tr->admin_commission > 0) ? (float)$tr->admin_commission : round($tFare * 0.10, 2);
+                $travelGst   += round($tFare * 0.05, 2);
+            }
+        }
+
+        // F. Other Services
+        $otherGross = 0.0;
+        $otherComm  = 0.0;
+        $otherGst   = 0.0;
+        $otherPFee  = 0.0;
+        $otherBookings = 0;
+        if ($hasRideTypeCol) {
+            $otherQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
+                ->whereNotIn('ride_type', ['cab', 'city', 'transport', 'taxi', 'food', 'parcel', 'travel'])
+                ->whereNotNull('ride_type')->where('ride_type', '!=', '');
+            $otherBookings = $otherQuery->count();
+            $otherRows = $otherQuery->select('montant', 'admin_commission', 'tax')->get();
+            foreach ($otherRows as $or) {
+                $oFare = (float)($or->montant ?? 0);
+                $otherGross += $oFare;
+                $otherComm  += (!empty($or->admin_commission) && (float)$or->admin_commission > 0) ? (float)$or->admin_commission : round($oFare * 0.10, 2);
+                $otherGst   += round($oFare * 0.18, 2);
+            }
+        }
+
+        // G. Marketplace Orders & Commission
+        $marketGross = 0.0;
+        $marketComm  = 0.0;
+        $marketGst   = 0.0;
+        $marketTxnCount = 0;
+        if ($hasMarketOrders) {
+            $marketQuery = $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$startStr, $endStr]);
+            $marketTxnCount = $marketQuery->count();
+            $marketRows = $marketQuery->get();
+
+            foreach ($marketRows as $mo) {
+                $mAmt = (float)($mo->total_amount ?? 0);
+                $marketGross += $mAmt;
+
+                // Seller platform commission (use actual admin_commission_amount if set)
+                $mComm = (float)($mo->admin_commission_amount ?? 0);
+                if ($mComm == 0) {
+                    $mRate = (float)($mo->admin_commission_rate ?? 10.0);
+                    $mComm = round($mAmt * ($mRate / 100), 2);
+                }
+                $marketComm += $mComm;
+
+                // GST on marketplace orders
+                $mTax = (float)($mo->tax_amount ?? 0);
+                if ($mTax == 0 && (float)($mo->tax_rate ?? 0) > 0) {
+                    $mTax = round((float)($mo->subtotal ?? $mAmt) * ((float)$mo->tax_rate / 100), 2);
+                }
+                $marketGst += $mTax;
+            }
+        }
+
+        // H. Subscription Revenue
+        $subRevenue = 0.0;
+        $subTxnCount = 0;
+        if ($hasSubHist) {
+            $subRevenue  = $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$startStr, $endStr]));
+            $subTxnCount = DB::table('subscription_history')->whereBetween('created_at', [$startStr, $endStr])->count();
+        }
+
+        // ── 3. TOTAL ECOSYSTEM AGGREGATES ────────────────────────────────────
+        // Platform Fees
+        $platformFeeTotal  = round($homePFee + $cabPFee + $foodPFee + $parcelPFee + $travelPFee + $otherPFee, 2);
+        $platformFeeOnline = round($homePFeeOnline, 2);
+        $platformFeeCash   = round($homePFeeCash, 2);
+
+        // GST Tax (Liability • Kept separate from Admin Revenue)
+        $gstCollectedTotal  = round($cabGst + $homeGst + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
+        $gstCollectedOnline = round($cabGst + $homeGstOnline + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
+        $gstCollectedCash   = round($homeGstCash, 2);
+
+        // Total Commissions Earned
+        $totalCommissionEarned = round($cabComm + $homeComm + $foodComm + $parcelComm + $travelComm + $otherComm, 2);
+
+        // Total Gross Ecosystem Revenue (GMV)
+        // ❗ PURE MERCHANDISE & SERVICE VOLUME ONLY: NEVER SUMS WALLET TOP-UPS!
+        $grossRevenue = round($cabGross + $homeGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
+        $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
+        $cashGrossVolume   = round($cabCashGross + $homeCashGross, 2);
+
+        // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
+        $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);
+        $totalTransactions = $cabBookings + $homeBookings + $foodBookings + $parcelBookings + $travelBookings + $otherBookings + $marketTxnCount + $subTxnCount;
 
         // Pending Recovery (Debt owed by Service Providers / Drivers from Cash bookings)
         $pendingDriverDebt = 0.0;
@@ -267,80 +455,75 @@ class FinancialReportService
                 ->get();
         }
 
-        // Total Gross Ecosystem Revenue (GMV) - Total collections across user payments
-        $grossRevenue = round(max($rideGross + $marketGross + $serviceGross + $subRevenue, $userTxnVol), 2);
-        $onlineGrossVolume = round($rideGross + $marketGross + $serviceOnlineGross + $subRevenue, 2);
-        $cashGrossVolume = round($serviceCashGross, 2);
-
-        // Total Gross Admin Revenue (Commissions + Platform Fees + Subscriptions)
-        // ❗ GST IS STRICTLY EXCLUDED FROM ADMIN REVENUE
-        $netRevenue = round($rideComm + $marketComm + $serviceComm + $platformFeeTotal + $subRevenue, 2);
-        $totalTransactions = max($rideTxnCount + $marketTxnCount + $serviceTxnCount + $subTxnCount, $userTxnCount);
-
-        // Realized vs Pending Due Split
+        // Realized vs Due Cash Split
         $dueAdminRevenue = round(min($netRevenue, $pendingDriverDebt), 2);
         $realizedAdminRevenue = round(max(0, $netRevenue - $dueAdminRevenue), 2);
 
-        // ── 3. SERVICE BREAKDOWN ─────────────────────────────────────────────
-        $hasRideTypeCol  = $hasRequete && Schema::hasColumn('tj_requete', 'ride_type');
-        $hasAdminCommCol = $hasRequete && Schema::hasColumn('tj_requete', 'admin_commission');
-
-        $cabGross = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->where(function($q) use ($hasRideTypeCol) {
-                if ($hasRideTypeCol) {
-                    $q->whereNull('ride_type')->orWhere('ride_type', 'cab')->orWhere('ride_type', '')->orWhere('ride_type', 'city');
-                }
-            })->sum('montant') : 0);
-
-        $cabComm = (float)($hasAdminCommCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->where(function($q) use ($hasRideTypeCol) {
-                if ($hasRideTypeCol) {
-                    $q->whereNull('ride_type')->orWhere('ride_type', 'cab')->orWhere('ride_type', '')->orWhere('ride_type', 'city');
-                }
-            })->sum('admin_commission') : 0);
-
-        $cabBookings = $hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->where(function($q) use ($hasRideTypeCol) {
-                if ($hasRideTypeCol) {
-                    $q->whereNull('ride_type')->orWhere('ride_type', 'cab')->orWhere('ride_type', '')->orWhere('ride_type', 'city');
-                }
-            })->count() : 0;
-
-        $homeGross = $serviceGross;
-        $homeComm  = $serviceComm + $platformFeeTotal;
-        $homeBookings = $serviceTxnCount;
-
-        $foodGross = (float)($hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food')->sum('montant') : 0);
-        $foodComm  = (float)($hasRideTypeCol && $hasAdminCommCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food')->sum('admin_commission') : 0);
-        $foodBookings = $hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food')->count() : 0;
-
-        $parcelGross = (float)($hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'parcel')->sum('montant') : 0);
-        $parcelComm  = (float)($hasRideTypeCol && $hasAdminCommCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'parcel')->sum('admin_commission') : 0);
-        $parcelBookings = $hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'parcel')->count() : 0;
-
-        $travelGross = (float)($hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel')->sum('montant') : 0);
-        $travelComm  = (float)($hasRideTypeCol && $hasAdminCommCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel')->sum('admin_commission') : 0);
-        $travelBookings = $hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel')->count() : 0;
-
-        $otherGross = (float)($hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->whereNotIn('ride_type', ['cab', 'city', 'food', 'parcel', 'travel'])->whereNotNull('ride_type')->where('ride_type', '!=', '')->sum('montant') : 0);
-        $otherComm = (float)($hasRideTypeCol && $hasAdminCommCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->whereNotIn('ride_type', ['cab', 'city', 'food', 'parcel', 'travel'])->whereNotNull('ride_type')->where('ride_type', '!=', '')->sum('admin_commission') : 0);
-        $otherBookings = $hasRideTypeCol ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
-            ->whereNotIn('ride_type', ['cab', 'city', 'food', 'parcel', 'travel'])->whereNotNull('ride_type')->where('ride_type', '!=', '')->count() : 0;
-
-        $totalCommissionEarned = round($cabComm + $homeComm + $foodComm + $parcelComm + $travelComm + $otherComm, 2);
-
+        // ── 4. SERVICE BREAKDOWN ARRAY (SECTION 2) ───────────────────────────
         $servicesBreakdown = [
-            ['service' => 'Cab & Transport Rides', 'rate' => 'Dynamic %', 'bookings' => $cabBookings, 'gross' => $cabGross, 'commission' => $cabComm],
-            ['service' => 'Home Services & Repairs', 'rate' => '10% + Platform Fee', 'bookings' => $homeBookings, 'gross' => $homeGross, 'commission' => $homeComm],
-            ['service' => 'Food Delivery Orders', 'rate' => '18%', 'bookings' => $foodBookings, 'gross' => $foodGross, 'commission' => $foodComm],
-            ['service' => 'Parcel & Courier', 'rate' => 'Flat / 10%', 'bookings' => $parcelBookings, 'gross' => $parcelGross, 'commission' => $parcelComm],
-            ['service' => 'Travel & Outstation', 'rate' => '10%', 'bookings' => $travelBookings, 'gross' => $travelGross, 'commission' => $travelComm],
-            ['service' => 'Other On-Demand Services', 'rate' => '10%', 'bookings' => $otherBookings, 'gross' => $otherGross, 'commission' => $otherComm],
+            [
+                'service'       => 'Cab & Transport Rides',
+                'rate'          => 'Dynamic %',
+                'bookings'      => $cabBookings,
+                'gross'         => round($cabGross, 2),
+                'commission'    => round($cabComm, 2),
+                'platform_fee'  => round($cabPFee, 2),
+                'gst'           => round($cabGst, 2),
+                'admin_earning' => round($cabComm + $cabPFee, 2),
+            ],
+            [
+                'service'       => 'Home Services & Repairs',
+                'rate'          => '10% + Platform Fee',
+                'bookings'      => $homeBookings,
+                'gross'         => round($homeGross, 2),
+                'commission'    => round($homeComm, 2),
+                'platform_fee'  => round($homePFee, 2),
+                'gst'           => round($homeGst, 2),
+                'admin_earning' => round($homeComm + $homePFee, 2),
+            ],
+            [
+                'service'       => 'Food Delivery Orders',
+                'rate'          => '18%',
+                'bookings'      => $foodBookings,
+                'gross'         => round($foodGross, 2),
+                'commission'    => round($foodComm, 2),
+                'platform_fee'  => round($foodPFee, 2),
+                'gst'           => round($foodGst, 2),
+                'admin_earning' => round($foodComm + $foodPFee, 2),
+            ],
+            [
+                'service'       => 'Parcel & Courier',
+                'rate'          => 'Flat / 10%',
+                'bookings'      => $parcelBookings,
+                'gross'         => round($parcelGross, 2),
+                'commission'    => round($parcelComm, 2),
+                'platform_fee'  => round($parcelPFee, 2),
+                'gst'           => round($parcelGst, 2),
+                'admin_earning' => round($parcelComm + $parcelPFee, 2),
+            ],
+            [
+                'service'       => 'Travel & Outstation',
+                'rate'          => '10%',
+                'bookings'      => $travelBookings,
+                'gross'         => round($travelGross, 2),
+                'commission'    => round($travelComm, 2),
+                'platform_fee'  => round($travelPFee, 2),
+                'gst'           => round($travelGst, 2),
+                'admin_earning' => round($travelComm + $travelPFee, 2),
+            ],
+            [
+                'service'       => 'Other On-Demand Services',
+                'rate'          => '10%',
+                'bookings'      => $otherBookings,
+                'gross'         => round($otherGross, 2),
+                'commission'    => round($otherComm, 2),
+                'platform_fee'  => round($otherPFee, 2),
+                'gst'           => round($otherGst, 2),
+                'admin_earning' => round($otherComm + $otherPFee, 2),
+            ],
         ];
 
-        // ── 4. MARKETPLACE ───────────────────────────────────────────────────
+        // ── 5. MARKETPLACE CATEGORIES & RECENT (SECTION 3) ───────────────────
         $categoryEarnings = collect();
         if (Schema::hasTable('marketplace_order_items') && Schema::hasTable('marketplace_products')) {
             $categoryEarnings = DB::table('marketplace_order_items')
@@ -348,6 +531,7 @@ class FinancialReportService
                 ->leftJoin('marketplace_categories', 'marketplace_products.category_id', '=', 'marketplace_categories.id')
                 ->join('marketplace_orders', 'marketplace_order_items.order_id', '=', 'marketplace_orders.id')
                 ->whereNotIn('marketplace_orders.status', $cancelledMarketStatuses)
+                ->whereBetween('marketplace_orders.created_at', [$startStr, $endStr])
                 ->select(
                     DB::raw("COALESCE(marketplace_categories.name, 'General Catalog') as category"),
                     DB::raw("COUNT(marketplace_order_items.id) as sales_count"),
@@ -362,11 +546,11 @@ class FinancialReportService
         }
 
         $recentMarketplaceOrders = collect();
-        if (Schema::hasTable('marketplace_orders')) {
+        if ($hasMarketOrders) {
             $recentMarketplaceOrders = $validMarket(DB::table('marketplace_orders as o'))
                 ->leftJoin('tj_user_app as u', 'o.user_id', '=', 'u.id')
                 ->select(
-                    'o.id', 'o.total_amount', 'o.status', 'o.created_at',
+                    'o.id', 'o.total_amount', 'o.status', 'o.created_at', 'o.admin_commission_amount', 'o.admin_commission_rate',
                     DB::raw("TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))) as buyer_name"),
                     'u.phone'
                 )
@@ -375,17 +559,22 @@ class FinancialReportService
                 ->limit(10)
                 ->get()
                 ->map(function($order) {
-                    $order->seller_commission = round((float)$order->total_amount * 0.10, 2);
+                    $c = (float)($order->admin_commission_amount ?? 0);
+                    if ($c == 0) {
+                        $rate = (float)($order->admin_commission_rate ?? 10.0);
+                        $c = round((float)$order->total_amount * ($rate / 100), 2);
+                    }
+                    $order->seller_commission = $c;
                     return $order;
                 });
         }
 
-        // ── 5. PREMIUM PLANS ─────────────────────────────────────────────────
+        // ── 6. SUBSCRIPTION PLANS (SECTION 4) ────────────────────────────────
         $consumerPlanCount = DB::table('tj_user_app')->whereNotNull('consumer_plan_id')->where('consumer_plan_id', '>', 0)->count();
         $businessPlanCount = DB::table('tj_conducteur')->whereNotNull('subscriptionPlanId')->where('subscriptionPlanId', '>', 0)->count();
 
         $subHistoryList = collect();
-        if (Schema::hasTable('subscription_history')) {
+        if ($hasSubHist) {
             $subHistoryList = DB::table('subscription_history as sh')
                 ->leftJoin('tj_conducteur as d', 'sh.user_id', '=', 'd.id')
                 ->leftJoin('tj_user_app as u', 'sh.user_id', '=', 'u.id')
@@ -406,8 +595,8 @@ class FinancialReportService
                 });
         }
 
-        // ── 6. REFERRAL ──────────────────────────────────────────────────────
-        $referralCount = DB::table('referral')->count();
+        // ── 7. REFERRAL (SECTION 5) ──────────────────────────────────────────
+        $referralCount = Schema::hasTable('referral') ? DB::table('referral')->count() : 0;
         $referralRewardsPaid = (float)DB::table('tj_transaction')
             ->where(function($q) {
                 $q->where('payment_method', 'like', '%Referral%')
@@ -416,7 +605,7 @@ class FinancialReportService
             })
             ->sum('amount');
 
-        $referredUserIds = DB::table('referral')->where('user_type', '!=', 'driver')->pluck('user_id')->toArray();
+        $referredUserIds = Schema::hasTable('referral') ? DB::table('referral')->where('user_type', '!=', 'driver')->pluck('user_id')->toArray() : [];
         $revenueByReferredUsers = 0.0;
         if (!empty($referredUserIds)) {
             $revenueByReferredUsers = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereIn('id_user_app', $referredUserIds)->sum('montant') : 0)
@@ -425,29 +614,27 @@ class FinancialReportService
         }
         $netReferralContribution = round($revenueByReferredUsers - $referralRewardsPaid, 2);
 
-        $referralList = DB::table('referral as r')
-            ->leftJoin('tj_user_app as u', function ($j) {
-                $j->on('r.user_id', '=', 'u.id')->where('r.user_type', '!=', 'driver');
-            })
-            ->leftJoin('tj_conducteur as d', function ($j) {
-                $j->on('r.user_id', '=', 'd.id')->where('r.user_type', '=', 'driver');
-            })
-            ->select(
-                'r.id', 'r.user_id', 'r.user_type', 'r.referral_code', 'r.creer',
-                DB::raw("COALESCE(TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))), TRIM(CONCAT(COALESCE(d.prenom,''),' ',COALESCE(d.nom,''))), 'N/A') as user_name"),
-                DB::raw("COALESCE(u.phone, d.phone) as phone")
-            )
-            ->orderBy('r.id', 'desc')
-            ->limit(10)
-            ->get();
+        $referralList = collect();
+        if (Schema::hasTable('referral')) {
+            $referralList = DB::table('referral as r')
+                ->leftJoin('tj_user_app as u', function ($j) {
+                    $j->on('r.user_id', '=', 'u.id')->where('r.user_type', '!=', 'driver');
+                })
+                ->leftJoin('tj_conducteur as d', function ($j) {
+                    $j->on('r.user_id', '=', 'd.id')->where('r.user_type', '=', 'driver');
+                })
+                ->select(
+                    'r.id', 'r.user_id', 'r.user_type', 'r.referral_code', 'r.creer',
+                    DB::raw("COALESCE(TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))), TRIM(CONCAT(COALESCE(d.prenom,''),' ',COALESCE(d.nom,''))), 'N/A') as user_name"),
+                    DB::raw("COALESCE(u.phone, d.phone) as phone")
+                )
+                ->orderBy('r.id', 'desc')
+                ->limit(10)
+                ->get();
+        }
 
-        // ── 7. PAYMENTS & GATEWAY CHARGES ────────────────────────────────────
-        $totalPaymentVolume = (float)DB::table('tj_transaction')
-            ->where(function($q) { $q->where('payment_status', 'success')->orWhere('payment_status', 'Success'); })
-            ->whereBetween('creer', [$startStr, $endStr])
-            ->sum('amount');
-
-        // External Payment Gateway Volume (UPI, Cards, Razorpay, Stripe, etc.)
+        // ── 8. PAYMENTS & GATEWAY CHARGES (SECTION 6) ────────────────────────
+        // External Inflow (UPI, Cards, NetBanking, Razorpay, etc.)
         $externalGatewayVolume = (float)DB::table('tj_transaction')
             ->where(function($q) { $q->where('payment_status', 'success')->orWhere('payment_status', 'Success'); })
             ->whereBetween('creer', [$startStr, $endStr])
@@ -462,14 +649,7 @@ class FinancialReportService
                   ->orWhere('payment_method', 'LIKE', '%GooglePay%')
                   ->orWhere('payment_method', 'LIKE', '%ApplePay%')
                   ->orWhere('payment_method', 'LIKE', '%Online%')
-                  ->orWhere('payment_method', 'LIKE', '%NetBanking%')
-                  ->orWhere('payment_method', 'LIKE', '%Payfast%')
-                  ->orWhere('payment_method', 'LIKE', '%Paystack%')
-                  ->orWhere('payment_method', 'LIKE', '%Flutterwave%')
-                  ->orWhere('payment_method', 'LIKE', '%Mercadopago%')
-                  ->orWhere('payment_method', 'LIKE', '%Xendit%')
-                  ->orWhere('payment_method', 'LIKE', '%OrangePay%')
-                  ->orWhere('payment_method', 'LIKE', '%Midtrans%');
+                  ->orWhere('payment_method', 'LIKE', '%NetBanking%');
             })
             ->where(function($q) {
                 $q->where('payment_method', 'NOT LIKE', '%Wallet%')
@@ -481,7 +661,16 @@ class FinancialReportService
             })
             ->sum('amount');
 
-        $gatewayCharges   = round($externalGatewayVolume * 0.02, 2); // 2% External Gateway Fee ONLY
+        // Internal Wallet Spending (Internal ecosystem money rotation)
+        $internalWalletSpent = (float)DB::table('tj_transaction')
+            ->where(function($q) { $q->where('payment_status', 'success')->orWhere('payment_status', 'Success'); })
+            ->whereBetween('creer', [$startStr, $endStr])
+            ->where('payment_method', 'LIKE', '%Wallet%')
+            ->sum('amount');
+
+        $totalPaymentVolume = round($externalGatewayVolume + $internalWalletSpent, 2);
+        $gatewayCharges     = round($externalGatewayVolume * 0.02, 2); // 2% gateway charge ONLY on external card/UPI money
+
         $failedTxnsCount  = DB::table('tj_transaction')->whereIn('payment_status', ['Failed', 'failed', 'Cancelled', 'cancelled', 'Refunded', 'refunded'])->count();
         $failedTxnsAmount = (float)DB::table('tj_transaction')->whereIn('payment_status', ['Failed', 'failed', 'Cancelled', 'cancelled', 'Refunded', 'refunded'])->sum('amount');
 
@@ -492,20 +681,19 @@ class FinancialReportService
             ->limit(10)
             ->get();
 
-        // ── 8. CASHBACK & PROMOTIONAL BURNS ──────────────────────────────────
+        // ── 9. CASHBACK & PROMOTIONAL BURNS (SECTION 7) ──────────────────────
         $cashbackGiven = (float)DB::table('tj_transaction')
             ->whereIn('type', ['cashback', 'bonus'])
             ->whereBetween('creer', [$startStr, $endStr])
             ->sum('amount');
 
         $discountsGiven = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->sum('discount') : 0);
-        $medicalCashbackGiven = (float) (Schema::hasTable('tj_medical_claims') ? DB::table('tj_medical_claims')->where('status', 'approved')->sum('approved_amount') : 0);
-
+        $medicalCashbackGiven = (float)(Schema::hasTable('tj_medical_claims') ? DB::table('tj_medical_claims')->where('status', 'approved')->sum('approved_amount') : 0);
         $totalPromotionalCost = round($cashbackGiven + $discountsGiven + $referralRewardsPaid + $medicalCashbackGiven, 2);
 
-        // ── 9. SETTLEMENTS & PROVIDER PAYOUTS ────────────────────────────────
-        $businessCollection = $rideGross + $serviceGross + $marketGross;
-        $companyCommission  = $rideComm + $serviceComm + $marketComm + $platformFeeTotal;
+        // ── 10. SETTLEMENTS & PROVIDER PAYOUTS (SECTION 8) ───────────────────
+        $businessCollection = round($cabGross + $homeGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross, 2);
+        $companyCommission  = round($totalCommissionEarned + $marketComm + $platformFeeTotal, 2);
         $providerPayable    = max(0, round($businessCollection - $companyCommission, 2));
 
         $paidSettlement     = 0.0;
@@ -527,12 +715,12 @@ class FinancialReportService
                 ->get();
         }
 
-        // ── 10. ACCURATE PROFIT & LOSS STATEMENT ─────────────────────────────
-        $refundsPnl     = $failedTxnsAmount;
-        $netProfitPnl   = round($netRevenue - ($totalPromotionalCost + $gatewayCharges + $refundsPnl), 2);
-        $profitMarginPnl= $grossRevenue > 0 ? round(($netProfitPnl / $grossRevenue) * 100, 1) : 0.0;
+        // ── 11. PROFIT & LOSS (SECTION 9) ────────────────────────────────────
+        $refundsPnl      = $failedTxnsAmount;
+        $netProfitPnl    = round($netRevenue - ($totalPromotionalCost + $gatewayCharges + $refundsPnl), 2);
+        $profitMarginPnl = $grossRevenue > 0 ? round(($netProfitPnl / $grossRevenue) * 100, 1) : 0.0;
 
-        // Daily Reports — filter valid non-cancelled rides ONLY
+        // Daily Reports
         $dailyReports = collect();
         if ($hasRequete) {
             $dailyReports = $validRide(DB::table('tj_requete'))
@@ -548,22 +736,8 @@ class FinancialReportService
                 ->limit(10)
                 ->get();
         }
-        if ($dailyReports->isEmpty() && $hasUserTxn) {
-            $dailyReports = DB::table('tj_transaction')
-                ->whereBetween('creer', [$startStr, $endStr])
-                ->select(
-                    DB::raw('DATE(creer) as date'),
-                    DB::raw('COUNT(id) as total_rides'),
-                    DB::raw('COALESCE(SUM(amount), 0) as gross_amount'),
-                    DB::raw('0 as commission')
-                )
-                ->groupBy('date')
-                ->orderBy('date', 'desc')
-                ->limit(10)
-                ->get();
-        }
 
-        // 6-Month Chart Data — filter valid non-cancelled items ONLY
+        // 6-Month Chart Data
         $chartLabels    = [];
         $chartGrossData = [];
         $chartNetData   = [];
@@ -575,9 +749,11 @@ class FinancialReportService
 
             $mGross = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$mStart, $mEnd])->sum('montant') : 0)
                     + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$mStart, $mEnd])->sum('total_amount') : 0)
-                    + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$mStart, $mEnd])->sum('amount') : 0);
+                    + (float)($hasServiceReq ? $validService(DB::table('service_requests'))->whereBetween('created_at', [$mStart, $mEnd])->sum('amount') : 0)
+                    + (float)($hasParcelOrders ? $validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$mStart, $mEnd])->sum('amount') : 0);
             
             $mNet = (float)($hasRequete ? $validRide(DB::table('tj_requete'))->whereBetween('creer', [$mStart, $mEnd])->sum('admin_commission') : 0)
+                  + (float)($hasMarketOrders ? $validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$mStart, $mEnd])->sum('admin_commission_amount') : 0)
                   + (float)($hasCondTxn ? DB::table('tj_conducteur_transaction')
                     ->where(function($q) { $q->where('payment_method', 'Commission')->orWhere('deduction_type', 'Commission'); })
                     ->whereBetween('creer', [$mStart, $mEnd])
@@ -626,6 +802,8 @@ class FinancialReportService
             'netReferralContribution' => round($netReferralContribution, 2),
             'referralList'            => $referralList,
             'totalPaymentVolume'      => round($totalPaymentVolume, 2),
+            'externalGatewayVolume'   => round($externalGatewayVolume, 2),
+            'internalWalletSpent'     => round($internalWalletSpent, 2),
             'gatewayCharges'          => round($gatewayCharges, 2),
             'platformCharges'         => round($platformFeeTotal, 2),
             'companyShare'            => round($netRevenue, 2),
