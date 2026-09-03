@@ -554,14 +554,14 @@ class MarketplaceOrderController extends Controller
                 'contact_name'            => $request->input('contact_name', trim(($buyer->prenom ?? '') . ' ' . ($buyer->nom ?? ''))),
                 'city'                    => $request->input('city', ''),
                 'pincode'                 => $request->input('pincode', ''),
-                'status'                  => 'placed',
+                'status'                  => 'pending',
                 'delivery_days'           => 3,
-                'status_notes'            => 'Order placed successfully. Awaiting seller dispatch & admin confirmation.',
+                'status_notes'            => 'New Order placed. Awaiting seller confirmation.',
                 'admin_commission_type'   => $commType,
                 'admin_commission_rate'   => $commRate,
                 'admin_commission_amount' => $adminCommissionAmount,
                 'seller_payout_amount'    => $sellerPayoutAmount,
-                'payout_status'           => 'pending', // ESCROW: Seller wallet will be credited after admin confirmation!
+                'payout_status'           => 'pending', // ESCROW: Seller wallet will be automatically credited upon delivery!
             ]);
 
             // Assign standard unique Order Number & Purchase Tracking ID
@@ -650,13 +650,17 @@ class MarketplaceOrderController extends Controller
                     $productTitles[] = "'{$n['product_title']}' (x{$n['qty']})";
                 }
                 $productsStr = implode(', ', $productTitles);
+                $buyerDisplayName = trim(($buyer->prenom ?? '') . ' ' . ($buyer->nom ?? '')) ?: 'Customer';
+                $buyerContact = $order->buyer_phone ?: ($buyer->phone ?? 'N/A');
+                $notifTitle = "🔔 New Order {$order->order_number}";
+                $notifBody = "🔔 New Order: {$productsStr} for ₹" . number_format($subtotal, 2) . " from {$buyerDisplayName} (Phone: {$buyerContact}). Please confirm or reject.";
 
                 // Save to database notifications
                 DB::table('tj_notification')->insert([
                     'to_id' => $seller->id,
                     'from_id' => $userId,
-                    'titre' => "New Order {$order->order_number}",
-                    'message' => "New order {$order->order_number} (Purchase ID: {$order->purchase_id}) for {$productsStr} from {$buyer->prenom} {$buyer->nom} (Phone: {$order->buyer_phone}). Payout: ₹" . number_format($sellerPayoutAmount, 2),
+                    'titre' => $notifTitle,
+                    'message' => $notifBody,
                     'statut' => 'unread',
                     'type' => 'marketplace',
                     'creer' => $date,
@@ -667,12 +671,13 @@ class MarketplaceOrderController extends Controller
                 if (!empty($seller->fcm_id)) {
                     try {
                         $fcmMessage = [
-                            'title' => "New Order {$order->order_number}",
-                            'body' => "You received order {$order->order_number} for {$productsStr}! Payout will be released upon fulfillment.",
-                            'tag' => 'marketplace_order',
+                            'title' => $notifTitle,
+                            'body' => $notifBody,
+                            'tag' => 'marketplace_order_new',
                             'order_id' => (string)$order->id,
                             'order_number' => (string)$order->order_number,
                             'purchase_id' => (string)$order->purchase_id,
+                            'status' => 'pending',
                         ];
                         GcmController::sendNotification($seller->fcm_id, $fcmMessage);
                     } catch (\Exception $e) {
@@ -896,7 +901,7 @@ class MarketplaceOrderController extends Controller
         $inputData = array_merge($request->all(), $request->json()->all());
 
         $validator = Validator::make($inputData, [
-            'status' => 'required|string|in:placed,processing,dispatched,shipped,out_for_delivery,delivered,cancelled',
+            'status' => 'required|string|in:pending,confirmed,packed,processing,dispatched,shipped,out_for_delivery,delivered,rejected,cancelled',
             'delivery_days' => 'nullable|integer|min:0',
             'status_notes' => 'nullable|string|max:255',
             'courier_name' => 'nullable|string|max:255',
@@ -916,9 +921,6 @@ class MarketplaceOrderController extends Controller
         if (isset($inputData['delivery_days']) && Schema::hasColumn('marketplace_orders', 'delivery_days')) {
             $order->delivery_days = $inputData['delivery_days'];
         }
-        if (isset($inputData['status_notes']) && Schema::hasColumn('marketplace_orders', 'status_notes')) {
-            $order->status_notes = $inputData['status_notes'];
-        }
         if (isset($inputData['courier_name']) && Schema::hasColumn('marketplace_orders', 'courier_name')) {
             $order->courier_name = $inputData['courier_name'];
         }
@@ -926,9 +928,28 @@ class MarketplaceOrderController extends Controller
             $order->tracking_id = $inputData['tracking_id'];
         }
 
-        $order->save();
+        // Context-specific status notes
+        if (!empty($inputData['status_notes'])) {
+            $order->status_notes = $inputData['status_notes'];
+        } elseif ($status === 'confirmed') {
+            $order->status_notes = 'Order confirmed by seller. Packing in progress.';
+        } elseif ($status === 'packed' || $status === 'processing') {
+            $order->status_notes = 'Order packed and ready for shipping.';
+        } elseif ($status === 'shipped' || $status === 'dispatched') {
+            $cName = $order->courier_name ?: 'Courier Partner';
+            $tId = $order->tracking_id ? " (Tracking ID: {$order->tracking_id})" : '';
+            $order->status_notes = "Order dispatched via {$cName}{$tId}.";
+        } elseif ($status === 'out_for_delivery') {
+            $order->status_notes = 'Order is out for delivery with partner.';
+        } elseif ($status === 'delivered') {
+            $order->status_notes = 'Order delivered successfully.';
+        } elseif ($status === 'rejected') {
+            $order->status_notes = 'Order declined by seller.';
+        } elseif ($status === 'cancelled') {
+            $order->status_notes = 'Order cancelled.';
+        }
 
-        // 5. Notify Buyer on Stage / Status Change (Targeted strictly via unique phone number)
+        // Resolve buyer model for notifications & refund if needed
         $buyerPhone = $order->buyer_phone ?: $order->phone;
         $buyer = null;
         if (!empty($buyerPhone)) {
@@ -949,6 +970,120 @@ class MarketplaceOrderController extends Controller
             }
         }
 
+        // 1. If REJECTED / CANCELLED: Refund buyer wallet & restore stock
+        if (in_array($status, ['rejected', 'cancelled'])) {
+            // Restore inventory stock
+            foreach ($order->items as $it) {
+                if ($it->product) {
+                    $it->product->stock_quantity = intval($it->product->stock_quantity) + intval($it->quantity);
+                    if ($it->product->status === 'sold') {
+                        $it->product->status = 'active';
+                    }
+                    $it->product->save();
+                }
+            }
+
+            // Wallet refund if paid
+            $isPaidOnlineOrWallet = in_array(strtolower($order->payment_status ?? ''), ['success', 'paid']) 
+                && !str_contains(strtolower($order->payment_method ?? ''), 'cash');
+
+            if ($buyer && $isPaidOnlineOrWallet && floatval($order->total_amount) > 0) {
+                $refundAmt = floatval($order->total_amount);
+                $buyer->amount = floatval($buyer->amount ?? 0) + $refundAmt;
+                $buyer->save();
+
+                $bBuyerType = ($buyer instanceof \App\Models\Driver) ? 'driver' : 'customer';
+                $this->recordWalletTransaction(
+                    $buyer->id,
+                    $bBuyerType,
+                    $refundAmt,
+                    'credit',
+                    "Refund: Order #{$order->order_number} declined/cancelled by seller",
+                    'REFUND_' . time() . '_' . rand(1000, 9999)
+                );
+                $order->payment_status = 'refunded';
+            }
+        }
+
+        // 2. If DELIVERED: Automatically credit net seller payout (Commission already collected!)
+        if ($status === 'delivered' && $order->payout_status !== 'released') {
+            $subtotal = floatval($order->subtotal ?: $order->total_amount);
+            $payoutAmount = floatval($order->seller_payout_amount);
+
+            if ($payoutAmount <= 0) {
+                $commSetting = \App\Models\MarketplaceCommissionSetting::getActiveSetting();
+                $commVal = floatval($commSetting->commission_value ?? 10);
+                $commAmount = round(($subtotal * $commVal) / 100, 2);
+                $payoutAmount = max(0, $subtotal - $commAmount);
+                $order->admin_commission_rate = $commVal;
+                $order->admin_commission_amount = $commAmount;
+                $order->seller_payout_amount = $payoutAmount;
+            }
+
+            // Look up seller user record
+            $sellerModel = null;
+            if (!empty($order->seller_phone)) {
+                $cleanPhone = substr(preg_replace('/\D/', '', (string)$order->seller_phone), -10);
+                if (!empty($cleanPhone)) {
+                    $sellerModel = ($order->seller_type === 'driver')
+                        ? \App\Models\Driver::where('phone', 'like', "%{$cleanPhone}%")->first()
+                        : UserApp::where('phone', 'like', "%{$cleanPhone}%")->first();
+                }
+            }
+            if (!$sellerModel && $order->seller_id) {
+                $sellerModel = ($order->seller_type === 'driver') ? \App\Models\Driver::find($order->seller_id) : UserApp::find($order->seller_id);
+            }
+            if (!$sellerModel && $order->seller_id) {
+                $sellerModel = UserApp::find($order->seller_id) ?? \App\Models\Driver::find($order->seller_id);
+            }
+
+            if ($sellerModel && $payoutAmount > 0) {
+                $sellerModel->amount = floatval($sellerModel->amount ?? 0) + $payoutAmount;
+                $sellerModel->earn_amount = floatval($sellerModel->earn_amount ?? 0) + $payoutAmount;
+                $sellerModel->save();
+
+                $sBuyerType = ($sellerModel instanceof \App\Models\Driver) ? 'driver' : 'customer';
+                $this->recordWalletTransaction(
+                    $sellerModel->id,
+                    $sBuyerType,
+                    $payoutAmount,
+                    'credit',
+                    "Marketplace Sale Earning: Order #{$order->order_number} (Net Payout after {$order->admin_commission_rate}% company commission)",
+                    'PAYOUT_' . time() . '_' . rand(1000, 9999)
+                );
+
+                $order->payout_status = 'released';
+                $order->payout_released_at = date('Y-m-d H:i:s');
+
+                // Notify seller about wallet credit
+                $sellerNotifMsg = "Congratulations! Order {$order->order_number} delivered. ₹" . number_format($payoutAmount, 2) . " net payout has been credited directly to your wallet.";
+                DB::table('tj_notification')->insert([
+                    'to_id'    => $sellerModel->id,
+                    'from_id'  => $order->user_id,
+                    'titre'    => "Payout Credited: Order {$order->order_number}",
+                    'message'  => $sellerNotifMsg,
+                    'statut'   => 'unread',
+                    'type'     => 'marketplace',
+                    'creer'    => date('Y-m-d H:i:s'),
+                    'modifier' => date('Y-m-d H:i:s'),
+                ]);
+
+                if (!empty($sellerModel->fcm_id)) {
+                    try {
+                        GcmController::sendNotification($sellerModel->fcm_id, [
+                            'title'        => "Payout Credited: Order {$order->order_number}",
+                            'body'         => $sellerNotifMsg,
+                            'tag'          => 'marketplace_payout',
+                            'order_id'     => (string)$order->id,
+                            'order_number' => (string)$order->order_number,
+                        ]);
+                    } catch (\Exception $ex) {}
+                }
+            }
+        }
+
+        $order->save();
+
         // Get product titles for clear notification
         $productTitles = [];
         foreach ($order->items as $it) {
@@ -959,13 +1094,17 @@ class MarketplaceOrderController extends Controller
         $productsStr = !empty($productTitles) ? implode(', ', $productTitles) : 'your item';
 
         $statusTitles = [
+            'pending'          => 'Pending Confirmation',
             'placed'           => 'Placed',
+            'confirmed'        => 'Confirmed by Seller',
+            'packed'           => 'Packed',
             'processing'       => 'In Processing',
             'dispatched'       => 'Dispatched',
             'shipped'          => 'Shipped',
             'out_for_delivery' => 'Out for Delivery',
             'delivered'        => 'Delivered',
             'completed'        => 'Completed',
+            'rejected'         => 'Declined by Seller',
             'cancelled'        => 'Cancelled',
         ];
 
