@@ -576,6 +576,9 @@ class UserController extends Controller
                 }
             }
             $user->consumer_plan_display = $planName;
+            if (empty($user->ac_no) || strlen(trim((string)$user->ac_no)) != 12) {
+                $user->ac_no = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, 'customer');
+            }
             return $user;
         });
 
@@ -1173,6 +1176,13 @@ class UserController extends Controller
 
     public function allUsersIndex(Request $request)
     {
+        // Auto-heal any pocket number collisions between consumers and drivers
+        try {
+            \App\Services\PocketNumberService::fixAllCollisions();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('PocketNumberService auto-fix: ' . $e->getMessage());
+        }
+
         $search = $request->input('search');
         $selectedSearch = $request->input('selected_search');
         $userTypeFilter = $request->input('user_type_filter');
@@ -1299,6 +1309,10 @@ class UserController extends Controller
                 $user->active_plan_display = 'Docs';
             }
             $user->referral_code = \App\Services\ReferralCodeService::getOrCreateReferralCode((int)$user->id, $user->user_type);
+            $normType = ($user->user_type == 'consumer') ? 'customer' : 'driver';
+            if (empty($user->ac_no) || strlen(trim((string)$user->ac_no)) != 12) {
+                $user->ac_no = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, $normType);
+            }
         }
 
         return view('settings.users.all_users', compact('users'));

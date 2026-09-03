@@ -81,6 +81,9 @@ class UserLoginController extends Controller
                                     $row['photo_path'] = $image_user;
                                 }
                                 $row['accesstoken'] = $accesstoken;
+                                if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                                    $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$row['id'], 'customer');
+                                }
                                 $response['data'] = $row;
 								
                             } else {
@@ -229,6 +232,9 @@ class UserLoginController extends Controller
 
 		                         // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
 		                         $row['amount'] = (string) number_format(floatval($row['amount'] ?? 0), 2, '.', '');
+		                         if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+		                             $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$id_user, 'driver');
+		                         }
 
 		                         $response['data'] = $row;
 	                     	} else {

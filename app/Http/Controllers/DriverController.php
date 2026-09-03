@@ -114,6 +114,9 @@ class DriverController extends Controller
             if (!empty($driver->phone)) {
                 $driver->phone = Helper::shortNumber($driver->phone);
             }
+            if (empty($driver->ac_no) || strlen(trim((string)$driver->ac_no)) != 12) {
+                $driver->ac_no = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$driver->id, 'driver');
+            }
             return $driver;
         });
 

@@ -532,24 +532,8 @@ class UserController extends Controller
         // $datetime_part = date('His');
         // $ac_no = substr("7080" . $id . $random_number . $datetime_part, 0, 12);
         
-        $lastInsertedId = DB::table('tj_user_app')->orderByDesc('id')->value('id') ?? 0;
-		$sequentialNumber = $lastInsertedId + 1;
-		$ac_no_prefix = '7080';
-		$initial_account_number = 1001;
-		$ac_no = $ac_no_prefix . str_pad($sequentialNumber + $initial_account_number - 1, 8, '0', STR_PAD_LEFT);
-        
-
-        // ✅ UPDATE ac_no IN tj_user_app
-        DB::table('tj_user_app')->where('id', $id)->update(['ac_no' => $ac_no]);
-
-        // ✅ INSERT INTO common_user_base
-        DB::table('common_user_base')->insert([
-            'user_id'   => $id,
-            'ac_no'     => $ac_no,
-            'user_type' => $account_type,
-            'status'    => 1,
-            'date'      => date('Y-m-d')
-        ]);
+        // ✅ GENERATE GLOBALLY UNIQUE CUSTOMER ac_no (7080 + unified sequence)
+        $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'customer');
 
         // ✅ Generate and sync unique referral code (FIINC...)
         $userRefCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($id, 'customer');
@@ -604,17 +588,8 @@ class UserController extends Controller
 
         $id = DB::getPdo()->lastInsertId();
 
-        // GENERATE DRIVER ac_no (7060)
-        
-        $lastInsertedId = DB::table('tj_conducteur')->orderByDesc('id')->value('id') ?? 0;
-		$sequentialNumber = $lastInsertedId + 1;
-		$ac_no_prefix = '7060';
-		$initial_account_number = 1001;
-		$ac_no = $ac_no_prefix . str_pad($sequentialNumber + $initial_account_number - 1, 8, '0', STR_PAD_LEFT);
-        
-
-        // UPDATE ac_no IN tj_conducteur
-        DB::table('tj_conducteur')->where('id', $id)->update(['ac_no' => $ac_no]);
+        // GENERATE GLOBALLY UNIQUE DRIVER ac_no (7060 + unified sequence)
+        $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'driver');
 
         // Assign default free subscription plan
         $freePlan = DB::table('subscription_plans')->where('type', 'free')->first();
@@ -625,15 +600,6 @@ class UserController extends Controller
                 'subscription_plan' => json_encode($freePlan),
             ]);
         }
-
-        // INSERT INTO common_user_base
-        DB::table('common_user_base')->insert([
-            'user_id'   => $id,
-            'ac_no'     => $ac_no,
-            'user_type' => $account_type,
-            'status'    => 1,
-            'date'      => date('Y-m-d')
-        ]);
 
         // ✅ Generate and sync unique referral code (FIINB...)
         $driverRefCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($id, 'driver');

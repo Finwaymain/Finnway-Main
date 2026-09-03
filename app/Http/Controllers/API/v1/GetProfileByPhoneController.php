@@ -250,6 +250,9 @@ class GetProfileByPhoneController extends Controller
                         $row['photo'] = '';
                         $row['accesstoken'] = $accesstoken;
                         $row['referral_code'] = \App\Services\ReferralCodeService::getOrCreateReferralCode((int)$id, 'customer');
+                        if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                            $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$id, 'customer');
+                        }
 
                         $response['success']= 'success';
 
@@ -651,6 +654,9 @@ class GetProfileByPhoneController extends Controller
 
                         // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
                         $row['amount'] = (string) number_format(floatval($row['amount'] ?? 0), 2, '.', '');
+                        if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                            $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$id_user, 'driver');
+                        }
 
                         $response['success']= 'success';
                         $response['error']=null;

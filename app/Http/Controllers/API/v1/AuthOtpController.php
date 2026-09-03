@@ -300,20 +300,8 @@ class AuthOtpController extends Controller
 
             $id = DB::getPdo()->lastInsertId();
 
-            // Generate ac_no
-            $lastId        = DB::table('tj_user_app')->orderByDesc('id')->value('id') ?? 0;
-            $sequential    = $lastId + 1;
-            $ac_no         = '7080' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
-            DB::table('tj_user_app')->where('id', $id)->update(['ac_no' => $ac_no]);
-
-            // Insert into common_user_base
-            DB::table('common_user_base')->insert([
-                'user_id'   => $id,
-                'ac_no'     => $ac_no,
-                'user_type' => $user_cat,
-                'status'    => 1,
-                'date'      => date('Y-m-d'),
-            ]);
+            // Generate globally unique pocket number (7080 + unified sequence)
+            $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'customer');
 
             // Handle referral — generates FIIN+6digit unified code
             $this->handleReferral($id, $referral_code, $date_heure, 'customer');
@@ -338,11 +326,8 @@ class AuthOtpController extends Controller
 
             $id = DB::getPdo()->lastInsertId();
 
-            // Generate ac_no
-            $lastId        = DB::table('tj_conducteur')->orderByDesc('id')->value('id') ?? 0;
-            $sequential    = $lastId + 1;
-            $ac_no         = '7060' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
-            DB::table('tj_conducteur')->where('id', $id)->update(['ac_no' => $ac_no]);
+            // Generate globally unique pocket number (7060 + unified sequence)
+            $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'driver');
 
             // Assign default free subscription plan
             $freePlan = DB::table('subscription_plans')->where('type', 'free')->first();
@@ -512,13 +497,9 @@ class AuthOtpController extends Controller
                 $row['commision_type']   = $commission->type;
             }
 
-            // Ensure ac_no is populated from common_user_base if missing in tj_user_app
-            if (empty($row['ac_no']) && Schema::hasTable('common_user_base')) {
-                $base = DB::table('common_user_base')->where('user_id', $user->id)->where('user_type', 'customer')->first();
-                if ($base && !empty($base->ac_no)) {
-                    $row['ac_no'] = $base->ac_no;
-                    DB::table('tj_user_app')->where('id', $user->id)->update(['ac_no' => $base->ac_no]);
-                }
+            // Ensure ac_no is populated and unique
+            if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, 'customer');
             }
 
         } else {
@@ -599,6 +580,11 @@ class AuthOtpController extends Controller
 
             // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
             $row['amount'] = (string) number_format(floatval($user->amount ?? 0), 2, '.', '');
+
+            // Ensure driver ac_no is populated and unique
+            if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, 'driver');
+            }
         }
 
         $row['accesstoken'] = $accesstoken;
@@ -698,13 +684,9 @@ class AuthOtpController extends Controller
                 $row['commision_type']   = $commission->type;
             }
 
-            // Ensure ac_no is populated from common_user_base if missing in tj_user_app
-            if (empty($row['ac_no']) && Schema::hasTable('common_user_base')) {
-                $base = DB::table('common_user_base')->where('user_id', $user->id)->where('user_type', 'customer')->first();
-                if ($base && !empty($base->ac_no)) {
-                    $row['ac_no'] = $base->ac_no;
-                    DB::table('tj_user_app')->where('id', $user->id)->update(['ac_no' => $base->ac_no]);
-                }
+            // Ensure ac_no is populated and unique
+            if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, 'customer');
             }
 
         } else {
@@ -768,6 +750,11 @@ class AuthOtpController extends Controller
             } else {
                 $row['is_home_service_provider'] = false;
                 $row['is_transport_category'] = $isTransportCategory;
+            }
+
+            // Ensure driver ac_no is populated and unique
+            if (empty($row['ac_no']) || strlen(trim((string)$row['ac_no'])) != 12) {
+                $row['ac_no'] = \App\Services\PocketNumberService::getOrCreatePocketNumber((int)$user->id, 'driver');
             }
         }
 
@@ -971,18 +958,10 @@ class AuthOtpController extends Controller
 
                 $id = DB::getPdo()->lastInsertId();
 
-                // Generate ac_no
-                $lastId        = DB::table('tj_user_app')->orderByDesc('id')->value('id') ?? 0;
-                $sequential    = $lastId + 1;
-                $ac_no         = '7080' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
+                // Generate globally unique pocket number (7080 + unified sequence)
+                $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'customer');
 
-                DB::table('tj_user_app')->where('id', $id)->update(['ac_no' => $ac_no, 'm_pin' => $mpin]);
-
-                // Insert into common_user_base safely
-                DB::table('common_user_base')->updateOrInsert(
-                    ['user_id' => $id, 'user_type' => $user_cat],
-                    ['ac_no' => $ac_no, 'status' => 1, 'date' => date('Y-m-d')]
-                );
+                DB::table('tj_user_app')->where('id', $id)->update(['m_pin' => $mpin]);
 
                 // Handle referral — generates FIIN+6digit unified code
                 $this->handleReferral($id, $referral_code, $date_heure, 'customer');
@@ -1008,12 +987,10 @@ class AuthOtpController extends Controller
 
                 $id = DB::getPdo()->lastInsertId();
 
-                // Generate ac_no
-                $lastId        = DB::table('tj_conducteur')->orderByDesc('id')->value('id') ?? 0;
-                $sequential    = $lastId + 1;
-                $ac_no         = '7060' . str_pad($sequential + 1000, 8, '0', STR_PAD_LEFT);
+                // Generate globally unique pocket number (7060 + unified sequence)
+                $ac_no = \App\Services\PocketNumberService::generateForUser((int)$id, 'driver');
 
-                DB::table('tj_conducteur')->where('id', $id)->update(['ac_no' => $ac_no, 'm_pin' => $mpin]);
+                DB::table('tj_conducteur')->where('id', $id)->update(['m_pin' => $mpin]);
 
                 // Assign default free subscription plan
                 $freePlan = DB::table('subscription_plans')->where('type', 'free')->first();
@@ -1024,11 +1001,6 @@ class AuthOtpController extends Controller
                         'subscription_plan' => json_encode($freePlan),
                     ]);
                 }
-
-                DB::table('common_user_base')->updateOrInsert(
-                    ['user_id' => $id, 'user_type' => $user_cat],
-                    ['ac_no' => $ac_no, 'status' => 1, 'date' => date('Y-m-d')]
-                );
 
                 // Handle referral — generates FIIN+6digit unified code
                 $this->handleReferral($id, $referral_code, $date_heure, 'driver');
