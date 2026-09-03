@@ -36,6 +36,8 @@ class MarketplaceProduct extends Model
         'discount_percentage',
         'stock_quantity',
         'user_id',
+        'user_type',
+        'seller_phone',
         'category_id',
         'subcategory_id',
         'status',

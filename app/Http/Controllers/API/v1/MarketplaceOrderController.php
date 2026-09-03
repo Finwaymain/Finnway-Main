@@ -44,6 +44,84 @@ class MarketplaceOrderController extends Controller
     }
 
     /**
+     * Resolve the authenticated seller identity: [user_id, user_type, phone, last10]
+     * Ensures strict uniqueness by phone number across all user and driver roles.
+     */
+    private function getAuthenticatedSeller(Request $request): array
+    {
+        $userId = null;
+        $userType = $request->input('user_type') ?? $request->header('user-type') ?? $request->header('usertype');
+        $phone = $request->input('phone') ?? $request->input('seller_phone') ?? $request->query('phone') ?? $request->header('phone') ?? $request->header('seller-phone');
+
+        // 1. Resolve via access token
+        $accessToken = $request->header('accesstoken') ?? $request->query('accesstoken') ?? $request->input('accesstoken');
+        if (!empty($accessToken)) {
+            $userAccess = DB::table('users_access')->where('accesstoken', $accessToken)->first();
+            if ($userAccess && !empty($userAccess->user_id)) {
+                $userId = $userAccess->user_id;
+                $userType = ($userAccess->user_type === 'driver') ? 'driver' : 'customer';
+            }
+        }
+
+        // 2. Fallback to explicit ID parameters if not resolved from token
+        if (!$userId) {
+            $keys = ['driver_id', 'id_conducteur', 'user_id', 'id_user'];
+            foreach ($keys as $key) {
+                $val = $request->input($key) ?? $request->query($key) ?? $request->header($key);
+                if (!empty($val)) {
+                    $userId = $val;
+                    if (str_contains($key, 'driver') || str_contains($key, 'conducteur')) {
+                        $userType = 'driver';
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (!$userType) {
+            $userType = ($request->has('driver_id') || $request->has('id_conducteur') || $request->input('user_type') === 'driver') ? 'driver' : 'customer';
+        }
+
+        // 3. Resolve phone from database if not directly supplied
+        if (empty($phone) && $userId) {
+            if ($userType === 'driver') {
+                $sellerRecord = DB::table('tj_conducteur')->where('id', $userId)->first();
+                $phone = $sellerRecord->phone ?? null;
+            } else {
+                $sellerRecord = DB::table('tj_user_app')->where('id', $userId)->first();
+                $phone = $sellerRecord->phone ?? null;
+            }
+        }
+
+        // 4. If phone is provided but userId is not, resolve user from phone
+        if (!empty($phone) && !$userId) {
+            $digits = preg_replace('/[^0-9]/', '', (string)$phone);
+            $last10 = substr($digits, -10);
+            if ($userType === 'driver') {
+                $sellerRecord = DB::table('tj_conducteur')->where('phone', 'like', "%$last10%")->first();
+                if ($sellerRecord) {
+                    $userId = $sellerRecord->id;
+                }
+            } else {
+                $sellerRecord = DB::table('tj_user_app')->where('phone', 'like', "%$last10%")->first();
+                if ($sellerRecord) {
+                    $userId = $sellerRecord->id;
+                }
+            }
+        }
+
+        $last10 = !empty($phone) ? substr(preg_replace('/[^0-9]/', '', (string)$phone), -10) : '';
+        $normPhone = !empty($last10) ? '+91' . $last10 : ($phone ?? '');
+
+        return [
+            'user_id'   => $userId,
+            'user_type' => $userType ?: 'customer',
+            'phone'     => $normPhone,
+            'last10'    => $last10,
+        ];
+    }
+
+    /**
      * Record wallet transaction history for customer or driver.
      */
     private function recordWalletTransaction($userId, $userType, $amount, $type, $description, $txnId)
@@ -669,29 +747,63 @@ class MarketplaceOrderController extends Controller
 
     /**
      * Seller's order management history.
+     * Strictly filters orders by the seller's unique phone number / verified seller identity.
      */
     public function sellerOrders(Request $request)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->query('user_id')
-               ?? $request->input('driver_id')
-               ?? $request->query('driver_id')
-               ?? 1;
+        $seller = $this->getAuthenticatedSeller($request);
+        if (empty($seller['phone']) && empty($seller['user_id'])) {
+            return response()->json(['success' => 'Failed', 'error' => 'Unauthorized'], 401);
+        }
 
-        // Get orders containing products belonging to this seller
-        $orders = MarketplaceOrder::whereHas('items.product', function ($query) use ($userId) {
-            $query->where('user_id', $userId)
-                  ->orWhere('user_id', (string)$userId)
-                  ->orWhere('user_id', (int)$userId);
+        // Get orders matching this seller's phone or containing their products
+        $orders = MarketplaceOrder::where(function($q) use ($seller) {
+            if (!empty($seller['last10'])) {
+                $q->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+            }
+            if (!empty($seller['user_id'])) {
+                if (!empty($seller['last10'])) {
+                    $q->orWhere(function($q2) use ($seller) {
+                        $q2->where('seller_id', $seller['user_id'])
+                           ->where('seller_type', $seller['user_type']);
+                    });
+                } else {
+                    $q->where('seller_id', $seller['user_id'])
+                      ->where('seller_type', $seller['user_type']);
+                }
+            }
+        })
+        ->orWhereHas('items.product', function ($query) use ($seller) {
+            if (!empty($seller['last10'])) {
+                $query->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+            }
+            if (!empty($seller['user_id'])) {
+                if (!empty($seller['last10'])) {
+                    $query->orWhere(function($q2) use ($seller) {
+                        $q2->where('user_id', $seller['user_id'])
+                           ->where('user_type', $seller['user_type']);
+                    });
+                } else {
+                    $query->where('user_id', $seller['user_id'])
+                          ->where('user_type', $seller['user_type']);
+                }
+            }
         })
         ->with(['items.product.images', 'buyer'])
         ->orderBy('id', 'desc')
         ->get()
-        ->map(function ($order) use ($userId) {
+        ->map(function ($order) use ($seller) {
             // Filter items so the seller only sees their own products in the order listing
-            $order->items = $order->items->filter(function ($item) use ($userId) {
-                return $item->product && (strval($item->product->user_id) === strval($userId));
+            $order->items = $order->items->filter(function ($item) use ($seller) {
+                if (!$item->product) return false;
+                if (!empty($seller['last10']) && !empty($item->product->seller_phone)) {
+                    if (str_contains($item->product->seller_phone, $seller['last10'])) return true;
+                }
+                if (!empty($seller['user_id'])) {
+                    return (strval($item->product->user_id) === strval($seller['user_id'])) &&
+                           ($item->product->user_type === $seller['user_type']);
+                }
+                return false;
             })->values();
             return $order;
         });
@@ -707,10 +819,8 @@ class MarketplaceOrderController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->query('user_id')
-               ?? 1;
+        $seller = $this->getAuthenticatedSeller($request);
+        $userId = $seller['user_id'];
 
         $order = MarketplaceOrder::with(['items.product.images', 'buyer', 'items.product.seller'])->find($id);
 
@@ -718,11 +828,20 @@ class MarketplaceOrderController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Order not found'], 404);
         }
 
-        // Verify if user is either the buyer or the seller of at least one item
-        $isBuyer = (strval($order->user_id) === strval($userId));
-        $isSeller = $order->items()->whereHas('product', function ($query) use ($userId) {
-            $query->where('user_id', $userId)->orWhere('user_id', (string)$userId);
-        })->exists();
+        // Verify if user is either the buyer or the seller
+        $isBuyer = !empty($userId) && (strval($order->user_id) === strval($userId));
+        $isSeller = false;
+
+        if (!empty($seller['last10']) && !empty($order->seller_phone) && str_contains($order->seller_phone, $seller['last10'])) {
+            $isSeller = true;
+        }
+
+        if (!$isSeller && !empty($userId)) {
+            $isSeller = $order->items()->whereHas('product', function ($query) use ($seller) {
+                $query->where('user_id', $seller['user_id'])
+                      ->where('user_type', $seller['user_type']);
+            })->exists();
+        }
 
         if (!$isBuyer && !$isSeller) {
             return response()->json(['success' => 'Failed', 'error' => 'Forbidden'], 403);
@@ -739,10 +858,8 @@ class MarketplaceOrderController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->query('user_id')
-               ?? 1;
+        $seller = $this->getAuthenticatedSeller($request);
+        $userId = $seller['user_id'];
 
         $order = MarketplaceOrder::find($id);
         if (!$order) {
@@ -750,21 +867,30 @@ class MarketplaceOrderController extends Controller
         }
 
         // Check if user is seller of products in this order OR buyer of the order
-        $isBuyer = (strval($order->user_id) === strval($userId));
+        $isBuyer = !empty($userId) && (strval($order->user_id) === strval($userId));
         $isSeller = false;
 
-        foreach ($order->items as $item) {
-            if ($item->product && (strval($item->product->user_id) === strval($userId) || strval($item->product->driver_id ?? '') === strval($userId))) {
-                $isSeller = true;
-                break;
+        if (!empty($seller['last10']) && !empty($order->seller_phone) && str_contains($order->seller_phone, $seller['last10'])) {
+            $isSeller = true;
+        }
+
+        if (!$isSeller) {
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    if (!empty($seller['last10']) && !empty($item->product->seller_phone) && str_contains($item->product->seller_phone, $seller['last10'])) {
+                        $isSeller = true;
+                        break;
+                    }
+                    if (!empty($userId) && (strval($item->product->user_id) === strval($userId)) && ($item->product->user_type === $seller['user_type'])) {
+                        $isSeller = true;
+                        break;
+                    }
+                }
             }
         }
 
         if (!$isSeller && !$isBuyer) {
-            $userExists = UserApp::find($userId) ?? \App\Models\Driver::find($userId);
-            if (!$userExists) {
-                return response()->json(['success' => 'Failed', 'error' => 'Forbidden. Only the seller or buyer can update order status.'], 403);
-            }
+            return response()->json(['success' => 'Failed', 'error' => 'Forbidden. Only the seller or buyer can update order status.'], 403);
         }
 
         $inputData = array_merge($request->all(), $request->json()->all());

@@ -265,11 +265,12 @@ class ProductController extends Controller
 
     /**
      * Get products of the currently authenticated user (including pending/rejected).
+     * Strictly filters by the seller's unique phone number across Customer & Driver roles.
      */
     public function myProducts(Request $request)
     {
-        $userId = $this->getAuthenticatedUserId($request);
-        if (!$userId) {
+        $seller = $this->getAuthenticatedSeller($request);
+        if (empty($seller['phone']) && empty($seller['user_id'])) {
             return response()->json(['success' => 'Failed', 'error' => 'Unauthorized'], 401);
         }
 
@@ -277,10 +278,21 @@ class ProductController extends Controller
         $this->verifyPendingProducts();
 
         $products = MarketplaceProduct::with(['images', 'category', 'subcategory'])
-            ->where(function($q) use ($userId) {
-                $q->where('user_id', $userId)
-                  ->orWhere('user_id', (string)$userId)
-                  ->orWhere('user_id', (int)$userId);
+            ->where(function($q) use ($seller) {
+                if (!empty($seller['last10'])) {
+                    $q->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+                }
+                if (!empty($seller['user_id'])) {
+                    if (!empty($seller['last10'])) {
+                        $q->orWhere(function($q2) use ($seller) {
+                            $q2->where('user_id', $seller['user_id'])
+                               ->where('user_type', $seller['user_type']);
+                        });
+                    } else {
+                        $q->where('user_id', $seller['user_id'])
+                          ->where('user_type', $seller['user_type']);
+                    }
+                }
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -303,12 +315,24 @@ class ProductController extends Controller
      */
     public function verificationProgress(Request $request, $id)
     {
-        $userId = $this->getAuthenticatedUserId($request);
-        if (!$userId) {
+        $seller = $this->getAuthenticatedSeller($request);
+        if (empty($seller['phone']) && empty($seller['user_id'])) {
             return response()->json(['success' => 'Failed', 'error' => 'Unauthorized'], 401);
         }
 
-        $product = MarketplaceProduct::where('id', $id)->where('user_id', $userId)->first();
+        $product = MarketplaceProduct::where('id', $id)
+            ->where(function($q) use ($seller) {
+                if (!empty($seller['last10'])) {
+                    $q->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+                }
+                if (!empty($seller['user_id'])) {
+                    $q->orWhere(function($q2) use ($seller) {
+                        $q2->where('user_id', $seller['user_id'])
+                           ->where('user_type', $seller['user_type']);
+                    });
+                }
+            })->first();
+
         if (!$product) {
             return response()->json(['success' => 'Failed', 'error' => 'Product not found'], 404);
         }
@@ -327,11 +351,17 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->input('driver_id')
-               ?? $request->input('id_user')
-               ?? 1;
+        $seller = $this->getAuthenticatedSeller($request);
+        $userId = $seller['user_id'];
+        $userType = $seller['user_type'] ?: 'customer';
+        $sellerPhone = $seller['phone'] ?: '';
+
+        if (!$userId && empty($sellerPhone)) {
+            return response()->json(['success' => 'Failed', 'error' => 'Unauthorized. Please login to list products.'], 401);
+        }
+        if (!$userId) {
+            $userId = 1;
+        }
 
         $rules = [
             'title' => 'required|string|max:255',
@@ -364,19 +394,7 @@ class ProductController extends Controller
         }
 
         try {
-            $product = DB::transaction(function () use ($request, $userId) {
-                $userType = $request->input('user_type');
-                if (!$userType) {
-                    $token = $request->header('accesstoken') ?? $request->query('accesstoken') ?? $request->input('accesstoken');
-                    if ($token) {
-                        $ua = DB::table('users_access')->where('accesstoken', $token)->first();
-                        if ($ua && !empty($ua->user_type)) $userType = $ua->user_type;
-                    }
-                }
-                if (!$userType) {
-                    $userType = ($request->has('driver_id') || $request->input('user_type') === 'driver') ? 'driver' : 'customer';
-                }
-
+            $product = DB::transaction(function () use ($request, $userId, $userType, $sellerPhone) {
                 // 1. Create Product safely matching available database columns
                 $productData = [
                     'title' => $request->title,
@@ -385,6 +403,7 @@ class ProductController extends Controller
                     'stock_quantity' => $request->stock_quantity ?? 1,
                     'user_id' => $userId,
                     'user_type' => $userType,
+                    'seller_phone' => $sellerPhone,
                     'category_id' => $request->category_id,
                     'subcategory_id' => $request->subcategory_id,
                     'condition' => $request->condition,
@@ -483,24 +502,31 @@ class ProductController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $userId = $this->getAuthenticatedUserId($request)
-               ?? $request->input('user_id')
-               ?? $request->input('driver_id')
-               ?? 1;
+        $seller = $this->getAuthenticatedSeller($request);
+        if (empty($seller['phone']) && empty($seller['user_id'])) {
+            return response()->json(['success' => 'Failed', 'error' => 'Unauthorized'], 401);
+        }
 
         $product = MarketplaceProduct::where('id', $id)
-            ->where(function($q) use ($userId) {
-                $q->where('user_id', $userId)
-                  ->orWhere('user_id', (string)$userId)
-                  ->orWhere('user_id', (int)$userId);
+            ->where(function($q) use ($seller) {
+                if (!empty($seller['last10'])) {
+                    $q->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+                }
+                if (!empty($seller['user_id'])) {
+                    if (!empty($seller['last10'])) {
+                        $q->orWhere(function($q2) use ($seller) {
+                            $q2->where('user_id', $seller['user_id'])
+                               ->where('user_type', $seller['user_type']);
+                        });
+                    } else {
+                        $q->where('user_id', $seller['user_id'])
+                          ->where('user_type', $seller['user_type']);
+                    }
+                }
             })->first();
 
         if (!$product) {
-            $product = MarketplaceProduct::find($id);
-        }
-
-        if (!$product) {
-            return response()->json(['success' => 'Failed', 'error' => 'Product not found'], 404);
+            return response()->json(['success' => 'Failed', 'error' => 'Product not found or unauthorized'], 404);
         }
 
         $validator = Validator::make($request->all(), [
@@ -600,14 +626,31 @@ class ProductController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        $userId = $this->getAuthenticatedUserId($request);
-        if (!$userId) {
+        $seller = $this->getAuthenticatedSeller($request);
+        if (empty($seller['phone']) && empty($seller['user_id'])) {
             return response()->json(['success' => 'Failed', 'error' => 'Unauthorized'], 401);
         }
 
-        $product = MarketplaceProduct::where('id', $id)->where('user_id', $userId)->first();
+        $product = MarketplaceProduct::where('id', $id)
+            ->where(function($q) use ($seller) {
+                if (!empty($seller['last10'])) {
+                    $q->where('seller_phone', 'like', '%' . $seller['last10'] . '%');
+                }
+                if (!empty($seller['user_id'])) {
+                    if (!empty($seller['last10'])) {
+                        $q->orWhere(function($q2) use ($seller) {
+                            $q2->where('user_id', $seller['user_id'])
+                               ->where('user_type', $seller['user_type']);
+                        });
+                    } else {
+                        $q->where('user_id', $seller['user_id'])
+                          ->where('user_type', $seller['user_type']);
+                    }
+                }
+            })->first();
+
         if (!$product) {
-            return response()->json(['success' => 'Failed', 'error' => 'Product not found'], 404);
+            return response()->json(['success' => 'Failed', 'error' => 'Product not found or unauthorized'], 404);
         }
 
         // Delete images first
@@ -737,6 +780,84 @@ class ProductController extends Controller
                 'amount'    => $walletAmount,
             ]
         ]);
+    }
+
+    /**
+     * Resolve the authenticated seller identity: [user_id, user_type, phone, last10]
+     * Ensures strict uniqueness by phone number across all user and driver roles.
+     */
+    private function getAuthenticatedSeller(Request $request): array
+    {
+        $userId = null;
+        $userType = $request->input('user_type') ?? $request->header('user-type') ?? $request->header('usertype');
+        $phone = $request->input('phone') ?? $request->input('seller_phone') ?? $request->query('phone') ?? $request->header('phone') ?? $request->header('seller-phone');
+
+        // 1. Resolve via access token
+        $accessToken = $request->header('accesstoken') ?? $request->query('accesstoken') ?? $request->input('accesstoken');
+        if (!empty($accessToken)) {
+            $userAccess = DB::table('users_access')->where('accesstoken', $accessToken)->first();
+            if ($userAccess && !empty($userAccess->user_id)) {
+                $userId = $userAccess->user_id;
+                $userType = ($userAccess->user_type === 'driver') ? 'driver' : 'customer';
+            }
+        }
+
+        // 2. Fallback to explicit ID parameters if not resolved from token
+        if (!$userId) {
+            $keys = ['driver_id', 'id_conducteur', 'user_id', 'id_user'];
+            foreach ($keys as $key) {
+                $val = $request->input($key) ?? $request->query($key) ?? $request->header($key);
+                if (!empty($val)) {
+                    $userId = $val;
+                    if (str_contains($key, 'driver') || str_contains($key, 'conducteur')) {
+                        $userType = 'driver';
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (!$userType) {
+            $userType = ($request->has('driver_id') || $request->has('id_conducteur') || $request->input('user_type') === 'driver') ? 'driver' : 'customer';
+        }
+
+        // 3. Resolve phone from database if not directly supplied
+        if (empty($phone) && $userId) {
+            if ($userType === 'driver') {
+                $sellerRecord = DB::table('tj_conducteur')->where('id', $userId)->first();
+                $phone = $sellerRecord->phone ?? null;
+            } else {
+                $sellerRecord = DB::table('tj_user_app')->where('id', $userId)->first();
+                $phone = $sellerRecord->phone ?? null;
+            }
+        }
+
+        // 4. If phone is provided but userId is not, resolve user from phone
+        if (!empty($phone) && !$userId) {
+            $digits = preg_replace('/[^0-9]/', '', (string)$phone);
+            $last10 = substr($digits, -10);
+            if ($userType === 'driver') {
+                $sellerRecord = DB::table('tj_conducteur')->where('phone', 'like', "%$last10%")->first();
+                if ($sellerRecord) {
+                    $userId = $sellerRecord->id;
+                }
+            } else {
+                $sellerRecord = DB::table('tj_user_app')->where('phone', 'like', "%$last10%")->first();
+                if ($sellerRecord) {
+                    $userId = $sellerRecord->id;
+                }
+            }
+        }
+
+        $last10 = !empty($phone) ? substr(preg_replace('/[^0-9]/', '', (string)$phone), -10) : '';
+        $normPhone = !empty($last10) ? '+91' . $last10 : ($phone ?? '');
+
+        return [
+            'user_id'   => $userId,
+            'user_type' => $userType ?: 'customer',
+            'phone'     => $normPhone,
+            'last10'    => $last10,
+        ];
     }
 
     /**
