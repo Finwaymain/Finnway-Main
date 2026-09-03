@@ -819,6 +819,196 @@ class FinancialReportService
             $chartNetData[]   = round($mNet, 2);
         }
 
+        // ── 12. WALLET FLOAT & ECOSYSTEM BALANCE SHEET (SECTION 11) ──────────
+        // A. Current Live Wallet Holdings (Holding Liabilities)
+        $userWalletTotal = (float)(Schema::hasTable('tj_user_app') ? DB::table('tj_user_app')->where('amount', '>', 0)->sum('amount') : 0);
+        $userWalletHolders = Schema::hasTable('tj_user_app') ? DB::table('tj_user_app')->where('amount', '>', 0)->count() : 0;
+
+        $driverWalletTotal = (float)(Schema::hasTable('tj_conducteur') ? DB::table('tj_conducteur')->where('amount', '>', 0)->sum('amount') : 0);
+        $driverWalletHolders = Schema::hasTable('tj_conducteur') ? DB::table('tj_conducteur')->where('amount', '>', 0)->count() : 0;
+
+        $totalEcosystemFloat = round($userWalletTotal + $driverWalletTotal, 2);
+
+        // B. Period Wallet Inflows (How money entered the wallets)
+        // 1. External Gateway Top-ups (Razorpay, UPI, NetBanking)
+        $userTopUps = 0.0;
+        if (Schema::hasTable('tj_transaction')) {
+            $userTopUps = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->whereIn('payment_method', ['UPI / NetBanking', 'Razorpay', 'RazorPay', 'Razorpay / UPI', 'Online', 'Card', 'UPI', 'NetBanking'])
+                      ->orWhere('description', 'like', '%Top-Up%')
+                      ->orWhere('description', 'like', '%Recharge%');
+                })
+                ->whereNotIn('payment_method', ['Referral Reward', 'Wallet Cashback', 'Marketplace Escrow'])
+                ->sum('amount');
+        }
+
+        $driverTopUps = 0.0;
+        if (Schema::hasTable('tj_conducteur_transaction')) {
+            $driverTopUps = (float)DB::table('tj_conducteur_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->whereIn('payment_method', ['Razorpay', 'Razorpay / UPI', 'UPI', 'Online'])
+                ->sum('amount');
+        }
+        $totalExternalTopUps = round($userTopUps + $driverTopUps, 2);
+
+        // 2. Promotional Credits (Cashback & Referral Rewards)
+        $userRewardsCredits = 0.0;
+        if (Schema::hasTable('tj_transaction')) {
+            $userRewardsCredits = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->whereIn('type', ['cashback', 'bonus', 'referral'])
+                      ->orWhereIn('payment_method', ['Referral Reward', 'Wallet Cashback']);
+                })
+                ->sum('amount');
+        }
+
+        $driverRewardsCredits = 0.0;
+        if (Schema::hasTable('tj_conducteur_transaction')) {
+            $driverRewardsCredits = (float)DB::table('tj_conducteur_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->whereIn('payment_method', ['Referral Reward'])
+                ->sum('amount');
+        }
+        $totalRewardCredits = round($userRewardsCredits + $driverRewardsCredits, 2);
+
+        // 3. Partner Earnings & Escrow Credited to Wallets
+        $escrowCredits = 0.0;
+        if (Schema::hasTable('tj_transaction')) {
+            $escrowCredits = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where('payment_method', 'Marketplace Escrow')
+                ->sum('amount');
+        }
+        $totalWalletInflows = round($totalExternalTopUps + $totalRewardCredits + $escrowCredits, 2);
+
+        // C. Period Wallet Outflows (Deductions from the wallet float)
+        // 1. Wallet Spent on Purchases & Services (Rides, Services, Marketplace)
+        $walletPurchases = 0.0;
+        if (Schema::hasTable('tj_transaction')) {
+            $walletPurchases = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->whereIn('deduction_type', [0, 2, 'debit'])
+                      ->orWhere('type', 'debit');
+                })
+                ->where(function($q) {
+                    $q->whereIn('payment_method', ['Wallet', 'Fiinway Wallet'])
+                      ->orWhere('description', 'like', '%Payment for Order%')
+                      ->orWhere('description', 'like', '%Order #%')
+                      ->orWhere('description', 'like', '%Booking%')
+                      ->orWhere('description', 'like', '%Ride%');
+                })
+                ->where('description', 'not like', 'Transferred %')
+                ->sum('amount');
+        }
+
+        // 2. External Bank Withdrawals & Payouts (Real Cash Out)
+        $settledWithdrawals = 0.0;
+        if (Schema::hasTable('withdrawals')) {
+            $settledWithdrawals = (float)DB::table('withdrawals')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->whereIn('statut', ['1', 'success'])
+                ->sum('amount');
+        }
+
+        // 3. Commissions & Fees Deducted from Wallets
+        $commDeductions = 0.0;
+        if (Schema::hasTable('tj_conducteur_transaction')) {
+            $commDeductions = (float)DB::table('tj_conducteur_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->where('payment_method', 'Commission')
+                      ->orWhere('deduction_type', 'Commission');
+                })
+                ->sum(DB::raw('ABS(amount)'));
+        }
+
+        $platformFeeDeductions = 0.0;
+        if (Schema::hasTable('tj_transaction')) {
+            $platformFeeDeductions = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where('payment_method', 'Platform Fee')
+                ->sum('amount');
+        }
+        $totalWalletOutflows = round($walletPurchases + $settledWithdrawals + $commDeductions + $platformFeeDeductions, 2);
+
+        // D. Closed-Loop Peer-to-Peer Transfers (Zero Net Ecosystem Impact)
+        $p2pTransfersVolume = 0.0;
+        $p2pTransfersCount  = 0;
+        if (Schema::hasTable('tj_transaction')) {
+            $p2pTransfersVolume = (float)DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->where('description', 'like', 'Transferred %')
+                      ->orWhere('description', 'like', 'Received %')
+                      ->orWhereNotNull('sender_user_type');
+                })
+                ->where('deduction_type', 0)
+                ->sum('amount');
+            if ($p2pTransfersVolume == 0) {
+                $p2pTransfersVolume = (float)DB::table('tj_transaction')
+                    ->whereBetween('creer', [$startStr, $endStr])
+                    ->where('description', 'like', 'Transferred %')
+                    ->sum('amount');
+            }
+            $p2pTransfersCount = DB::table('tj_transaction')
+                ->whereBetween('creer', [$startStr, $endStr])
+                ->where(function($q) {
+                    $q->where('description', 'like', 'Transferred %')
+                      ->orWhereNotNull('sender_user_type');
+                })
+                ->where('deduction_type', 0)
+                ->count();
+        }
+
+        // Top Wallet Holders
+        $topUserWallets = Schema::hasTable('tj_user_app') ? DB::table('tj_user_app')
+            ->where('amount', '>', 0)
+            ->select('id', DB::raw("TRIM(CONCAT(COALESCE(prenom,''),' ',COALESCE(nom,''))) as name"), 'phone', 'amount', 'modifier as updated_at')
+            ->orderByDesc('amount')
+            ->limit(5)
+            ->get() : collect();
+
+        $topDriverWallets = Schema::hasTable('tj_conducteur') ? DB::table('tj_conducteur')
+            ->where('amount', '>', 0)
+            ->select('id', DB::raw("TRIM(CONCAT(COALESCE(prenom,''),' ',COALESCE(nom,''))) as name"), 'phone', 'amount', 'modifier as updated_at')
+            ->orderByDesc('amount')
+            ->limit(5)
+            ->get() : collect();
+
+        // Recent Wallet Movements
+        $recentWalletMovements = collect();
+        if (Schema::hasTable('tj_transaction')) {
+            $recentWalletMovements = DB::table('tj_transaction as t')
+                ->leftJoin('tj_user_app as u', 't.id_user_app', '=', 'u.id')
+                ->select('t.id', 't.amount', 't.payment_method', 't.description', 't.deduction_type', 't.type', 't.creer',
+                         DB::raw("TRIM(CONCAT(COALESCE(u.prenom,''),' ',COALESCE(u.nom,''))) as user_name"), 'u.phone')
+                ->whereBetween('t.creer', [$startStr, $endStr])
+                ->orderByDesc('t.id')
+                ->limit(10)
+                ->get()
+                ->map(function($tx) {
+                    $desc = strtolower((string)$tx->description);
+                    if (str_contains($desc, 'transfer') || str_contains($desc, 'received') || !empty($tx->sender_user_type)) {
+                        $tx->flow_type = 'transfer';
+                        $tx->flow_label = 'P2P Transfer (Neutral)';
+                        $tx->badge_class = 'badge-dark-info';
+                    } elseif ($tx->deduction_type == 1 || $tx->type == 'credit' || str_contains($desc, 'top-up') || str_contains($desc, 'recharge')) {
+                        $tx->flow_type = 'inflow';
+                        $tx->flow_label = 'Inflow (Top-Up / Credit)';
+                        $tx->badge_class = 'badge-dark-success';
+                    } else {
+                        $tx->flow_type = 'outflow';
+                        $tx->flow_label = 'Outflow (Spend / Deduction)';
+                        $tx->badge_class = 'badge-dark-danger';
+                    }
+                    return $tx;
+                });
+        }
+
         // Payment mode breakdown
         $paymentModeData = DB::table('tj_transaction')
             ->whereBetween('creer', [$startStr, $endStr])
@@ -902,6 +1092,24 @@ class FinancialReportService
             'chartGrossData'          => $chartGrossData,
             'chartNetData'            => $chartNetData,
             'paymentModeData'         => $paymentModeData,
+            'totalEcosystemFloat'     => $totalEcosystemFloat,
+            'userWalletTotal'         => $userWalletTotal,
+            'userWalletHolders'       => $userWalletHolders,
+            'driverWalletTotal'       => $driverWalletTotal,
+            'driverWalletHolders'     => $driverWalletHolders,
+            'totalWalletInflows'      => $totalWalletInflows,
+            'totalExternalTopUps'     => $totalExternalTopUps,
+            'totalRewardCredits'      => $totalRewardCredits,
+            'escrowCredits'           => $escrowCredits,
+            'totalWalletOutflows'     => $totalWalletOutflows,
+            'walletPurchases'         => $walletPurchases,
+            'settledWithdrawals'      => $settledWithdrawals,
+            'commDeductions'          => round($commDeductions + $platformFeeDeductions, 2),
+            'p2pTransfersVolume'      => $p2pTransfersVolume,
+            'p2pTransfersCount'       => $p2pTransfersCount,
+            'topUserWallets'          => $topUserWallets,
+            'topDriverWallets'        => $topDriverWallets,
+            'recentWalletMovements'   => $recentWalletMovements,
         ];
     }
 }

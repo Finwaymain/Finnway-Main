@@ -248,7 +248,7 @@
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <span class="badge badge-dark-success">Live Financial Intelligence</span>
-                        <span class="text-dark-bold font-13">• 10 Unified Analytics Sections</span>
+                        <span class="text-dark-bold font-13">• 11 Unified Analytics Sections</span>
                     </div>
                     <h1 class="dashboard-title mb-1">FIINWAY All-in-One Earning Management</h1>
                     <p class="text-dark-bold font-14 mb-0">Unified financial intelligence, revenue breakdown, commission metrics & profit/loss statement</p>
@@ -296,6 +296,7 @@
                 <a class="segmented-item" href="#sec-8-settlement"><i class="mdi mdi-bank-transfer"></i> 8. Settlements</a>
                 <a class="segmented-item" href="#sec-9-pnl"><i class="mdi mdi-scale-balance"></i> 9. Profit & Loss</a>
                 <a class="segmented-item" href="#sec-10-reports"><i class="mdi mdi-file-table-outline"></i> 10. Reports</a>
+                <a class="segmented-item" href="#sec-11-wallets"><i class="mdi mdi-wallet-outline"></i> 11. Wallet Float</a>
             </div>
         </div>
 
@@ -1225,6 +1226,293 @@
                         @empty
                         <tr>
                             <td colspan="4" class="text-center text-dark-bold py-4">No daily activity records found.</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────────────────────── -->
+        <!-- SECTION 11: 👛 WALLET FLOAT & ECOSYSTEM BALANCE SHEET -->
+        <!-- ─────────────────────────────────────────────────────────────── -->
+        <div class="section-box" id="sec-11-wallets">
+            <div class="section-box-header">
+                <div>
+                    <h2 class="section-heading">
+                        <i class="mdi mdi-wallet-outline text-success"></i> 11. Wallet Float & Ecosystem Balance Sheet
+                    </h2>
+                    <span class="text-dark-bold font-13">Live Wallet Liabilities, Origin of Funds, Consumption Deductions & Closed-Loop Transfers</span>
+                </div>
+                <a href="{{ route('earnings.export.wallet', request()->all()) }}" class="btn-export-excel">
+                    <i class="mdi mdi-file-excel-outline"></i> Export Wallet Float (Excel)
+                </a>
+            </div>
+
+            <!-- 4 Summary KPI Cards -->
+            <div class="row g-3 mb-4">
+                <!-- Card 1: Total Ecosystem Wallet Float -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="big-stat-card" style="border-left: 4px solid #10b981; background: #ecfdf5;">
+                        <div class="stat-header">
+                            <span class="stat-tag text-success">TOTAL WALLET FLOAT</span>
+                            <i class="mdi mdi-wallet stat-icon text-success"></i>
+                        </div>
+                        <div class="stat-big-value highlight-green">₹{{ number_format($stats['totalEcosystemFloat'], 2) }}</div>
+                        <div class="stat-subtext mb-1 font-12 text-dark-bold">
+                            Live Stored Value Custody
+                        </div>
+                        <div class="font-11 text-muted">
+                            <span>Consumers: ₹{{ number_format($stats['userWalletTotal'], 2) }}</span> ({{ $stats['userWalletHolders'] }}) • 
+                            <span>Partners: ₹{{ number_format($stats['driverWalletTotal'], 2) }}</span> ({{ $stats['driverWalletHolders'] }})
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Wallet Inflows (How Money Came In) -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="big-stat-card" style="border-left: 4px solid #2563eb; background: #eff6ff;">
+                        <div class="stat-header">
+                            <span class="stat-tag text-primary">WALLET INFLOWS</span>
+                            <i class="mdi mdi-arrow-down-bold-circle-outline stat-icon text-primary"></i>
+                        </div>
+                        <div class="stat-big-value highlight-blue">₹{{ number_format($stats['totalWalletInflows'], 2) }}</div>
+                        <div class="stat-subtext mb-1 font-12 text-dark-bold">
+                            Gateway Recharges + Credits
+                        </div>
+                        <div class="font-11 text-muted">
+                            <span>UPI/Cards: ₹{{ number_format($stats['totalExternalTopUps'], 2) }}</span> • 
+                            <span>Rewards/Bonuses: ₹{{ number_format($stats['totalRewardCredits'], 2) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Wallet Deductions (Spent & Cash-Out) -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="big-stat-card" style="border-left: 4px solid #ef4444; background: #fef2f2;">
+                        <div class="stat-header">
+                            <span class="stat-tag text-danger">WALLET DEDUCTIONS</span>
+                            <i class="mdi mdi-arrow-up-bold-circle-outline stat-icon text-danger"></i>
+                        </div>
+                        <div class="stat-big-value text-danger">−₹{{ number_format($stats['totalWalletOutflows'], 2) }}</div>
+                        <div class="stat-subtext mb-1 font-12 text-dark-bold">
+                            Orders Spent + Bank Payouts
+                        </div>
+                        <div class="font-11 text-muted">
+                            <span>Purchases: ₹{{ number_format($stats['walletPurchases'], 2) }}</span> • 
+                            <span>Bank Payouts: ₹{{ number_format($stats['settledWithdrawals'], 2) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: P2P Internal Transfers (Neutral) -->
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="big-stat-card" style="border-left: 4px solid #8b5cf6; background: #f5f3ff;">
+                        <div class="stat-header">
+                            <span class="stat-tag text-purple">CLOSED-LOOP P2P TRANSFERS</span>
+                            <i class="mdi mdi-swap-horizontal-circle-outline stat-icon text-purple"></i>
+                        </div>
+                        <div class="stat-big-value highlight-purple">₹{{ number_format($stats['p2pTransfersVolume'], 2) }}</div>
+                        <div class="stat-subtext mb-1">
+                            <span class="badge badge-dark-info font-11">Net System Impact: ₹0.00</span>
+                        </div>
+                        <div class="font-11 text-muted">
+                            <span>Internal Circulation within Same Environment</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ecosystem Wallet Reconciliation Equation Card -->
+            <div class="card mb-4" style="border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div class="card-header bg-light py-3">
+                    <h5 class="mb-0 text-dark-bold font-15">
+                        <i class="mdi mdi-scale-balance mr-1 text-primary"></i> Ecosystem Wallet Float Reconciliation Statement
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-custom mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Float Component / Event</th>
+                                    <th>Direction</th>
+                                    <th>Classification</th>
+                                    <th>Amount (₹)</th>
+                                    <th>Ecosystem Explanation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-dark-bold font-15">1. External Gateway Top-ups</td>
+                                    <td><span class="badge badge-dark-success"><i class="mdi mdi-plus"></i> Inflow</span></td>
+                                    <td><span class="text-success font-weight-bold">Fiat Cash Inflow</span></td>
+                                    <td class="highlight-green font-16">+₹{{ number_format($stats['totalExternalTopUps'], 2) }}</td>
+                                    <td class="text-muted font-13">New fiat funds injected into ecosystem via Razorpay, UPI & NetBanking deposits</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-dark-bold font-15">2. Referral Rewards & Wallet Cashbacks</td>
+                                    <td><span class="badge badge-dark-success"><i class="mdi mdi-plus"></i> Inflow</span></td>
+                                    <td><span class="text-info font-weight-bold">Admin Marketing Credit</span></td>
+                                    <td class="highlight-blue font-16">+₹{{ number_format($stats['totalRewardCredits'], 2) }}</td>
+                                    <td class="text-muted font-13">Platform incentives credited to wallets (covered by Admin Marketing Burn)</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-dark-bold font-15">3. Seller & Partner Earnings Credited</td>
+                                    <td><span class="badge badge-dark-success"><i class="mdi mdi-plus"></i> Inflow</span></td>
+                                    <td><span class="text-info font-weight-bold">Internal Order Settlement</span></td>
+                                    <td class="highlight-blue font-16">+₹{{ number_format($stats['escrowCredits'], 2) }}</td>
+                                    <td class="text-muted font-13">Net earnings from completed marketplace sales and services credited to partner wallets</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-dark-bold font-15">4. Wallet Spent on Rides, Services & Marketplace</td>
+                                    <td><span class="badge badge-dark-danger"><i class="mdi mdi-minus"></i> Outflow</span></td>
+                                    <td><span class="text-danger font-weight-bold">Wallet Consumption</span></td>
+                                    <td class="text-danger font-16 font-weight-bold">−₹{{ number_format($stats['walletPurchases'], 2) }}</td>
+                                    <td class="text-muted font-13">Users deducted wallet balance to purchase services/goods (converts to provider earnings & admin commission)</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-dark-bold font-15">5. Partner Bank Withdrawals Settled</td>
+                                    <td><span class="badge badge-dark-danger"><i class="mdi mdi-minus"></i> Outflow</span></td>
+                                    <td><span class="text-danger font-weight-bold">Physical Cash Out</span></td>
+                                    <td class="text-danger font-16 font-weight-bold">−₹{{ number_format($stats['settledWithdrawals'], 2) }}</td>
+                                    <td class="text-muted font-13">Approved withdrawal payouts transferred to partner bank accounts (physically exits platform)</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-dark-bold font-15">6. Admin Commission / Platform Fee Deductions</td>
+                                    <td><span class="badge badge-dark-danger"><i class="mdi mdi-minus"></i> Outflow</span></td>
+                                    <td><span class="text-danger font-weight-bold">Revenue Recovery</span></td>
+                                    <td class="text-danger font-16 font-weight-bold">−₹{{ number_format($stats['commDeductions'], 2) }}</td>
+                                    <td class="text-muted font-13">Admin commissions deducted directly from partner wallet balances</td>
+                                </tr>
+                                <tr style="background: #fdf4ff;">
+                                    <td class="text-dark-bold font-15">7. Peer-to-Peer (P2P) Wallet Transfers</td>
+                                    <td><span class="badge badge-dark-info"><i class="mdi mdi-swap-horizontal"></i> Neutral</span></td>
+                                    <td><span class="text-purple font-weight-bold">Closed-Loop Circulation</span></td>
+                                    <td class="highlight-purple font-16">₹{{ number_format($stats['p2pTransfersVolume'], 2) }} <small class="text-muted font-11">(Net: ₹0.00)</small></td>
+                                    <td class="text-dark font-13"><strong>Sender wallet debited & receiver wallet credited equally inside the same system. Net ecosystem impact is exactly zero.</strong></td>
+                                </tr>
+                                <tr style="background: #f0fdf4; border-top: 2px solid #10b981;">
+                                    <td class="text-dark-bold font-16">TOTAL CURRENT ECOSYSTEM WALLET FLOAT</td>
+                                    <td><span class="badge badge-dark-success">Live Holding</span></td>
+                                    <td><span class="text-success font-weight-bold">Platform Custody Float</span></td>
+                                    <td class="highlight-green font-18 font-weight-bold">₹{{ number_format($stats['totalEcosystemFloat'], 2) }}</td>
+                                    <td class="text-dark-bold font-13">Consumers: ₹{{ number_format($stats['userWalletTotal'], 2) }} ({{ $stats['userWalletHolders'] }} users) • Partners: ₹{{ number_format($stats['driverWalletTotal'], 2) }} ({{ $stats['driverWalletHolders'] }} partners)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Wallet Holders Breakdown (Consumers vs Partners) -->
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <div class="card h-100" style="border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-dark-bold font-15"><i class="mdi mdi-account-cash mr-1 text-primary"></i> Top Consumer Wallet Balances</h5>
+                            <span class="badge badge-dark-primary font-11">{{ $stats['userWalletHolders'] }} Active Consumers</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-custom mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Consumer Name</th>
+                                            <th>Contact Phone</th>
+                                            <th>Wallet Balance</th>
+                                            <th>Last Activity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($stats['topUserWallets'] as $uw)
+                                        <tr>
+                                            <td class="text-dark-bold font-14">{{ $uw->name ?: 'Customer #' . $uw->id }}</td>
+                                            <td class="text-dark-bold">{{ $uw->phone ?: 'N/A' }}</td>
+                                            <td class="highlight-green font-15">₹{{ number_format((float)$uw->amount, 2) }}</td>
+                                            <td class="text-muted font-12">{{ $uw->updated_at ? date('d M Y', strtotime($uw->updated_at)) : 'N/A' }}</td>
+                                        </tr>
+                                        @empty
+                                        <tr><td colspan="4" class="text-center py-3 text-muted">No consumer wallets with positive balances.</td></tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="card h-100" style="border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-dark-bold font-15"><i class="mdi mdi-car mr-1 text-success"></i> Top Partner / Provider Wallet Balances</h5>
+                            <span class="badge badge-dark-success font-11">{{ $stats['driverWalletHolders'] }} Active Partners</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-custom mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Partner Name</th>
+                                            <th>Contact Phone</th>
+                                            <th>Withdrawable Balance</th>
+                                            <th>Last Activity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($stats['topDriverWallets'] as $dw)
+                                        <tr>
+                                            <td class="text-dark-bold font-14">{{ $dw->name ?: 'Partner #' . $dw->id }}</td>
+                                            <td class="text-dark-bold">{{ $dw->phone ?: 'N/A' }}</td>
+                                            <td class="highlight-blue font-15">₹{{ number_format((float)$dw->amount, 2) }}</td>
+                                            <td class="text-muted font-12">{{ $dw->updated_at ? date('d M Y', strtotime($dw->updated_at)) : 'N/A' }}</td>
+                                        </tr>
+                                        @empty
+                                        <tr><td colspan="4" class="text-center py-3 text-muted">No partner wallets with positive balances.</td></tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Wallet Activity Movements -->
+            <h4 class="text-dark-bold font-16 mb-3">Recent Wallet Ledger Movements</h4>
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>#TXN</th>
+                            <th>Account Holder</th>
+                            <th>Phone</th>
+                            <th>Flow Classification</th>
+                            <th>Amount</th>
+                            <th>Method / Channel</th>
+                            <th>Description</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($stats['recentWalletMovements'] as $move)
+                        <tr>
+                            <td class="text-dark-bold text-primary font-14">#{{ $move->id }}</td>
+                            <td class="text-dark-bold font-14">{{ $move->user_name ?: 'User' }}</td>
+                            <td class="text-dark-bold">{{ $move->phone ?: 'N/A' }}</td>
+                            <td>
+                                <span class="badge {{ $move->badge_class }} font-11">{{ $move->flow_label }}</span>
+                            </td>
+                            <td class="font-15 font-weight-bold {{ $move->flow_type === 'inflow' ? 'text-success' : ($move->flow_type === 'outflow' ? 'text-danger' : 'text-purple') }}">
+                                {{ $move->flow_type === 'inflow' ? '+' : ($move->flow_type === 'outflow' ? '−' : '') }}₹{{ number_format((float)$move->amount, 2) }}
+                            </td>
+                            <td class="text-dark-bold">{{ $move->payment_method ?: 'Wallet' }}</td>
+                            <td class="text-muted font-13">{{ $move->description ?: 'Wallet Transaction' }}</td>
+                            <td class="text-dark-bold font-12">{{ $move->creer }}</td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-dark-bold">No wallet transactions recorded in this period.</td>
                         </tr>
                         @endforelse
                     </tbody>
