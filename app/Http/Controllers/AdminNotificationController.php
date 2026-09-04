@@ -20,18 +20,20 @@ class AdminNotificationController extends Controller
 
     public function index(Request $request)
     {
-        $tab = $request->input('tab', 'all');
-        $search = $request->input('search', '');
-        $page = max(1, (int)$request->input('page', 1));
+        $tab          = $request->input('tab', 'all');
+        $search       = $request->input('search', '');
+        $statusFilter = $request->input('status', 'all');
+        $page         = max(1, (int)$request->input('page', 1));
 
-        $counts = AdminNotificationService::getCounts();
-        $notificationData = AdminNotificationService::getNotifications($tab, $search, 15, $page);
+        $counts           = AdminNotificationService::getCounts();
+        $notificationData = AdminNotificationService::getNotifications($tab, $search, 20, $page, $statusFilter);
 
         return view("admin_notifications.index", [
             'notifications' => $notificationData['items'],
             'pagination'    => $notificationData,
             'counts'        => $counts,
             'currentTab'    => $tab,
+            'statusFilter'  => $statusFilter,
             'search'        => $search,
         ]);
     }
@@ -55,16 +57,16 @@ class AdminNotificationController extends Controller
             return redirect('notification/create')->withErrors($validator)->withInput();
         }
 
-        $title = $request->input('title');
+        $title   = $request->input('title');
         $message = $request->input('message');
         $send_to = $request->input('send_to');
 
-        // 1. Broadcast to registered customers topic (single broadcast delivery)
+        // 1. Broadcast to registered customers topic
         if (in_array('customer', $send_to)) {
             GcmController::sendNotification('', array("body" => $message, "title" => $title), 'cabme_customer');
         }
 
-        // 2. Broadcast to driver users topic (single broadcast delivery)
+        // 2. Broadcast to driver users topic
         if (in_array('driver', $send_to)) {
             GcmController::sendNotification('', array("body" => $message, "title" => $title), 'cabme_driver');
         }

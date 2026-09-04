@@ -119,9 +119,23 @@ class AdminNotificationService
     }
 
     /**
+     * Format time concisely (e.g. "10h ago", "2d ago", "8m ago", "Just now")
+     */
+    private static function formatShortTime($date): string
+    {
+        if (!$date) return 'Recently';
+        try {
+            $c = $date instanceof Carbon ? $date : Carbon::parse($date);
+            return $c->diffForHumans(['short' => true]);
+        } catch (\Throwable $e) {
+            return 'Recently';
+        }
+    }
+
+    /**
      * Fetch aggregated, unified notification items with action links
      */
-    public static function getNotifications(string $category = 'all', string $search = '', int $perPage = 20, int $page = 1)
+    public static function getNotifications(string $category = 'all', string $search = '', int $perPage = 20, int $page = 1, string $statusFilter = 'all')
     {
         $allItems = [];
         $search = trim($search);
@@ -166,11 +180,11 @@ class AdminNotificationService
                         'raw_id' => $c->id,
                         'category' => 'complaints',
                         'category_label' => 'Customer Care',
-                        'category_pill' => 'Support Ticket',
-                        'title' => 'Support Ticket: ' . ($c->title ?: 'Customer Complaint #' . $c->id),
-                        'message' => ($sender ? 'From: ' . $sender . ($phone ? ' (' . $phone . ')' : '') . ' — ' : '') . Str::limit($c->description ?? 'No details provided', 120),
+                        'category_pill' => 'Support',
+                        'title' => $c->title ? $c->title : ('Ticket #' . $c->id),
+                        'message' => ($sender ? 'From ' . $sender . ($phone ? ' (' . $phone . ')' : '') . ': ' : '') . Str::limit($c->description ?? '', 100),
                         'time' => $c->created ? Carbon::parse($c->created) : Carbon::now(),
-                        'time_formatted' => $c->created ? Carbon::parse($c->created)->diffForHumans() : 'Recently',
+                        'time_formatted' => self::formatShortTime($c->created),
                         'status' => ucfirst($c->status ?? 'initiated'),
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-danger' : 'badge-success',
@@ -178,7 +192,7 @@ class AdminNotificationService
                         'icon_bg' => '#FEE2E2',
                         'icon_color' => '#DC2626',
                         'url' => url('complaints'),
-                        'action_label' => 'Handle Ticket',
+                        'action_label' => 'Handle',
                     ];
                 }
             }
@@ -211,7 +225,7 @@ class AdminNotificationService
                 foreach ($withdrawals as $w) {
                     $name = trim(($w->prenom ?? '') . ' ' . ($w->nom ?? '')) ?: 'Beneficiary';
                     $isPending = in_array(strtolower($w->statut ?? ''), ['pending', '0']);
-                    $statusLabel = $isPending ? 'Pending Payout' : ($w->statut === 'success' || $w->statut === '1' ? 'Paid' : ucfirst($w->statut));
+                    $statusLabel = $isPending ? 'Pending' : ($w->statut === 'success' || $w->statut === '1' ? 'Paid' : ucfirst($w->statut));
 
                     $dateStr = $w->creer ?: ($w->created_at ?: Carbon::now());
 
@@ -219,12 +233,12 @@ class AdminNotificationService
                         'id' => 'payout_' . $w->id,
                         'raw_id' => $w->id,
                         'category' => 'withdrawals',
-                        'category_label' => 'Payout Request',
-                        'category_pill' => 'Bank Withdrawal',
+                        'category_label' => 'Payout',
+                        'category_pill' => 'Payout',
                         'title' => 'Payout Request: ₹' . number_format((float)$w->amount, 2),
-                        'message' => 'Requested by ' . $name . ($w->phone ? ' (' . $w->phone . ')' : '') . ($w->bank_name ? ' | Bank: ' . $w->bank_name : '') . ($w->account_no ? ' | A/C: ' . $w->account_no : ''),
+                        'message' => $name . ($w->phone ? ' (' . $w->phone . ')' : '') . ($w->bank_name ? ' | ' . $w->bank_name : '') . ($w->account_no ? ' (A/C: ' . $w->account_no . ')' : ''),
                         'time' => Carbon::parse($dateStr),
-                        'time_formatted' => Carbon::parse($dateStr)->diffForHumans(),
+                        'time_formatted' => self::formatShortTime($dateStr),
                         'status' => $statusLabel,
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-warning' : 'badge-success',
@@ -232,7 +246,7 @@ class AdminNotificationService
                         'icon_bg' => '#FEF3C7',
                         'icon_color' => '#D97706',
                         'url' => url('payoutRequest'),
-                        'action_label' => 'Review & Transfer',
+                        'action_label' => 'Transfer',
                     ];
                 }
             }
@@ -260,19 +274,19 @@ class AdminNotificationService
                         'raw_id' => $o->id,
                         'category' => 'marketplace_payouts',
                         'category_label' => 'Marketplace',
-                        'category_pill' => 'Seller Payout',
-                        'title' => 'Marketplace Payout: ₹' . number_format($payoutAmt, 2) . ' (Order #' . ($o->order_number ?: $o->id) . ')',
-                        'message' => 'Delivery: ' . ucfirst($o->status ?? 'delivered') . ' | Method: ' . strtoupper($o->payment_method ?? 'UPI') . ' | Buyer: ' . ($o->contact_name ?? 'Customer') . ($o->phone ? ' (' . $o->phone . ')' : ''),
+                        'category_pill' => 'Marketplace',
+                        'title' => 'Seller Payout: ₹' . number_format($payoutAmt, 2) . ' (#' . ($o->order_number ?: $o->id) . ')',
+                        'message' => 'Buyer: ' . ($o->contact_name ?? 'Customer') . ($o->phone ? ' (' . $o->phone . ')' : '') . ' | Delivery: ' . ucfirst($o->status ?? 'delivered') . ' | ' . strtoupper($o->payment_method ?? 'UPI'),
                         'time' => $o->created_at ? Carbon::parse($o->created_at) : Carbon::now(),
-                        'time_formatted' => $o->created_at ? Carbon::parse($o->created_at)->diffForHumans() : 'Recently',
-                        'status' => $isPending ? 'Pending Payout' : 'Released',
+                        'time_formatted' => self::formatShortTime($o->created_at),
+                        'status' => $isPending ? 'Pending' : 'Released',
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-info' : 'badge-success',
                         'icon' => 'mdi mdi-storefront-outline',
                         'icon_bg' => '#DBEAFE',
                         'icon_color' => '#2563EB',
                         'url' => url('/marketplace/admin/orders'),
-                        'action_label' => 'Release Payout',
+                        'action_label' => 'Release',
                     ];
                 }
             }
@@ -302,12 +316,12 @@ class AdminNotificationService
                         'id' => 'medical_' . $cl->id,
                         'raw_id' => $cl->id,
                         'category' => 'medical_claims',
-                        'category_label' => 'Medical Cashback',
-                        'category_pill' => 'Claim Request',
-                        'title' => 'Medical Claim: ' . ($cl->claim_id ?: '#' . $cl->id) . ' (₹' . number_format((float)$cl->requested_amount, 2) . ')',
+                        'category_label' => 'Medical',
+                        'category_pill' => 'Medical',
+                        'title' => 'Claim ' . ($cl->claim_id ?: '#' . $cl->id) . ' (₹' . number_format((float)$cl->requested_amount, 2) . ')',
                         'message' => 'Claimant: ' . $name . ($cl->userPhone ? ' (' . $cl->userPhone . ')' : '') . ' | Status: ' . ucfirst($cl->status ?? 'pending'),
                         'time' => Carbon::parse($dateStr),
-                        'time_formatted' => Carbon::parse($dateStr)->diffForHumans(),
+                        'time_formatted' => self::formatShortTime($dateStr),
                         'status' => ucfirst($cl->status ?? 'pending'),
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-warning' : ($cl->status === 'approved' ? 'badge-success' : 'badge-danger'),
@@ -315,7 +329,7 @@ class AdminNotificationService
                         'icon_bg' => '#D1FAE5',
                         'icon_color' => '#059669',
                         'url' => url('/admin/medical-cashback'),
-                        'action_label' => 'Review Claim',
+                        'action_label' => 'Review',
                     ];
                 }
             }
@@ -345,12 +359,12 @@ class AdminNotificationService
                         'id' => 'ride_' . $r->id,
                         'raw_id' => $r->id,
                         'category' => 'rides',
-                        'category_label' => 'Ride Booking',
-                        'category_pill' => 'Cab Ride',
-                        'title' => 'Ride Request #' . $r->id . ' (₹' . number_format((float)$r->montant, 2) . ')',
-                        'message' => 'Passenger: ' . ($r->userName ?? 'Customer') . ($r->userPhone ? ' (' . $r->userPhone . ')' : '') . ($r->depart_name ? ' | From: ' . Str::limit($r->depart_name, 35) : '') . ($r->destination_name ? ' To: ' . Str::limit($r->destination_name, 35) : ''),
+                        'category_label' => 'Cab Ride',
+                        'category_pill' => 'Ride',
+                        'title' => 'Ride #' . $r->id . ' (₹' . number_format((float)$r->montant, 2) . ')',
+                        'message' => ($r->userName ?? 'Customer') . ($r->userPhone ? ' (' . $r->userPhone . ')' : '') . ($r->depart_name ? ' | From: ' . Str::limit($r->depart_name, 28) : '') . ($r->destination_name ? ' To: ' . Str::limit($r->destination_name, 28) : ''),
                         'time' => Carbon::parse($dateStr),
-                        'time_formatted' => Carbon::parse($dateStr)->diffForHumans(),
+                        'time_formatted' => self::formatShortTime($dateStr),
                         'status' => ucfirst($r->statut ?? 'new'),
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-primary' : ($r->statut === 'completed' ? 'badge-success' : 'badge-secondary'),
@@ -358,7 +372,7 @@ class AdminNotificationService
                         'icon_bg' => '#EEF2FF',
                         'icon_color' => '#4F46E5',
                         'url' => url('ride/show/' . $r->id),
-                        'action_label' => 'View Ride',
+                        'action_label' => 'View',
                     ];
                 }
             }
@@ -387,11 +401,11 @@ class AdminNotificationService
                         'raw_id' => $s->id,
                         'category' => 'services',
                         'category_label' => 'Home Service',
-                        'category_pill' => 'Service Booking',
-                        'title' => 'Service: ' . ($s->service_name ?: 'Home Service #' . $s->id) . ' (₹' . number_format((float)$s->amount, 2) . ')',
-                        'message' => 'Customer: ' . ($s->userName ?? 'Client') . ($s->userPhone ? ' (' . $s->userPhone . ')' : '') . ($s->city ? ' | City: ' . $s->city : '') . ($s->preferred_date ? ' | Scheduled: ' . $s->preferred_date : ''),
+                        'category_pill' => 'Service',
+                        'title' => ($s->service_name ?: 'Home Service #' . $s->id) . ' (₹' . number_format((float)$s->amount, 2) . ')',
+                        'message' => ($s->userName ?? 'Client') . ($s->userPhone ? ' (' . $s->userPhone . ')' : '') . ($s->city ? ' | ' . $s->city : '') . ($s->preferred_date ? ' | ' . $s->preferred_date : ''),
                         'time' => $s->created_at ? Carbon::parse($s->created_at) : Carbon::now(),
-                        'time_formatted' => $s->created_at ? Carbon::parse($s->created_at)->diffForHumans() : 'Recently',
+                        'time_formatted' => self::formatShortTime($s->created_at),
                         'status' => ucfirst($s->status ?? 'pending'),
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-warning' : ($s->status === 'Completed' ? 'badge-success' : 'badge-secondary'),
@@ -399,7 +413,7 @@ class AdminNotificationService
                         'icon_bg' => '#F3E8FF',
                         'icon_color' => '#7C3AED',
                         'url' => url('service-requests/show/' . $s->id),
-                        'action_label' => 'Manage Service',
+                        'action_label' => 'Manage',
                     ];
                 }
             }
@@ -422,12 +436,12 @@ class AdminNotificationService
                         'id' => 'parcel_' . $p->id,
                         'raw_id' => $p->id,
                         'category' => 'parcels',
-                        'category_label' => 'Parcel Delivery',
-                        'category_pill' => 'Package Delivery',
+                        'category_label' => 'Parcel',
+                        'category_pill' => 'Parcel',
                         'title' => 'Parcel Order #' . $p->id,
                         'message' => 'Status: ' . ucfirst($p->status ?? 'new') . ' | Delivery booking',
                         'time' => isset($p->created_at) ? Carbon::parse($p->created_at) : Carbon::now(),
-                        'time_formatted' => isset($p->created_at) ? Carbon::parse($p->created_at)->diffForHumans() : 'Recently',
+                        'time_formatted' => self::formatShortTime($p->created_at ?? null),
                         'status' => ucfirst($p->status ?? 'new'),
                         'is_pending' => $isPending,
                         'status_class' => $isPending ? 'badge-info' : 'badge-success',
@@ -435,7 +449,7 @@ class AdminNotificationService
                         'icon_bg' => '#FCE7F3',
                         'icon_color' => '#DB2777',
                         'url' => url('parcel/all'),
-                        'action_label' => 'View Parcel',
+                        'action_label' => 'View',
                     ];
                 }
             }
@@ -458,27 +472,27 @@ class AdminNotificationService
 
                 $drivers = $q->limit(50)->get();
                 foreach ($drivers as $d) {
-                    $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'New Driver';
+                    $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Driver';
                     $dateStr = $d->creer ?: ($d->created_at ?: Carbon::now());
 
                     $allItems[] = [
                         'id' => 'kyc_' . $d->id,
                         'raw_id' => $d->id,
                         'category' => 'driver_kyc',
-                        'category_label' => 'Driver Verification',
-                        'category_pill' => 'KYC & Documents',
-                        'title' => 'Driver KYC Verification: ' . $name,
-                        'message' => 'Phone: ' . ($d->phone ?? 'N/A') . ($d->email ? ' | Email: ' . $d->email : '') . ' | Documents uploaded and awaiting admin verification.',
+                        'category_label' => 'Driver KYC',
+                        'category_pill' => 'Driver KYC',
+                        'title' => 'KYC: ' . $name,
+                        'message' => 'Phone: ' . ($d->phone ?? 'N/A') . ($d->email ? ' | ' . $d->email : '') . ' | Pending verification',
                         'time' => Carbon::parse($dateStr),
-                        'time_formatted' => Carbon::parse($dateStr)->diffForHumans(),
-                        'status' => 'Pending Verification',
+                        'time_formatted' => self::formatShortTime($dateStr),
+                        'status' => 'Pending',
                         'is_pending' => true,
                         'status_class' => 'badge-danger',
                         'icon' => 'mdi mdi-account-check-outline',
                         'icon_bg' => '#FFEDD5',
                         'icon_color' => '#EA580C',
                         'url' => url('driver/document/view/' . $d->id),
-                        'action_label' => 'Verify Documents',
+                        'action_label' => 'Verify',
                     ];
                 }
             }
@@ -500,26 +514,31 @@ class AdminNotificationService
                         'id' => 'broadcast_' . $b->id,
                         'raw_id' => $b->id,
                         'category' => 'broadcast',
-                        'category_label' => 'Broadcast Message',
-                        'category_pill' => 'Push Notification',
-                        'title' => 'Broadcast: ' . ($b->title ?? 'Admin Announcement'),
-                        'message' => Str::limit($b->message ?? '', 140),
+                        'category_label' => 'Broadcast',
+                        'category_pill' => 'Broadcast',
+                        'title' => $b->title ?? 'Announcement',
+                        'message' => Str::limit($b->message ?? '', 100),
                         'time' => $b->created_at ? Carbon::parse($b->created_at) : Carbon::now(),
-                        'time_formatted' => $b->created_at ? Carbon::parse($b->created_at)->diffForHumans() : 'Recently',
-                        'status' => 'Delivered',
+                        'time_formatted' => self::formatShortTime($b->created_at),
+                        'status' => 'Sent',
                         'is_pending' => false,
                         'status_class' => 'badge-dark',
                         'icon' => 'mdi mdi-bullhorn-outline',
                         'icon_bg' => '#F1F5F9',
                         'icon_color' => '#475569',
-                        'url' => url('notification'),
-                        'action_label' => 'Broadcast Log',
+                        'url' => url('notification?tab=broadcast'),
+                        'action_label' => 'Log',
                     ];
                 }
             }
 
         } catch (\Throwable $e) {
             // Fail gracefully
+        }
+
+        // Apply Status Filter if requested ('pending' vs 'all')
+        if ($statusFilter === 'pending') {
+            $allItems = array_values(array_filter($allItems, fn($item) => !empty($item['is_pending'])));
         }
 
         // Sort all items: pending items first, then by date descending
