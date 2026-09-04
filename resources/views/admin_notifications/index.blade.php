@@ -95,7 +95,7 @@
                     @endif
                 </form>
 
-                <div class="text-muted d-flex align-items-center" style="font-size: 11.5px; gap: 12px;">
+                <div class="text-muted d-flex align-items-center text-left" style="font-size: 11.5px; gap: 12px; text-align: left !important;">
                     <span>Showing <strong>{{ count($notifications) }}</strong> of <strong>{{ $pagination['total'] ?? count($notifications) }}</strong> requests</span>
                     @if($currentTab !== 'all' || $statusFilter !== 'all' || !empty($search))
                         <a href="{{ route('notifications', ['tab' => 'all']) }}" class="text-primary font-weight-bold" style="font-size: 11.5px;">Reset All Filters</a>
@@ -103,89 +103,115 @@
                 </div>
             </div>
 
-            <!-- Dense List Rows -->
+            <!-- Structured Table with Strictly Left-Aligned Content -->
             <div class="card-body p-0">
                 @if(count($notifications) > 0)
-                    <div class="list-group list-group-flush">
-                        @foreach($notifications as $notif)
-                            <div class="list-group-item px-3 py-2 notif-compact-row {{ $notif['is_pending'] ? 'notif-row-pending' : '' }}" 
-                                 onclick="handleRowClick(event, '{{ $notif['url'] }}')"
-                                 style="cursor: pointer; transition: background 0.12s ease; border-bottom: 1px solid #F1F5F9;">
-                                
-                                <div class="d-flex align-items-center justify-content-between" style="gap: 12px;">
-                                    
-                                    <!-- Left: Mini Icon (28px) -->
-                                    <div class="flex-shrink-0">
-                                        <div style="width: 28px; height: 28px; border-radius: 6px; background: {{ $notif['icon_bg'] }}; color: {{ $notif['icon_color'] }}; display: flex; align-items: center; justify-content: center; font-size: 15px;">
-                                            <i class="{{ $notif['icon'] }}"></i>
-                                        </div>
-                                    </div>
-
-                                    <!-- Middle: Compact 2-line structure -->
-                                    <div class="flex-grow-1" style="min-width: 0;">
-                                        <!-- Line 1: Category Tag + Title + Status + Time -->
-                                        <div class="d-flex align-items-center flex-wrap" style="gap: 6px; line-height: 1.2; margin-bottom: 2px;">
-                                            
-                                            <!-- Category Pill -->
-                                            <span class="badge badge-light border text-uppercase" style="font-size: 9.5px; font-weight: 700; color: {{ $notif['icon_color'] }}; padding: 2px 5px; border-radius: 4px;">
-                                                {{ $notif['category_pill'] }}
-                                            </span>
-
-                                            <!-- Main Title -->
-                                            <span class="font-weight-bold notif-title text-truncate" style="font-size: 13px; color: #0F172A; max-width: 480px;">
-                                                {{ $notif['title'] }}
-                                            </span>
-
-                                            <!-- Status Badge -->
-                                            <span class="badge {{ $notif['status_class'] }}" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
-                                                {{ $notif['status'] }}
-                                            </span>
-
-                                            <!-- Time Ago -->
-                                            <span class="text-muted" style="font-size: 11px;">
-                                                &middot; {{ $notif['time_formatted'] }}
-                                            </span>
-
-                                            @if($notif['is_pending'])
-                                                <span class="badge badge-warning text-dark font-weight-bold" style="font-size: 9.5px; padding: 1px 5px; border-radius: 4px;">
-                                                    Action Required
+                    <div class="table-responsive m-0">
+                        <table class="table table-hover table-sm notif-dense-table m-0" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #F8FAFC; border-bottom: 2px solid #E2E8F0;">
+                                    <th style="width: 140px; text-align: left !important; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Type
+                                    </th>
+                                    <th style="text-align: left !important; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Request / Description
+                                    </th>
+                                    <th style="width: 150px; text-align: left !important; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Status
+                                    </th>
+                                    <th style="width: 140px; text-align: left !important; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Created
+                                    </th>
+                                    <th style="width: 120px; text-align: left !important; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($notifications as $notif)
+                                    <tr class="notif-table-row {{ $notif['is_pending'] ? 'notif-tr-pending' : '' }}" 
+                                        onclick="handleRowClick(event, '{{ $notif['url'] }}')"
+                                        style="cursor: pointer; border-bottom: 1px solid #F1F5F9; transition: background 0.12s ease;">
+                                        
+                                        <!-- Column 1: Type / Category (Left Aligned) -->
+                                        <td style="text-align: left !important; vertical-align: middle; padding: 8px 14px; white-space: nowrap;">
+                                            <div class="d-flex align-items-center" style="gap: 8px; text-align: left !important;">
+                                                <div style="width: 26px; height: 26px; border-radius: 6px; background: {{ $notif['icon_bg'] }}; color: {{ $notif['icon_color'] }}; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">
+                                                    <i class="{{ $notif['icon'] }}"></i>
+                                                </div>
+                                                <span class="badge badge-light border text-uppercase" style="font-size: 10px; font-weight: 700; color: {{ $notif['icon_color'] }}; padding: 3px 6px; border-radius: 4px;">
+                                                    {{ $notif['category_pill'] }}
                                                 </span>
-                                            @endif
-                                        </div>
+                                            </div>
+                                        </td>
 
-                                        <!-- Line 2: Truncated excerpt / user info -->
-                                        <div class="text-muted text-truncate" style="font-size: 12px; color: #64748B !important; line-height: 1.3;">
-                                            {{ $notif['message'] }}
-                                        </div>
-                                    </div>
+                                        <!-- Column 2: Title & Details (Left Aligned) -->
+                                        <td style="text-align: left !important; vertical-align: middle; padding: 8px 14px; min-width: 260px;">
+                                            <div style="text-align: left !important;">
+                                                <div class="font-weight-bold notif-cell-title text-truncate" style="font-size: 13px; color: #0F172A; text-align: left !important; max-width: 580px;">
+                                                    {{ $notif['title'] }}
+                                                </div>
+                                                <div class="text-muted text-truncate" style="font-size: 11.5px; color: #64748B !important; text-align: left !important; max-width: 580px; line-height: 1.3;">
+                                                    {{ $notif['message'] }}
+                                                </div>
+                                            </div>
+                                        </td>
 
-                                    <!-- Right: Action Button (Compact) -->
-                                    <div class="flex-shrink-0 text-right d-flex align-items-center" style="gap: 8px;">
-                                        <a href="{{ $notif['url'] }}" class="btn btn-outline-primary btn-sm notif-btn-action px-2.5 py-1" 
-                                           style="font-size: 11.5px; font-weight: 600; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; height: 28px;">
-                                            <span>{{ $notif['action_label'] }}</span>
-                                            <i class="mdi mdi-arrow-right" style="font-size: 13px;"></i>
-                                        </a>
+                                        <!-- Column 3: Status (Left Aligned) -->
+                                        <td style="text-align: left !important; vertical-align: middle; padding: 8px 14px; white-space: nowrap;">
+                                            <div class="d-flex align-items-center" style="gap: 6px; text-align: left !important;">
+                                                <span class="badge {{ $notif['status_class'] }}" style="font-size: 10.5px; padding: 3px 7px; border-radius: 4px; font-weight: 600;">
+                                                    {{ $notif['status'] }}
+                                                </span>
+                                                @if($notif['is_pending'])
+                                                    <span class="badge badge-warning text-dark font-weight-bold" style="font-size: 9.5px; padding: 2px 5px; border-radius: 4px;">
+                                                        Action
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </td>
 
-                                        @if($currentTab === 'broadcast' && $notif['category'] === 'broadcast')
-                                            <a href="{{ route('notifications.delete', ['id' => $notif['raw_id']]) }}" 
-                                               onclick="event.stopPropagation(); return confirm('Delete this broadcast log?');"
-                                               class="btn btn-outline-danger btn-sm px-2 py-1" style="font-size: 11px; height: 28px; border-radius: 6px;" title="Delete Broadcast">
-                                                <i class="fa fa-trash"></i>
-                                            </a>
-                                        @endif
-                                    </div>
+                                        <!-- Column 4: Created Time (Left Aligned) -->
+                                        <td style="text-align: left !important; vertical-align: middle; padding: 8px 14px; white-space: nowrap;">
+                                            <div style="text-align: left !important;">
+                                                <span class="font-weight-medium text-dark" style="font-size: 12px; display: block; text-align: left !important;">
+                                                    {{ $notif['time_formatted'] }}
+                                                </span>
+                                                <span class="text-muted" style="font-size: 10.5px; display: block; text-align: left !important;">
+                                                    {{ $notif['time'] instanceof \Carbon\Carbon ? $notif['time']->format('d M, h:i A') : date('d M, h:i A', strtotime($notif['time'])) }}
+                                                </span>
+                                            </div>
+                                        </td>
 
-                                </div>
+                                        <!-- Column 5: Action (Left Aligned) -->
+                                        <td style="text-align: left !important; vertical-align: middle; padding: 8px 14px; white-space: nowrap;">
+                                            <div class="d-flex align-items-center" style="gap: 6px; text-align: left !important;">
+                                                <a href="{{ $notif['url'] }}" class="btn btn-outline-primary btn-sm notif-btn-action px-2.5 py-1" 
+                                                   style="font-size: 11.5px; font-weight: 600; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; height: 28px;">
+                                                    <span>{{ $notif['action_label'] }}</span>
+                                                    <i class="mdi mdi-arrow-right" style="font-size: 12px;"></i>
+                                                </a>
 
-                            </div>
-                        @endforeach
+                                                @if($currentTab === 'broadcast' && $notif['category'] === 'broadcast')
+                                                    <a href="{{ route('notifications.delete', ['id' => $notif['raw_id']]) }}" 
+                                                       onclick="event.stopPropagation(); return confirm('Delete this broadcast log?');"
+                                                       class="btn btn-outline-danger btn-sm px-2 py-1" style="font-size: 11px; height: 28px; border-radius: 6px;" title="Delete Broadcast">
+                                                        <i class="fa fa-trash"></i>
+                                                    </a>
+                                                @endif
+                                            </div>
+                                        </td>
+
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
 
                     <!-- Compact Pagination -->
                     @if(($pagination['last_page'] ?? 1) > 1)
                         <div class="px-3 py-2 border-top bg-light d-flex justify-content-between align-items-center" style="border-color: #E2E8F0 !important;">
-                            <div class="text-muted" style="font-size: 11.5px;">
+                            <div class="text-muted text-left" style="font-size: 11.5px; text-align: left !important;">
                                 Page {{ $pagination['current_page'] }} of {{ $pagination['last_page'] }} (Total: {{ $pagination['total'] }})
                             </div>
                             <ul class="pagination pagination-sm mb-0">
@@ -244,6 +270,13 @@
 </div>
 
 <style>
+    /* Table Column Left Alignment Override */
+    .notif-dense-table th,
+    .notif-dense-table td {
+        text-align: left !important;
+        vertical-align: middle !important;
+    }
+
     /* Compact Chips */
     .notif-chip {
         display: inline-flex;
@@ -257,6 +290,7 @@
         border: 1px solid #E2E8F0;
         white-space: nowrap;
         transition: all 0.12s ease;
+        text-align: left !important;
     }
     .notif-chip:hover {
         background: #E2E8F0;
@@ -284,11 +318,11 @@
         color: #ffffff !important;
     }
     
-    /* Dense Rows */
-    .notif-compact-row:hover {
+    /* Table Rows */
+    .notif-table-row:hover {
         background: #F8FAFC !important;
     }
-    .notif-row-pending {
+    .notif-tr-pending {
         border-left: 3px solid #EF4444 !important;
         background: #FFFAFA;
     }
