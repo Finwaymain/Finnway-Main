@@ -508,7 +508,8 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
 
     Route::get('v1/user-cancel/', [RequeteUserappCanceledController::class, 'getData']);
 
-    Route::get('v1/user-delete/', [DeleteUserController::class, 'deleteuser']);
+    Route::match(['get', 'post'], 'v1/user-delete', [DeleteUserController::class, 'deleteuser']);
+    Route::match(['get', 'post'], 'v1/user-delete/', [DeleteUserController::class, 'deleteuser']);
 
     Route::get('v1/requete-userapp/', [RequeteUserappController::class, 'getData']);
 

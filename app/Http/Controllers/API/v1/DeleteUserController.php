@@ -29,102 +29,32 @@ class DeleteUserController extends Controller
 
   public function deleteuser(Request $request)
   {
-    $id = $request->get('user_id');
+    $id = $request->get('user_id') ?: $request->get('id') ?: $request->get('driver_id');
     $user_cat = $request->get('user_cat');
+    $phone = $request->get('phone');
 
-    if(!empty($id)){
-
-        if ($user_cat == 'customer') {
-
-        $requests=Requests::where('id_user_app',$id);
-        $requests->delete();
-
-          $ride=FavoriteRide::where('id_user_app',$id);
-          $ride->delete();
-
-          $VehicleLocation=VehicleLocation::where('id_user_app',$id);
-          $VehicleLocation->delete();
-
-          $Message=Message::where('id_user_app',$id);
-          $Message->delete();
-
-          $Note=Note::where('id_user_app',$id);
-          $Note->delete();
-
-            $user=UserApp::find($id);
-            if($user){
-              $destination = public_path('assets/images/users/' . $user->photo_path);
-              if (File::exists($destination)) {
-                File::delete($destination);
-              }
-
-              if ($user->delete()) {
-                $response['success']= 'success';
-                $response['error']= null;
-                $response['message']= 'User Deleted Successfully';
-              } else {
-                $response['success']= 'Failed';
-                $response['error']='Failed To Delete User';
-              }
-
-          } else {
-            $response['success']= 'Failed';
-            $response['error']='Not Found';
+    if (!empty($id) || !empty($phone)) {
+        $success = \App\Services\UserPurgeService::purgeUser($id, $user_cat, $phone);
+        if (!empty($phone)) {
+            \App\Services\UserPurgeService::purgeByPhone($phone, $user_cat);
         }
 
-      } elseif ($user_cat == 'driver') {
-
-        $requests=Requests::where('id_conducteur',$id);
-        $requests->delete();
-
-        $vehicle = Vehicle::where('id_conducteur',$id);
-        $vehicle->delete();
-
-        $Message=Message::where('id_conducteur',$id);
-        $Message->delete();
-
-        $Note=Note::where('id_conducteur',$id);
-        $Note->delete();
-
-        $user=Driver::find($id);
-
-        if($user){
-            $destination = public_path('assets/images/driver/' . $user->photo_path);
-            if (File::exists($destination)) {
-              File::delete($destination);
-            }
-
-            if ($user->delete()) {
-
-              $response['success']= 'success';
-              $response['error']= null;
-              $response['message']= 'User Deleted Successfully';
-
-          } else {
-
-              $response['success']= 'Failed';
-              $response['error']='Failed To Delete User';
-
-          }
-
+        if ($success) {
+            $response['status'] = 200;
+            $response['success'] = 'success';
+            $response['error'] = null;
+            $response['message'] = 'User Deleted Successfully';
         } else {
-
-          $response['success']= 'Failed';
-          $response['error']='Not Found';
-
-      }
-    } else{
-      
-      $response['success']= 'Failed';
-      $response['error']='Some fields are missing';
+            $response['status'] = 404;
+            $response['success'] = 'Failed';
+            $response['error'] = 'User not found or failed to delete';
+        }
+    } else {
+        $response['status'] = 400;
+        $response['success'] = 'Failed';
+        $response['error'] = 'Id Required';
     }
-
-  } else{
-      $response['success']= 'Failed';
-      $response['error']='Id Required';
-  }
     return response()->json($response);
-
   }
 
 }

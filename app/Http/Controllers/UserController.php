@@ -825,104 +825,16 @@ class UserController extends Controller
 
     public function deleteUser($id)
     {
-
         if ($id != "") {
+            $decoded = json_decode($id);
 
-            $id = json_decode($id);
-
-            if (is_array($id)) {
-
-                for ($i = 0; $i < count($id); $i++) {
-                    $rides = Requests::where('id_user_app', $id[$i]);
-                    if ($rides) {
-                        $rides->delete();
-                    }
-                    $parcels = ParcelOrder::where('id_user_app', $id[$i]);
-                    if ($parcels) {
-                        $parcels->delete();
-                    }
-
-                    $favRides = FavoriteRide::where('id_user_app', $id[$i]);
-                    if ($favRides) {
-                        $favRides->delete();
-                    }
-                    $vehicle_location = VehicleLocation::where('id_user_app', $id[$i]);
-                    if ($vehicle_location) {
-                        $vehicle_location->delete();
-                    }
-
-                    $Transaction = Transaction::where('id_user_app', $id[$i]);
-                    if ($Transaction) {
-                        $Transaction->delete();
-                    }
-
-                    $Referral = Referral::where('user_id', $id[$i]);
-                    if ($Referral) {
-                        $Referral->delete();
-                    }
-
-                    $user        = UserApp::find($id[$i]);
-                    $destination = public_path('assets/images/users/' . $user->photo_path);
-                    if (File::exists($destination)) {
-                        File::delete($destination);
-                    }
-
-                    $AccessToken = AccessToken::where('user_id', $id[$i]);
-                    if ($AccessToken) {
-                        $AccessToken->delete();
-                    }
-
-                    \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id[$i])->where('user_type', 'customer')->delete();
-
-                    $user->delete();
+            if (is_array($decoded)) {
+                for ($i = 0; $i < count($decoded); $i++) {
+                    \App\Services\UserPurgeService::purgeCustomer($decoded[$i]);
                 }
-
             } else {
-
-                $rides = Requests::where('id_user_app', $id);
-                if ($rides) {
-                    $rides->delete();
-                }
-                $parcels = ParcelOrder::where('id_user_app', $id);
-                if ($parcels) {
-                    $parcels->delete();
-                }
-
-                $favRides = FavoriteRide::where('id_user_app', $id);
-                if ($favRides) {
-                    $favRides->delete();
-                }
-                $vehicle_location = VehicleLocation::where('id_user_app', $id);
-                if ($vehicle_location) {
-                    $vehicle_location->delete();
-                }
-
-                $Transaction = Transaction::where('id_user_app', $id);
-                if ($Transaction) {
-                    $Transaction->delete();
-                }
-
-                $Referral = Referral::where('user_id', $id);
-                if ($Referral) {
-                    $Referral->delete();
-                }
-
-                $user        = UserApp::find($id);
-                $destination = public_path('assets/images/users/' . $user->photo_path);
-                if (File::exists($destination)) {
-                    File::delete($destination);
-                }
-
-                $AccessToken = AccessToken::where('user_id', $id);
-                if ($AccessToken) {
-                    $AccessToken->delete();
-                }
-
-                \Illuminate\Support\Facades\DB::table('users_access')->where('user_id', $id)->where('user_type', 'customer')->delete();
-
-                $user->delete();
+                \App\Services\UserPurgeService::purgeCustomer($id);
             }
-
         }
 
         return redirect()->back();
