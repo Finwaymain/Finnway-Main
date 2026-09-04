@@ -130,8 +130,8 @@ class AddAmountController extends Controller
       $user_fcm = $sql_notification->fcm_id ?? '';
       if (!empty($user_fcm)) {
           $notifPayload = [
-              'title' => 'Fiinway - Wallet Top-Up Successful',
-              'body'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+              'title' => 'Fiinway',
+              'body'  => "Your Fiinway account has been credited with {$amount_init}. Updated balance: {$newBalance}.",
               'sound' => 'default',
               'tag'   => 'wallet_topup',
               'type'  => 'wallet',
@@ -142,8 +142,8 @@ class AddAmountController extends Controller
 
           if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
               DB::table('tj_notification')->insert([
-                  'titre'    => 'Fiinway - Wallet Top-Up Successful',
-                  'message'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+                  'titre'    => 'Fiinway',
+                  'message'  => "Your Fiinway account has been credited with {$amount_init}. Updated balance: {$newBalance}.",
                   'statut'   => 'yes',
                   'creer'    => $date_heure,
                   'modifier' => $date_heure,
@@ -254,8 +254,8 @@ class AddAmountController extends Controller
       $driver_fcm = $sql_notification->fcm_id ?? '';
       if (!empty($driver_fcm)) {
           $notifPayload = [
-              'title' => 'Fiinway - Wallet Top-Up Successful',
-              'body'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+              'title' => 'Fiinway',
+              'body'  => "Your Fiinway account has been credited with {$amount_init}. Updated balance: {$newBalance}.",
               'sound' => 'default',
               'tag'   => 'wallet_topup',
               'type'  => 'wallet',
@@ -266,8 +266,8 @@ class AddAmountController extends Controller
 
           if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
               DB::table('tj_notification')->insert([
-                  'titre'    => 'Fiinway - Wallet Top-Up Successful',
-                  'message'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+                  'titre'    => 'Fiinway',
+                  'message'  => "Your Fiinway account has been credited with {$amount_init}. Updated balance: {$newBalance}.",
                   'statut'   => 'yes',
                   'creer'    => $date_heure,
                   'modifier' => $date_heure,
