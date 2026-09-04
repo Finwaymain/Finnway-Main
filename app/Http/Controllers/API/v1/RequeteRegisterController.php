@@ -275,7 +275,7 @@ class RequeteRegisterController extends Controller
                 $message = array(
                     "body" => $msg_,
                     "title" => $title,
-                    "sound" => "mySound",
+                    "sound" => "ride_request_sound",
                     "tag" => "ridenewrider",
                     "statut" => ($id_conducteur > 0) ? 'new' : 'driver_rejected'
                 );

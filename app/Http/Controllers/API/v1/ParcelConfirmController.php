@@ -211,6 +211,36 @@ class ParcelConfirmController extends Controller
 
 
 
+                // Terminate ringing alarm/notifications on other drivers' devices
+                try {
+                    $otherParcelTokens = DB::table('tj_conducteur')
+                        ->where('id', '!=', $driver_id)
+                        ->where('statut', 'yes')
+                        ->where('online', '!=', 'no')
+                        ->whereNotNull('fcm_id')
+                        ->where('fcm_id', '!=', '')
+                        ->where(function ($query) {
+                            $query->where('tj_conducteur.parcel_delivery', '=', 'yes');
+                        })
+                        ->pluck('fcm_id');
+
+                    if ($otherParcelTokens->isNotEmpty()) {
+                        $cancelPayload = [
+                            'title' => 'Parcel Taken',
+                            'body' => 'This parcel request has been accepted by another driver.',
+                            'tag' => 'booking_taken',
+                            'statut' => 'taken',
+                            'id_parcel' => (string) $id_parcel,
+                            'booking_id' => (string) $id_parcel,
+                        ];
+                        foreach ($otherParcelTokens as $pToken) {
+                            GcmController::sendNotification($pToken, $cancelPayload);
+                        }
+                    }
+                } catch (\Throwable $cancelEx) {
+                    \Log::warning('Failed sending parcel cancellation push: ' . $cancelEx->getMessage());
+                }
+
                 $response['success'] = 'success';
 
                 $response['error'] = null;

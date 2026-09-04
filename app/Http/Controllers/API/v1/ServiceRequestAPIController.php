@@ -837,7 +837,7 @@ class ServiceRequestAPIController extends Controller
                 'type' => 'homeservice',
                 'service_name' => $serviceName,
                 'statut' => 'new',
-                'sound' => 'mysound',
+                'sound' => 'ride_request_sound',
                 'channel_id' => 'ride_requests',
                 'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
             ];
@@ -3083,6 +3083,9 @@ class ServiceRequestAPIController extends Controller
                     "{$driverName} has accepted your {$booking->service_name} request.{$otpText}",
                     ['booking_id' => (string) $booking->id, 'status' => 'Confirmed', 'driver_id' => (string) $driverId]
                 );
+
+                // Terminate ringing alarm/notifications on other matching providers' phones
+                $this->notifyOtherProvidersBookingTaken((int) $booking->id, (int) $driverId);
             } elseif ($normalized === 'In Progress') {
                 $this->sendServiceNotification(
                     (int) $booking->user_id,
@@ -3608,5 +3611,36 @@ class ServiceRequestAPIController extends Controller
         }
 
         return 'Address not available';
+    }
+
+    private function notifyOtherProvidersBookingTaken(int $bookingId, int $acceptedDriverId): void
+    {
+        try {
+            $otherTokens = \Illuminate\Support\Facades\DB::table('tj_notification')
+                ->join('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
+                ->where('tj_notification.type', 'homeservice')
+                ->where('tj_notification.message', 'like', "%#{$bookingId}%")
+                ->where('tj_notification.to_id', '!=', $acceptedDriverId)
+                ->where('tj_notification.creer', '>=', date('Y-m-d H:i:s', strtotime('-15 minutes')))
+                ->whereNotNull('tj_conducteur.fcm_id')
+                ->where('tj_conducteur.fcm_id', '!=', '')
+                ->pluck('tj_conducteur.fcm_id')
+                ->unique();
+
+            if ($otherTokens->isNotEmpty()) {
+                $cancelPayload = [
+                    'title' => 'Service Request Taken',
+                    'body' => 'Booking #' . $bookingId . ' was accepted by another provider.',
+                    'tag' => 'booking_taken',
+                    'statut' => 'taken',
+                    'booking_id' => (string) $bookingId,
+                ];
+                foreach ($otherTokens as $tok) {
+                    \App\Http\Controllers\API\v1\GcmController::sendNotification($tok, $cancelPayload);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning("notifyOtherProvidersBookingTaken error: " . $e->getMessage());
+        }
     }
 }

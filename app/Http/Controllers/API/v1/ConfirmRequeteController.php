@@ -264,6 +264,34 @@ class ConfirmRequeteController extends Controller
 
 
 
+                // Terminate ringing alarm/notifications on other drivers' devices
+                try {
+                    $recentNotifTokens = DB::table('tj_notification')
+                        ->join('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
+                        ->where('tj_notification.type', 'ridenewrider')
+                        ->where('tj_notification.to_id', '!=', $from_id)
+                        ->where('tj_notification.creer', '>=', date('Y-m-d H:i:s', strtotime('-10 minutes')))
+                        ->whereNotNull('tj_conducteur.fcm_id')
+                        ->where('tj_conducteur.fcm_id', '!=', '')
+                        ->pluck('tj_conducteur.fcm_id')
+                        ->unique();
+
+                    if ($recentNotifTokens->isNotEmpty()) {
+                        $cancelPayload = [
+                            'title' => 'Ride Taken',
+                            'body' => 'This ride has been accepted by another driver.',
+                            'tag' => 'booking_taken',
+                            'statut' => 'taken',
+                            'id_ride' => (string) $id_requete,
+                        ];
+                        foreach ($recentNotifTokens as $cToken) {
+                            GcmController::sendNotification($cToken, $cancelPayload);
+                        }
+                    }
+                } catch (\Throwable $cancelEx) {
+                    \Log::warning('Failed sending ride cancellation push: ' . $cancelEx->getMessage());
+                }
+
                 $response['success'] = 'success';
 
                 $response['error'] = null;

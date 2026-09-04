@@ -37,8 +37,18 @@ class GcmController extends Controller
             }
         }
 
-        $isRideRequest = ($fcmData['statut'] ?? '') === 'new' || ($fcmData['tag'] ?? '') === 'ridenewrider';
-        $channelId = $isRideRequest ? 'ride_requests' : 'high_importance_channel';
+        $isRideRequest = ($fcmData['statut'] ?? '') === 'new' || 
+                         ($fcmData['tag'] ?? '') === 'ridenewrider' || 
+                         ($fcmData['tag'] ?? '') === 'parcelnew';
+
+        $isHomeServiceAlert = ($fcmData['type'] ?? '') === 'homeservice' || 
+                              ($fcmData['tag'] ?? '') === 'homeservicerequest' || 
+                              ($fcmData['tag'] ?? '') === 'homeservicenotif' || 
+                              !empty($fcmData['booking_id']);
+
+        $isIncomingAlert = $isRideRequest || $isHomeServiceAlert;
+        $channelId = $isIncomingAlert ? 'ride_requests' : 'high_importance_channel';
+        $soundName = $isIncomingAlert ? 'ride_request_sound' : 'default';
 
         // 1. Try Firebase HTTP v1 API (credentials.json file or .env config)
         $credentials = null;
@@ -72,18 +82,19 @@ class GcmController extends Controller
                             'data' => $fcmData,
                             'android' => [
                                 'priority' => 'HIGH',
+                                'ttl' => '45s',
                                 'notification' => [
-                                    'sound' => 'default',
+                                    'sound' => $soundName,
                                     'channel_id' => $channelId,
                                     'notification_priority' => 'PRIORITY_MAX',
-                                    'default_sound' => true,
+                                    'default_sound' => !$isIncomingAlert,
                                     'default_vibrate_timings' => true,
                                 ],
                             ],
                             'apns' => [
                                 'payload' => [
                                     'aps' => [
-                                        'sound' => 'default',
+                                        'sound' => $isIncomingAlert ? 'ride_request_sound.caf' : 'default',
                                         'badge' => 1,
                                         'content-available' => 1,
                                     ],
@@ -133,10 +144,11 @@ class GcmController extends Controller
         $legacyPayload = [
             'to' => !empty($token) ? $token : '/topics/' . $topic,
             'priority' => 'high',
+            'time_to_live' => 45,
             'notification' => [
                 'title' => $title,
                 'body' => $body,
-                'sound' => 'default',
+                'sound' => $soundName,
                 'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
                 'channel_id' => $channelId,
             ],

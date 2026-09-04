@@ -167,7 +167,7 @@ class ParcelRegisterController extends Controller
                 $fcmMsg = array(
                     "body" => "You have just received a request for a parcel delivery",
                     "title" => "New Parcel Request",
-                    "sound" => "mySound",
+                    "sound" => "ride_request_sound",
                     "tag" => "parcelnew",
                     "statut" => "new"
                 );
