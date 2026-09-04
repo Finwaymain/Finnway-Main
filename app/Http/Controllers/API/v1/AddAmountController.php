@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\UserApp;
 use App\Models\Driver;
 use Illuminate\Http\Request;
+use App\Http\Controllers\API\v1\GcmController;
 use DB;
 class AddAmountController extends Controller
 {
@@ -102,12 +103,12 @@ class AddAmountController extends Controller
         $contact_us_email = $contact_us_email ? $contact_us_email : 'none@none.com';
 
 
-        $app_name = env('APP_NAME', 'Cabme');
+        $app_name = 'Fiinway';
 
         $to = $email;
         $date = date('d F Y', strtotime($date_heure));
 
-
+        $emailsubject = !empty($emailsubject) ? str_replace("{AppName}", $app_name, $emailsubject) : "Wallet Topup Confirmation - {$app_name}";
         $emailmessage = str_replace("{AppName}", $app_name, $emailmessage);
         $emailmessage = str_replace("{UserName}", $data['nom'] . " " . $data['prenom'], $emailmessage);
         $emailmessage = str_replace("{Amount}", $amount_init, $emailmessage);
@@ -123,6 +124,34 @@ class AddAmountController extends Controller
             @mail($to, $emailsubject, $emailmessage, $headers);
         } catch (\Throwable $e) {}
 
+      }
+
+      // Send Push Notification & Notification Record to Customer
+      $user_fcm = $sql_notification->fcm_id ?? '';
+      if (!empty($user_fcm)) {
+          $notifPayload = [
+              'title' => 'Fiinway - Wallet Top-Up Successful',
+              'body'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+              'sound' => 'default',
+              'tag'   => 'wallet_topup',
+              'type'  => 'wallet',
+          ];
+          try {
+              GcmController::sendNotification($user_fcm, $notifPayload);
+          } catch (\Throwable $e) {}
+
+          if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+              DB::table('tj_notification')->insert([
+                  'titre'    => 'Fiinway - Wallet Top-Up Successful',
+                  'message'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+                  'statut'   => 'yes',
+                  'creer'    => $date_heure,
+                  'modifier' => $date_heure,
+                  'to_id'    => $id_user,
+                  'from_id'  => 0,
+                  'type'     => 'wallet_topup',
+              ]);
+          }
       }
 
         if(!empty($row)){
@@ -192,7 +221,7 @@ class AddAmountController extends Controller
         $contact_us_email = $contact_us_email ? $contact_us_email : 'none@none.com';
 
 
-        $app_name = env('APP_NAME', 'Cabme');
+        $app_name = 'Fiinway';
         
         if($send_to_admin=="true"){
           $to = $email.",".$contact_us_email;
@@ -203,7 +232,7 @@ class AddAmountController extends Controller
         }
         $date = date('d F Y', strtotime($date_heure));
 
-
+        $emailsubject = !empty($emailsubject) ? str_replace("{AppName}", $app_name, $emailsubject) : "Wallet Topup Confirmation - {$app_name}";
         $emailmessage = str_replace("{AppName}", $app_name, $emailmessage);
         $emailmessage = str_replace("{UserName}", $data['nom'] . " " . $data['prenom'], $emailmessage);
         $emailmessage = str_replace("{Amount}", $amount_init, $emailmessage);
@@ -219,6 +248,34 @@ class AddAmountController extends Controller
             @mail($to, $emailsubject, $emailmessage, $headers);
         } catch (\Throwable $e) {}
 
+      }
+
+      // Send Push Notification & Notification Record to Driver
+      $driver_fcm = $sql_notification->fcm_id ?? '';
+      if (!empty($driver_fcm)) {
+          $notifPayload = [
+              'title' => 'Fiinway - Wallet Top-Up Successful',
+              'body'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+              'sound' => 'default',
+              'tag'   => 'wallet_topup',
+              'type'  => 'wallet',
+          ];
+          try {
+              GcmController::sendNotification($driver_fcm, $notifPayload);
+          } catch (\Throwable $e) {}
+
+          if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+              DB::table('tj_notification')->insert([
+                  'titre'    => 'Fiinway - Wallet Top-Up Successful',
+                  'message'  => "Your Fiinway wallet has been credited with {$amount_init}. Updated balance: {$newBalance}.",
+                  'statut'   => 'yes',
+                  'creer'    => $date_heure,
+                  'modifier' => $date_heure,
+                  'to_id'    => $id_user,
+                  'from_id'  => 0,
+                  'type'     => 'wallet_topup',
+              ]);
+          }
       }
 
       if(!empty($row)){

@@ -74,7 +74,7 @@ class PaymentController extends Controller
         $paytmParams["body"] = array(
             "requestType" => "Payment",
             "mid" => $inputs['mid'],
-            "websiteName" => "Foodie",
+            "websiteName" => "Fiinway",
             "orderId" => $inputs['order_id'],
             "callbackUrl" => $inputs['callback_url'],
             "txnAmount" => array(
