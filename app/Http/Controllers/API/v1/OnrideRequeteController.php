@@ -64,6 +64,9 @@ class OnrideRequeteController extends Controller
         $date_heure = date('Y-m-d H:i:s');
 
         $sql = Requests::where('id', $id_requete)->first();
+        if ($sql && !empty($sql->id_user_app)) {
+            $id_user = $sql->id_user_app;
+        }
         $driverId = $sql->id_conducteur;
         $driverDetail = Driver::where('id', $driverId)->first();
         if ($driverDetail->driver_on_ride == 'no') {
@@ -201,7 +204,7 @@ class OnrideRequeteController extends Controller
 
                     $from_id = $request->get('from_id');
 
-                    $to_id = $request->get('id_user');
+                    $to_id = $id_user;
 
                     $insertdata = DB::insert("insert into tj_notification(titre,message,statut,creer,modifier,to_id,from_id,type)
 

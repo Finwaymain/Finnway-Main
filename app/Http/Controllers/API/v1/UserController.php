@@ -21,6 +21,7 @@ use App\Models\Referral;
 use Illuminate\Http\Request;
 
 use DB;
+use App\Services\PhoneService;
 
 
 
@@ -490,7 +491,7 @@ class UserController extends Controller
     $prenom = str_replace("'", "\'", $prenom);
     $nom = $request->get('lastname');
     $nom = str_replace("'", "\'", $nom);
-    $phone = $request->get('phone');
+    $phone = PhoneService::normalize($request->get('phone'));
     $email = $request->get('email');
     $mdp = $request->get('password');
     $mdp = str_replace("'", "\'", $mdp);
@@ -508,13 +509,13 @@ class UserController extends Controller
     // ====================== CUSTOMER ======================
     if ($account_type == "customer") {
 
-        $chkephone = UserApp::where('phone', $phone)->first();
+        $chkephone = PhoneService::customerExists($phone);
         $chkemail = UserApp::where('email', $email)->first();
 
-        if (!empty($chkephone) || !empty($chkemail)) {
+        if ($chkephone || !empty($chkemail)) {
             return response()->json([
                 'success' => 'Failed',
-                'error' => !empty($chkephone) ? 'Phone number already exist...' : 'Email already exist...'
+                'error' => $chkephone ? 'Phone number already exist...' : 'Email already exist...'
             ]);
         }
 
@@ -570,13 +571,13 @@ class UserController extends Controller
     // ====================== DRIVER ======================
     } elseif ($account_type == "driver") {
 
-        $chkephone = Driver::where('phone', $phone)->first();
+        $chkephone = PhoneService::driverExists($phone);
         $chkemail = Driver::where('email', $email)->first();
 
-        if (!empty($chkephone) || !empty($chkemail)) {
+        if ($chkephone || !empty($chkemail)) {
             return response()->json([
                 'success' => 'Failed',
-                'error' => !empty($chkephone) ? 'Phone number already exist...' : 'Email already exist...'
+                'error' => $chkephone ? 'Phone number already exist...' : 'Email already exist...'
             ]);
         }
 

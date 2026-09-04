@@ -79,6 +79,10 @@ class SetRejectedRequeteController extends Controller
             ]);
         }
 
+        if ($user_cat != 'user_app' && !empty($sql->id_user_app)) {
+            $id_user = $sql->id_user_app;
+        }
+
         $drivertoReject = $sql->id_conducteur;
         $rideStatus = $sql->statut;
 
@@ -237,7 +241,8 @@ class SetRejectedRequeteController extends Controller
                 $row['statut'] = 'rejected';
                 $message = array_merge($row, array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected", "statut" => "rejected"));
 
-                $fcm_token = DB::table('tj_conducteur')->where('fcm_id', '!=', '')->where('id', '=', $id_user)->value('fcm_id');
+                $targetDriverId = (!empty($sql->id_conducteur) && (int)$sql->id_conducteur > 0) ? $sql->id_conducteur : $id_user;
+                $fcm_token = DB::table('tj_conducteur')->where('fcm_id', '!=', '')->where('id', '=', $targetDriverId)->value('fcm_id');
 
                 if (!empty($fcm_token)) {
 

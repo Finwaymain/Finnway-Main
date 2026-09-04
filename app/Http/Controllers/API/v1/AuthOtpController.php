@@ -9,6 +9,7 @@ use App\Models\Referral;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use App\Services\PhoneService;
 use DB;
 
 class AuthOtpController extends Controller
@@ -20,7 +21,7 @@ class AuthOtpController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function sendPhoneOtp(Request $request)
     {
-        $phone    = trim($request->get('phone'));
+        $phone    = PhoneService::normalize(trim($request->get('phone')));
         $user_cat = $request->get('user_cat', 'customer');
         $mode     = $request->get('mode', 'signup'); // 'signup' or 'login'
 
@@ -231,7 +232,7 @@ class AuthOtpController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function verifyEmailOtpAndRegister(Request $request)
     {
-        $phone         = trim($request->get('phone'));
+        $phone         = PhoneService::normalize(trim($request->get('phone')));
         $email         = strtolower(trim($request->get('email')));
         $otp           = trim($request->get('otp'));
         $firstname     = trim($request->get('firstname'));
@@ -648,7 +649,7 @@ class AuthOtpController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function loginByMpin(Request $request)
     {
-        $phone    = trim($request->get('phone'));
+        $phone    = PhoneService::normalize(trim($request->get('phone')));
         $mpin     = trim($request->get('mpin'));
         $user_cat = $request->get('user_cat', 'customer');
 
@@ -860,7 +861,7 @@ class AuthOtpController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function resetMpin(Request $request)
     {
-        $phone    = trim($request->get('phone'));
+        $phone    = PhoneService::normalize(trim($request->get('phone')));
         $otp      = trim($request->get('otp'));
         $mpin     = trim($request->get('mpin'));
         $user_cat = $request->get('user_cat', 'customer');
@@ -897,10 +898,11 @@ class AuthOtpController extends Controller
 
         // Get user and update MPIN (mdp)
         $hashedMpin = md5($mpin);
+        $phoneVariants = PhoneService::getVariants($phone);
         if ($user_cat === 'customer') {
-            DB::table('tj_user_app')->where('phone', $phone)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
+            DB::table('tj_user_app')->whereIn('phone', $phoneVariants)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
         } else {
-            DB::table('tj_conducteur')->where('phone', $phone)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
+            DB::table('tj_conducteur')->whereIn('phone', $phoneVariants)->update(['mdp' => $hashedMpin, 'm_pin' => $mpin]);
         }
 
         return response()->json([
@@ -915,7 +917,7 @@ class AuthOtpController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function registerSimple(Request $request)
     {
-        $phone         = trim($request->get('phone'));
+        $phone         = PhoneService::normalize(trim($request->get('phone')));
         $otp           = trim($request->get('otp'));
         $mpin          = trim($request->get('mpin'));
         $firstname     = trim($request->get('firstname'));
@@ -1198,9 +1200,9 @@ class AuthOtpController extends Controller
     private function phoneExists(string $phone, string $user_cat): bool
     {
         if ($user_cat === 'customer') {
-            return UserApp::where('phone', $phone)->exists();
+            return PhoneService::customerExists($phone);
         }
-        return Driver::where('phone', $phone)->exists();
+        return PhoneService::driverExists($phone);
     }
 
     private function emailExists(string $email, string $user_cat): bool
@@ -1213,22 +1215,10 @@ class AuthOtpController extends Controller
 
     private function getUserByPhone(string $phone, string $user_cat)
     {
-        $cleanPhone = preg_replace('/\D/', '', $phone);
-        $last10 = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
-
         if ($user_cat === 'customer') {
-            $user = UserApp::where('phone', $phone)->orWhere('phone', $cleanPhone)->first();
-            if (!$user && strlen($last10) >= 10) {
-                $user = UserApp::where('phone', 'LIKE', '%' . $last10)->first();
-            }
-            return $user;
+            return PhoneService::findCustomer($phone);
         }
-
-        $driver = Driver::where('phone', $phone)->orWhere('phone', $cleanPhone)->first();
-        if (!$driver && strlen($last10) >= 10) {
-            $driver = Driver::where('phone', 'LIKE', '%' . $last10)->first();
-        }
-        return $driver;
+        return PhoneService::findDriver($phone);
     }
 
     private function maskEmail(string $email): string

@@ -82,7 +82,10 @@ class ConfirmRequeteController extends Controller
         $subscriptionModel = $setting->subscription_model;
         $commissionData = Commission::first();
         $commissionModel = $commissionData->statut;
-        $rideInfo=Requests::where('id', $id_requete)->first();
+        $rideInfo = Requests::where('id', $id_requete)->first();
+        if ($rideInfo && !empty($rideInfo->id_user_app)) {
+            $id_user = $rideInfo->id_user_app;
+        }
         $driverData = Driver::where('id', $from_id)->first();
         if (!empty($id_requete) && !empty($id_user) && !empty($from_id)) {
             if ($driverData) {
@@ -229,7 +232,7 @@ class ConfirmRequeteController extends Controller
 
                     $date_heure = date('Y-m-d H:i:s');
 
-                    $to_id = $request->get('id_user');
+                    $to_id = $id_user;
 
 
 

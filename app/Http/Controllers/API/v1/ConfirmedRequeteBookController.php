@@ -25,6 +25,11 @@ class ConfirmedRequeteBookController extends Controller
     $id_user = $request->get('id_user');
     $driver_name = $request->get('driver_name');
 
+    $rideBook = DB::table('tj_requete_book')->where('id', $id_requete)->first();
+    if ($rideBook && !empty($rideBook->id_user_app)) {
+        $id_user = $rideBook->id_user_app;
+    }
+
     $updatedata =  DB::update('update tj_requete_book set statut = ? where id = ? AND statut = ?',['confirmed',$id_requete,'new']);
 
     if (!empty($updatedata)) {
@@ -44,7 +49,7 @@ class ConfirmedRequeteBookController extends Controller
         }
         
         $message=array("body"=>$msg_,"title"=>$title,"sound"=>"mySound","tag"=>"rideconfirmed");
-        $fcm_token = DB::table('tj_conducteur')->where('fcm_id','!=','')->where('id','=',$id_user)->value('fcm_id');
+        $fcm_token = DB::table('tj_user_app')->where('fcm_id','!=','')->where('id','=',$id_user)->value('fcm_id');
         if (!empty($fcm_token)) {
             GcmController::sendNotification($fcm_token, $message);
         }

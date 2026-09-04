@@ -596,6 +596,152 @@ class UserPurgeService
     }
 
     /**
+     * Deduplicate and normalize phone numbers in tj_user_app and tj_conducteur.
+     * Consolidates duplicate records into the primary account and purges stale duplicates.
+     */
+    public static function deduplicatePhoneNumbers(): array
+    {
+        $stats = [
+            'customers_merged' => 0,
+            'customers_purged' => 0,
+            'customer_phones_normalized' => 0,
+            'drivers_merged' => 0,
+            'drivers_purged' => 0,
+            'driver_phones_normalized' => 0,
+        ];
+
+        // 1. Process tj_user_app
+        $users = DB::table('tj_user_app')->select('id', 'phone', 'fcm_id', 'amount', 'creer')->get();
+        $userGroups = [];
+        foreach ($users as $u) {
+            $canonical = PhoneService::normalize($u->phone);
+            if (!empty($canonical)) {
+                $userGroups[$canonical][] = $u;
+            }
+        }
+
+        foreach ($userGroups as $canonicalPhone => $group) {
+            // Sort group: prefer row with non-empty fcm_id, positive wallet balance, latest ID
+            usort($group, function ($a, $b) {
+                $scoreA = (!empty($a->fcm_id) ? 100 : 0) + (floatval($a->amount ?? 0) > 0 ? 50 : 0) + $a->id;
+                $scoreB = (!empty($b->fcm_id) ? 100 : 0) + (floatval($b->amount ?? 0) > 0 ? 50 : 0) + $b->id;
+                return $scoreB <=> $scoreA;
+            });
+
+            $primary = $group[0];
+
+            // Normalize primary phone if needed
+            if ($primary->phone !== $canonicalPhone) {
+                DB::table('tj_user_app')->where('id', $primary->id)->update(['phone' => $canonicalPhone]);
+                $stats['customer_phones_normalized']++;
+            }
+
+            if (count($group) > 1) {
+                $stats['customers_merged']++;
+                for ($i = 1; $i < count($group); $i++) {
+                    $dup = $group[$i];
+                    $dupId = (int)$dup->id;
+                    $primaryId = (int)$primary->id;
+
+                    // Reassign FKs to primary
+                    if (Schema::hasTable('tj_requete')) {
+                        DB::table('tj_requete')->where('id_user_app', $dupId)->update(['id_user_app' => $primaryId]);
+                    }
+                    if (Schema::hasTable('tj_requete_book')) {
+                        DB::table('tj_requete_book')->where('id_user_app', $dupId)->update(['id_user_app' => $primaryId]);
+                    }
+                    if (Schema::hasTable('wallet')) {
+                        DB::table('wallet')->where('user_id', $dupId)->where('user_type', 'customer')->update(['user_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('orders')) {
+                        DB::table('orders')->where('user_id', $dupId)->update(['user_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('referral')) {
+                        DB::table('referral')->where('user_id', $dupId)->where('user_type', 'customer')->update(['user_id' => $primaryId]);
+                        DB::table('referral')->where('referral_by_id', $dupId)->where('referral_by_type', 'customer')->update(['referral_by_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('tj_notification')) {
+                        DB::table('tj_notification')->where('to_id', $dupId)->update(['to_id' => $primaryId]);
+                        DB::table('tj_notification')->where('from_id', $dupId)->update(['from_id' => $primaryId]);
+                    }
+
+                    // Purge duplicate
+                    self::purgeCustomer($dupId);
+                    $stats['customers_purged']++;
+                }
+            }
+        }
+
+        // 2. Process tj_conducteur
+        $drivers = DB::table('tj_conducteur')->select('id', 'phone', 'fcm_id', 'amount', 'is_verified', 'creer')->get();
+        $driverGroups = [];
+        foreach ($drivers as $d) {
+            $canonical = PhoneService::normalize($d->phone);
+            if (!empty($canonical)) {
+                $driverGroups[$canonical][] = $d;
+            }
+        }
+
+        foreach ($driverGroups as $canonicalPhone => $group) {
+            // Sort group: prefer verified, non-empty fcm_id, positive wallet balance, latest ID
+            usort($group, function ($a, $b) {
+                $scoreA = (($a->is_verified == '1' || $a->is_verified == 1) ? 200 : 0) + (!empty($a->fcm_id) ? 100 : 0) + $a->id;
+                $scoreB = (($b->is_verified == '1' || $b->is_verified == 1) ? 200 : 0) + (!empty($b->fcm_id) ? 100 : 0) + $b->id;
+                return $scoreB <=> $scoreA;
+            });
+
+            $primary = $group[0];
+
+            // Normalize primary phone if needed
+            if ($primary->phone !== $canonicalPhone) {
+                DB::table('tj_conducteur')->where('id', $primary->id)->update(['phone' => $canonicalPhone]);
+                $stats['driver_phones_normalized']++;
+            }
+
+            if (count($group) > 1) {
+                $stats['drivers_merged']++;
+                for ($i = 1; $i < count($group); $i++) {
+                    $dup = $group[$i];
+                    $dupId = (int)$dup->id;
+                    $primaryId = (int)$primary->id;
+
+                    // Reassign FKs to primary
+                    if (Schema::hasTable('tj_requete')) {
+                        DB::table('tj_requete')->where('id_conducteur', $dupId)->update(['id_conducteur' => $primaryId]);
+                        DB::table('tj_requete')->where('id_conducteur_accepter', $dupId)->update(['id_conducteur_accepter' => $primaryId]);
+                    }
+                    if (Schema::hasTable('tj_requete_book')) {
+                        DB::table('tj_requete_book')->where('id_conducteur', $dupId)->update(['id_conducteur' => $primaryId]);
+                    }
+                    if (Schema::hasTable('tj_vehicule')) {
+                        DB::table('tj_vehicule')->where('id_conducteur', $dupId)->update(['id_conducteur' => $primaryId]);
+                    }
+                    if (Schema::hasTable('wallet')) {
+                        DB::table('wallet')->where('user_id', $dupId)->where('user_type', 'driver')->update(['user_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('referral')) {
+                        DB::table('referral')->where('user_id', $dupId)->where('user_type', 'driver')->update(['user_id' => $primaryId]);
+                        DB::table('referral')->where('referral_by_id', $dupId)->where('referral_by_type', 'driver')->update(['referral_by_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('driver_document')) {
+                        DB::table('driver_document')->where('driver_id', $dupId)->update(['driver_id' => $primaryId]);
+                    }
+                    if (Schema::hasTable('tj_notification')) {
+                        DB::table('tj_notification')->where('to_id', $dupId)->update(['to_id' => $primaryId]);
+                        DB::table('tj_notification')->where('from_id', $dupId)->update(['from_id' => $primaryId]);
+                    }
+
+                    // Purge duplicate
+                    self::purgeDriver($dupId);
+                    $stats['drivers_purged']++;
+                }
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
      * Safely delete a file from the filesystem.
      */
     private static function deleteFile(string $path): void
