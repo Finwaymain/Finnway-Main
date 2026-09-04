@@ -1949,7 +1949,7 @@ class UserProfileUpdateController extends Controller
         ]);
     }
 
-    private function enrichTransactionHistoryRow($row, string $currentUserId, string $currentUserType): array
+    public function enrichTransactionHistoryRow($row, string $currentUserId, string $currentUserType): array
     {
         $desc            = trim((string) ($row->description ?? ''));
         $note            = trim((string) ($row->note ?? ''));
@@ -1998,27 +1998,35 @@ class UserProfileUpdateController extends Controller
             $paidTo        = 'Fiinway Platform';
             $deductionType = '0';
         } elseif ($isMarketplace) {
-            if ($deductionType === '0' || $type === 'debit' || stripos($desc, 'commission') !== false || stripos($note, 'commission') !== false) {
+            if (stripos($desc, 'commission') !== false || stripos($note, 'commission') !== false || $paymentMethod === 'Commission') {
                 $categoryTitle = 'Admin Commission';
                 $iconType      = 'commission';
                 $counterparty  = 'Fiinway Platform';
                 $paidFrom      = 'Your Wallet';
                 $paidTo        = 'Fiinway Platform';
                 $deductionType = '0';
-            } elseif (stripos($desc, 'purchase') !== false || stripos($note, 'purchase') !== false) {
-                $categoryTitle = 'Marketplace Purchase';
-                $iconType      = 'marketplace';
-                $counterparty  = 'Marketplace Store';
-                $paidFrom      = 'Your Wallet';
-                $paidTo        = 'Marketplace Store';
-                $deductionType = '0';
-            } else {
+            } elseif (
+                stripos($desc, 'sale') !== false ||
+                stripos($note, 'sale') !== false ||
+                stripos($desc, 'payout') !== false ||
+                stripos($desc, 'earning') !== false ||
+                stripos($note, 'earning') !== false ||
+                $deductionType === '1' ||
+                $type === 'credit'
+            ) {
                 $categoryTitle = 'Marketplace Sale';
                 $iconType      = 'marketplace';
                 $counterparty  = 'Marketplace Escrow';
                 $paidFrom      = 'Marketplace Escrow';
                 $paidTo        = 'Your Wallet';
                 $deductionType = '1';
+            } else {
+                $categoryTitle = 'Marketplace Purchase';
+                $iconType      = 'marketplace';
+                $counterparty  = 'Marketplace Store';
+                $paidFrom      = 'Your Wallet';
+                $paidTo        = 'Marketplace Store';
+                $deductionType = '0';
             }
         } elseif ($isReferral) {
             $categoryTitle = 'Referral Cashback';
@@ -2242,6 +2250,7 @@ class UserProfileUpdateController extends Controller
             'type'              => (string) ($row->type ?? ''),
             'date'              => (string) ($row->date ?? ''),
             'category_title'    => $categoryTitle,
+            'categoryTitle'     => $categoryTitle,
             'counterparty'      => $counterparty,
             'counterparty_name' => $counterparty,
             'paid_from'         => !empty($paidFrom) ? $paidFrom : ($deductionType === '0' ? 'Your Wallet' : $counterparty),

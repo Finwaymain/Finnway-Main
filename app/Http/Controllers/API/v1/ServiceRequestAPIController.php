@@ -2895,6 +2895,17 @@ class ServiceRequestAPIController extends Controller
         $currentStatus = strtolower(trim((string) $booking->status));
 
         if ($normalized === 'Accepted') {
+            // Blocking Rule: If provider has outstanding cash collection due debt (negative balance), block accepting new booking
+            $providerRecord = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->first();
+            if ($providerRecord && floatval($providerRecord->amount ?? 0) < 0) {
+                $dueDebt = number_format(abs(floatval($providerRecord->amount)), 2);
+                return response()->json([
+                    'success' => 'Failed',
+                    'error' => 'You have an outstanding cash collection due of ₹' . $dueDebt . '. Please clear your pending dues to continue accepting new bookings.',
+                    'message' => 'You have an outstanding cash collection due of ₹' . $dueDebt . '. Please clear your pending dues to continue accepting new bookings.'
+                ], 422);
+            }
+
             $booking->driver_id = $driverId;
             $booking->status = 'Confirmed';
             if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'otp') && !$this->hasServiceOtp($booking->otp)) {

@@ -223,7 +223,6 @@ class EcosystemEarningsFlowTest extends TestCase
 
         // 5. Verify All-In-One Dashboard Section Exports
         $this->assertArrayHasKey('servicesBreakdown', $stats);
-        $this->assertArrayHasKey('servicesBreakdown', $stats);
         $this->assertArrayHasKey('marketplaceProductSales', $stats);
         $this->assertArrayHasKey('totalSubscriptionRevenue', $stats);
         $this->assertArrayHasKey('netReferralContribution', $stats);
@@ -231,5 +230,181 @@ class EcosystemEarningsFlowTest extends TestCase
         $this->assertArrayHasKey('providerPayable', $stats);
         $this->assertArrayHasKey('netProfitPnl', $stats);
         $this->assertArrayHasKey('dailyReports', $stats);
+    }
+
+    /**
+     * Test Pure GST Calculation: Rides with empty/0 tax must NEVER have phantom GST.
+     */
+    public function test_pure_gst_calculation_without_phantom_inflation()
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $user = DB::table('tj_user_app')->first();
+        $driver = DB::table('tj_conducteur')->first();
+
+        // Create ride with 0 tax
+        $rideId = DB::table('tj_requete')->insertGetId([
+            'id_user_app'      => $user ? $user->id : 1,
+            'id_conducteur'    => $driver ? $driver->id : 1,
+            'montant'          => 500.00,
+            'tax'              => null, // Zero tax collected
+            'admin_commission' => 50.00,
+            'statut'           => 'completed',
+            'statut_paiement'  => 'yes',
+            'creer'            => $now,
+            'modifier'         => $now,
+        ]);
+
+        $stats = FinancialReportService::computeStats($now, $now);
+        // Find cab entry in servicesBreakdown
+        $cabStream = collect($stats['servicesBreakdown'])->firstWhere('service', 'Cab & Transport Rides');
+        $this->assertNotNull($cabStream);
+        $this->assertEquals(0.0, (float)$cabStream['gst'], 'Pure GST for 0-tax ride must be strictly 0.00 without phantom 5% inflation');
+
+        // Cleanup
+        DB::table('tj_requete')->where('id', $rideId)->delete();
+    }
+
+    /**
+     * Test Net Admin Revenue Formula: Net Revenue = Commissions + Platform Fees + Subscriptions.
+     */
+    public function test_net_admin_revenue_reconciliation()
+    {
+        $stats = FinancialReportService::computeStats();
+        $expectedNetRev = round(
+            $stats['totalCommissionEarned'] + ($stats['marketplaceSellerComm'] ?? 0) + $stats['platformFeeTotal'] + ($stats['totalSubscriptionRevenue'] ?? 0),
+            2
+        );
+        $this->assertEquals($expectedNetRev, (float)$stats['netRevenue'], 'Net Admin Revenue must strictly equal Commissions + Fees + Subscriptions');
+    }
+
+    /**
+     * Test Provider Cash Debt Blocking: Provider with negative wallet balance CANNOT accept bookings.
+     */
+    public function test_provider_with_cash_debt_blocked_from_accepting_bookings()
+    {
+        $now = Carbon::now()->toDateTimeString();
+
+        // Create test driver with NEGATIVE wallet balance (cash debt)
+        $driverId = DB::table('tj_conducteur')->insertGetId([
+            'nom'      => 'Debt',
+            'prenom'   => 'Driver',
+            'phone'    => '+919998887776',
+            'amount'   => -250.00, // Debtor
+            'statut'   => 'yes',
+            'online'   => 'yes',
+            'creer'    => $now,
+            'modifier' => $now,
+        ]);
+
+        $userId = DB::table('tj_user_app')->value('id') ?? 1;
+
+        // 1. Test Cab Ride Booking Confirm
+        $rideId = DB::table('tj_requete')->insertGetId([
+            'id_user_app'   => $userId,
+            'montant'       => 200.00,
+            'statut'        => 'new',
+            'creer'         => $now,
+        ]);
+
+        $controller = new \App\Http\Controllers\API\v1\ConfirmRequeteController();
+        $request = new \Illuminate\Http\Request([
+            'id_ride'   => $rideId,
+            'id_user'   => $userId,
+            'from_id'   => $driverId,
+        ]);
+
+        $response = $controller->confirmRequest($request);
+        $resData = json_decode($response->getContent(), true);
+
+        $this->assertEquals('Failed', $resData['success']);
+        $this->assertStringContainsString('outstanding cash collection due', $resData['error']);
+
+        // Verify ride status remained 'new' and was NOT confirmed
+        $ride = DB::table('tj_requete')->where('id', $rideId)->first();
+        $this->assertEquals('new', $ride->statut);
+
+        // 2. Test Home Service Booking Accept
+        if (Schema::hasTable('service_requests')) {
+            $serviceId = DB::table('service_requests')->insertGetId([
+                'user_id'      => $userId,
+                'service_name' => 'Plumbing Repair',
+                'amount'       => 300.00,
+                'status'       => 'Pending',
+                'created_at'   => $now,
+            ]);
+
+            $svcController = new \App\Http\Controllers\API\v1\ServiceRequestAPIController();
+            $svcRequest = new \Illuminate\Http\Request([
+                'booking_id' => $serviceId,
+                'driver_id'  => $driverId,
+                'status'     => 'Accepted',
+            ]);
+
+            $svcResponse = $svcController->updateServiceBookingStatus($svcRequest);
+            $svcData = json_decode($svcResponse->getContent(), true);
+
+            $this->assertEquals('Failed', $svcData['success'] ?? $svcData['status'] ?? '');
+            $this->assertStringContainsString('outstanding cash collection due', $svcData['error'] ?? $svcData['message'] ?? '');
+
+            // Verify booking remained Pending
+            $booking = DB::table('service_requests')->where('id', $serviceId)->first();
+            $this->assertEquals('Pending', $booking->status);
+
+            DB::table('service_requests')->where('id', $serviceId)->delete();
+        }
+
+        // Cleanup
+        DB::table('tj_requete')->where('id', $rideId)->delete();
+        DB::table('tj_conducteur')->where('id', $driverId)->delete();
+    }
+
+    /**
+     * Test Standardized Wallet History Naming.
+     */
+    public function test_standardized_wallet_history_naming()
+    {
+        $controller = new \App\Http\Controllers\API\v1\UserProfileUpdateController();
+
+        // 1. Marketplace Purchase (Buyer Debit)
+        $txRow = (object)[
+            'id' => 9991,
+            'amount' => '1200.00',
+            'deduction_type' => '0',
+            'type' => 'debit',
+            'description' => 'Marketplace Purchase: Purchased item #12',
+            'payment_method' => 'Fiinway Wallet',
+            'creer' => '2026-09-04 10:00:00',
+        ];
+        $enriched = $controller->enrichTransactionHistoryRow($txRow, '1', 'customer');
+        $this->assertEquals('Marketplace Purchase', $enriched['categoryTitle']);
+        $this->assertEquals('0', $enriched['deduction_type']);
+
+        // 2. Marketplace Sale (Seller Credit)
+        $saleRow = (object)[
+            'id' => 9992,
+            'amount' => '1000.00',
+            'deduction_type' => '1',
+            'type' => 'credit',
+            'description' => 'Marketplace Sale Earning: Order #12',
+            'payment_method' => 'Fiinway Wallet',
+            'creer' => '2026-09-04 10:00:00',
+        ];
+        $enrichedSale = $controller->enrichTransactionHistoryRow($saleRow, '2', 'customer');
+        $this->assertEquals('Marketplace Sale', $enrichedSale['categoryTitle']);
+        $this->assertEquals('1', $enrichedSale['deduction_type']);
+
+        // 3. Admin Commission Deduction
+        $commRow = (object)[
+            'id' => 9993,
+            'amount' => '-100.00',
+            'deduction_type' => '0',
+            'type' => 'debit',
+            'description' => 'Admin Commission for ride #55',
+            'payment_method' => 'Commission',
+            'creer' => '2026-09-04 10:00:00',
+        ];
+        $enrichedComm = $controller->enrichTransactionHistoryRow($commRow, '1', 'driver');
+        $this->assertEquals('Admin Commission', $enrichedComm['categoryTitle']);
+        $this->assertEquals('0', $enrichedComm['deduction_type']);
     }
 }

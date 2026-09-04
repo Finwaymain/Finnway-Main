@@ -96,6 +96,14 @@ class ConfirmRequeteController extends Controller
                 }
                
             }
+
+            // Blocking Rule: If driver has outstanding cash collection due debt (negative balance), block accepting new booking
+            if ($driverData && floatval($driverData->amount ?? 0) < 0) {
+                $dueDebt = number_format(abs(floatval($driverData->amount)), 2);
+                $response['success'] = 'Failed';
+                $response['error'] = 'You have an outstanding cash collection due of ₹' . $dueDebt . '. Please clear your pending dues to continue accepting new bookings.';
+                return response()->json($response);
+            }
             $updatedata =  DB::update('update tj_requete set statut = ?, id_conducteur = ? where id = ? AND statut = ?', ['confirmed', $from_id, $id_requete, 'new']);
 
 

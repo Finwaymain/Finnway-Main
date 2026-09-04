@@ -273,6 +273,17 @@ class DriverWalletHistoryController extends Controller
 
                 $row->order_type = 'ride';
 
+                $rideLabel = 'Cab Ride Fare';
+                if (!empty($row->ride_type)) {
+                    $rType = strtolower($row->ride_type);
+                    if (str_contains($rType, 'bike')) {
+                        $rideLabel = 'Bike Ride Fare';
+                    } elseif (str_contains($rType, 'auto')) {
+                        $rideLabel = 'Auto Ride Fare';
+                    }
+                }
+                $row->libelle = $rideLabel;
+
                 $row->existing_user_id = (string)$row->existing_user_id;
 
                 $output[] = $row;
@@ -335,7 +346,8 @@ class DriverWalletHistoryController extends Controller
         $po->source = $po->source;
 
         $po->order_type = 'parcel';
-
+        $po->libelle = 'Parcel Delivery Earnings';
+        $po->depart_name = 'Parcel Delivery Earnings';
         $po->raw_date = $po->created_at;
         $po->created_at = date("d", strtotime($po->created_at))." ".$months[date("F", strtotime($po->created_at))].", ".date("Y", strtotime($po->created_at));
 
@@ -399,14 +411,14 @@ class DriverWalletHistoryController extends Controller
             $sbItem->prenomConducteur   = (string) ($sb->prenomConducteur ?? '');
             $sbItem->amount             = $serviceEarnAmount;
             $sbItem->montant            = $serviceEarnAmount;
-            $sbItem->transactionAmount   = $serviceEarnAmount;
-            $sbItem->depart_name        = (string) ($sb->service_name ?? 'Home Service');
+            $serviceTitle = !empty($sb->service_name) ? (trim($sb->service_name) . ' Earnings') : 'Home Service Earnings';
+            $sbItem->depart_name        = $serviceTitle;
             $sbItem->destination_name   = (string) ($sb->service_address ?? 'Customer Location');
             $sbItem->statut             = 'completed';
             $sbItem->statut_paiement    = (string) ($sb->payment_status ?? 'paid');
             $sbItem->payment            = !empty($sb->payment_method) ? strtoupper($sb->payment_method) : ($sb->payment_status === 'paid_cash' ? 'Cash' : 'Online');
             $sbItem->order_type         = 'service';
-            $sbItem->libelle            = (string) ($sb->service_name ?? 'Home Service');
+            $sbItem->libelle            = $serviceTitle;
 
             $dateCol = $sb->updated_at ?? $sb->created_at ?? date('Y-m-d H:i:s');
             $sbItem->raw_date           = $dateCol;
@@ -491,10 +503,11 @@ class DriverWalletHistoryController extends Controller
             $wt->libelle          = 'GST & Taxes';
         } elseif (!empty($wt->id_ride) && DB::table('service_requests')->where('id', $wt->id_ride)->exists()) {
             $svc                  = DB::table('service_requests')->where('id', $wt->id_ride)->first();
+            $svcTitle             = !empty($svc->service_name) ? (trim($svc->service_name) . ' Earnings') : 'Home Service Earnings';
             $wt->order_type       = 'service';
-            $wt->depart_name      = !empty($svc->service_name) ? $svc->service_name : 'Home Service';
+            $wt->depart_name      = $svcTitle;
             $wt->destination_name = $svc->service_address ?? 'Home Service Customer';
-            $wt->libelle          = 'Home Service';
+            $wt->libelle          = $svcTitle;
             if (!empty($svc->user_id)) {
                 $usr = DB::table('tj_user_app')->where('id', $svc->user_id)->first();
                 if ($usr) {

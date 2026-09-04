@@ -316,20 +316,34 @@
                 </a>
             </div>
 
-            <!-- Big Stat Cards Row 1: Period Gross GMV Snapshot -->
+            <!-- Big Stat Cards Row 1: Period Gross GMV & Live Wallet Holding Snapshot -->
             <div class="row g-3 mb-3">
-                <div class="col-12 col-md-3 col-xl-3">
-                    <div class="big-stat-card">
+                <div class="col-12 col-md-6 col-xl">
+                    <div class="big-stat-card" style="border-left: 4px solid #10b981; background: #f0fdf4;">
                         <div class="stat-header">
-                            <span class="stat-tag">TODAY GROSS COLLECTION</span>
-                            <i class="mdi mdi-calendar-today stat-icon text-primary"></i>
+                            <span class="stat-tag text-success">TOTAL WALLET FLOAT</span>
+                            <i class="mdi mdi-wallet-outline stat-icon text-success"></i>
                         </div>
-                        <div class="stat-big-value">₹{{ number_format($stats['revToday'], 2) }}</div>
-                        <div class="stat-subtext">Real-time daily GMV collection</div>
+                        <div class="stat-big-value highlight-green">₹{{ number_format($stats['totalEcosystemFloat'] ?? (($stats['userWalletTotal'] ?? 0) + ($stats['driverWalletTotal'] ?? 0)), 2) }}</div>
+                        <div class="stat-subtext font-12">
+                            <span class="text-dark-bold">Users: ₹{{ number_format($stats['userWalletTotal'] ?? 0, 2) }}</span> • 
+                            <span class="text-dark-bold">Partners: ₹{{ number_format($stats['driverWalletTotal'] ?? 0, 2) }}</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="col-12 col-md-3 col-xl-3">
+                <div class="col-12 col-md-6 col-xl">
+                    <div class="big-stat-card">
+                        <div class="stat-header">
+                            <span class="stat-tag">TODAY COLLECTION</span>
+                            <i class="mdi mdi-calendar-today stat-icon text-primary"></i>
+                        </div>
+                        <div class="stat-big-value">₹{{ number_format($stats['revToday'], 2) }}</div>
+                        <div class="stat-subtext">Real-time daily GMV</div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6 col-xl">
                     <div class="big-stat-card">
                         <div class="stat-header">
                             <span class="stat-tag">THIS WEEK</span>
@@ -340,7 +354,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-3 col-xl-3">
+                <div class="col-12 col-md-6 col-xl">
                     <div class="big-stat-card">
                         <div class="stat-header">
                             <span class="stat-tag">THIS MONTH</span>
@@ -351,7 +365,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-3 col-xl-3">
+                <div class="col-12 col-md-6 col-xl">
                     <div class="big-stat-card">
                         <div class="stat-header">
                             <span class="stat-tag">FILTERED GROSS GMV</span>
@@ -377,7 +391,7 @@
                         </div>
                         <div class="stat-big-value highlight-purple">₹{{ number_format($stats['netRevenue'], 2) }}</div>
                         <div class="stat-subtext mb-1 font-12 text-dark-bold">
-                            Commissions (₹{{ number_format($stats['totalCommissionEarned'] + $stats['marketplaceSellerComm'], 2) }}) + Platform Fees (₹{{ number_format($stats['platformFeeTotal'] ?? 0, 2) }})
+                            Commissions (₹{{ number_format($stats['totalCommissionEarned'] + $stats['marketplaceSellerComm'], 2) }}) + Fees (₹{{ number_format($stats['platformFeeTotal'] ?? 0, 2) }}) + Subscriptions (₹{{ number_format($stats['totalSubscriptionRevenue'] ?? 0, 2) }})
                         </div>
                         <div class="font-11 text-muted">
                             <span class="badge badge-dark-success">Realized: ₹{{ number_format($stats['realizedAdminRevenue'] ?? $stats['netRevenue'], 2) }}</span>

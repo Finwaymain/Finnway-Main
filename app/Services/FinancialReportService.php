@@ -126,6 +126,27 @@ class FinancialReportService
             return $total;
         };
 
+        // Helper to extract strictly pure recorded tax liability from a row (JSON or numeric). Zero fallback.
+        $parsePureRecordedTax = function($taxField): float {
+            if (empty($taxField)) {
+                return 0.0;
+            }
+            if (is_numeric($taxField)) {
+                return (float)$taxField;
+            }
+            if (is_string($taxField)) {
+                $decoded = json_decode($taxField, true);
+                if (is_array($decoded)) {
+                    $sum = 0.0;
+                    foreach ($decoded as $item) {
+                        $sum += (float)($item['value'] ?? $item['amount'] ?? 0);
+                    }
+                    return $sum;
+                }
+            }
+            return 0.0;
+        };
+
         $hasRequete      = Schema::hasTable('tj_requete');
         $hasMarketOrders = Schema::hasTable('marketplace_orders');
         $hasServiceReq   = Schema::hasTable('service_requests');
@@ -201,7 +222,7 @@ class FinancialReportService
                     $cabComm += round($fare * ($defaultCommRate / 100), 2);
                 }
 
-                // Tax: use JSON/value if present, else standard 5% transport GST
+                // Pure GST: use recorded tax if present (JSON or numeric). Never inflate with phantom fallback.
                 $tAmt = 0.0;
                 if (!empty($cr->tax)) {
                     if (is_numeric($cr->tax)) {
@@ -214,9 +235,6 @@ class FinancialReportService
                             }
                         }
                     }
-                }
-                if ($tAmt == 0 && $fare > 0) {
-                    $tAmt = round($fare * 0.05, 2); // 5% Transport GST
                 }
                 $cabGst += $tAmt;
 
@@ -266,16 +284,13 @@ class FinancialReportService
                 }
                 $homeComm += $sComm;
 
-                // GST
+                // Pure GST: strictly pure tax amount without arbitrary percentage inflation
                 $sTax = (float)($hr->tax_amount ?? 0);
                 if ($sTax == 0 && isset($pb['gst_amount'])) {
                     $sTax = (float)$pb['gst_amount'];
                 }
                 if ($sTax == 0 && isset($pb['taxes'])) {
                     $sTax = (float)$pb['taxes'];
-                }
-                if ($sTax == 0 && $bAmt > 0) {
-                    $sTax = round(max(0, $bAmt - $pF) * ($defaultGstRate / 100), 2);
                 }
                 $homeGst += $sTax;
 
@@ -306,7 +321,7 @@ class FinancialReportService
                 $fFare = (float)($fr->montant ?? 0);
                 $foodGross += $fFare;
                 $foodComm  += (!empty($fr->admin_commission) && (float)$fr->admin_commission > 0) ? (float)$fr->admin_commission : round($fFare * 0.18, 2);
-                $foodGst   += round($fFare * 0.05, 2); // 5% GST on food delivery
+                $foodGst   += $parsePureRecordedTax($fr->tax ?? null);
             }
         }
 
@@ -324,7 +339,7 @@ class FinancialReportService
                 $pFare = (float)($pr->amount ?? 0);
                 $parcelGross += $pFare;
                 $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
-                $parcelGst   += (!empty($pr->tax) && (float)$pr->tax > 0) ? (float)$pr->tax : round($pFare * 0.18, 2);
+                $parcelGst   += $parsePureRecordedTax($pr->tax ?? null);
             }
         }
         // Also add any rides marked parcel
@@ -335,7 +350,7 @@ class FinancialReportService
                 $pFare = (float)($pr->montant ?? 0);
                 $parcelGross += $pFare;
                 $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
-                $parcelGst   += round($pFare * 0.18, 2);
+                $parcelGst   += $parsePureRecordedTax($pr->tax ?? null);
             }
         }
 
@@ -353,7 +368,7 @@ class FinancialReportService
                 $tFare = (float)($tr->montant ?? 0);
                 $travelGross += $tFare;
                 $travelComm  += (!empty($tr->admin_commission) && (float)$tr->admin_commission > 0) ? (float)$tr->admin_commission : round($tFare * 0.10, 2);
-                $travelGst   += round($tFare * 0.05, 2);
+                $travelGst   += $parsePureRecordedTax($tr->tax ?? null);
             }
         }
 
@@ -373,7 +388,7 @@ class FinancialReportService
                 $oFare = (float)($or->montant ?? 0);
                 $otherGross += $oFare;
                 $otherComm  += (!empty($or->admin_commission) && (float)$or->admin_commission > 0) ? (float)$or->admin_commission : round($oFare * 0.10, 2);
-                $otherGst   += round($oFare * 0.18, 2);
+                $otherGst   += $parsePureRecordedTax($or->tax ?? null);
             }
         }
 
