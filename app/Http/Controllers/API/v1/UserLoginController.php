@@ -165,46 +165,59 @@ class UserLoginController extends Controller
                             $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($id_user);
                             $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
 
-                            $row['selected_categories'] = $isOnboarded
-                                ? DB::table('tj_conducteur_categories')
+                            if (!$isOnboarded) {
+                                $row['is_verified'] = 'no';
+                                $row['is_home_service_provider'] = false;
+                                $row['is_transport_category'] = false;
+                                $row['selected_categories'] = [];
+                                if (($row['is_verified'] ?? '') == 1 || ($row['is_verified'] ?? '') === 'yes') {
+                                    DB::table('tj_conducteur')->where('id', $id_user)->update(['is_verified' => 0]);
+                                }
+                            } else {
+                                $row['selected_categories'] = DB::table('tj_conducteur_categories')
                                     ->where('driver_id', $id_user)
                                     ->get()
                                     ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
-                                    ->toArray()
-                                : [];
+                                    ->toArray();
 
-                            $isTransportCategory = false;
-                            $isHomeServiceProvider = false;
-                            if (!empty($row['selected_categories'])) {
-                                $driverCats = DB::table('tj_categorie_user')
-                                    ->whereIn('id', $row['selected_categories'])
-                                    ->pluck('libelle');
-                                foreach ($driverCats as $cLib) {
-                                    $cLibNorm = strtolower(trim($cLib));
-                                    if (str_contains($cLibNorm, 'transport') || str_contains($cLibNorm, 'cab') || str_contains($cLibNorm, 'taxi') || str_contains($cLibNorm, 'mobility')) {
+                                $isTransportCategory = false;
+                                $isHomeServiceProvider = false;
+                                if (!empty($row['selected_categories'])) {
+                                    $driverCats = DB::table('tj_categorie_user')
+                                        ->whereIn('id', $row['selected_categories'])
+                                        ->pluck('libelle');
+                                    foreach ($driverCats as $cLib) {
+                                        $cLibNorm = strtolower(trim($cLib));
+                                        if (str_contains($cLibNorm, 'transport') || str_contains($cLibNorm, 'cab') || str_contains($cLibNorm, 'taxi') || str_contains($cLibNorm, 'mobility')) {
+                                            $isTransportCategory = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
                                         $isTransportCategory = true;
-                                        break;
+                                    }
+                                    if (!$isTransportCategory) {
+                                        $isHomeServiceProvider = true;
                                     }
                                 }
-                                if (!$isTransportCategory && $row['onboarding_completed'] === 'yes') {
-                                    $isHomeServiceProvider = true;
-                                }
-                            }
 
-                            if ($isHomeServiceProvider) {
-                                $row['is_home_service_provider'] = true;
-                                $row['is_transport_category'] = false;
-                                $row['is_verified'] = 'yes';
-                                $row['statut'] = 'yes';
-                                $row['statut_vehicule'] = 'yes';
-                                DB::table('tj_conducteur')->where('id', $id_user)->update([
-                                    'is_verified' => 1,
-                                    'statut' => 'yes',
-                                    'statut_vehicule' => 'yes',
-                                ]);
-                            } else {
-                                $row['is_home_service_provider'] = false;
-                                $row['is_transport_category'] = $isTransportCategory;
+                                if ($isHomeServiceProvider) {
+                                    $row['is_home_service_provider'] = true;
+                                    $row['is_transport_category'] = false;
+                                    $row['is_verified'] = 'yes';
+                                    $row['statut'] = 'yes';
+                                    $row['statut_vehicule'] = 'yes';
+                                    DB::table('tj_conducteur')->where('id', $id_user)->update([
+                                        'is_verified' => 1,
+                                        'statut' => 'yes',
+                                        'statut_vehicule' => 'yes',
+                                    ]);
+                                } else {
+                                    $row['is_home_service_provider'] = false;
+                                    $row['is_transport_category'] = true;
+                                    $dbVerified = DB::table('tj_conducteur')->where('id', $id_user)->value('is_verified');
+                                    $row['is_verified'] = ($dbVerified == 1) ? 'yes' : 'no';
+                                }
                             }
 
 	                     	if(!empty($row)){

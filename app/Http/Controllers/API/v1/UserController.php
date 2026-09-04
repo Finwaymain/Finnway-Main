@@ -584,7 +584,7 @@ class UserController extends Controller
         $category_id = $request->get('category_id');
         $category_val = $category_id ? intval($category_id) : 'NULL';
         DB::insert("insert into tj_conducteur(online,prenom,nom,phone,mdp,statut,login_type,tonotify,creer,updated_at,status_car_image,statut_vehicule,email,address,amount,parcel_delivery,driver_on_ride,category_id,is_verified)
-        values('no','$prenom','$nom','$phone','$mdp','no','$login_type','$tonotify','$date_heure','$date_heure','no','no','$email','','0','yes','no',$category_val,1)");
+        values('no','$prenom','$nom','$phone','$mdp','no','$login_type','$tonotify','$date_heure','$date_heure','no','no','$email','','0','no','no',$category_val,0)");
 
         $id = DB::getPdo()->lastInsertId();
 
@@ -629,6 +629,12 @@ class UserController extends Controller
             $row['user_cat'] = "driver";
             $row['referral_code'] = $driverRefCode;
             $row['id'] = (string)$id;
+            $row['onboarding_completed'] = 'no';
+            $row['is_home_service_provider'] = false;
+            $row['is_transport_category'] = false;
+            $row['is_verified'] = 'no';
+            $row['statut'] = 'no';
+            $row['selected_categories'] = [];
 
             $response['data'] = $row;
             return response()->json($response);

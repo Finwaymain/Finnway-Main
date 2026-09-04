@@ -537,105 +537,106 @@ class GetProfileByPhoneController extends Controller
 
 
 
-                        //set flag for verified
-
-                        if($row['is_verified'] == 1){
-
-                            $row['is_verified'] = 'yes';
-
-                        }else{
-
-                            $row['is_verified'] = 'no';
-
-                        }
-
                         $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($id_user);
                         $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
 
-                        $row['selected_categories'] = $isOnboarded
-                            ? DB::table('tj_conducteur_categories')
+                        if (!$isOnboarded) {
+                            $row['is_verified'] = 'no';
+                            $row['is_home_service_provider'] = false;
+                            $row['is_transport_category'] = false;
+                            $row['selected_categories'] = [];
+                            if (($row['is_verified'] ?? '') == 1 || ($row['is_verified'] ?? '') === 'yes') {
+                                DB::table('tj_conducteur')->where('id', $id_user)->update(['is_verified' => 0]);
+                            }
+                        } else {
+                            $row['selected_categories'] = DB::table('tj_conducteur_categories')
                                 ->where('driver_id', $id_user)
                                 ->get()
                                 ->map(fn($item) => (string)($item->subcategory_id ?? $item->category_id))
-                                ->toArray()
-                            : [];
+                                ->toArray();
 
-                        // Drivers whose selected categories are vehicle-based
-                        // (cab, delivery, parcel, etc.) use the native app shell.
-                        // Only pure home-service categories get the web dashboard.
-                        $allCategoriesById = DB::table('tj_categorie_user')
-                            ->select('id', 'parent_id', 'libelle')
-                            ->get()
-                            ->keyBy('id');
+                            // Drivers whose selected categories are vehicle-based
+                            // (cab, delivery, parcel, etc.) use the native app shell.
+                            // Only pure home-service categories get the web dashboard.
+                            $allCategoriesById = DB::table('tj_categorie_user')
+                                ->select('id', 'parent_id', 'libelle')
+                                ->get()
+                                ->keyBy('id');
 
-                        $nativeDashboardRoots = [
-                            'Transport & Mobility',
-                            'Delivery & Logistics',
-                        ];
+                            $nativeDashboardRoots = [
+                                'Transport & Mobility',
+                                'Delivery & Logistics',
+                            ];
 
-                        $isTransportCategory = false;
-                        $isHomeServiceProvider = false;
-                        $homeServiceProfessions = [
-                            'electrician', 'plumber', 'cleaner', 'carpenter', 'painter',
-                            'pest control', 'ac repair', 'appliance repair', 'home tutor',
-                            'maid', 'cook', 'babysitter', 'physiotherapist', 'nurse',
-                        ];
-
-                        foreach ($row['selected_categories'] as $catId) {
-                            $current = $allCategoriesById->get((int) $catId);
-                            $depth = 0;
-                            while ($current && $depth < 8) {
-                                $normalized = preg_replace(
-                                    '/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u',
-                                    '',
-                                    $current->libelle ?? ''
-                                );
-                                $normalized = trim($normalized);
-                                $normalizedLower = strtolower($normalized);
-
-                                if (str_contains($normalizedLower, 'home services')) {
-                                    $isHomeServiceProvider = true;
-                                }
-                                foreach ($homeServiceProfessions as $profession) {
-                                    if ($normalizedLower === $profession || str_contains($normalizedLower, $profession)) {
-                                        $isHomeServiceProvider = true;
-                                        break;
-                                    }
-                                }
-
-                                foreach ($nativeDashboardRoots as $root) {
-                                    if ($normalized === $root || str_contains($normalized, $root)) {
-                                        $isTransportCategory = true;
-                                        break 2;
-                                    }
-                                }
-                                $current = $current->parent_id ? $allCategoriesById->get($current->parent_id) : null;
-                                $depth++;
-                            }
-                        }
-
-                        if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
-                            $isTransportCategory = true;
-                        }
-
-                        if ($row['onboarding_completed'] === 'yes' && !$isTransportCategory) {
-                            $isHomeServiceProvider = true;
-                        }
-
-                        if ($isHomeServiceProvider) {
                             $isTransportCategory = false;
-                            $row['is_verified'] = 'yes';
-                            $row['statut'] = 'yes';
-                            $row['statut_vehicule'] = 'yes';
-                            DB::table('tj_conducteur')->where('id', $id_user)->update([
-                                'is_verified' => 1,
-                                'statut' => 'yes',
-                                'statut_vehicule' => 'yes',
-                            ]);
-                        }
+                            $isHomeServiceProvider = false;
+                            $homeServiceProfessions = [
+                                'electrician', 'plumber', 'cleaner', 'carpenter', 'painter',
+                                'pest control', 'ac repair', 'appliance repair', 'home tutor',
+                                'maid', 'cook', 'babysitter', 'physiotherapist', 'nurse',
+                            ];
 
-                        $row['is_transport_category'] = $isTransportCategory;
-                        $row['is_home_service_provider'] = $isHomeServiceProvider;
+                            foreach ($row['selected_categories'] as $catId) {
+                                $current = $allCategoriesById->get((int) $catId);
+                                $depth = 0;
+                                while ($current && $depth < 8) {
+                                    $normalized = preg_replace(
+                                        '/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u',
+                                        '',
+                                        $current->libelle ?? ''
+                                    );
+                                    $normalized = trim($normalized);
+                                    $normalizedLower = strtolower($normalized);
+
+                                    if (str_contains($normalizedLower, 'home services')) {
+                                        $isHomeServiceProvider = true;
+                                    }
+                                    foreach ($homeServiceProfessions as $profession) {
+                                        if ($normalizedLower === $profession || str_contains($normalizedLower, $profession)) {
+                                            $isHomeServiceProvider = true;
+                                            break;
+                                        }
+                                    }
+
+                                    foreach ($nativeDashboardRoots as $root) {
+                                        if ($normalized === $root || str_contains($normalized, $root)) {
+                                            $isTransportCategory = true;
+                                            break 2;
+                                        }
+                                    }
+                                    $current = $current->parent_id ? $allCategoriesById->get($current->parent_id) : null;
+                                    $depth++;
+                                }
+                            }
+
+                            if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
+                                $isTransportCategory = true;
+                            }
+
+                            if (!$isTransportCategory) {
+                                $isHomeServiceProvider = true;
+                            }
+
+                            if ($isHomeServiceProvider) {
+                                $isTransportCategory = false;
+                                $row['is_verified'] = 'yes';
+                                $row['statut'] = 'yes';
+                                $row['statut_vehicule'] = 'yes';
+                                DB::table('tj_conducteur')->where('id', $id_user)->update([
+                                    'is_verified' => 1,
+                                    'statut' => 'yes',
+                                    'statut_vehicule' => 'yes',
+                                ]);
+                            } else {
+                                $row['is_home_service_provider'] = false;
+                                $row['is_transport_category'] = true;
+                                $dbVerified = DB::table('tj_conducteur')->where('id', $id_user)->value('is_verified');
+                                $row['is_verified'] = ($dbVerified == 1) ? 'yes' : 'no';
+                            }
+
+                            $row['is_transport_category'] = $isTransportCategory;
+                            $row['is_home_service_provider'] = $isHomeServiceProvider;
+                        }
 
                         $row['id']=(string)$id_user;
                         $row['accesstoken'] = $accesstoken;
