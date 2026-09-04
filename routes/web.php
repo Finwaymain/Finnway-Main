@@ -954,6 +954,7 @@ Route::post('home-services/toggle/{id}', [App\Http\Controllers\HomeServiceContro
 Route::delete('home-services/{id}', [App\Http\Controllers\HomeServiceController::class, 'destroy'])->name('home_services.destroy');
 
 
+Route::get('complaints', [App\Http\Controllers\ComplaintsController::class, 'index'])->name('complaints');
 Route::get('complaints/delete/{id}', [App\Http\Controllers\ComplaintsController::class, 'deleteComplaints'])->name('complaints.delete');
 
 Route::get('complaints/show/{id}', [App\Http\Controllers\ComplaintsController::class, 'show'])->name('complaints.show');

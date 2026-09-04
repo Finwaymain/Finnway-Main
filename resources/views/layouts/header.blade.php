@@ -26,18 +26,27 @@
     <!-- Right Section: Notification, Chat & Admin Profile (Language Button Removed & Spacing Increased) -->
     <div class="d-flex align-items-center">
         <ul class="navbar-nav my-lg-0 d-flex align-items-center" style="gap: 24px; margin: 0;">
+            @php
+                $pendingAdminRequestsCount = \App\Services\AdminNotificationService::getPendingRequestsCount();
+                $complaintsCount = \App\Services\AdminNotificationService::getCounts()['complaints'] ?? 0;
+            @endphp
             <!-- Notification Bell -->
             <li class="nav-item dropdown">
-                <a class="nav-link text-muted waves-effect waves-dark position-relative" href="{!! url('notification') !!}" style="padding: 0; font-size: 20px; color: #64748B !important;">
+                <a class="nav-link text-muted waves-effect waves-dark position-relative" href="{!! url('notification') !!}" title="Pending Requests & Notifications" style="padding: 0; font-size: 20px; color: #64748B !important;">
                     <i class="mdi mdi-bell-outline"></i>
-                    <span class="badge badge-danger position-absolute" style="top: -4px; right: -4px; font-size: 8px; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; padding: 0;">5</span>
+                    @if($pendingAdminRequestsCount > 0)
+                        <span class="badge badge-danger position-absolute" style="top: -6px; right: -8px; font-size: 9px; min-width: 17px; height: 17px; padding: 0 4px; display: flex; align-items: center; justify-content: center; border-radius: 9px; font-weight: 700; border: 2px solid #FFFFFF; box-shadow: 0 2px 4px rgba(220,38,38,0.3);">{{ $pendingAdminRequestsCount > 99 ? '99+' : $pendingAdminRequestsCount }}</span>
+                    @endif
                 </a>
             </li>
 
             <!-- Chat / Support -->
             <li class="nav-item dropdown">
-                <a class="nav-link text-muted waves-effect waves-dark" href="{!! url('complaints') !!}" style="padding: 0; font-size: 20px; color: #64748B !important;">
+                <a class="nav-link text-muted waves-effect waves-dark position-relative" href="{!! url('complaints') !!}" title="Customer Care & Support" style="padding: 0; font-size: 20px; color: #64748B !important;">
                     <i class="mdi mdi-message-text-outline"></i>
+                    @if($complaintsCount > 0)
+                        <span class="badge badge-warning position-absolute" style="top: -6px; right: -8px; font-size: 9px; min-width: 17px; height: 17px; padding: 0 4px; display: flex; align-items: center; justify-content: center; border-radius: 9px; font-weight: 700; border: 2px solid #FFFFFF;">{{ $complaintsCount }}</span>
+                    @endif
                 </a>
             </li>
 
