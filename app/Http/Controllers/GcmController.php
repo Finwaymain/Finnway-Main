@@ -37,8 +37,18 @@ class GcmController extends Controller
             }
         }
 
-        $isRideRequest = ($fcmData['statut'] ?? '') === 'new' || ($fcmData['tag'] ?? '') === 'ridenewrider';
-        $channelId = $isRideRequest ? 'ride_requests' : 'high_importance_channel';
+        $isRideRequest = ($fcmData['statut'] ?? '') === 'new' || 
+                         ($fcmData['tag'] ?? '') === 'ridenewrider' || 
+                         ($fcmData['tag'] ?? '') === 'parcelnew';
+
+        $isHomeServiceAlert = ($fcmData['type'] ?? '') === 'homeservice' || 
+                              ($fcmData['tag'] ?? '') === 'homeservicerequest' || 
+                              ($fcmData['tag'] ?? '') === 'homeservicenotif' || 
+                              !empty($fcmData['booking_id']);
+
+        $isIncomingAlert = $isRideRequest || $isHomeServiceAlert;
+        $channelId = $isIncomingAlert ? 'ride_requests' : 'high_importance_channel';
+        $soundName = $isIncomingAlert ? 'ride_request_sound' : 'default';
 
         // 1. Try Firebase HTTP v1 API (credentials.json file or .env config)
         $credentials = null;
@@ -52,51 +62,77 @@ class GcmController extends Controller
 
         if (!empty($credentials) && is_array($credentials)) {
             try {
-                $client = new Google_Client();
-                $client->setAuthConfig($credentials);
-                $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
-                $client->refreshTokenWithAssertion();
-                $client_token = $client->getAccessToken();
-                $access_token = $client_token['access_token'] ?? null;
+                // Cache Google OAuth token for 55 minutes (3300s) to eliminate 1-2s latency per notification
+                $cacheKey = 'fcm_v1_token_' . md5(json_encode($credentials));
+                $access_token = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3300, function () use ($credentials) {
+                    $guzzleClient = new \GuzzleHttp\Client(['verify' => false]);
+                    $client = new Google_Client();
+                    $client->setHttpClient($guzzleClient);
+                    $client->setAuthConfig($credentials);
+                    $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+                    $client->fetchAccessTokenWithAssertion($guzzleClient);
+                    $client_token = $client->getAccessToken();
+                    return $client_token['access_token'] ?? null;
+                });
 
                 if (!empty($access_token)) {
                     $projectId = $credentials['project_id'] ?? env('FIREBASE_PROJECT_ID', 'fiinway-app');
                     $url = 'https://fcm.googleapis.com/v1/projects/' . $projectId . '/messages:send';
 
-                    $payload = [
-                        'message' => [
-                            'notification' => [
-                                'title' => $title,
-                                'body' => $body,
+                    // Ensure title and body are available inside data payload for background handler
+                    $fcmData['title'] = (string)$title;
+                    $fcmData['body'] = (string)$body;
+                    $fcmData['is_incoming_alert'] = $isIncomingAlert ? '1' : '0';
+
+                    $messageBlock = [
+                        'data' => $fcmData,
+                        'android' => [
+                            'priority' => 'HIGH',
+                            'ttl' => '60s',
+                        ],
+                        'apns' => [
+                            'headers' => [
+                                'apns-priority' => '10',
+                                'apns-push-type' => 'alert',
                             ],
-                            'data' => $fcmData,
-                            'android' => [
-                                'priority' => 'HIGH',
-                                'notification' => [
-                                    'sound' => 'default',
-                                    'channel_id' => $channelId,
-                                    'notification_priority' => 'PRIORITY_MAX',
-                                    'default_sound' => true,
-                                    'default_vibrate_timings' => true,
-                                ],
-                            ],
-                            'apns' => [
-                                'payload' => [
-                                    'aps' => [
-                                        'sound' => 'default',
-                                        'badge' => 1,
-                                        'content-available' => 1,
+                            'payload' => [
+                                'aps' => [
+                                    'alert' => [
+                                        'title' => $title,
+                                        'body' => $body,
                                     ],
+                                    'sound' => $isIncomingAlert ? 'ride_request_sound.caf' : 'default',
+                                    'badge' => 1,
+                                    'content-available' => 1,
                                 ],
                             ],
                         ],
                     ];
 
-                    if (!empty($topic) && empty($token)) {
-                        $payload['message']['topic'] = $topic;
-                    } else {
-                        $payload['message']['token'] = $token;
+                    // For standard notifications (marketing, chat, receipts), attach top-level notification
+                    // For incoming ride/service alerts, omit top-level notification for Android so Google Play
+                    // does not swallow the push into system tray, ensuring background Dart handler fires immediately!
+                    if (!$isIncomingAlert) {
+                        $messageBlock['notification'] = [
+                            'title' => $title,
+                            'body' => $body,
+                        ];
+                        $messageBlock['android']['notification'] = [
+                            'sound' => $soundName,
+                            'channel_id' => $channelId,
+                            'notification_priority' => 'PRIORITY_HIGH',
+                            'default_sound' => true,
+                            'default_vibrate_timings' => true,
+                        ];
                     }
+
+                    if (!empty($topic) && empty($token)) {
+                        $messageBlock['topic'] = $topic;
+                    } else {
+                        $messageBlock['token'] = $token;
+                    }
+
+                    $payload = ['message' => $messageBlock];
 
                     $headers = [
                         'Content-Type: application/json',
@@ -110,18 +146,29 @@ class GcmController extends Controller
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
                     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 
                     $result = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     curl_close($ch);
 
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Notification sent via HTTP v1.',
-                        'result' => json_decode($result, true),
-                    ]);
+                    // If token was rejected (401), clear cache so next call refreshes
+                    if ($httpCode === 401) {
+                        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                    }
+
+                    if ($httpCode >= 200 && $httpCode < 300) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'Notification sent via HTTP v1.',
+                            'result' => json_decode($result, true),
+                        ]);
+                    }
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+                \Log::warning("FCM v1 send error in root GcmController: " . $e->getMessage());
+            }
         }
 
         // 2. Fallback to Legacy FCM API if HTTP v1 credentials not present or failed
@@ -130,18 +177,26 @@ class GcmController extends Controller
             ?: (\Illuminate\Support\Facades\Schema::hasColumn('tj_settings', 'fcm_key') ? DB::table('tj_settings')->value('fcm_key') : null)
             ?: 'AAAA-dummy-fallback-key';
 
+        $fcmData['title'] = (string)$title;
+        $fcmData['body'] = (string)$body;
+        $fcmData['is_incoming_alert'] = $isIncomingAlert ? '1' : '0';
+
         $legacyPayload = [
             'to' => !empty($token) ? $token : '/topics/' . $topic,
             'priority' => 'high',
-            'notification' => [
-                'title' => $title,
-                'body' => $body,
-                'sound' => 'default',
-                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                'channel_id' => $channelId,
-            ],
+            'time_to_live' => 60,
             'data' => $fcmData,
         ];
+
+        if (!$isIncomingAlert) {
+            $legacyPayload['notification'] = [
+                'title' => $title,
+                'body' => $body,
+                'sound' => $soundName,
+                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                'channel_id' => $channelId,
+            ];
+        }
 
         $headers = [
             'Authorization: key=' . $serverKey,
@@ -155,6 +210,7 @@ class GcmController extends Controller
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($legacyPayload));
 
         $result = curl_exec($ch);

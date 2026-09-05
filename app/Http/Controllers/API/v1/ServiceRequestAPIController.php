@@ -859,6 +859,8 @@ class ServiceRequestAPIController extends Controller
                 ->whereNotNull('fcm_id')
                 ->where('fcm_id', '!=', '')
                 ->where('fcm_id', '!=', 'null')
+                ->where('online', '!=', 'no')
+                ->where('statut', 'yes')
                 ->select('id', 'fcm_id', 'latitude', 'longitude', 'online')
                 ->get();
 
@@ -2895,6 +2897,15 @@ class ServiceRequestAPIController extends Controller
         $currentStatus = strtolower(trim((string) $booking->status));
 
         if ($normalized === 'Accepted') {
+            // Concurrency Lock Check: If already confirmed/accepted by another driver, return conflict error
+            if (!empty($booking->driver_id) && (string) $booking->driver_id !== (string) $driverId && in_array($currentStatus, ['confirmed', 'accepted', 'in progress', 'in_progress', 'completed'])) {
+                return response()->json([
+                    'success' => 'Failed',
+                    'error' => 'This booking has already been accepted by another provider.',
+                    'message' => 'This booking has already been accepted by another provider.'
+                ], 409);
+            }
+
             // Blocking Rule: If provider has outstanding cash collection due debt (negative balance), block accepting new booking
             $providerRecord = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $driverId)->first();
             if ($providerRecord && floatval($providerRecord->amount ?? 0) < 0) {
