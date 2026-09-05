@@ -76,6 +76,7 @@ class Driver extends Authenticatable
     'driver_on_ride',
     'category_id',
     'is_verified',
+    'onboarding_completed',
     'alternate_phone'
   ];
 

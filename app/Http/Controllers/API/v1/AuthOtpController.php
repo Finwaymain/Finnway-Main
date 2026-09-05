@@ -532,12 +532,17 @@ class AuthOtpController extends Controller
 
             if (!$isOnboarded) {
                 $row['is_verified'] = 'no';
+                $row['statut'] = 'no';
+                $row['statut_vehicule'] = 'no';
                 $row['is_home_service_provider'] = false;
                 $row['is_transport_category'] = false;
                 $row['selected_categories'] = [];
-                if (($row['is_verified'] ?? '') == 1 || ($row['is_verified'] ?? '') === 'yes') {
-                    DB::table('tj_conducteur')->where('id', $user->id)->update(['is_verified' => 0]);
-                }
+                DB::table('tj_conducteur')->where('id', $user->id)->update([
+                    'is_verified' => 0,
+                    'statut' => 'no',
+                    'statut_vehicule' => 'no',
+                    'onboarding_completed' => 'no',
+                ]);
             } else {
                 $row['selected_categories'] = DB::table('tj_conducteur_categories')
                     ->where('driver_id', $user->id)
@@ -731,12 +736,17 @@ class AuthOtpController extends Controller
 
             if (!$isOnboarded) {
                 $row['is_verified'] = 'no';
+                $row['statut'] = 'no';
+                $row['statut_vehicule'] = 'no';
                 $row['is_home_service_provider'] = false;
                 $row['is_transport_category'] = false;
                 $row['selected_categories'] = [];
-                if (($row['is_verified'] ?? '') == 1 || ($row['is_verified'] ?? '') === 'yes') {
-                    DB::table('tj_conducteur')->where('id', $user->id)->update(['is_verified' => 0]);
-                }
+                DB::table('tj_conducteur')->where('id', $user->id)->update([
+                    'is_verified' => 0,
+                    'statut' => 'no',
+                    'statut_vehicule' => 'no',
+                    'onboarding_completed' => 'no',
+                ]);
             } else {
                 $row['selected_categories'] = DB::table('tj_conducteur_categories')
                     ->where('driver_id', $user->id)
@@ -947,6 +957,26 @@ class AuthOtpController extends Controller
             $row['user_cat']    = $user_cat === 'customer' ? 'user_app' : 'driver';
             $row['accesstoken'] = $this->adduseraccess($existingUser->id, $user_cat);
             $row['id']          = (string)$existingUser->id;
+
+            if ($user_cat === 'driver') {
+                $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($existingUser->id);
+                $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
+                if (!$isOnboarded) {
+                    $row['is_verified'] = 'no';
+                    $row['statut'] = 'no';
+                    $row['statut_vehicule'] = 'no';
+                    $row['is_home_service_provider'] = false;
+                    $row['is_transport_category'] = false;
+                    $row['selected_categories'] = [];
+                    DB::table('tj_conducteur')->where('id', $existingUser->id)->update([
+                        'is_verified' => 0,
+                        'statut' => 'no',
+                        'statut_vehicule' => 'no',
+                        'onboarding_completed' => 'no',
+                    ]);
+                }
+            }
+
             return response()->json(['success' => 'success', 'error' => null, 'message' => 'Registration successful.', 'data' => $row]);
         }
 
@@ -1015,8 +1045,8 @@ class AuthOtpController extends Controller
                 return response()->json(['success' => 'success', 'error' => null, 'message' => 'Account created successfully.', 'data' => $row]);
 
             } elseif ($user_cat === 'driver') {
-                DB::insert("insert into tj_conducteur(online,prenom,nom,phone,mdp,statut,login_type,tonotify,creer,updated_at,status_car_image,statut_vehicule,email,address,amount,parcel_delivery,driver_on_ride,is_verified)
-                    values('no','$firstname','$lastname','$phone','$hashedMpin','no','phoneOtp','yes','$date_heure','$date_heure','no','no','$email','','0','yes','no',0)");
+                DB::insert("insert into tj_conducteur(online,prenom,nom,phone,mdp,statut,login_type,tonotify,creer,updated_at,status_car_image,statut_vehicule,email,address,amount,parcel_delivery,driver_on_ride,is_verified,onboarding_completed)
+                    values('no','$firstname','$lastname','$phone','$hashedMpin','no','phoneOtp','yes','$date_heure','$date_heure','no','no','$email','','0','yes','no',0,'no')");
 
                 $id = DB::getPdo()->lastInsertId();
 
@@ -1057,6 +1087,7 @@ class AuthOtpController extends Controller
                 $row['is_transport_category'] = false;
                 $row['is_verified'] = 'no';
                 $row['statut'] = 'no';
+                $row['statut_vehicule'] = 'no';
                 $row['selected_categories'] = [];
 
                 return response()->json(['success' => 'success', 'error' => null, 'message' => 'Driver account created successfully.', 'data' => $row]);
@@ -1524,7 +1555,17 @@ class AuthOtpController extends Controller
             $row = $get_user->toArray();
             unset($row['mdp']);
             $row['user_cat']    = 'driver';
-            $row['is_verified'] = ($row['is_verified'] == 1) ? 'yes' : 'no';
+
+            $isOnboarded = \App\Services\DriverProfileService::isOnboardingCompleted($id);
+            $row['onboarding_completed'] = $isOnboarded ? 'yes' : 'no';
+            if (!$isOnboarded) {
+                $row['is_verified'] = 'no';
+                $row['statut'] = 'no';
+                $row['statut_vehicule'] = 'no';
+                $row['is_home_service_provider'] = false;
+            } else {
+                $row['is_verified'] = ($row['is_verified'] == 1) ? 'yes' : 'no';
+            }
 
             // Driver vehicle
             $vehicle = DB::table('tj_vehicule')

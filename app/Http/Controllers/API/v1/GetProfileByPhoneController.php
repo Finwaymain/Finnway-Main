@@ -542,12 +542,17 @@ class GetProfileByPhoneController extends Controller
 
                         if (!$isOnboarded) {
                             $row['is_verified'] = 'no';
+                            $row['statut'] = 'no';
+                            $row['statut_vehicule'] = 'no';
                             $row['is_home_service_provider'] = false;
                             $row['is_transport_category'] = false;
                             $row['selected_categories'] = [];
-                            if (($row['is_verified'] ?? '') == 1 || ($row['is_verified'] ?? '') === 'yes') {
-                                DB::table('tj_conducteur')->where('id', $id_user)->update(['is_verified' => 0]);
-                            }
+                            DB::table('tj_conducteur')->where('id', $id_user)->update([
+                                'is_verified' => 0,
+                                'statut' => 'no',
+                                'statut_vehicule' => 'no',
+                                'onboarding_completed' => 'no',
+                            ]);
                         } else {
                             $row['selected_categories'] = DB::table('tj_conducteur_categories')
                                 ->where('driver_id', $id_user)

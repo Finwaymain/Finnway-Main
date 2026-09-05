@@ -22,12 +22,26 @@ class DriverProfileService
             return false;
         }
 
+        // If explicitly marked not onboarded, return false immediately
+        $onboardingStatus = strtolower(trim((string)($driver->onboarding_completed ?? '')));
+        if ($onboardingStatus === 'no') {
+            return false;
+        }
+
         if (!Schema::hasTable('tj_conducteur_categories')) {
             return false;
         }
 
         $hasCategories = DB::table('tj_conducteur_categories')->where('driver_id', $id)->exists();
         if (!$hasCategories) {
+            if ($onboardingStatus === 'yes') {
+                DB::table('tj_conducteur')->where('id', $id)->update([
+                    'onboarding_completed' => 'no',
+                    'is_verified' => 0,
+                    'statut' => 'no',
+                    'statut_vehicule' => 'no',
+                ]);
+            }
             return false;
         }
 
@@ -41,9 +55,13 @@ class DriverProfileService
                    !empty(trim((string)($driver->photo_nic_path ?? ''))) ||
                    !empty(trim((string)($driver->photo_car_service_book_path ?? '')));
 
-        // Check driver_documents table
-        if (!$hasDocs && Schema::hasTable('driver_documents')) {
-            $hasDocs = DB::table('driver_documents')->where('driver_id', $id)->exists();
+        // Check driver_document / driver_documents table
+        if (!$hasDocs) {
+            if (Schema::hasTable('driver_document')) {
+                $hasDocs = DB::table('driver_document')->where('driver_id', $id)->exists();
+            } elseif (Schema::hasTable('driver_documents')) {
+                $hasDocs = DB::table('driver_documents')->where('driver_id', $id)->exists();
+            }
         }
 
         // Check if driver has registered a vehicle
@@ -61,15 +79,28 @@ class DriverProfileService
             $hasSkills = DB::table('driver_service_skills')->where('driver_id', $id)->exists();
         }
 
-        // Check kyc_status
-        $kycStatus = trim((string)($driver->kyc_status ?? ''));
-        $hasKyc = !empty($kycStatus) && $kycStatus !== '0' && strtolower($kycStatus) !== 'rejected';
+        // KYC status is an admin identity check, NOT onboarding completion.
+        // True onboarding requires actual operational artifacts (bank, docs, vehicle, or skills).
+        $hasOnboardedArtifacts = ($hasBank || $hasDocs || $hasVehicle || $hasSkills);
 
-        $hasOnboarded = ($hasBank || $hasDocs || $hasVehicle || $hasSkills || $hasKyc);
-
-        // If driver has categories but zero onboarding artifacts, they are orphan categories
-        if (!$hasOnboarded) {
+        if (!$hasOnboardedArtifacts) {
             self::purgeDriverCategories($id);
+            DB::table('tj_conducteur')->where('id', $id)->update([
+                'onboarding_completed' => 'no',
+                'is_verified' => 0,
+                'statut' => 'no',
+                'statut_vehicule' => 'no',
+            ]);
+            return false;
+        }
+
+        // If onboarding_completed column exists and is not 'yes', check if driver has verified status
+        if ($onboardingStatus !== 'yes') {
+            $isVerified = ($driver->is_verified ?? 0) == 1 || ($driver->statut ?? '') === 'yes';
+            if ($isVerified && $hasCategories && $hasOnboardedArtifacts) {
+                DB::table('tj_conducteur')->where('id', $id)->update(['onboarding_completed' => 'yes']);
+                return true;
+            }
             return false;
         }
 

@@ -30,55 +30,57 @@ class UserPurgeService
         $altPhone = $driver ? ($driver->alternate_phone ?? null) : null;
         $phones = self::buildPhoneVariants($phoneToUse, $altPhone);
 
-        // If no driver found by ID but phone is provided, attempt lookup by phone
-        if (!$driver && !empty($phones)) {
-            $driver = DB::table('tj_conducteur')->whereIn('phone', $phones)->first();
-            if ($driver) {
-                $id = (int)$driver->id;
-            }
+        // Collect all driver IDs matching this primary key or any of the phone variants
+        $driverIds = [];
+        if ($id > 0) {
+            $driverIds[] = $id;
+        }
+        if (!empty($phones)) {
+            $foundIds = DB::table('tj_conducteur')->whereIn('phone', $phones)->pluck('id')->map(fn($v) => (int)$v)->toArray();
+            $driverIds = array_values(array_unique(array_filter(array_merge($driverIds, $foundIds))));
         }
 
         try {
             DB::beginTransaction();
 
             // 1. Delete category mappings, service pricing, skills, items
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('tj_conducteur_categories')) {
-                    DB::table('tj_conducteur_categories')->where('driver_id', $id)->delete();
+                    DB::table('tj_conducteur_categories')->whereIn('driver_id', $driverIds)->delete();
                 }
                 if (Schema::hasTable('driver_service_pricing')) {
-                    DB::table('driver_service_pricing')->where('driver_id', $id)->delete();
+                    DB::table('driver_service_pricing')->whereIn('driver_id', $driverIds)->delete();
                 }
                 if (Schema::hasTable('driver_service_skills')) {
-                    DB::table('driver_service_skills')->where('driver_id', $id)->delete();
+                    DB::table('driver_service_skills')->whereIn('driver_id', $driverIds)->delete();
                 }
                 if (Schema::hasTable('driver_service_items')) {
-                    DB::table('driver_service_items')->where('driver_id', $id)->delete();
+                    DB::table('driver_service_items')->whereIn('driver_id', $driverIds)->delete();
                 }
             }
 
             // 2. Delete driver documents and physical files
-            if ($id > 0 && Schema::hasTable('driver_document')) {
-                $docs = DB::table('driver_document')->where('driver_id', $id)->get();
+            if (!empty($driverIds) && Schema::hasTable('driver_document')) {
+                $docs = DB::table('driver_document')->whereIn('driver_id', $driverIds)->get();
                 foreach ($docs as $doc) {
                     if (!empty($doc->document_path)) {
                         self::deleteFile(public_path('assets/images/driver/documents/' . $doc->document_path));
                         self::deleteFile(public_path('assets/images/driver/' . $doc->document_path));
                     }
                 }
-                DB::table('driver_document')->where('driver_id', $id)->delete();
+                DB::table('driver_document')->whereIn('driver_id', $driverIds)->delete();
             }
 
             // 3. Delete vehicles, vehicle images, and service book
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 $vehicleIds = [];
                 if (Schema::hasTable('tj_vehicule')) {
-                    $vehicleIds = DB::table('tj_vehicule')->where('id_conducteur', $id)->pluck('id')->toArray();
+                    $vehicleIds = DB::table('tj_vehicule')->whereIn('id_conducteur', $driverIds)->pluck('id')->toArray();
                 }
 
                 if (Schema::hasTable('tj_vehicle_images')) {
                     $images = DB::table('tj_vehicle_images')
-                        ->where('id_driver', $id)
+                        ->whereIn('id_driver', $driverIds)
                         ->orWhereIn('id_vehicle', $vehicleIds)
                         ->get();
                     foreach ($images as $img) {
@@ -87,34 +89,34 @@ class UserPurgeService
                         }
                     }
                     DB::table('tj_vehicle_images')
-                        ->where('id_driver', $id)
+                        ->whereIn('id_driver', $driverIds)
                         ->orWhereIn('id_vehicle', $vehicleIds)
                         ->delete();
                 }
 
                 if (Schema::hasTable('tj_vehicule_service_book')) {
-                    $books = DB::table('tj_vehicule_service_book')->where('id_conducteur', $id)->get();
+                    $books = DB::table('tj_vehicule_service_book')->whereIn('id_conducteur', $driverIds)->get();
                     foreach ($books as $b) {
                         if (!empty($b->photo_car_service_book_path)) {
                             self::deleteFile(public_path('assets/images/vehicle/' . $b->photo_car_service_book_path));
                         }
                     }
-                    DB::table('tj_vehicule_service_book')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_vehicule_service_book')->whereIn('id_conducteur', $driverIds)->delete();
                 }
 
                 if (Schema::hasTable('tj_vehicule')) {
-                    DB::table('tj_vehicule')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_vehicule')->whereIn('id_conducteur', $driverIds)->delete();
                 }
             }
 
             // 4. Delete kit orders
             if (Schema::hasTable('driver_kit_orders')) {
                 $q = DB::table('driver_kit_orders');
-                if ($id > 0) {
-                    $q->where('driver_id', $id);
+                if (!empty($driverIds)) {
+                    $q->whereIn('driver_id', $driverIds);
                 }
                 if (!empty($phones)) {
-                    if ($id > 0) {
+                    if (!empty($driverIds)) {
                         $q->orWhereIn('receiver_phone', $phones);
                     } else {
                         $q->whereIn('receiver_phone', $phones);
@@ -124,34 +126,34 @@ class UserPurgeService
             }
 
             // 5. Delete financial & wallet records
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('tj_conducteur_transaction')) {
                     DB::table('tj_conducteur_transaction')
-                        ->where('id_conducteur', $id)
-                        ->orWhere(function ($q) use ($id) {
-                            $q->where('receiver_user_id', $id)->where('user_type', 'driver');
+                        ->whereIn('id_conducteur', $driverIds)
+                        ->orWhere(function ($q) use ($driverIds) {
+                            $q->whereIn('receiver_user_id', $driverIds)->where('user_type', 'driver');
                         })
                         ->delete();
                 }
                 if (Schema::hasTable('withdrawals')) {
-                    DB::table('withdrawals')->where('id_conducteur', $id)->delete();
+                    DB::table('withdrawals')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('subscription_history')) {
-                    DB::table('subscription_history')->where('user_id', $id)->delete();
+                    DB::table('subscription_history')->whereIn('user_id', $driverIds)->delete();
                 }
             }
 
             // 6. Delete tokens, common user base, referrals, and OTP records
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('users_access')) {
-                    DB::table('users_access')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('users_access')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('common_user_base')) {
-                    DB::table('common_user_base')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('common_user_base')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('referral')) {
-                    DB::table('referral')->where('user_id', $id)->where('user_type', 'driver')->delete();
-                    DB::table('referral')->where('referral_by_id', $id)->where('referral_by_type', 'driver')->update([
+                    DB::table('referral')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
+                    DB::table('referral')->whereIn('referral_by_id', $driverIds)->where('referral_by_type', 'driver')->update([
                         'referral_by_id'   => null,
                         'referral_by_type' => null,
                         'referral_by_code' => '',
@@ -164,68 +166,68 @@ class UserPurgeService
             }
 
             // 7. Delete rides, bookings & orders
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('tj_requete')) {
                     DB::table('tj_requete')
-                        ->where('id_conducteur', $id)
-                        ->orWhere('id_conducteur_accepter', $id)
+                        ->whereIn('id_conducteur', $driverIds)
+                        ->orWhereIn('id_conducteur_accepter', $driverIds)
                         ->delete();
                 }
                 if (Schema::hasTable('tj_requete_book')) {
-                    DB::table('tj_requete_book')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_requete_book')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('service_requests')) {
-                    DB::table('service_requests')->where('driver_id', $id)->delete();
+                    DB::table('service_requests')->whereIn('driver_id', $driverIds)->delete();
                 }
                 if (Schema::hasTable('parcel_orders')) {
-                    DB::table('parcel_orders')->where('id_conducteur', $id)->delete();
+                    DB::table('parcel_orders')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('dispatcher_booking')) {
-                    DB::table('dispatcher_booking')->where('id_conducteur', $id)->delete();
+                    DB::table('dispatcher_booking')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('tj_recu')) {
-                    DB::table('tj_recu')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_recu')->whereIn('id_conducteur', $driverIds)->delete();
                 }
             }
 
             // 8. Delete communications, notes, and complaints
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('tj_message')) {
-                    DB::table('tj_message')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_message')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('tj_note')) {
-                    DB::table('tj_note')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_note')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('tj_user_note')) {
-                    DB::table('tj_user_note')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_user_note')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('tj_complaints')) {
-                    DB::table('tj_complaints')->where('id_conducteur', $id)->delete();
+                    DB::table('tj_complaints')->whereIn('id_conducteur', $driverIds)->delete();
                 }
                 if (Schema::hasTable('support_tickets')) {
-                    DB::table('support_tickets')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('support_tickets')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('admin_notification')) {
-                    DB::table('admin_notification')->where('user_id', $id)->delete();
+                    DB::table('admin_notification')->whereIn('user_id', $driverIds)->delete();
                 }
             }
 
             // 9. Delete medical & marketplace records
-            if ($id > 0) {
+            if (!empty($driverIds)) {
                 if (Schema::hasTable('tj_medical_cards')) {
-                    DB::table('tj_medical_cards')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('tj_medical_cards')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('tj_medical_claims')) {
-                    DB::table('tj_medical_claims')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('tj_medical_claims')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('tj_medical_expenses')) {
-                    DB::table('tj_medical_expenses')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('tj_medical_expenses')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('marketplace_products')) {
-                    DB::table('marketplace_products')->where('user_id', $id)->where('user_type', 'driver')->delete();
+                    DB::table('marketplace_products')->whereIn('user_id', $driverIds)->where('user_type', 'driver')->delete();
                 }
                 if (Schema::hasTable('marketplace_orders')) {
-                    DB::table('marketplace_orders')->where('seller_id', $id)->where('seller_type', 'driver')->delete();
+                    DB::table('marketplace_orders')->whereIn('seller_id', $driverIds)->where('seller_type', 'driver')->delete();
                 }
             }
 
@@ -245,12 +247,14 @@ class UserPurgeService
                 }
             }
 
-            if ($id > 0) {
-                DB::table('tj_conducteur')->where('id', $id)->delete();
+            if (!empty($driverIds)) {
+                DB::table('tj_conducteur')->whereIn('id', $driverIds)->delete();
             }
             if (!empty($phones)) {
                 DB::table('tj_conducteur')->whereIn('phone', $phones)->delete();
             }
+
+            DriverProfileService::cleanAllOrphanDriverRecords();
 
             DB::commit();
             return true;

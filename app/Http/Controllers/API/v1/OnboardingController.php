@@ -371,6 +371,7 @@ class OnboardingController extends Controller
                 DB::table('tj_conducteur')->where('id', $driverId)->update($driverUpdateData);
             } elseif (!in_array($mode, ['edit_category', 'edit_profile'], true)) {
                 $driverUpdateData = [
+                    'onboarding_completed' => 'yes',
                     'is_verified' => $requiresManualApproval ? 0 : 1,
                     'statut' => $requiresManualApproval ? 'no' : 'yes',
                     'statut_vehicule' => $requiresManualApproval ? 'no' : 'yes',
@@ -534,6 +535,10 @@ class OnboardingController extends Controller
                 }
 
                 $this->saveHomeProviderDocuments($request, $driverId, $topLevelCategory);
+            }
+
+            if (Schema::hasColumn('tj_conducteur', 'onboarding_completed')) {
+                DB::table('tj_conducteur')->where('id', $driverId)->update(['onboarding_completed' => 'yes']);
             }
 
             return response()->json([
