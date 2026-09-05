@@ -512,59 +512,96 @@
             }
         }
 
-        /* Mini-Sidebar Mode (Collapsed State - Shrinks smoothly to 70px) */
-        body.mini-sidebar .topbar .navbar-header,
-        #main-wrapper.mini-sidebar .topbar .navbar-header {
-            width: 70px !important;
+        /* Mini-Sidebar Mode (Collapsed State - Desktop Only, Shrinks smoothly to 70px) */
+        @media (min-width: 992px) {
+            body.mini-sidebar .topbar .navbar-header,
+            #main-wrapper.mini-sidebar .topbar .navbar-header {
+                width: 70px !important;
+            }
+
+            body.mini-sidebar .topbar .navbar-header .brand-name,
+            #main-wrapper.mini-sidebar .topbar .navbar-header .brand-name {
+                display: none !important;
+            }
+
+            body.mini-sidebar .left-sidebar,
+            #main-wrapper.mini-sidebar .left-sidebar {
+                width: 70px !important;
+            }
+
+            body.mini-sidebar .page-wrapper,
+            #main-wrapper.mini-sidebar .page-wrapper,
+            body.mini-sidebar #main-wrapper > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay),
+            #main-wrapper.mini-sidebar > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay) {
+                margin-left: 70px !important;
+                margin-top: 64px !important;
+                width: calc(100% - 70px) !important;
+            }
+
+            /* Collapsed Sidebar Item Styles */
+            body.mini-sidebar .sidebar-nav .hide-menu,
+            #main-wrapper.mini-sidebar .sidebar-nav .hide-menu,
+            body.mini-sidebar .sidebar-nav ul li a.has-arrow::after,
+            #main-wrapper.mini-sidebar .sidebar-nav ul li a.has-arrow::after,
+            body.mini-sidebar .sidebar-nav ul li ul,
+            #main-wrapper.mini-sidebar .sidebar-nav ul li ul {
+                display: none !important;
+            }
+
+            body.mini-sidebar .sidebar-nav ul li,
+            #main-wrapper.mini-sidebar .sidebar-nav ul li {
+                margin: 4px 6px !important;
+            }
+
+            body.mini-sidebar .sidebar-nav ul li a,
+            #main-wrapper.mini-sidebar .sidebar-nav ul li a {
+                padding: 10px 0 !important;
+                justify-content: center !important;
+                text-align: center !important;
+                width: 100% !important;
+            }
+
+            body.mini-sidebar .sidebar-nav ul li a i,
+            #main-wrapper.mini-sidebar .sidebar-nav ul li a i {
+                margin-right: 0 !important;
+                font-size: 20px !important;
+                display: inline-block !important;
+            }
         }
 
-        body.mini-sidebar .topbar .navbar-header .brand-name,
-        #main-wrapper.mini-sidebar .topbar .navbar-header .brand-name {
-            display: none !important;
+        /* Submenus accordion collapse states & Arrow styles */
+        .sidebar-nav ul li ul.collapse {
+            display: none;
         }
 
-        body.mini-sidebar .left-sidebar,
-        #main-wrapper.mini-sidebar .left-sidebar {
-            width: 70px !important;
+        .sidebar-nav ul li ul.collapse.in,
+        .sidebar-nav ul li ul.collapse.show,
+        .sidebar-nav ul li.active > ul {
+            display: block !important;
         }
 
-        body.mini-sidebar .page-wrapper,
-        #main-wrapper.mini-sidebar .page-wrapper,
-        body.mini-sidebar #main-wrapper > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay),
-        #main-wrapper.mini-sidebar > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay) {
-            margin-left: 70px !important;
-            margin-top: 64px !important;
-            width: calc(100% - 70px) !important;
+        .sidebar-nav ul li ul.collapsing {
+            position: relative;
+            height: 0;
+            overflow: hidden;
+            transition: height 0.35s ease;
+            display: block !important;
         }
 
-        /* Collapsed Sidebar Item Styles */
-        body.mini-sidebar .sidebar-nav .hide-menu,
-        #main-wrapper.mini-sidebar .sidebar-nav .hide-menu,
-        body.mini-sidebar .sidebar-nav ul li a.has-arrow::after,
-        #main-wrapper.mini-sidebar .sidebar-nav ul li a.has-arrow::after,
-        body.mini-sidebar .sidebar-nav ul li ul,
-        #main-wrapper.mini-sidebar .sidebar-nav ul li ul {
-            display: none !important;
+        .sidebar-nav .has-arrow::after {
+            border-color: #94a3b8 !important;
         }
 
-        body.mini-sidebar .sidebar-nav ul li,
-        #main-wrapper.mini-sidebar .sidebar-nav ul li {
-            margin: 4px 6px !important;
+        .sidebar-nav .active > .has-arrow::after,
+        .sidebar-nav .has-arrow[aria-expanded="true"]::after {
+            border-color: #ffffff !important;
+            transform: rotate(-135deg) translate(0, -50%) !important;
         }
 
-        body.mini-sidebar .sidebar-nav ul li a,
-        #main-wrapper.mini-sidebar .sidebar-nav ul li a {
-            padding: 10px 0 !important;
-            justify-content: center !important;
-            text-align: center !important;
-            width: 100% !important;
-        }
-
-        body.mini-sidebar .sidebar-nav ul li a i,
-        #main-wrapper.mini-sidebar .sidebar-nav ul li a i {
-            margin-right: 0 !important;
-            font-size: 20px !important;
-            display: inline-block !important;
+        /* Brand logo display safeguard against jquery .hide() */
+        .navbar-brand span.brand-text-full,
+        .navbar-brand span.brand-name {
+            display: inline-flex !important;
         }
 
         /* Override legacy grids for responsiveness & clean spacing */
@@ -573,24 +610,139 @@
             flex: 1;
         }
 
-        /* Responsive Overrides */
+        /* Responsive Mobile/Tablet Overrides (< 992px) */
         @media (max-width: 991.98px) {
-            .left-sidebar {
-                transform: translateX(-260px);
-            }
             .topbar .navbar-header {
-                width: 180px !important;
+                width: auto !important;
+                min-width: 150px !important;
+                padding: 0 8px !important;
+                justify-content: flex-start !important;
             }
+
+            .topbar .navbar-collapse {
+                padding: 0 12px !important;
+            }
+
+            .topbar .navbar-collapse ul.navbar-nav {
+                gap: 12px !important;
+            }
+
+            /* Prevent background scrolling when mobile sidebar is open */
+            body.show-sidebar {
+                overflow: hidden !important;
+            }
+
+            /* Smooth Off-canvas Drawer for Mobile/Tablet */
+            .left-sidebar,
+            body.mini-sidebar .left-sidebar,
+            #main-wrapper.mini-sidebar .left-sidebar {
+                position: fixed !important;
+                top: 64px !important;
+                left: 0 !important;
+                width: 280px !important;
+                height: calc(100vh - 64px) !important;
+                height: calc(100dvh - 64px) !important;
+                max-height: calc(100vh - 64px) !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                z-index: 1065 !important;
+                box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                pointer-events: none !important;
+            }
+
+            body.show-sidebar .left-sidebar,
+            body.show-sidebar.mini-sidebar .left-sidebar {
+                transform: translateX(0) !important;
+                pointer-events: auto !important;
+            }
+
+            /* Ensure menu labels are ALWAYS fully visible and readable on mobile */
+            .sidebar-nav .hide-menu,
+            body.mini-sidebar .sidebar-nav .hide-menu,
+            #main-wrapper.mini-sidebar .sidebar-nav .hide-menu {
+                display: inline-block !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            .sidebar-nav ul li,
+            body.mini-sidebar .sidebar-nav ul li {
+                margin: 2px 10px !important;
+            }
+
+            .sidebar-nav ul li a,
+            body.mini-sidebar .sidebar-nav ul li a {
+                min-height: 42px !important;
+                padding: 10px 14px !important;
+                justify-content: flex-start !important;
+                text-align: left !important;
+                width: 100% !important;
+                font-size: 13.5px !important;
+            }
+
+            .sidebar-nav ul li a i,
+            body.mini-sidebar .sidebar-nav ul li a i {
+                margin-right: 12px !important;
+                font-size: 18px !important;
+                display: inline-block !important;
+            }
+
+            .sidebar-nav ul li a.has-arrow::after,
+            body.mini-sidebar .sidebar-nav ul li a.has-arrow::after {
+                display: block !important;
+            }
+
+            /* Submenus on mobile */
+            .sidebar-nav ul li ul,
+            body.mini-sidebar .sidebar-nav ul li ul {
+                padding: 4px 0 !important;
+                background: rgba(15, 23, 42, 0.6) !important;
+            }
+
+            .sidebar-nav ul li ul li a,
+            body.mini-sidebar .sidebar-nav ul li ul li a {
+                min-height: 38px !important;
+                padding: 9px 14px 9px 26px !important;
+                font-size: 13px !important;
+            }
+
+            /* Page wrapper takes full width on mobile */
             #main-wrapper > .page-wrapper,
-            .page-wrapper {
+            .page-wrapper,
+            body.mini-sidebar .page-wrapper,
+            #main-wrapper.mini-sidebar .page-wrapper,
+            body.mini-sidebar #main-wrapper > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay),
+            #main-wrapper.mini-sidebar > div:not(.topbar):not(.left-sidebar):not(.left-sidebar-overlay) {
                 margin-left: 0 !important;
+                margin-top: 64px !important;
                 width: 100% !important;
             }
-            body.show-sidebar .left-sidebar {
-                transform: translateX(0);
+
+            /* Mobile Backdrop Overlay */
+            .left-sidebar-overlay {
+                display: none;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                background: rgba(15, 23, 42, 0.65) !important;
+                backdrop-filter: blur(2px) !important;
+                -webkit-backdrop-filter: blur(2px) !important;
+                z-index: 1060 !important;
+                cursor: pointer;
             }
+
             body.show-sidebar .left-sidebar-overlay {
                 display: block !important;
+            }
+
+            .container-fluid {
+                padding: 14px 12px !important;
             }
         }
 
@@ -1059,21 +1211,68 @@
         // Clear legacy cookie color so custom indigo theme takes effect
         setCookie('admin_panel_color', '#4f46e5', 365);
     </script>
-    </script>
     
     <script>
         $(document).ready(function() {
-            // Responsive Sidebar toggler
-            $(document).on("click", ".sidebartoggler, .nav-toggler", function(e) {
+            // Unbind default handlers from custom.min.js to prevent double-toggle conflicts
+            $(".sidebartoggler, .nav-toggler").off("click");
+
+            function toggleMobileSidebar() {
+                var isOpen = $("body").hasClass("show-sidebar");
+                if (isOpen) {
+                    $("body").removeClass("show-sidebar");
+                    $(".nav-toggler i, .sidebartoggler i").removeClass("mdi-close").addClass("mdi-menu");
+                } else {
+                    $("body").addClass("show-sidebar");
+                    $(".nav-toggler i, .sidebartoggler i").removeClass("mdi-menu").addClass("mdi-close");
+                }
+            }
+
+            // Mobile Hamburger Toggler & Mobile Drawer Close Button
+            $(document).on("click", ".nav-toggler, .mobile-sidebar-close", function(e) {
                 e.preventDefault();
-                $("body").toggleClass("show-sidebar");
-                $("#main-wrapper").toggleClass("mini-sidebar");
+                e.stopPropagation();
+                toggleMobileSidebar();
             });
 
-            // Close sidebar when overlay is clicked on mobile
-            $(document).on("click", ".left-sidebar-overlay", function() {
-                $("body").removeClass("show-sidebar");
+            // Desktop / Responsive Toggler
+            $(document).on("click", ".sidebartoggler", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if ($(window).width() < 992) {
+                    toggleMobileSidebar();
+                } else {
+                    $("body").toggleClass("mini-sidebar");
+                    $("#main-wrapper").toggleClass("mini-sidebar");
+                }
             });
+
+            // Close mobile sidebar when clicking backdrop overlay
+            $(document).on("click", ".left-sidebar-overlay", function(e) {
+                e.preventDefault();
+                $("body").removeClass("show-sidebar");
+                $(".nav-toggler i, .sidebartoggler i").removeClass("mdi-close").addClass("mdi-menu");
+            });
+
+            // Close mobile sidebar when clicking any navigation link (except accordion expanders)
+            $(document).on("click", ".sidebar-nav a:not(.has-arrow)", function() {
+                if ($(window).width() < 992) {
+                    $("body").removeClass("show-sidebar");
+                    $(".nav-toggler i, .sidebartoggler i").removeClass("mdi-close").addClass("mdi-menu");
+                }
+            });
+
+            // Ensure window resize keeps layout clean and avoids stuck drawer state
+            $(window).on("resize", function() {
+                if ($(window).width() >= 992) {
+                    $("body").removeClass("show-sidebar");
+                    $(".nav-toggler i, .sidebartoggler i").removeClass("mdi-close").addClass("mdi-menu");
+                }
+                $(".navbar-brand span").show();
+            });
+
+            // Safeguard brand logo visibility
+            $(".navbar-brand span").show();
 
             // ── Universal Global Delete Confirmation Interceptor ──
             $(document).on("click", ".do_not_delete, a[href*='/delete'], a[href*='/destroy'], .btn-delete, button.delete-btn, .delete-all a, button[data-action='delete']", function(e) {

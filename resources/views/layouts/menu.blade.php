@@ -2,6 +2,16 @@
     $authUser = Auth::user();
 @endphp
 <nav class="sidebar-nav">
+    <!-- Mobile Sidebar Drawer Header -->
+    <div class="mobile-sidebar-header d-flex d-lg-none align-items-center justify-content-between px-3 py-2 border-bottom" style="border-color: rgba(255,255,255,0.08) !important; margin-bottom: 8px;">
+        <div class="d-flex align-items-center">
+            <i class="mdi mdi-shield-account text-primary mr-2" style="font-size: 20px; color: #818cf8 !important;"></i>
+            <span style="font-size: 14px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">Navigation Menu</span>
+        </div>
+        <a href="javascript:void(0)" class="mobile-sidebar-close text-muted d-flex align-items-center justify-content-center" title="Close Menu" style="font-size: 20px; color: #94a3b8 !important; width: 32px; height: 32px; border-radius: 6px; background: rgba(255,255,255,0.05); text-decoration: none;">
+            <i class="mdi mdi-close"></i>
+        </a>
+    </div>
     <ul id="sidebarnav">
         <!-- 1. Dashboard -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('dashboard') || $authUser->isSubAdmin()))

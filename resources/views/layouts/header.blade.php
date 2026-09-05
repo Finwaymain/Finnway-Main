@@ -1,5 +1,11 @@
-<div class="navbar-header d-flex align-items-center justify-content-center">
-    <a class="navbar-brand d-flex align-items-center justify-content-center" href="<?php echo URL::to('/'); ?>" style="padding: 0; text-decoration: none; height: 64px; width: 100%;">
+<div class="navbar-header d-flex align-items-center">
+    <!-- Mobile Hamburger Toggle Button (Always visible on mobile/tablet < 992px) -->
+    <a class="nav-toggler d-flex d-lg-none align-items-center justify-content-center text-white" href="javascript:void(0)" title="Toggle Navigation" style="width: 44px; height: 44px; font-size: 24px; color: #ffffff !important; text-decoration: none; cursor: pointer; border-radius: 8px; margin-left: 6px; flex-shrink: 0;">
+        <i class="mdi mdi-menu"></i>
+    </a>
+
+    <!-- Brand Logo -->
+    <a class="navbar-brand d-flex align-items-center justify-content-center flex-grow-1" href="<?php echo URL::to('/'); ?>" style="padding: 0; text-decoration: none; height: 64px;">
         <span class="brand-text-full d-flex align-items-center justify-content-center" style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 2px; text-transform: uppercase; font-family: 'Plus Jakarta Sans', sans-serif;">
             <i class="mdi mdi-cube-outline text-primary mr-1" style="font-size: 24px; color: #818cf8 !important;"></i>
             <span class="brand-name">FIINWAY</span>
@@ -10,7 +16,7 @@
     
     <!-- Left Section: Sidebar Toggler & Global Search -->
     <ul class="navbar-nav mr-auto mt-md-0 d-flex align-items-center">
-        <li class="nav-item"> 
+        <li class="nav-item d-none d-lg-block"> 
             <a class="nav-link sidebartoggler waves-effect waves-dark" href="javascript:void(0)" style="font-size: 22px; color: #334155 !important; padding: 0 10px;">
                 <i class="mdi mdi-menu"></i>
             </a> 
@@ -24,8 +30,8 @@
     </ul>
 
     <!-- Right Section: Notification, Chat & Admin Profile (Language Button Removed & Spacing Increased) -->
-    <div class="d-flex align-items-center">
-        <ul class="navbar-nav my-lg-0 d-flex align-items-center" style="gap: 24px; margin: 0;">
+    <div class="d-flex align-items-center ml-auto">
+        <ul class="navbar-nav my-lg-0 d-flex align-items-center" style="gap: 20px; margin: 0;">
             @php
                 $pendingAdminRequestsCount = \App\Services\AdminNotificationService::getPendingRequestsCount();
                 $complaintsCount = \App\Services\AdminNotificationService::getCounts()['complaints'] ?? 0;
