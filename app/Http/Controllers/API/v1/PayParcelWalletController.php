@@ -154,127 +154,48 @@ class PayParcelWalletController extends Controller
         $driverBaseAmount = floatval($totalAmount) + floatval($tip);
         $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
 
-        // Fetch parcel order to verify payment status and prevent double-deduction
-        $sql_parcel = ParcelOrder::where('id', $id_requete)->first();
-        if ($sql_parcel) {
-            if (empty($id_user)) {
-                $id_user = $sql_parcel->id_conducteur;
+        $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
+        $userWallet = 0;
+        if (!empty($row_amount)) {
+            if ($row_amount->amount != '' && $row_amount->amount != null) {
+                $userWallet = $row_amount->amount;
             }
-            if (empty($id_user_app)) {
-                $id_user_app = $sql_parcel->id_user_app;
-            }
-            // If parcel was already paid (e.g. Cash collected by driver) or is a Cash order
-            if (strtolower(trim((string) $sql_parcel->payment_status)) == 'yes' || strval($sql_parcel->id_payment_method) == '1') {
-                $row = $sql_parcel->toArray();
-                $row['id'] = (string) $row['id'];
-                $row['tax'] = is_array($row['tax']) ? $row['tax'] : json_decode($row['tax'], true);
-                $response['success'] = 'success';
-                $response['error'] = null;
-                $response['message'] = 'Parcel already paid';
-                $response['data'] = $row;
-                return response()->json($response);
-            }
+            $userWallet = $userWallet - $totalUserAmount;
+            DB::update('update tj_user_app set amount = ? where id = ?', [$userWallet, $id_user_app]);
         }
 
-        // If payment method is Cash, user wallet MUST NOT be deducted
-        if (strtolower($paymethod) == 'cash') {
-            $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-            $driverWallet = 0;
-            if (!empty($row_driver) && $row_driver->amount !== null && $row_driver->amount !== '') {
-                $driverWallet = floatval($row_driver->amount);
-            }
-            $totalPlatformDeduction = floatval($commission_amount) + floatval($totalTaxAmount);
-            $newDriverWallet = round($driverWallet - $totalPlatformDeduction, 2);
-            DB::table('tj_conducteur')->where('id', $id_user)->update(['amount' => strval($newDriverWallet)]);
+        DB::insert("insert into tj_transaction(amount,deduction_type,ride_id,payment_method, payment_status,id_user_app, creer,modifier)
+        values($totalUserAmount,0,'" . $id_requete . "','" . $paymethod . "','" . $payment_status . "','" . $id_user_app . "','" . $date_heure . "','" . $date_heure . "')");
 
-            $date = date('Y-m-d H:i:s');
-            if (!empty($commission_amount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $commission_amount,
-                    'payment_method' => 'Commission',
-                    'id_parcel' => $id_requete,
-                    'creer' => $date
-                ]);
+        $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
+        $driverWallet = 0;
+        if (!empty($row_driver)) {
+            if ($row_driver->amount != '' && $row_driver->amount != null) {
+                $driverWallet = $row_driver->amount;
             }
-            if (!empty($totalTaxAmount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $totalTaxAmount,
-                    'payment_method' => 'Tax/GST',
-                    'id_parcel' => $id_requete,
-                    'creer' => $date
-                ]);
-            }
-            DB::table('tj_transaction')->insert([
-                'amount' => $totalUserAmount,
-                'deduction_type' => 0,
-                'ride_id' => $id_requete,
-                'payment_method' => 'Cash',
-                'payment_status' => 'success',
-                'id_user_app' => $id_user_app,
-                'creer' => $date_heure,
-                'modifier' => $date_heure
+            $driverWallet = $driverWallet + $totalDriverAmount;
+            DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
+        }
+
+        $date = date('Y-m-d H:i:s');
+        if (!empty($commission_amount)) {
+            DB::table('tj_conducteur_transaction')->insert([
+                'id_conducteur' => $id_user,
+                'amount' => "-" . $commission_amount,
+                'payment_method' => 'Commission',
+                'id_parcel' => $id_requete,
+                'creer' => $date
             ]);
-        } else {
-            // Wallet payment: user wallet deduction with negative balance guard
-            $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
-            $userWallet = 0;
-            if (!empty($row_amount)) {
-                if ($row_amount->amount != '' && $row_amount->amount != null) {
-                    $userWallet = floatval($row_amount->amount);
-                }
-            }
+        }
 
-            if ($userWallet < $totalUserAmount) {
-                $response['success'] = 'Failed';
-                $response['error'] = 'Insufficient wallet balance';
-                $response['message'] = 'Insufficient wallet balance';
-                return response()->json($response);
-            }
-
-            $userWallet = max(0, round($userWallet - $totalUserAmount, 2));
-            DB::table('tj_user_app')->where('id', $id_user_app)->update(['amount' => $userWallet, 'modifier' => $date_heure]);
-
-            DB::table('tj_transaction')->insert([
-                'amount' => '-' . $totalUserAmount,
-                'deduction_type' => 1,
-                'ride_id' => $id_requete,
-                'payment_method' => 'Wallet',
-                'payment_status' => $payment_status,
-                'id_user_app' => $id_user_app,
-                'creer' => $date_heure,
-                'modifier' => $date_heure
+        if (!empty($driverBaseAmount)) {
+            DB::table('tj_conducteur_transaction')->insert([
+                'amount' => $driverBaseAmount,
+                'payment_method' => $paymethod,
+                'id_conducteur' => $id_user,
+                'id_parcel' => $id_requete,
+                'creer' => $date
             ]);
-
-            $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-            $driverWallet = 0;
-            if (!empty($row_driver) && $row_driver->amount !== null && $row_driver->amount !== '') {
-                $driverWallet = floatval($row_driver->amount);
-            }
-            $driverWallet = round($driverWallet + $totalDriverAmount, 2);
-            DB::table('tj_conducteur')->where('id', $id_user)->update(['amount' => strval($driverWallet)]);
-
-            $date = date('Y-m-d H:i:s');
-            if (!empty($commission_amount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $commission_amount,
-                    'payment_method' => 'Commission',
-                    'id_parcel' => $id_requete,
-                    'creer' => $date
-                ]);
-            }
-
-            if (!empty($totalDriverAmount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'amount' => $totalDriverAmount,
-                    'payment_method' => $paymethod,
-                    'id_conducteur' => $id_user,
-                    'id_parcel' => $id_requete,
-                    'creer' => $date
-                ]);
-            }
         }
 
 

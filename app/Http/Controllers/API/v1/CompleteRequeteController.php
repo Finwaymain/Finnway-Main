@@ -91,13 +91,19 @@ class CompleteRequeteController extends Controller
 
                         $amount = 0;
 
-                        $sqlRefUser = DB::table('tj_user_app')
+                        $sql = DB::table('tj_user_app')
+
                             ->select('amount')
+
                             ->where('id', '=', $referBy)
+
                             ->first();
 
-                        if ($sqlRefUser && $sqlRefUser->amount != null) {
-                            $amount = $sqlRefUser->amount;
+                        //echo $sql->amount;
+
+                        if ($sql->amount != null) {
+
+                            $amount = $sql->amount;
                         }
 
 

@@ -1799,16 +1799,33 @@ class UserProfileUpdateController extends Controller
                 } else {
                     $ride = DB::table('tj_requete')->where('id', $rideIdStr)->first();
                     if ($ride) {
-                        $fullAmount = (float) ($ride->montant ?? $ride->amount ?? $ride->total_amount ?? 0);
+                        $baseRideAmt = (float) ($ride->montant ?? 0);
+                        $discountAmt = (float) ($ride->discount ?? 0);
+                        $tipAmt = (float) ($ride->tip_amount ?? 0);
+                        $taxAmt = 0.0;
+                        if (!empty($ride->tax_amount)) {
+                            $taxAmt = (float) $ride->tax_amount;
+                        } elseif (!empty($ride->tax)) {
+                            $taxArr = json_decode($ride->tax, true);
+                            if (is_array($taxArr)) {
+                                foreach ($taxArr as $ti) {
+                                    $taxAmt += (float) ($ti['amount'] ?? 0);
+                                }
+                            }
+                        }
+                        $fullAmount = round(max(0, $baseRideAmt - $discountAmt) + $taxAmt + $tipAmt, 2);
+                        if ($fullAmount <= 0) {
+                            $fullAmount = $baseRideAmt;
+                        }
                         $commAmt = (float) ($ride->admin_commission ?? 0);
                         if ($commAmt <= 0 && $fullAmount > 0) {
-                            $commAmt = round($fullAmount * 0.10, 2);
+                            $commAmt = round(max(0, $baseRideAmt - $discountAmt) * 0.10, 2);
                         }
                     }
                 }
 
                 if ($isComm) {
-                    // It is a commission deduction: preserve the 10% commission amount, never overwrite with full booking amount!
+                    // It is a commission deduction: preserve the commission amount, never overwrite with full booking amount!
                     if ($rawAmount == 0 && $commAmt > 0) {
                         $row->amount = (string) $commAmt;
                     } else {
@@ -1817,7 +1834,7 @@ class UserProfileUpdateController extends Controller
                     $row->is_raw_negative = true;
                     $row->payment_method = 'Commission';
                     if (empty($row->description)) $row->description = 'Admin Commission';
-                    if (empty($row->note)) $row->note = 'Admin Commission for Booking #' . $rideIdStr;
+                    if (empty($row->note)) $row->note = 'Admin Commission for Ride #' . $rideIdStr;
                 } else {
                     // It is an earning credit: ensure full service/ride earning amount is present
                     if ($rawAmount <= 0 && $fullAmount > 0) {
@@ -1846,13 +1863,28 @@ class UserProfileUpdateController extends Controller
             foreach ($completedRides as $cr) {
                 $rideIdStr = (string) $cr->id;
                 if (!in_array($rideIdStr, $existingRideEarningIds, true)) {
+                    $baseRideAmt = (float) ($cr->montant ?? 0);
+                    $discountAmt = (float) ($cr->discount ?? 0);
+                    $tipAmt = (float) ($cr->tip_amount ?? 0);
+                    $taxAmt = (float) ($cr->tax_amount ?? 0);
+                    if ($taxAmt <= 0 && !empty($cr->tax)) {
+                        $taxArr = json_decode($cr->tax, true);
+                        if (is_array($taxArr)) {
+                            foreach ($taxArr as $ti) {
+                                $taxAmt += (float) ($ti['amount'] ?? 0);
+                            }
+                        }
+                    }
+                    $rideTotal = round(max(0, $baseRideAmt - $discountAmt) + $taxAmt + $tipAmt, 2);
+                    if ($rideTotal <= 0) $rideTotal = $baseRideAmt;
+
                     $synthetic = (object) [
                         'id' => 'ride_' . $cr->id,
                         'id_conducteur' => $user->id,
                         'id_ride' => $cr->id,
                         'id_parcel' => null,
                         'planId' => null,
-                        'amount' => (string) ($cr->montant ?? '0'),
+                        'amount' => (string) $rideTotal,
                         'payment_method' => !empty($cr->id_payment_method) ? 'App' : 'Cash',
                         'creer' => $cr->creer,
                         'date' => $cr->creer,

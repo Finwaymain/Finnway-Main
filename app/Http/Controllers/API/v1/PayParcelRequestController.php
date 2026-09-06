@@ -166,25 +166,6 @@ class PayParcelRequestController extends Controller
             $taxHtml = "0";
         }
 
-        $sql_parcel = ParcelOrder::where('id', $id_requete)->first();
-        if ($sql_parcel) {
-            if (empty($id_user)) {
-                $id_user = $sql_parcel->id_conducteur;
-            }
-            if (empty($id_user_app)) {
-                $id_user_app = $sql_parcel->id_user_app;
-            }
-            if (strtolower(trim((string) $sql_parcel->payment_status)) == 'yes') {
-                $row = $sql_parcel->toArray();
-                $row['id'] = (string) $row['id'];
-                $response['success'] = 'success';
-                $response['error'] = null;
-                $response['message'] = 'Parcel already paid';
-                $response['data'] = $row;
-                return response()->json($response);
-            }
-        }
-
         $totalUserAmount = floatval($totalamount) + floatval($totalTaxAmount) + floatval($tip);
         $driverBaseAmount = floatval($totalamount) + floatval($tip);
         $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
@@ -197,10 +178,10 @@ class PayParcelRequestController extends Controller
         $driverWallet = 0;
         if (!empty($sql_driver)) {
             if ($sql_driver->amount != '' && $sql_driver->amount != null) {
-                $driverWallet = floatval($sql_driver->amount);
+                $driverWallet = $sql_driver->amount;
             }
-            $driverWallet = round($driverWallet + $totalDriverAmount, 2);
-            DB::update('update tj_conducteur set amount = ? where id = ?', [strval($driverWallet), $id_user]);
+            $driverWallet = $driverWallet + $totalDriverAmount;
+            DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
         }
 
         $date = date('Y-m-d H:i:s');
@@ -216,7 +197,7 @@ class PayParcelRequestController extends Controller
 
         if (!empty($driverBaseAmount)) {
             DB::table('tj_conducteur_transaction')->insert([
-                'amount' => $totalDriverAmount,
+                'amount' => $driverBaseAmount,
                 'payment_method' => $paymethod,
                 'id_conducteur' => $id_user,
                 'id_parcel' => $id_requete,

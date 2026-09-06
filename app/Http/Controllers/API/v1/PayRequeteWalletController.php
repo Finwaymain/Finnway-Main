@@ -68,17 +68,20 @@ class PayRequeteWalletController extends Controller
 
 
 
-        $totalAmount = $amount_new;
-
-        if (!empty($discount)) {
-
-
-
-            $totalAmount = $amount_new - $discount;
+        // Resolve missing IDs and amount from tj_requete
+        $rideRecord = null;
+        if (!empty($id_requete)) {
+            $rideRecord = DB::table('tj_requete')->where('id', $id_requete)->first();
+            if ($rideRecord) {
+                if (empty($id_user)) $id_user = $rideRecord->id_conducteur;
+                if (empty($id_user_app)) $id_user_app = $rideRecord->id_user_app;
+                if ($amount_new <= 0) $amount_new = floatval($rideRecord->montant);
+            }
         }
 
+        $baseFare = max(0, floatval($amount_new) - floatval($discount));
 
-
+        // 1. Resolve Admin Commission directly from tj_commission active setting on base fare
         $commission_amount = 0;
         $admin_commisions = Commission::where('statut', 'yes')->first();
         if (!$admin_commisions) {
@@ -89,212 +92,148 @@ class PayRequeteWalletController extends Controller
             $commType = strtolower(trim((string) ($admin_commisions->type ?? 'percentage')));
             $commVal = floatval($admin_commisions->value ?? 0);
             if ($commType == 'percentage' || $commType == 'percent') {
-                $commission_amount = round(($commVal * floatval($totalAmount)) / 100, 2);
+                $commission_amount = round(($commVal * floatval($baseFare)) / 100, 2);
             } else {
                 $commission_amount = round($commVal, 2);
             }
         }
 
-        $totalTaxAmount = 0;
-
+        // 2. Resolve GST / Active Taxes from tj_tax for 'wallet' (Home Service reference standard)
+        $taxDetails = [];
+        $totalTaxAmount = 0.0;
         $taxHtml = '';
 
-        if (!empty($tax)) {
-
-            for ($i = 0; $i < sizeof($tax); $i++) {
-
-                $data = $tax[$i];
-
-                if ($data['type'] == "Percentage") {
-
-                    $taxValue = (floatval($data['value']) * $totalAmount) / 100;
-
-                    $taxlabel = $data['libelle'];
-
-                    $value = $data['value'] . "%";
-                } else {
-
-                    $taxValue = floatval($data['value']);
-
-                    $taxlabel = $data['libelle'];
-
-                    if ($currencyData->symbol_at_right == "true") {
-
-                        $value = number_format($data['value'], $currencyData->decimal_digit) . "" . $currency;
-                    } else {
-
-                        $value = $currency . "" . number_format($data['value'], $currencyData->decimal_digit);
-                    }
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+            $dbTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+            foreach ($dbTaxes as $t) {
+                $methods = !empty($t->applicable_on) ? explode(',', strtolower($t->applicable_on)) : ['cash', 'upi', 'wallet', 'online'];
+                $applies = in_array('wallet', $methods, true) || in_array('all', $methods, true);
+                if ($applies) {
+                    $val = floatval($t->value ?? 0);
+                    $tAmt = (strtolower((string) $t->type) === 'percentage') ? round(($baseFare * $val) / 100, 2) : round($val, 2);
+                    $totalTaxAmount += $tAmt;
+                    $taxDetails[] = [
+                        'libelle' => $t->libelle,
+                        'value'   => (string) $t->value,
+                        'type'    => $t->type,
+                        'amount'  => $tAmt,
+                    ];
+                    $taxHtml .= "<p><b>" . $t->libelle . " (" . $t->value . ($t->type == 'Percentage' ? '%' : '') . "): </b>" . $currency . number_format($tAmt, 2) . "</p>";
                 }
-
-                $totalTaxAmount += floatval(number_format($taxValue, $currencyData->decimal_digit));
-
-                if ($currencyData->symbol_at_right == "true") {
-
-                    $taxValueAmount = number_format($taxValue, $currencyData->decimal_digit) . "" . $currency;
-                } else {
-
-                    $taxValueAmount = $currency . "" . number_format($taxValue, $currencyData->decimal_digit);
-                }
-
-                $taxHtml = $taxHtml . "<p><b>" . $taxlabel . "(" . $value . "): </b>" . $taxValueAmount . "</p>";
             }
         }
 
-        if ($taxHtml == '') {
+        if (empty($taxHtml)) {
             $taxHtml = "0";
         }
+        $tax_json = json_encode($taxDetails);
 
-        $totalUserAmount = floatval($totalAmount) + floatval($totalTaxAmount) + floatval($tip);
-        $driverBaseAmount = floatval($totalAmount) + floatval($tip);
-        $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
+        $totalUserAmount = round($baseFare + $totalTaxAmount + $tip, 2);
+        $driverBaseAmount = round($baseFare + $tip, 2);
+        $totalDriverAmount = max(0, round($driverBaseAmount - $commission_amount, 2));
 
-        // Fetch ride to verify payment status and prevent double-deduction
-        $sql_ride = Requests::where('id', $id_requete)->first();
-        if ($sql_ride) {
-            if (empty($id_user)) {
-                $id_user = $sql_ride->id_conducteur;
+        // 3. User Wallet Deduction
+        $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
+        $userWallet = 0;
+        if (!empty($row_amount)) {
+            if ($row_amount->amount != '' && $row_amount->amount != null) {
+                $userWallet = floatval($row_amount->amount);
             }
-            if (empty($id_user_app)) {
-                $id_user_app = $sql_ride->id_user_app;
-            }
-            // If ride was already paid (e.g. Cash collected by driver) or is a Cash ride
-            if (strtolower(trim((string) $sql_ride->statut_paiement)) == 'yes' || strval($sql_ride->id_payment_method) == '1') {
-                $row = $sql_ride->toArray();
-                $row['id'] = (string) $row['id'];
-                $row['tax'] = is_array($row['tax']) ? $row['tax'] : json_decode($row['tax'], true);
-                $response['success'] = 'success';
-                $response['error'] = null;
-                $response['message'] = 'Ride already paid';
-                $response['data'] = $row;
-                return response()->json($response);
-            }
-        }
-
-        // If payment method is Cash, user wallet MUST NOT be deducted
-        if (strtolower($paymethod) == 'cash') {
-            $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-            $driverWallet = 0;
-            if (!empty($row_driver) && $row_driver->amount !== null && $row_driver->amount !== '') {
-                $driverWallet = floatval($row_driver->amount);
-            }
-            $totalPlatformDeduction = floatval($commission_amount) + floatval($totalTaxAmount);
-            $newDriverWallet = round($driverWallet - $totalPlatformDeduction, 2);
-            DB::table('tj_conducteur')->where('id', $id_user)->update(['amount' => strval($newDriverWallet)]);
-
-            $date = date('Y-m-d H:i:s');
-            if (!empty($commission_amount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $commission_amount,
-                    'payment_method' => 'Commission',
-                    'id_ride' => $id_requete,
-                    'creer' => $date
-                ]);
-            }
-            if (!empty($totalTaxAmount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $totalTaxAmount,
-                    'payment_method' => 'Tax/GST',
-                    'id_ride' => $id_requete,
-                    'creer' => $date
-                ]);
-            }
-            DB::table('tj_transaction')->insert([
-                'amount' => $totalUserAmount,
-                'deduction_type' => 0,
-                'ride_id' => $id_requete,
-                'payment_method' => 'Cash',
-                'payment_status' => 'success',
-                'id_user_app' => $id_user_app,
-                'creer' => $date_heure,
-                'modifier' => $date_heure
-            ]);
-        } else {
-            // Wallet payment: user wallet deduction with negative balance guard
-            $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
-            $userWallet = 0;
-            if (!empty($row_amount)) {
-                if ($row_amount->amount != '' && $row_amount->amount != null) {
-                    $userWallet = floatval($row_amount->amount);
-                }
-            }
-
-            if ($userWallet < $totalUserAmount) {
-                $response['success'] = 'Failed';
-                $response['error'] = 'Insufficient wallet balance';
-                $response['message'] = 'Insufficient wallet balance';
-                return response()->json($response);
-            }
-
             $userWallet = max(0, round($userWallet - $totalUserAmount, 2));
             DB::table('tj_user_app')->where('id', $id_user_app)->update(['amount' => $userWallet, 'modifier' => $date_heure]);
+        }
 
-            DB::table('tj_transaction')->insert([
-                'amount' => '-' . $totalUserAmount,
-                'deduction_type' => 1,
-                'ride_id' => $id_requete,
-                'payment_method' => 'Wallet',
-                'payment_status' => $payment_status,
-                'id_user_app' => $id_user_app,
-                'creer' => $date_heure,
-                'modifier' => $date_heure
-            ]);
+        $userTxData = [
+            'amount' => '-' . $totalUserAmount,
+            'payment_method' => 'Wallet',
+            'payment_status' => $payment_status ?: 'success',
+            'ride_id' => (string) $id_requete,
+            'id_user_app' => $id_user_app,
+            'creer' => $date_heure,
+            'modifier' => $date_heure,
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('tj_transaction', 'deduction_type')) {
+            $userTxData['deduction_type'] = 'Cab Ride';
+        }
+        DB::table('tj_transaction')->insert($userTxData);
 
-            $row_driver = DB::table('tj_conducteur')->select('amount')->where('id', $id_user)->first();
-            $driverWallet = 0;
-            if (!empty($row_driver) && $row_driver->amount !== null && $row_driver->amount !== '') {
+        // 4. Driver Wallet Credit (Net earnings: Base - Commission + Tip; Taxes kept by platform)
+        $row_driver = DB::table('tj_conducteur')->select('amount', 'earn_amount')->where('id', $id_user)->first();
+        $driverWallet = 0;
+        $earnAmount = 0;
+        if (!empty($row_driver)) {
+            if ($row_driver->amount != '' && $row_driver->amount != null) {
                 $driverWallet = floatval($row_driver->amount);
             }
+            if (!empty($row_driver->earn_amount)) {
+                $earnAmount = floatval($row_driver->earn_amount);
+            }
             $driverWallet = round($driverWallet + $totalDriverAmount, 2);
-            DB::table('tj_conducteur')->where('id', $id_user)->update(['amount' => strval($driverWallet)]);
+            $driverUpdateData = ['amount' => $driverWallet];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'earn_amount')) {
+                $driverUpdateData['earn_amount'] = strval(number_format($earnAmount + $baseFare, 2, '.', ''));
+            }
+            DB::table('tj_conducteur')->where('id', $id_user)->update($driverUpdateData);
         }
 
         $date = date('Y-m-d H:i:s');
-        if (strtolower($paymethod) != 'cash') {
-            if (!empty($commission_amount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'id_conducteur' => $id_user,
-                    'amount' => "-" . $commission_amount,
-                    'payment_method' => 'Commission',
-                    'id_ride' => $id_requete,
-                    'creer' => $date
-                ]);
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction')) {
+            // Gross Fare Earning
+            $driverTxData = [
+                'amount'         => (string) $driverBaseAmount,
+                'payment_method' => 'Wallet',
+                'id_conducteur'  => $id_user,
+                'id_ride'        => (string) $id_requete,
+                'creer'          => $date,
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'deduction_type')) {
+                $driverTxData['deduction_type'] = 'Cab Ride';
             }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'note')) {
+                $driverTxData['note'] = 'Received payment via Wallet for Ride #' . $id_requete;
+            }
+            DB::table('tj_conducteur_transaction')->insert($driverTxData);
 
-            if (!empty($driverBaseAmount)) {
-                DB::table('tj_conducteur_transaction')->insert([
-                    'amount' => $totalDriverAmount,
-                    'payment_method' => $paymethod,
-                    'id_conducteur' => $id_user,
-                    'id_ride' => $id_requete,
-                    'creer' => $date
-                ]);
+            // Commission Deduction
+            if (!empty($commission_amount)) {
+                $commTxData = [
+                    'id_conducteur'  => $id_user,
+                    'amount'         => "-" . $commission_amount,
+                    'payment_method' => 'Commission',
+                    'id_ride'        => (string) $id_requete,
+                    'creer'          => $date,
+                ];
+                if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'deduction_type')) {
+                    $commTxData['deduction_type'] = 'Commission';
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'note')) {
+                    $commTxData['note'] = 'Admin Commission for Ride #' . $id_requete;
+                }
+                DB::table('tj_conducteur_transaction')->insert($commTxData);
             }
         }
 
-
-
-
-
-        $row_payment_method = DB::table('tj_payment_method')->select('id')->where('libelle', $paymethod)->first();
-
+        $row_payment_method = DB::table('tj_payment_method')->select('id')->whereRaw('LOWER(libelle) = ?', [strtolower($paymethod ?: 'wallet')])->first();
         if ($row_payment_method) {
-
             $id_payment = $row_payment_method->id;
         } else {
-
-            $response['success'] = 'Failed';
-
-            $response['error'] = 'Payment method not found';
-
-            return response()->json($response);
+            $default_pm = DB::table('tj_payment_method')->select('id')->first();
+            $id_payment = $default_pm ? $default_pm->id : 1;
         }
 
-
-
-        $updatedata = DB::update('update tj_requete set statut_paiement = ?,id_payment_method = ?,tip_amount = ?,tax = ?,discount = ?,transaction_id = ?,admin_commission = ? where id = ?', ['yes', $id_payment, $tip, $tax_json, $discount, $transaction_id, $commission_amount, $id_requete]);
+        $updateFields = [
+            'statut_paiement' => 'yes',
+            'id_payment_method' => $id_payment,
+            'tip_amount' => $tip,
+            'tax' => $tax_json,
+            'discount' => $discount,
+            'transaction_id' => $transaction_id,
+            'admin_commission' => $commission_amount,
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('tj_requete', 'tax_amount')) {
+            $updateFields['tax_amount'] = $totalTaxAmount;
+        }
+        $updatedata = DB::table('tj_requete')->where('id', $id_requete)->update($updateFields);
 
 
 

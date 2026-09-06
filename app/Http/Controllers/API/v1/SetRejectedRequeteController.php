@@ -57,13 +57,13 @@ class SetRejectedRequeteController extends Controller
 
         $id_user = $request->get('id_user');
 
-        $driver_name = $request->get('name');
+        $driver_name = $request->get('name') ?: $request->get('driver_name');
 
         $from_id = $request->get('from_id');
 
-        $reason = $request->get('reason');
+        $reason = $request->get('reason') ?: $request->get('other_info') ?: 'Cancelled by driver';
 
-        $user_cat = $request->get('user_cat');
+        $user_cat = $request->get('user_cat') ?: 'driver';
 
         $settings = Settings::first();
         $subscriptionModel = $settings ? $settings->subscription_model : null;
@@ -86,6 +86,15 @@ class SetRejectedRequeteController extends Controller
         $drivertoReject = $sql->id_conducteur;
         $rideStatus = $sql->statut;
 
+        // Driver cannot cancel ride after picking up the customer (on ride)
+        if ($user_cat == 'driver' && ($rideStatus == 'on ride' || $rideStatus == 'on_ride')) {
+            return response()->json([
+                'success' => 'failed',
+                'message' => 'You cannot cancel the ride after picking up the customer.',
+                'data' => [],
+            ], 400);
+        }
+
         if (empty($from_id)) {
             $from_id = $drivertoReject ?: $request->header('id_user');
         }
@@ -101,6 +110,10 @@ class SetRejectedRequeteController extends Controller
         if (empty($id_user)) {
             $id_user = $sql->id_user_app;
         }
+
+        // Default row representation to avoid undefined variable
+        $row = $sql->toArray();
+        $row['id'] = (string)$row['id'];
 
         if (!empty($id_requete)) {
             $rejectDriverIds = $sql->rejected_driver_id;
@@ -132,6 +145,13 @@ class SetRejectedRequeteController extends Controller
 
 
             if ($user_cat == 'driver') {
+                // Free up driver state
+                if (!empty($from_id)) {
+                    DB::table('tj_conducteur')->where('id', $from_id)->update(['driver_on_ride' => 'no']);
+                }
+                if (!empty($drivertoReject)) {
+                    DB::table('tj_conducteur')->where('id', $drivertoReject)->update(['driver_on_ride' => 'no']);
+                }
 
                 $tmsg = '';
 
@@ -139,9 +159,9 @@ class SetRejectedRequeteController extends Controller
 
 
 
-                $title = str_replace("'", "\'", "Rejection of your ride");
+                $title = str_replace("'", "\'", "Cancellation of your ride");
 
-                $msg = str_replace("'", "\'", $driver_name . " is cancelled your ride.");
+                $msg = str_replace("'", "\'", $driver_name . " has cancelled your ride.");
 
                 $reasons = str_replace("'", "\'", "$reason");
 
@@ -158,47 +178,62 @@ class SetRejectedRequeteController extends Controller
                     $msg_ = $msg_ . "" . $tab[$i];
                 }
 
+                // If trip was already in progress (on ride), mark canceled and do NOT rotate to new drivers!
+                if ($rideStatus == 'on ride') {
+                    DB::update('update tj_requete set statut = ? where id = ?', ['canceled', $id_requete]);
 
+                    $row_sql['statut'] = 'canceled';
+                    $message = array_merge($row_sql, array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "ridecanceled", "statut" => "canceled"));
 
-                $row_sql['statut'] = 'driver_rejected';
-                $message = array_merge($row_sql, array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected", "statut" => "driver_rejected"));
+                    $fcm_token = DB::table('tj_user_app')->where('fcm_id', '!=', '')->where('id', '=', $id_user)->value('fcm_id');
 
-                $fcm_token = DB::table('tj_user_app')->where('fcm_id', '!=', '')->where('id', '=', $id_user)->value('fcm_id');
+                    if (!empty($fcm_token)) {
+                        GcmController::sendNotification($fcm_token, $message);
+                    }
 
-                if (!empty($fcm_token)) {
+                    $sql_update = Requests::where('id', '=', $id_requete)->first();
+                    if ($sql_update) {
+                        $row = $sql_update->toArray();
+                        $row['id'] = (string)$row['id'];
+                    }
+                } else {
+                    // Pre-trip cancellation (confirmed or new, before OTP)
+                    $row_sql['statut'] = 'driver_rejected';
+                    $message = array_merge($row_sql, array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected", "statut" => "driver_rejected"));
 
-                    GcmController::sendNotification($fcm_token, $message);
+                    $fcm_token = DB::table('tj_user_app')->where('fcm_id', '!=', '')->where('id', '=', $id_user)->value('fcm_id');
+
+                    if (!empty($fcm_token)) {
+                        GcmController::sendNotification($fcm_token, $message);
+                    }
+
+                    $lat = $row_sql['latitude_depart'];
+                    $long = $row_sql['longitude_depart'];
+
+                    $vehicleType = DB::table('tj_vehicule')->select('id_type_vehicule')->where('id_conducteur', $from_id)->first();
+                    $id_type_vehicule = $vehicleType ? $vehicleType->id_type_vehicule : ($sql->id_type_vehicule ?? 0);
+
+                    $settings = DB::table('tj_settings')->select('driver_radios', 'minimum_deposit_amount')->first();
+                    $radius = $settings->driver_radios ?? 10;
+                    $minimum_wallet_balance = $settings->minimum_deposit_amount ?? 0;
+
+                    if (!in_array($from_id, $rejDriverIds)) {
+                        array_push($rejDriverIds, $from_id);
+                    }
+                    $updateRejDriverArr = json_encode($rejDriverIds);
+                    
+                    // Update rejected list and temporarily reset driver to new
+                    DB::update('update tj_requete set rejected_driver_id = ?, statut = ? where id = ?', [$updateRejDriverArr, 'new', $id_requete]);
+                    
+                    // Perform automated rotation to assign next driver and notify them
+                    Requests::rotateRequestIfNeeded($id_requete, true);
+                    
+                    $sql_update = Requests::where('id', '=', $id_requete)->first();
+                    if ($sql_update) {
+                        $row = $sql_update->toArray();
+                        $row['id'] = (string)$row['id'];
+                    }
                 }
-
-
-
-                $lat = $row_sql['latitude_depart'];
-
-                $long = $row_sql['longitude_depart'];
-
-                $vehicleType = DB::table('tj_vehicule')->select('id_type_vehicule')->where('id_conducteur', $from_id)->first();
-                $id_type_vehicule = $vehicleType ? $vehicleType->id_type_vehicule : ($sql->id_type_vehicule ?? 0);
-
-                $settings = DB::table('tj_settings')->select('driver_radios', 'minimum_deposit_amount')->first();
-
-                $radius = $settings->driver_radios ?? 10;
-
-                $minimum_wallet_balance = $settings->minimum_deposit_amount ?? 0;
-
-                if (!in_array($from_id, $rejDriverIds)) {
-                    array_push($rejDriverIds, $from_id);
-                }
-                $updateRejDriverArr = json_encode($rejDriverIds);
-                
-                // Update rejected list and temporarily reset driver to new
-                DB::update('update tj_requete set rejected_driver_id = ?, statut = ? where id = ?', [$updateRejDriverArr, 'new', $id_requete]);
-                
-                // Perform automated rotation to assign next driver and notify them
-                Requests::rotateRequestIfNeeded($id_requete, true);
-                
-                $sql_update = Requests::where('id', '=', $id_requete)->first();
-                $row = $sql_update->toArray();
-                $row['id'] = (string)$row['id'];
             } elseif ($user_cat == 'user_app') {
 
 
@@ -290,7 +325,7 @@ class SetRejectedRequeteController extends Controller
                 if ($subscriptionModel == 'true' || $commissionModel == 'yes') {
                     $rejectedDriverData = Driver::where('id', $drivertoReject)->first();
 
-                    if ($rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders != '-1')) {
+                    if ($rejectedDriverData && $rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders != '-1')) {
                         $subscriptionTotalOrders = intval($rejectedDriverData->subscriptionTotalOrders) + 1;
                         Driver::where('id', $drivertoReject)->update(['subscriptionTotalOrders' => $subscriptionTotalOrders]);
                     }
