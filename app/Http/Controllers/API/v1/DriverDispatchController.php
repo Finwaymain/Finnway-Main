@@ -14,8 +14,8 @@ class DriverDispatchController extends Controller
      */
     public function checkTimeout(Request $request)
     {
-        $ride_id = $request->get('ride_id');
-        $force = $request->get('force', false);
+        $ride_id = $request->input('ride_id', $request->get('ride_id'));
+        $force = $request->input('force', $request->get('force', false));
 
         if (empty($ride_id)) {
             return response()->json([
@@ -46,13 +46,22 @@ class DriverDispatchController extends Controller
      */
     public function retryDispatch(Request $request)
     {
-        $ride_id = $request->get('ride_id');
+        $ride_id = $request->input('ride_id', $request->get('ride_id'));
 
         if (empty($ride_id)) {
             return response()->json([
                 'success' => 'Failed',
                 'error' => 'Ride ID is required'
             ]);
+        }
+
+        $ride = Requests::find($ride_id);
+        if ($ride) {
+            // When user retries dispatch, reset to 'new' and clear rejected driver list so nearby drivers can be matched again
+            $ride->statut = 'new';
+            $ride->rejected_driver_id = '[]';
+            $ride->modifier = date('Y-m-d H:i:s');
+            $ride->save();
         }
 
         // Force rotation to next driver

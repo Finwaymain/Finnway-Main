@@ -203,7 +203,10 @@ class RequeteRegisterController extends Controller
                             ->where('tj_conducteur.statut', 'yes')
                             ->where('tj_conducteur.online', '!=', 'no')
                             ->where('tj_conducteur.is_verified', '=', '1')
-                            ->where('tj_conducteur.driver_on_ride', '=', 'no')
+                            ->where(function($q) {
+                                $q->whereNull('tj_conducteur.driver_on_ride')
+                                  ->orWhere('tj_conducteur.driver_on_ride', '!=', 'yes');
+                            })
                             // ->where('tj_conducteur.amount', '>=', $minimum_wallet_balance)
                             ->whereIn('tj_vehicule.id_type_vehicule', $typeIds)
                             ->orderBy('distance', 'asc')
@@ -480,7 +483,8 @@ class RequeteRegisterController extends Controller
 
                 $response['message'] = 'Successfully created';
 
-                $response['data'] = $output;
+                $response['data'] = $row;
+                $response['data_list'] = $output;
                 return response()->json($response);
 
             } else {
