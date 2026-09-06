@@ -176,6 +176,25 @@ class PayRequeteController extends Controller
             $taxHtml = "0";
         }
 
+        $sql_ride = Requests::where('id', $id_requete)->first();
+        if ($sql_ride) {
+            if (empty($id_user)) {
+                $id_user = $sql_ride->id_conducteur;
+            }
+            if (empty($id_user_app)) {
+                $id_user_app = $sql_ride->id_user_app;
+            }
+            if (strtolower(trim((string) $sql_ride->statut_paiement)) == 'yes') {
+                $row = $sql_ride->toArray();
+                $row['id'] = (string) $row['id'];
+                $response['success'] = 'success';
+                $response['error'] = null;
+                $response['message'] = 'Ride already paid';
+                $response['data'] = $row;
+                return response()->json($response);
+            }
+        }
+
         $totalUserAmount = floatval($totalamount) + floatval($totalTaxAmount) + floatval($tip);
         $driverBaseAmount = floatval($totalamount) + floatval($tip);
         $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
@@ -188,10 +207,10 @@ class PayRequeteController extends Controller
         $driverWallet = 0;
         if (!empty($sql_driver)) {
             if ($sql_driver->amount != '' && $sql_driver->amount != null) {
-                $driverWallet = $sql_driver->amount;
+                $driverWallet = floatval($sql_driver->amount);
             }
-            $driverWallet = $driverWallet + $totalDriverAmount;
-            DB::update('update tj_conducteur set amount = ? where id = ?', [$driverWallet, $id_user]);
+            $driverWallet = round($driverWallet + $totalDriverAmount, 2);
+            DB::update('update tj_conducteur set amount = ? where id = ?', [strval($driverWallet), $id_user]);
         }
 
         $date = date('Y-m-d H:i:s');
@@ -207,7 +226,7 @@ class PayRequeteController extends Controller
 
         if (!empty($driverBaseAmount)) {
             DB::table('tj_conducteur_transaction')->insert([
-                'amount' => $driverBaseAmount,
+                'amount' => $totalDriverAmount,
                 'payment_method' => $paymethod,
                 'id_conducteur' => $id_user,
                 'id_ride' => $id_requete,

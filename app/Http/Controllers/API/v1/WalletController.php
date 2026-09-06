@@ -53,6 +53,17 @@ class WalletController extends Controller
             }
             $finalEarn = max(floatval($row->earn_amount ?? 0), floatval($earningWalletSum));
             $row->earn_amount = strval(number_format($finalEarn, 2, '.', ''));
+            // User wallet balance must never be negative (prepaid wallet)
+            $row->amount = strval(number_format(max(0, floatval($row->amount ?? 0)), 2, '.', ''));
+            $response['success'] = 'success';
+            $response['error'] = null;
+            $response['message'] = 'Successfully';
+            $response['data'] = $row;
+            return response()->json($response);
+        } else {
+            $response['success'] = 'Failed';
+            $response['error'] = 'User not found';
+            return response()->json($response);
         }
     
     }elseif($cat_user == "driver"){
@@ -92,12 +103,17 @@ class WalletController extends Controller
             $calcEarn = round(floatval($rideEarnings) + floatval($parcelEarnings) + floatval($serviceEarnings), 2);
             $storedEarn = floatval($row->earn_amount ?? 0);
             $row->earn_amount = strval(number_format(max($storedEarn, $calcEarn), 2, '.', ''));
-            // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
-            $row->amount = strval(number_format(floatval($row->amount ?? 0), 2, '.', ''));
+            // Driver wallet balance cleanly reflects actual withdrawable/debt balance in tj_conducteur.amount (can be negative)
+            $driverBal = floatval($row->amount ?? 0);
+            $row->amount = strval(number_format($driverBal, 2, '.', ''));
             $response['success']= 'success';
             $response['error']= null;
             $response['message'] = 'Successfully';
             $response['data'] = $row;
+            return response()->json($response);
+        } else {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Driver not found';
             return response()->json($response);
         }
     }
@@ -105,17 +121,6 @@ class WalletController extends Controller
         $response['success']= 'Failed';
         $response['error']= 'Not Found';
         return response()->json($response);
-    }
-
-    if($sql->count() > 0){
-        $row = $sql->first();
-        $response['success']= 'success';
-        $response['error']= null;
-        $response['message'] = 'Successfully';
-        $response['data'] = $row;
-    }else{
-        $response['success']= 'Failed';
-        $response['error']= 'Failed to Fetch data';
     }
     }else{
         $response['success']= 'Failed';

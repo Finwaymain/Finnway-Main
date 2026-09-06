@@ -62,29 +62,32 @@ class PaymentByCashController extends Controller
 
 
         $id_requete = $request->get('id_ride');
-
         $id_user = $request->get('id_driver');
-
         $id_user_app = $request->get('id_user_app');
-
         $amount_new = floatval($request->get('amount'));
+        $paymethod = $request->get('paymethod') ?: 'Cash';
 
-        $paymethod = $request->get('paymethod');
+        // Resolve missing IDs from ride if not explicitly provided
+        $sql_ride = Requests::where('id', $id_requete)->first();
+        if ($sql_ride) {
+            if (empty($id_user)) {
+                $id_user = $sql_ride->id_conducteur;
+            }
+            if (empty($id_user_app)) {
+                $id_user_app = $sql_ride->id_user_app;
+            }
+            if (empty($amount_new)) {
+                $amount_new = floatval($sql_ride->montant);
+            }
+        }
 
         $date_heure = date('Y-m-d H:i:s');
-
         $discount = floatval($request->get('discount'));
-
         $tax = $request->get('tax');
-
         $tax_json = json_encode($tax);
-
         $tip = floatval($request->get('tip'));
-
         $transaction_id = $request->get('transaction_id');
-
-        $payment_status=$request->get('payment_status');
-
+        $payment_status = $request->get('payment_status');
         $totalamount = floatval($amount_new);
 
         if (!empty($discount)) {
@@ -163,22 +166,37 @@ class PaymentByCashController extends Controller
 
         $totalDriverAmount = max(0, floatval($totalamount) - floatval($commission_amount));
 
-        // 3. User Wallet Deduction if paid via Wallet
+        // 3. User Wallet Deduction - ONLY if payment is strictly Wallet
         if (strtolower($paymethod) == 'wallet' && !empty($id_user_app)) {
             $userRow = DB::table('tj_user_app')->where('id', $id_user_app)->first();
             if ($userRow && $userRow->amount !== null) {
                 $userBal = floatval($userRow->amount);
-                $newUserBal = max(0, $userBal - $totalamount);
+                $newUserBal = max(0, round($userBal - $totalamount, 2));
                 DB::table('tj_user_app')->where('id', $id_user_app)->update(['amount' => $newUserBal, 'modifier' => $date_heure]);
                 DB::table('tj_transaction')->insert([
                     'amount' => '-' . $totalamount,
                     'deduction_type' => 1,
+                    'ride_id' => $id_requete,
                     'payment_method' => 'Wallet',
+                    'payment_status' => 'success',
                     'id_user_app' => $id_user_app,
                     'creer' => $date_heure,
                     'modifier' => $date_heure
                 ]);
             }
+        } elseif (strtolower($paymethod) == 'cash' && !empty($id_user_app)) {
+            // USER PAID IN CASH: DO NOT DEDUCT USER WALLET!
+            // Record a ledger transaction showing user paid in cash
+            DB::table('tj_transaction')->insert([
+                'amount' => $totalamount,
+                'deduction_type' => 0,
+                'ride_id' => $id_requete,
+                'payment_method' => 'Cash',
+                'payment_status' => 'success',
+                'id_user_app' => $id_user_app,
+                'creer' => $date_heure,
+                'modifier' => $date_heure
+            ]);
         }
 
         // 4. Driver Wallet Accounting
@@ -187,18 +205,19 @@ class PaymentByCashController extends Controller
             ->where('id', '=', $id_user)
             ->first();
 
-        $walletAmount = $sql_driver && $sql_driver->amount !== null ? floatval($sql_driver->amount) : 0;
+        $walletAmount = $sql_driver && $sql_driver->amount !== null && $sql_driver->amount !== '' ? floatval($sql_driver->amount) : 0;
 
         if (strtolower($paymethod) == 'cash') {
             // Cash collected by driver in hand: platform commission + GST/Taxes debited from driver wallet
+            // Driver owes this amount to the platform, so driver wallet can go into minus (debt)
             $totalPlatformDeduction = floatval($commission_amount) + floatval($totalTaxAmount);
-            $newWalletAmount = $walletAmount - $totalPlatformDeduction;
+            $newWalletAmount = round($walletAmount - $totalPlatformDeduction, 2);
         } else {
             // Online / UPI / Wallet: net earnings credited to driver wallet
-            $newWalletAmount = $walletAmount + $totalDriverAmount;
+            $newWalletAmount = round($walletAmount + $totalDriverAmount, 2);
         }
 
-        DB::table('tj_conducteur')->where('id', '=', $id_user)->update(['amount' => $newWalletAmount]);
+        DB::table('tj_conducteur')->where('id', '=', $id_user)->update(['amount' => strval($newWalletAmount)]);
 
         $date = date('Y-m-d H:i:s');
 
@@ -222,15 +241,18 @@ class PaymentByCashController extends Controller
             ]);
         }
 
-        $driverBaseAmount = floatval($amount_new) - floatval($discount) + floatval($tip);
-        if (!empty($driverBaseAmount)) {
-            DB::table('tj_conducteur_transaction')->insert([
-                'id_conducteur' => $id_user,
-                'amount' => $driverBaseAmount,
-                'payment_method' => $paymethod,
-                'id_ride' => $id_requete,
-                'creer' => $date
-            ]);
+        // ONLY credit driver transaction ledger if online / wallet / non-cash payment:
+        if (strtolower($paymethod) != 'cash') {
+            $driverBaseAmount = floatval($amount_new) - floatval($discount) + floatval($tip);
+            if (!empty($driverBaseAmount)) {
+                DB::table('tj_conducteur_transaction')->insert([
+                    'id_conducteur' => $id_user,
+                    'amount' => $totalDriverAmount,
+                    'payment_method' => $paymethod,
+                    'id_ride' => $id_requete,
+                    'creer' => $date
+                ]);
+            }
         }
 
         $row_payment_method = DB::table('tj_payment_method')->select('id')->whereRaw('LOWER(libelle) = ?', [strtolower($paymethod)])->first();
