@@ -95,6 +95,89 @@
 
         <div class="row">
             <div class="col-12">
+                <!-- Inline Dedicated Panel: Discover & Assign Related Business Partners (0-30km) -->
+                <div id="inlineAssignCard" class="card shadow border-primary mb-4" style="display: none; border: 2px solid #2563eb !important; border-radius: 8px;">
+                    <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3">
+                        <div class="d-flex align-items-center">
+                            <h5 class="card-title text-white font-weight-bold mb-0">
+                                <i class="fa fa-user-plus mr-2"></i> Assign Business Partner (0–30 km Radius)
+                            </h5>
+                            <span class="badge badge-light text-primary font-weight-bold ml-2" id="panelBookingBadge">#SR--</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark shadow-sm" onclick="closeAssignPanel()">
+                            <i class="fa fa-times mr-1 text-danger"></i> Close Panel
+                        </button>
+                    </div>
+                    <div class="card-body p-3">
+                        <!-- Booking Summary Card -->
+                        <div class="card mb-3 border bg-light-primary" style="border-radius: 8px;">
+                            <div class="card-body p-3">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2 mb-md-0">
+                                        <div class="text-muted small font-weight-bold">REQUESTED SERVICE</div>
+                                        <h5 class="mb-1 font-weight-bold text-primary" id="mServiceTitle">-</h5>
+                                        <div class="small text-dark"><i class="fa fa-clock-o text-muted mr-1"></i> Waiting: <strong id="mElapsedTime" class="text-danger">-</strong></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small font-weight-bold">CUSTOMER DETAILS & LOCATION</div>
+                                        <div class="font-weight-bold text-dark" id="mCustomerName">-</div>
+                                        <div class="small text-muted"><i class="fa fa-phone mr-1"></i><span id="mCustomerPhone">-</span></div>
+                                        <div class="small text-dark text-truncate" id="mServiceAddress"><i class="fa fa-map-marker text-danger mr-1"></i>-</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Radius Filter Banner -->
+                        <div class="d-flex align-items-center justify-content-between bg-light p-2 rounded mb-3 border flex-wrap gap-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge badge-success mr-2 px-2 py-1"><i class="fa fa-compass mr-1"></i> 0–30 KM RADIUS</span>
+                                <small class="text-muted">Showing <strong>only business partners related to this service</strong>.</small>
+                            </div>
+                            <div>
+                                <input type="text" id="partnerSearchFilter" class="form-control form-control-sm" placeholder="Search partner by name/phone..." onkeyup="filterPartnerListUI()" style="width: 240px;">
+                            </div>
+                        </div>
+
+                        <!-- Loading Spinner -->
+                        <div id="panelLoadingSpinner" class="text-center py-4">
+                            <i class="fa fa-spinner fa-spin fa-3x text-primary mb-2"></i>
+                            <p class="text-muted mb-0">Calculating GPS distance & fetching related service partners within 30 km...</p>
+                        </div>
+
+                        <!-- Content Container -->
+                        <div id="panelPartnersContent" style="display: none;">
+                            <!-- Section: Within 0 - 30 km -->
+                            <div class="mb-4">
+                                <h6 class="font-weight-bold text-dark mb-2 d-flex align-items-center justify-content-between">
+                                    <span><i class="fa fa-check-circle text-success mr-1"></i> Matching Partners Within 0–30 km (<span id="countWithin30">0</span>)</span>
+                                    <span class="badge badge-light border text-muted">Nearest First</span>
+                                </h6>
+                                <div id="listWithin30" class="partner-card-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Section: Other Registered Partners for this Service -->
+                            <div class="mb-2" id="sectionOtherPartners" style="display: none;">
+                                <h6 class="font-weight-bold text-muted mb-2">
+                                    <i class="fa fa-map-marker text-muted mr-1"></i> Other Related Partners (GPS Inactive / Further away) (<span id="countOther">0</span>)
+                                </h6>
+                                <div id="listOtherPartners" class="partner-card-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Empty State -->
+                            <div id="panelNoPartners" class="text-center py-4 text-muted" style="display: none;">
+                                <i class="fa fa-user-times fa-3x mb-2 text-warning"></i>
+                                <h6 class="font-weight-bold text-dark">No Service Partners Found</h6>
+                                <p class="small mb-0">No business partners registered for this service category were found within 30 km.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card shadow-sm">
                     <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
                         <div class="d-flex align-items-center gap-2">
@@ -204,7 +287,7 @@
                                             <div class="d-inline-flex align-items-center flex-wrap gap-1 justify-content-end">
                                                 <!-- Action: Assign Partner (0-30km) -->
                                                 @if(!$req->driver_id || $req->status == 'pending' || $req->status == 'cancelled')
-                                                    <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold shadow-sm" onclick="openAssignPartnerModal({{ $req->id }}, '{{ addslashes($req->service_name ?? 'Home Service') }}')" title="Check & Assign Related Business Partner within 0-30km">
+                                                    <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold shadow-sm" onclick="openAssignPartnerPanel({{ $req->id }}, '{{ addslashes($req->service_name ?? 'Home Service') }}')" title="Check & Assign Related Business Partner within 0-30km">
                                                         <i class="fa fa-user-plus mr-1"></i> Assign Partner (0-30km)
                                                     </button>
                                                 @endif
@@ -247,95 +330,7 @@
     </div>
 </div>
 
-<!-- Modal: Discover & Assign Related Business Partners (0-30km) -->
-<div class="modal fade" id="assignPartnerModal" tabindex="-1" role="dialog" aria-labelledby="assignPartnerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-light d-flex align-items-center justify-content-between py-2 px-3">
-                <div>
-                    <h5 class="modal-title font-weight-bold text-dark mb-0" id="assignPartnerModalLabel">
-                        <i class="fa fa-user-plus text-primary mr-1"></i> Assign Business Partner (0–30 km Radius)
-                    </h5>
-                    <small class="text-muted" id="modalSubtitle">Loading related partners...</small>
-                </div>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body p-3">
-                <!-- Booking Summary Card -->
-                <div class="card mb-3 border bg-light-primary" id="modalBookingSummary" style="border-radius: 8px;">
-                    <div class="card-body p-3">
-                        <div class="row">
-                            <div class="col-md-6 mb-2 mb-md-0">
-                                <div class="text-muted small font-weight-bold">REQUESTED SERVICE</div>
-                                <h5 class="mb-1 font-weight-bold text-primary" id="mServiceTitle">-</h5>
-                                <div class="small text-dark"><i class="fa fa-clock-o text-muted mr-1"></i> Waiting: <strong id="mElapsedTime" class="text-danger">-</strong></div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="text-muted small font-weight-bold">CUSTOMER DETAILS & LOCATION</div>
-                                <div class="font-weight-bold text-dark" id="mCustomerName">-</div>
-                                <div class="small text-muted"><i class="fa fa-phone mr-1"></i><span id="mCustomerPhone">-</span></div>
-                                <div class="small text-dark text-truncate" id="mServiceAddress"><i class="fa fa-map-marker text-danger mr-1"></i>-</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Radius Filter Banner -->
-                <div class="d-flex align-items-center justify-content-between bg-light p-2 rounded mb-3 border">
-                    <div class="d-flex align-items-center">
-                        <span class="badge badge-success mr-2 px-2 py-1"><i class="fa fa-compass mr-1"></i> 0–30 KM RADIUS</span>
-                        <small class="text-muted">Showing <strong>only business partners related to this service</strong>.</small>
-                    </div>
-                    <div>
-                        <input type="text" id="partnerSearchFilter" class="form-control form-control-sm" placeholder="Search partner by name/phone..." onkeyup="filterPartnerListUI()" style="width: 220px;">
-                    </div>
-                </div>
-
-                <!-- Loading Spinner -->
-                <div id="modalLoadingSpinner" class="text-center py-5">
-                    <i class="fa fa-spinner fa-spin fa-3x text-primary mb-2"></i>
-                    <p class="text-muted">Calculating GPS distance & fetching related service partners within 30 km...</p>
-                </div>
-
-                <!-- Content Container -->
-                <div id="modalPartnersContent" style="display: none;">
-                    <!-- Section: Within 0 - 30 km -->
-                    <div class="mb-4">
-                        <h6 class="font-weight-bold text-dark mb-2 d-flex align-items-center justify-content-between">
-                            <span><i class="fa fa-check-circle text-success mr-1"></i> Matching Partners Within 0–30 km (<span id="countWithin30">0</span>)</span>
-                            <span class="badge badge-light border text-muted">Nearest First</span>
-                        </h6>
-                        <div id="listWithin30" class="partner-card-list">
-                            <!-- Populated dynamically -->
-                        </div>
-                    </div>
-
-                    <!-- Section: Other Registered Partners for this Service -->
-                    <div class="mb-2" id="sectionOtherPartners" style="display: none;">
-                        <h6 class="font-weight-bold text-muted mb-2">
-                            <i class="fa fa-map-marker text-muted mr-1"></i> Other Related Partners (GPS Inactive / Further away) (<span id="countOther">0</span>)
-                        </h6>
-                        <div id="listOtherPartners" class="partner-card-list">
-                            <!-- Populated dynamically -->
-                        </div>
-                    </div>
-
-                    <!-- Empty State -->
-                    <div id="modalNoPartners" class="text-center py-5 text-muted" style="display: none;">
-                        <i class="fa fa-user-times fa-3x mb-2 text-warning"></i>
-                        <h6 class="font-weight-bold text-dark">No Service Partners Found</h6>
-                        <p class="small mb-0">No business partners registered for this service category were found within 30 km.</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer py-2 px-3 bg-light">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <style>
 .table-warning-row {
@@ -468,37 +463,48 @@ function pollEscalationStatus() {
         .catch(err => console.debug('Poll check error:', err));
 }
 
-// Open Assign Partner Modal
-function openAssignPartnerModal(bookingId, serviceName) {
+// Open Inline Assign Partner Panel
+function openAssignPartnerPanel(bookingId, serviceName) {
     currentActiveBookingId = bookingId;
-    $('#assignPartnerModal').modal('show');
+    
+    const panel = document.getElementById('inlineAssignCard');
+    if (panel) {
+        panel.style.display = 'block';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
-    document.getElementById('modalLoadingSpinner').style.display = 'block';
-    document.getElementById('modalPartnersContent').style.display = 'none';
-    document.getElementById('modalSubtitle').innerText = `Loading partners for "${serviceName}"...`;
+    document.getElementById('panelBookingBadge').innerText = `#SR-${bookingId}`;
+    document.getElementById('panelLoadingSpinner').style.display = 'block';
+    document.getElementById('panelPartnersContent').style.display = 'none';
     document.getElementById('partnerSearchFilter').value = '';
 
     fetch(`{{ url('service-requests/nearby-providers') }}/${bookingId}`)
         .then(res => res.json())
         .then(data => {
-            document.getElementById('modalLoadingSpinner').style.display = 'none';
+            document.getElementById('panelLoadingSpinner').style.display = 'none';
             if (!data.success) {
                 alert(data.message || 'Failed to fetch nearby providers.');
-                $('#assignPartnerModal').modal('hide');
+                closeAssignPanel();
                 return;
             }
 
-            renderModalData(data);
+            renderPanelData(data);
         })
         .catch(err => {
-            document.getElementById('modalLoadingSpinner').style.display = 'none';
+            document.getElementById('panelLoadingSpinner').style.display = 'none';
             alert('Network error while fetching partners: ' + err.message);
         });
 }
 
-function renderModalData(data) {
+function closeAssignPanel() {
+    const panel = document.getElementById('inlineAssignCard');
+    if (panel) {
+        panel.style.display = 'none';
+    }
+}
+
+function renderPanelData(data) {
     const booking = data.booking;
-    document.getElementById('modalSubtitle').innerText = `Related business partners for #${booking.id} - ${booking.service_name}`;
     document.getElementById('mServiceTitle').innerText = booking.service_name || 'Home Service';
     document.getElementById('mElapsedTime').innerText = `${booking.elapsed_minutes || 0} mins ago`;
     document.getElementById('mCustomerName').innerText = booking.customer_name || 'Customer';
@@ -522,12 +528,12 @@ function renderModalData(data) {
     }
 
     if (within30.length === 0 && otherList.length === 0) {
-        document.getElementById('modalNoPartners').style.display = 'block';
+        document.getElementById('panelNoPartners').style.display = 'block';
     } else {
-        document.getElementById('modalNoPartners').style.display = 'none';
+        document.getElementById('panelNoPartners').style.display = 'none';
     }
 
-    document.getElementById('modalPartnersContent').style.display = 'block';
+    document.getElementById('panelPartnersContent').style.display = 'block';
 }
 
 function renderPartnerList(partners, containerId) {
@@ -654,7 +660,7 @@ function assignPartnerToBooking(bookingId, driverId, driverName) {
     .then(data => {
         if (data.success) {
             alert(`✅ ${data.message}`);
-            $('#assignPartnerModal').modal('hide');
+            closeAssignPanel();
             window.location.reload();
         } else {
             alert(`❌ ${data.message || 'Failed to assign partner.'}`);
