@@ -458,6 +458,8 @@ Route::post('/userscategory/store', [App\Http\Controllers\UserCategoryController
 
 
 Route::get('/drivers', [App\Http\Controllers\DriverController::class, 'index'])->name('drivers');
+Route::get('/business-tracking', [App\Http\Controllers\BusinessTrackingController::class, 'index'])->name('business.tracking');
+Route::get('/business-tracking/live-data', [App\Http\Controllers\BusinessTrackingController::class, 'getLiveData'])->name('business.tracking.data');
 
 Route::get('/drivers/approved', [App\Http\Controllers\DriverController::class, 'approvedDrivers'])->name('drivers.approved');
 

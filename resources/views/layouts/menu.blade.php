@@ -45,6 +45,7 @@
                     <li><a href="{!! route('users.all') !!}">All Users</a></li>
                     <li><a href="{!! url('/users') !!}">Consumers</a></li>
                     <li><a href="{!! url('/drivers') !!}">Business Users</a></li>
+                    <li class="{{ request()->is('business-tracking*') ? 'active' : '' }}"><a href="{!! route('business.tracking') !!}"><i class="mdi mdi-crosshairs-gps text-danger mr-1"></i> Live Business Tracking</a></li>
                 @endif
 
                 @if($authUser->isAdmin() || $authUser->hasPermission('kyc_approval'))
