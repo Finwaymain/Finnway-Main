@@ -1,61 +1,60 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="page-wrapper">
-    <div class="row page-titles mb-3">
+<div class="page-wrapper" style="padding-top: 8px; padding-bottom: 8px;">
+    <div class="row page-titles mb-2 py-1 align-items-center">
         <div class="col-md-6 align-self-center">
-            <h3 class="text-themecolor mb-0 font-weight-bold"><i class="mdi mdi-forum text-primary mr-2"></i> Support Live Chat</h3>
-            <small class="text-muted">Real-time chat with customers and driver partners</small>
+            <h4 class="text-themecolor mb-0 font-weight-bold" style="font-size: 17px;"><i class="mdi mdi-forum text-primary mr-1"></i> Support Live Chat</h4>
         </div>
         <div class="col-md-6 align-self-center text-right">
-            <a href="{{ route('support.questions.index') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-sm">
+            <a href="{{ route('support.questions.index') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-sm py-1" style="font-size: 12px;">
                 <i class="mdi mdi-help-circle-outline mr-1"></i> Manage Quick Questions
             </a>
         </div>
     </div>
 
-    <div class="container-fluid">
-        <!-- Main Chat Card -->
-        <div class="card shadow-sm border-0" style="border-radius: 16px; overflow: hidden; height: calc(100vh - 190px); min-height: 580px;">
+    <div class="container-fluid px-2 px-md-3">
+        <!-- Main Chat Card (Expanded Height) -->
+        <div class="card shadow-sm border-0 mb-0" style="border-radius: 12px; overflow: hidden; height: calc(100vh - 110px); min-height: 680px;">
             <div class="card-body p-0 d-flex flex-column h-100">
                 <div class="row no-gutters flex-grow-1 h-100">
                     
                     <!-- Left Sidebar: Conversations List -->
                     <div class="col-lg-4 col-md-5 border-right d-flex flex-column h-100 bg-white" style="border-color: #e2e8f0 !important;">
                         
-                        <!-- Tabs Header -->
-                        <div class="p-3 border-bottom bg-light">
-                            <ul class="nav nav-pills nav-fill" id="chatTabs" role="tablist">
+                        <!-- Tabs Header (Compact) -->
+                        <div class="p-2 px-3 border-bottom bg-light">
+                            <ul class="nav nav-pills nav-fill" id="chatTabs" role="tablist" style="gap: 4px;">
                                 <li class="nav-item">
-                                    <a class="nav-link font-weight-bold rounded-pill {{ $tab === 'customer' ? 'active' : '' }}" id="tab-customer" href="javascript:void(0)" onclick="switchTab('customer')">
+                                    <a class="nav-link font-weight-bold rounded-pill py-1 px-2 {{ $tab === 'customer' ? 'active' : '' }}" id="tab-customer" href="javascript:void(0)" onclick="switchTab('customer')" style="font-size: 12px;">
                                         <i class="mdi mdi-account-circle mr-1"></i> Customers
-                                        <span class="badge badge-pill badge-danger ml-1" id="badge-customer-unread" style="display: {{ $customerUnread > 0 ? 'inline-block' : 'none' }};">{{ $customerUnread }}</span>
+                                        <span class="badge badge-pill badge-danger ml-1" id="badge-customer-unread" style="display: {{ $customerUnread > 0 ? 'inline-block' : 'none' }}; font-size: 10px;">{{ $customerUnread }}</span>
                                     </a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link font-weight-bold rounded-pill {{ $tab === 'business' ? 'active' : '' }}" id="tab-business" href="javascript:void(0)" onclick="switchTab('business')">
+                                    <a class="nav-link font-weight-bold rounded-pill py-1 px-2 {{ $tab === 'business' ? 'active' : '' }}" id="tab-business" href="javascript:void(0)" onclick="switchTab('business')" style="font-size: 12px;">
                                         <i class="mdi mdi-car mr-1"></i> Drivers / Partners
-                                        <span class="badge badge-pill badge-danger ml-1" id="badge-business-unread" style="display: {{ $businessUnread > 0 ? 'inline-block' : 'none' }};">{{ $businessUnread }}</span>
+                                        <span class="badge badge-pill badge-danger ml-1" id="badge-business-unread" style="display: {{ $businessUnread > 0 ? 'inline-block' : 'none' }}; font-size: 10px;">{{ $businessUnread }}</span>
                                     </a>
                                 </li>
                             </ul>
 
-                            <!-- Search & Filter Controls -->
-                            <div class="mt-3">
-                                <div class="input-group input-group-sm mb-2">
+                            <!-- Search & Filter Controls (Compact) -->
+                            <div class="mt-2">
+                                <div class="input-group input-group-sm mb-1">
                                     <div class="input-group-prepend">
-                                        <span class="input-group-text bg-white border-right-0"><i class="mdi mdi-magnify text-muted"></i></span>
+                                        <span class="input-group-text bg-white border-right-0 py-0" style="height: 30px;"><i class="mdi mdi-magnify text-muted" style="font-size: 14px;"></i></span>
                                     </div>
-                                    <input type="text" id="chatSearchInput" class="form-control border-left-0" placeholder="Search by name, phone, ticket..." oninput="handleSearch(this.value)">
+                                    <input type="text" id="chatSearchInput" class="form-control border-left-0" placeholder="Search by name, phone, ticket..." oninput="handleSearch(this.value)" style="height: 30px; font-size: 12px;">
                                 </div>
                                 <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
-                                    <label class="btn btn-outline-secondary active btn-sm" onclick="filterStatus('all')">
+                                    <label class="btn btn-outline-secondary active btn-sm py-0" style="font-size: 11px; height: 26px; line-height: 24px;" onclick="filterStatus('all')">
                                         <input type="radio" name="statusFilter" checked> All
                                     </label>
-                                    <label class="btn btn-outline-secondary btn-sm" onclick="filterStatus('active')">
+                                    <label class="btn btn-outline-secondary btn-sm py-0" style="font-size: 11px; height: 26px; line-height: 24px;" onclick="filterStatus('active')">
                                         <input type="radio" name="statusFilter"> Active
                                     </label>
-                                    <label class="btn btn-outline-secondary btn-sm" onclick="filterStatus('resolved')">
+                                    <label class="btn btn-outline-secondary btn-sm py-0" style="font-size: 11px; height: 26px; line-height: 24px;" onclick="filterStatus('resolved')">
                                         <input type="radio" name="statusFilter"> Resolved
                                     </label>
                                 </div>
@@ -64,7 +63,7 @@
 
                         <!-- Ticket List Container -->
                         <div class="flex-grow-1 overflow-auto" id="ticketListContainer" style="overflow-y: auto;">
-                            <div class="text-center py-5 text-muted" id="ticketListLoading">
+                            <div class="text-center py-4 text-muted" id="ticketListLoading">
                                 <div class="spinner-border spinner-border-sm text-primary mr-2" role="status"></div> Loading conversations...
                             </div>
                             <div id="ticketListItems"></div>
@@ -74,20 +73,16 @@
                     <!-- Right Pane: Active Chat Conversation -->
                     <div class="col-lg-8 col-md-7 d-flex flex-column h-100 bg-light">
                         
-                        <!-- Chat Header (Visible when ticket is selected) -->
-                        <div id="chatHeader" class="p-3 bg-white border-bottom d-flex align-items-center justify-content-between shadow-sm" style="display: none !important;">
+                        <!-- Chat Header (Visible when ticket is selected - Compact) -->
+                        <div id="chatHeader" class="px-3 py-2 bg-white border-bottom d-flex align-items-center justify-content-between shadow-sm" style="display: none !important; min-height: 52px;">
                             <div class="d-flex align-items-center">
-                                <div class="position-relative mr-3">
-                                    <img id="chatHeaderAvatar" src="/assets/images/users/default-user.png" class="rounded-circle" style="width: 46px; height: 46px; object-fit: cover; border: 2px solid #e2e8f0;">
-                                    <span id="chatHeaderStatusDot" class="position-absolute bg-success rounded-circle" style="width: 12px; height: 12px; bottom: 0; right: 0; border: 2px solid white;"></span>
-                                </div>
                                 <div>
                                     <div class="d-flex align-items-center">
-                                        <h5 class="mb-0 font-weight-bold text-dark mr-2" id="chatHeaderName">User Name</h5>
-                                        <span class="badge badge-info mr-2" id="chatHeaderTypeBadge">Customer</span>
-                                        <span class="badge badge-success" id="chatHeaderStatusBadge">Active</span>
+                                        <h5 class="mb-0 font-weight-bold text-dark mr-2" id="chatHeaderName" style="font-size: 14px;">User Name</h5>
+                                        <span class="badge badge-info mr-2 px-2 py-0" id="chatHeaderTypeBadge" style="font-size: 10px;">Customer</span>
+                                        <span class="badge badge-success px-2 py-0" id="chatHeaderStatusBadge" style="font-size: 10px;">Active</span>
                                     </div>
-                                    <div class="small text-muted mt-1 d-flex align-items-center">
+                                    <div class="small text-muted mt-1 d-flex align-items-center" style="font-size: 11px;">
                                         <span class="mr-3"><i class="mdi mdi-ticket-confirmation text-primary mr-1"></i> <span id="chatHeaderTicketNum">TIC-001</span></span>
                                         <span class="mr-3"><i class="mdi mdi-phone text-success mr-1"></i> <a href="#" id="chatHeaderPhone" class="text-muted"></a></span>
                                     </div>
@@ -95,19 +90,19 @@
                             </div>
 
                             <div>
-                                <button id="btnToggleStatus" class="btn btn-sm btn-outline-success rounded-pill px-3 shadow-sm" onclick="toggleActiveTicketStatus()">
+                                <button id="btnToggleStatus" class="btn btn-sm btn-outline-success rounded-pill px-3 shadow-sm py-1" style="font-size: 12px;" onclick="toggleActiveTicketStatus()">
                                     <i class="mdi mdi-check-circle mr-1"></i> Mark as Resolved
                                 </button>
                             </div>
                         </div>
 
                         <!-- Empty Placeholder (When no ticket is selected) -->
-                        <div id="chatPlaceholder" class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center p-5">
-                            <div class="bg-white rounded-circle p-4 shadow-sm mb-3" style="width: 90px; height: 90px; display: inline-flex; align-items: center; justify-content: center;">
-                                <i class="mdi mdi-chat-processing-outline text-primary" style="font-size: 44px;"></i>
+                        <div id="chatPlaceholder" class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center p-4">
+                            <div class="bg-white rounded-circle p-3 shadow-sm mb-3" style="width: 76px; height: 76px; display: inline-flex; align-items: center; justify-content: center;">
+                                <i class="mdi mdi-chat-processing-outline text-primary" style="font-size: 38px;"></i>
                             </div>
-                            <h4 class="font-weight-bold text-dark">Select a conversation</h4>
-                            <p class="text-muted" style="max-width: 360px;">Choose a customer or driver from the list on the left to start chatting and replying in real time.</p>
+                            <h5 class="font-weight-bold text-dark mb-1">Select a conversation</h5>
+                            <p class="text-muted small mb-0" style="max-width: 340px;">Choose a customer or driver from the list on the left to start chatting in real time.</p>
                         </div>
 
                         <!-- Messages Thread Scroll Area -->
@@ -116,21 +111,21 @@
                         </div>
 
                         <!-- Chat Input Footer -->
-                        <div id="chatInputFooter" class="p-3 bg-white border-top shadow-sm" style="display: none;">
+                        <div id="chatInputFooter" class="px-3 py-2 bg-white border-top shadow-sm" style="display: none;">
                             
                             <!-- Quick Canned Response Pills -->
-                            <div class="mb-2 d-flex flex-wrap" style="gap: 6px;">
-                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill" onclick="insertCanned('Hello! How can I assist you today?')">👋 Greeting</button>
-                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill" onclick="insertCanned('We are reviewing your request and will resolve it shortly.')">⏳ Checking</button>
-                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill" onclick="insertCanned('Your refund/payout has been processed.')">💳 Refund/Payout</button>
-                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill" onclick="insertCanned('Thank you for reaching out to Fiinway Support!')">✅ Thank You</button>
+                            <div class="mb-2 d-flex flex-wrap" style="gap: 5px;">
+                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 11px;" onclick="insertCanned('Hello! How can I assist you today?')">👋 Greeting</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 11px;" onclick="insertCanned('We are reviewing your request and will resolve it shortly.')">⏳ Checking</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 11px;" onclick="insertCanned('Your refund/payout has been processed.')">💳 Refund/Payout</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 11px;" onclick="insertCanned('Thank you for reaching out to Fiinway Support!')">✅ Thank You</button>
                             </div>
 
                             <!-- Input Box -->
                             <form id="chatReplyForm" onsubmit="event.preventDefault(); sendAdminReply();" class="d-flex align-items-center">
-                                <input type="text" id="chatMessageInput" class="form-control rounded-pill px-4 py-2 border mr-2" placeholder="Type your reply here... (Press Enter to send)" autocomplete="off">
-                                <button type="submit" id="btnSendMessage" class="btn btn-primary rounded-circle shadow-sm d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; flex-shrink: 0;">
-                                    <i class="mdi mdi-send text-white font-18"></i>
+                                <input type="text" id="chatMessageInput" class="form-control rounded-pill px-3 py-1 border mr-2" placeholder="Type your reply here... (Press Enter to send)" autocomplete="off" style="height: 38px; font-size: 13px;">
+                                <button type="submit" id="btnSendMessage" class="btn btn-primary rounded-circle shadow-sm d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; flex-shrink: 0;">
+                                    <i class="mdi mdi-send text-white" style="font-size: 16px;"></i>
                                 </button>
                             </form>
                         </div>
@@ -147,18 +142,30 @@
     cursor: pointer;
     transition: background-color 0.15s ease-in-out;
     border-bottom: 1px solid #f1f5f9;
+    padding: 7px 12px;
 }
 .ticket-item:hover {
     background-color: #f8fafc;
 }
 .ticket-item.active {
     background-color: #eff6ff !important;
-    border-left: 4px solid #3b82f6 !important;
+    border-left: 3px solid #4f46e5 !important;
+}
+.ticket-user-name {
+    font-size: 13px;
+    line-height: 1.2;
+}
+.unread-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    display: inline-block;
 }
 .msg-bubble-user {
     background-color: #ffffff;
     color: #1e293b;
-    border-radius: 16px 16px 16px 4px;
+    border-radius: 14px 14px 14px 4px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     max-width: 75%;
     border: 1px solid #e2e8f0;
@@ -166,7 +173,7 @@
 .msg-bubble-admin {
     background: linear-gradient(135deg, #4f46e5, #4338ca);
     color: #ffffff;
-    border-radius: 16px 16px 4px 16px;
+    border-radius: 14px 14px 4px 14px;
     box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
     max-width: 75%;
 }
@@ -264,8 +271,8 @@ function renderTicketList(tickets) {
     const container = document.getElementById('ticketListItems');
     if (!tickets || tickets.length === 0) {
         container.innerHTML = `
-            <div class="text-center py-5 text-muted">
-                <i class="mdi mdi-inbox-outline" style="font-size: 32px;"></i>
+            <div class="text-center py-4 text-muted">
+                <i class="mdi mdi-inbox-outline" style="font-size: 28px;"></i>
                 <p class="mt-2 mb-0 small">No support tickets found</p>
             </div>`;
         return;
@@ -276,31 +283,26 @@ function renderTicketList(tickets) {
         const isActive = activeTicketId === t.id;
         const unreadCount = t.unread_admin_count || 0;
         const statusBadge = t.status === 'resolved' 
-            ? '<span class="badge badge-light text-muted border">Resolved</span>' 
-            : '<span class="badge badge-success">Active</span>';
+            ? '<span class="badge badge-light text-muted border px-1 py-0" style="font-size: 9.5px; font-weight: 600;">Resolved</span>' 
+            : '<span class="badge badge-success px-1 py-0" style="font-size: 9.5px; font-weight: 600;">Active</span>';
         
-        const photo = t.user_photo && t.user_photo.trim() !== '' ? t.user_photo : '/assets/images/users/default-user.png';
         const timeAgo = formatTime(t.updated_at || t.created_at);
 
         html += `
-            <div class="p-3 ticket-item ${isActive ? 'active' : ''}" onclick="selectTicket(${t.id})">
-                <div class="d-flex align-items-center">
-                    <div class="position-relative mr-3">
-                        <img src="${photo}" class="rounded-circle" style="width: 44px; height: 44px; object-fit: cover; border: 1px solid #cbd5e1;" onerror="this.src='/assets/images/users/default-user.png'">
-                        ${unreadCount > 0 ? `<span class="badge badge-danger position-absolute" style="top: -4px; right: -4px; font-size: 10px; border-radius: 10px;">${unreadCount}</span>` : ''}
+            <div class="ticket-item ${isActive ? 'active' : ''}" onclick="selectTicket(${t.id})">
+                <div class="d-flex align-items-center justify-content-between mb-1" style="gap: 8px;">
+                    <div class="d-flex align-items-center text-truncate" style="min-width: 0;">
+                        ${unreadCount > 0 ? '<span class="unread-dot mr-1 flex-shrink-0"></span>' : ''}
+                        <span class="ticket-user-name font-weight-bold text-truncate ${unreadCount > 0 ? 'text-primary' : 'text-dark'}">${escapeHtml(t.user_name || 'User')}</span>
+                        ${unreadCount > 0 ? `<span class="badge badge-danger ml-1 px-1 py-0 flex-shrink-0" style="font-size: 9px; border-radius: 6px;">${unreadCount}</span>` : ''}
                     </div>
-                    <div class="flex-grow-1 overflow-hidden">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <h6 class="font-weight-bold mb-0 text-dark text-truncate" style="max-width: 140px;">${escapeHtml(t.user_name || 'User')}</h6>
-                            <small class="text-muted" style="font-size: 11px;">${timeAgo}</small>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <p class="mb-0 text-muted small text-truncate" style="max-width: 170px;">
-                                ${t.last_sender === 'admin' ? '<strong class="text-primary">You: </strong>' : ''}${escapeHtml(t.last_message || 'Started a conversation')}
-                            </p>
-                            ${statusBadge}
-                        </div>
+                    <small class="text-muted flex-shrink-0" style="font-size: 10.5px;">${timeAgo}</small>
+                </div>
+                <div class="d-flex align-items-center justify-content-between" style="gap: 8px;">
+                    <div class="text-muted text-truncate" style="font-size: 11.5px; max-width: calc(100% - 55px); line-height: 1.2;">
+                        ${t.last_sender === 'admin' ? '<strong class="text-primary">You: </strong>' : ''}${escapeHtml(t.last_message || 'Started a conversation')}
                     </div>
+                    <div class="flex-shrink-0">${statusBadge}</div>
                 </div>
             </div>
         `;
@@ -367,10 +369,13 @@ function renderHeader(ticket) {
         btnStatus.className = 'btn btn-sm btn-outline-success rounded-pill px-3 shadow-sm';
     }
 
-    if (ticket.user_photo && ticket.user_photo.trim() !== '') {
-        document.getElementById('chatHeaderAvatar').src = ticket.user_photo;
-    } else {
-        document.getElementById('chatHeaderAvatar').src = '/assets/images/users/default-user.png';
+    const avatarEl = document.getElementById('chatHeaderAvatar');
+    if (avatarEl) {
+        if (ticket.user_photo && ticket.user_photo.trim() !== '') {
+            avatarEl.src = ticket.user_photo;
+        } else {
+            avatarEl.src = '/assets/images/users/default-user.png';
+        }
     }
 }
 
