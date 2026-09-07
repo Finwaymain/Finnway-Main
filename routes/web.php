@@ -943,6 +943,9 @@ Route::get('service-requests', [App\Http\Controllers\ServiceRequestController::c
 Route::get('service-requests/show/{id}', [App\Http\Controllers\ServiceRequestController::class, 'show'])->name('service_requests.show');
 Route::post('service-requests/retry/{id}', [App\Http\Controllers\ServiceRequestController::class, 'retrySearch'])->name('service_requests.retry');
 Route::post('service-requests/cancel/{id}', [App\Http\Controllers\ServiceRequestController::class, 'cancelRequest'])->name('service_requests.cancel');
+Route::get('service-requests/nearby-providers/{id}', [App\Http\Controllers\ServiceRequestController::class, 'getNearbyProviders'])->name('service_requests.nearby_providers');
+Route::post('service-requests/assign/{id}', [App\Http\Controllers\ServiceRequestController::class, 'assignProvider'])->name('service_requests.assign');
+Route::get('service-requests/escalation-check', [App\Http\Controllers\ServiceRequestController::class, 'escalationCheck'])->name('service_requests.escalation_check');
 Route::get('home-services', [App\Http\Controllers\HomeServiceController::class, 'index'])->name('home_services.index');
 Route::get('home-services/create', [App\Http\Controllers\HomeServiceController::class, 'create'])->name('home_services.create');
 Route::post('home-services', [App\Http\Controllers\HomeServiceController::class, 'store'])->name('home_services.store');
