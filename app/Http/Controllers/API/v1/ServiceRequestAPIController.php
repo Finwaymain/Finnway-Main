@@ -265,10 +265,21 @@ class ServiceRequestAPIController extends Controller
                         }
                     }
 
+                    $assignedDriverId = !empty($row->driver_id) ? (int) $row->driver_id : null;
+                    if ($assignedDriverId !== null && $assignedDriverId > 0 && is_array($driver)) {
+                        $driver['id'] = $assignedDriverId;
+                    }
+
+                    $bookingStatus = (string) ($row->status ?? 'Pending');
+                    $normalizedStatus = strtolower(trim($bookingStatus));
+                    if ($assignedDriverId !== null && $assignedDriverId > 0 && ($normalizedStatus === 'pending' || $normalizedStatus === 'new' || $normalizedStatus === 'open' || $normalizedStatus === 'requested' || empty($normalizedStatus))) {
+                        $bookingStatus = 'Confirmed';
+                    }
+
                     return [
-                        'id' => $row->id,
-                        'user_id' => $row->user_id,
-                        'driver_id' => $row->driver_id,
+                        'id' => (int) $row->id,
+                        'user_id' => !empty($row->user_id) ? (int) $row->user_id : $row->user_id,
+                        'driver_id' => $assignedDriverId,
                         'service_name' => $row->service_name ?? 'Home Service',
                         'address_type' => $row->address_type ?? 'Home',
                         'service_address' => $row->service_address ?? '',
@@ -277,7 +288,7 @@ class ServiceRequestAPIController extends Controller
                         'preferred_date' => $row->preferred_date ?? '',
                         'preferred_time' => $row->preferred_time ?? '',
                         'description' => $row->description ?? '',
-                        'status' => $row->status ?? 'Pending',
+                        'status' => $bookingStatus,
                         'amount' => isset($row->amount) ? (float) $row->amount : null,
                         'payment_status' => $row->payment_status ?? 'pending',
                         'price_breakdown' => null,
@@ -763,7 +774,7 @@ class ServiceRequestAPIController extends Controller
             }
         }
 
-        // Notify Driver if assigned
+        // Notify Driver if assigned and dismiss alerts on other providers
         try {
             if (!empty($booking->driver_id)) {
                 $this->sendServiceNotification(
@@ -771,8 +782,35 @@ class ServiceRequestAPIController extends Controller
                     'driver',
                     "Booking Cancelled",
                     "Customer cancelled booking #{$booking->id} for {$booking->service_name}.",
-                    ['booking_id' => (string) $booking->id, 'status' => 'Cancelled']
+                    [
+                        'booking_id' => (string) $booking->id,
+                        'status' => 'Cancelled',
+                        'statut' => 'cancelled',
+                        'tag' => 'booking_cancelled',
+                    ]
                 );
+            }
+
+            // Dismiss alert ringtone on any provider who might have received broadcast
+            if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+                $otherTokens = \Illuminate\Support\Facades\DB::table('tj_notification')
+                    ->join('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
+                    ->where('tj_notification.type', 'homeservice')
+                    ->where('tj_notification.message', 'like', "%#{$booking->id}%")
+                    ->whereNotNull('tj_conducteur.fcm_id')
+                    ->where('tj_conducteur.fcm_id', '!=', '')
+                    ->pluck('tj_conducteur.fcm_id')
+                    ->unique();
+
+                foreach ($otherTokens as $otherTok) {
+                    \App\Http\Controllers\API\v1\GcmController::sendNotification($otherTok, [
+                        'title' => 'Service Request Cancelled',
+                        'body' => "Booking #{$booking->id} was cancelled by the customer.",
+                        'tag' => 'booking_cancelled',
+                        'statut' => 'cancelled',
+                        'booking_id' => (string) $booking->id,
+                    ]);
+                }
             }
         } catch (\Throwable $cNotif) {
             \Log::error('cancelServiceBooking notification error: ' . $cNotif->getMessage());
@@ -1676,10 +1714,21 @@ class ServiceRequestAPIController extends Controller
                 : null)
             : null;
 
+        $assignedDriverId = !empty($booking->driver_id) ? (int) $booking->driver_id : null;
+        if ($assignedDriverId !== null && $assignedDriverId > 0 && is_array($driver)) {
+            $driver['id'] = $assignedDriverId;
+        }
+
+        $bookingStatus = (string) ($booking->status ?? 'Pending');
+        $normalizedBookingStatus = strtolower(trim($bookingStatus));
+        if ($assignedDriverId !== null && $assignedDriverId > 0 && ($normalizedBookingStatus === 'pending' || $normalizedBookingStatus === 'new' || $normalizedBookingStatus === 'open' || $normalizedBookingStatus === 'requested' || empty($normalizedBookingStatus))) {
+            $bookingStatus = 'Confirmed';
+        }
+
         return [
-            'id' => $booking->id,
-            'user_id' => $booking->user_id,
-            'driver_id' => $booking->driver_id,
+            'id' => (int) $booking->id,
+            'user_id' => !empty($booking->user_id) ? (int) $booking->user_id : $booking->user_id,
+            'driver_id' => $assignedDriverId,
             'customer_name' => $customer['name'] ?? 'Customer',
             'customer_phone' => $customer['phone'] ?? '',
             'customer_photo' => $customer['photo'] ?? '',
@@ -1694,14 +1743,14 @@ class ServiceRequestAPIController extends Controller
             'preferred_date' => $booking->preferred_date,
             'preferred_time' => $booking->preferred_time,
             'description' => $booking->description,
-            'status' => $booking->status,
+            'status' => $bookingStatus,
             'otp' => $otp,
             'amount' => $amount !== null ? (float) $amount : null,
             'tax' => !empty($booking->tax) ? (is_string($booking->tax) ? json_decode($booking->tax, true) : $booking->tax) : null,
             'tax_amount' => (float) ($booking->tax_amount ?? 0.0),
             'payment_status' => $paymentStatus,
             'price_breakdown' => $breakdown,
-            'service_items' => $this->buildDriverServiceItems($booking, !empty($booking->driver_id) ? (int) $booking->driver_id : null),
+            'service_items' => $this->buildDriverServiceItems($booking, $assignedDriverId),
             'driver' => $driver,
             'created_at' => $booking->created_at,
             'updated_at' => $booking->updated_at,
@@ -2654,11 +2703,13 @@ class ServiceRequestAPIController extends Controller
             $services = \Illuminate\Support\Facades\DB::table('service_requests')
                 ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'service_requests.user_id')
                 ->where(function ($q) use ($driverId) {
-                    $q->where('service_requests.driver_id', $driverId)
-                        ->orWhere(function($sub) {
-                            $sub->whereNull('service_requests.driver_id')
-                                ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(service_requests.status))'), ['cancelled', 'canceled', 'rejected', 'completed', 'failed']);
-                        });
+                    $q->where(function($assignedSub) use ($driverId) {
+                        $assignedSub->where('service_requests.driver_id', $driverId)
+                                   ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(service_requests.status))'), ['cancelled', 'canceled', 'rejected']);
+                    })->orWhere(function($unassignedSub) {
+                        $unassignedSub->whereNull('service_requests.driver_id')
+                                     ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(service_requests.status))'), ['cancelled', 'canceled', 'rejected', 'completed', 'failed']);
+                    });
                 })
                 ->select(
                     'service_requests.*',
@@ -2677,6 +2728,14 @@ class ServiceRequestAPIController extends Controller
                     continue;
                 }
 
+                $statusRaw = trim((string) ($svc->status ?? 'pending'));
+                $statusLower = strtolower($statusRaw);
+
+                // Never show cancelled or rejected bookings to the driver
+                if (in_array($statusLower, ['cancelled', 'canceled', 'rejected', 'failed'], true)) {
+                    continue;
+                }
+
                 // If driver has already rejected this unassigned request, hide it from this driver
                 if (!$isAssigned && !empty($svc->rejected_driver_ids)) {
                     $rejected = is_array($svc->rejected_driver_ids)
@@ -2691,10 +2750,22 @@ class ServiceRequestAPIController extends Controller
                     }
                 }
 
-                $status = strtolower(trim((string) ($svc->status ?? 'pending')));
-                $group = $this->bookingStatusGroup($status);
-                if (!$isAssigned && $group !== 'incoming') {
-                    continue;
+                // Assigned bookings are strictly 'active' (or 'history' if completed). Never 'incoming'.
+                // If assigned but status is still 'pending', treat status as 'Confirmed' so it only appears in Ongoing/Active.
+                if ($isAssigned) {
+                    if ($statusLower === 'pending' || $statusLower === 'new' || $statusLower === 'open' || $statusLower === 'requested' || empty($statusRaw)) {
+                        $statusRaw = 'Confirmed';
+                        $statusLower = 'confirmed';
+                    }
+                    $group = $this->bookingStatusGroup($statusLower);
+                    if ($group === 'incoming') {
+                        $group = 'active';
+                    }
+                } else {
+                    $group = $this->bookingStatusGroup($statusLower);
+                    if ($group !== 'incoming') {
+                        continue;
+                    }
                 }
 
                 if ($profile['is_home_service_provider'] && !$this->serviceMatchesDriverProfile($svc->service_name ?? '', $profile)) {
@@ -2740,7 +2811,7 @@ class ServiceRequestAPIController extends Controller
                     'type' => 'service',
                     'title' => $svc->service_name ?? 'Service Booking',
                     'subtitle' => $description !== '' ? $description : $address,
-                    'status' => $svc->status ?? 'Pending',
+                    'status' => $statusRaw,
                     'status_group' => $group,
                     'customer_name' => $customerName !== '' ? $customerName : 'Customer',
                     'customer_phone' => $customerPhone,

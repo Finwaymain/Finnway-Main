@@ -224,7 +224,7 @@
                                     @php
                                         $createdTime = \Carbon\Carbon::parse($req->created_at);
                                         $minsAgo = $createdTime->diffInMinutes(now());
-                                        $isEscalated = !$req->driver_id && (($req->status == 'pending' && $minsAgo >= 2) || $req->status == 'cancelled');
+                                        $isEscalated = !$req->driver_id && $req->status == 'pending' && $minsAgo >= 2;
                                     @endphp
                                     <tr class="{{ $isEscalated ? 'table-warning-row' : '' }}">
                                         <td>
@@ -286,7 +286,7 @@
                                         <td style="text-align: right;">
                                             <div class="d-inline-flex align-items-center flex-wrap gap-1 justify-content-end">
                                                 <!-- Action: Assign Partner (0-30km) -->
-                                                @if(!$req->driver_id || $req->status == 'pending' || $req->status == 'cancelled')
+                                                @if((!$req->driver_id || $req->status == 'pending') && $req->status != 'cancelled' && $req->status != 'completed')
                                                     <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold shadow-sm" onclick="openAssignPartnerPanel({{ $req->id }}, '{{ addslashes($req->service_name ?? 'Home Service') }}')" title="Check & Assign Related Business Partner within 0-30km">
                                                         <i class="fa fa-user-plus mr-1"></i> Assign Partner (0-30km)
                                                     </button>

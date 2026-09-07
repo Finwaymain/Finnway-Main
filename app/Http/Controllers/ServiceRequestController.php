@@ -34,14 +34,10 @@ class ServiceRequestController extends Controller
         $query = ServiceRequest::with(['user', 'provider'])->orderBy('created_at', 'desc');
 
         if ($status === 'escalated') {
-            // New Tab: Unassigned requests created >= 2 minutes ago OR cancelled without a driver
+            // Escalated Tab: Unassigned requests pending >= 2 minutes (exclude cancelled)
             $query->whereNull('driver_id')
-                  ->where(function($q) use ($escalationTime) {
-                      $q->where(function($p) use ($escalationTime) {
-                          $p->where('status', 'pending')
-                            ->where('created_at', '<=', $escalationTime);
-                      })->orWhere('status', 'cancelled');
-                  });
+                  ->where('status', 'pending')
+                  ->where('created_at', '<=', $escalationTime);
         } elseif ($status === 'timed_out' || $status === 'cancelled') {
             $query->where('status', 'cancelled');
         } elseif ($status === 'pending') {
@@ -70,14 +66,11 @@ class ServiceRequestController extends Controller
         $autoAccepted = ServiceRequest::whereIn('status', ['accepted', 'confirmed', 'in_progress', 'completed'])->count();
         $pendingMatch = ServiceRequest::where('status', 'pending')->whereNull('driver_id')->where('created_at', '>=', $escalationTime)->count();
         
-        // Count of requests escalated (> 2 min without provider or cancelled without provider)
+        // Count of requests escalated (> 2 min without provider, strictly pending and not cancelled)
         $escalatedCount = ServiceRequest::whereNull('driver_id')
-            ->where(function($q) use ($escalationTime) {
-                $q->where(function($p) use ($escalationTime) {
-                    $p->where('status', 'pending')
-                      ->where('created_at', '<=', $escalationTime);
-                })->orWhere('status', 'cancelled');
-            })->count();
+            ->where('status', 'pending')
+            ->where('created_at', '<=', $escalationTime)
+            ->count();
 
         $timedOutCount = ServiceRequest::where('status', 'cancelled')->whereNull('driver_id')->count();
         $completed = ServiceRequest::where('status', 'completed')->count();
@@ -441,13 +434,11 @@ class ServiceRequestController extends Controller
             $driverPayload = [
                 'title' => $driverTitle,
                 'body' => $driverBody,
-                'tag' => 'homeservicerequest',
+                'tag' => 'homeservicenotif',
                 'type' => 'homeservice',
                 'booking_id' => (string) $booking->id,
                 'statut' => 'confirmed',
                 'status' => 'Confirmed',
-                'sound' => 'ride_request_sound',
-                'channel_id' => 'ride_requests',
                 'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
             ];
 
@@ -511,12 +502,9 @@ class ServiceRequestController extends Controller
     {
         $escalationTime = Carbon::now()->subMinutes(2);
         $escalatedCount = ServiceRequest::whereNull('driver_id')
-            ->where(function($q) use ($escalationTime) {
-                $q->where(function($p) use ($escalationTime) {
-                    $p->where('status', 'pending')
-                      ->where('created_at', '<=', $escalationTime);
-                })->orWhere('status', 'cancelled');
-            })->count();
+            ->where('status', 'pending')
+            ->where('created_at', '<=', $escalationTime)
+            ->count();
 
         return response()->json([
             'success' => true,
