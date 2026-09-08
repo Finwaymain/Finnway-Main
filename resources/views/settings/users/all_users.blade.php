@@ -86,6 +86,7 @@
                                         <th>Type</th>
                                         <th>User Name <small class="text-muted">(click)</small></th>
                                         <th class="text-center">Referral Code</th>
+                                        <th>Referred By</th>
                                         <th>Email <small class="text-muted">(click)</small></th>
                                         <th>Mobile <small class="text-muted">(click)</small></th>
                                         <th>Alternate No <small class="text-muted">(click)</small></th>
@@ -165,6 +166,30 @@
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
+                                            {{-- Referred By --}}
+                                            <td>
+                                                @if(!empty($user->referred_by_name) || !empty($user->referred_by_code))
+                                                    <div>
+                                                        <span class="font-weight-bold" style="color: #1e293b;">
+                                                            <i class="fa fa-user-plus mr-1 text-primary"></i>{{ $user->referred_by_name ?: 'Unknown' }}
+                                                        </span>
+                                                        @if(!empty($user->referred_by_type))
+                                                            <span class="badge {{ $user->referred_by_type == 'Business' ? 'badge-warning text-dark' : 'badge-info' }} px-1 py-0 ml-1" style="font-size:10px;">
+                                                                {{ $user->referred_by_type }}
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                    @if(!empty($user->referred_by_code))
+                                                        <div class="mt-1">
+                                                            <span class="badge badge-light border text-dark px-1 py-0 font-weight-bold" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px;">
+                                                                <i class="fa fa-tag mr-1 text-muted"></i>{{ $user->referred_by_code }}
+                                                            </span>
+                                                        </div>
+                                                    @endif
+                                                @else
+                                                    <span class="badge badge-secondary px-2 py-1 font-weight-normal" style="font-size: 11px; opacity: 0.85;">NA</span>
+                                                @endif
+                                            </td>
                                             {{-- Email → popup --}}
                                             <td>
                                                 <a href="javascript:void(0)"
@@ -231,8 +256,8 @@
                                             {{-- Aadhaar → popup --}}
                                             <td>
                                                 <a href="javascript:void(0)"
-                                                   class="qe-trigger badge badge-light border font-weight-bold"
-                                                   style="font-family:monospace;"
+                                                   class="qe-trigger badge font-weight-bold"
+                                                   style="font-family:monospace; font-size:12px; color: #1e293b; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 8px; letter-spacing: 0.5px;"
                                                    data-id="{{ $user->id }}"
                                                    data-field="aadhar_number"
                                                    data-user-type="{{ $user->user_type }}"
@@ -315,7 +340,7 @@
                                         </tr>
                                         @endforeach
                                     @else
-                                        <tr><td colspan="20" class="text-center py-4 text-muted">No users found.</td></tr>
+                                        <tr><td colspan="21" class="text-center py-4 text-muted">No users found.</td></tr>
                                     @endif
                                 </tbody>
                             </table>
@@ -360,8 +385,8 @@ $(document).ready(function() {
         'lengthMenu': [10, 20, 50, 100],
         'order': [[1, 'desc']],
         'columnDefs': [
-            { 'orderable': false, 'targets': [0, 18] },
-            { 'searchable': false, 'targets': [0, 18] }
+            { 'orderable': false, 'targets': [0, -1] },
+            { 'searchable': false, 'targets': [0, -1] }
         ],
         'language': {
             'search': '_INPUT_',

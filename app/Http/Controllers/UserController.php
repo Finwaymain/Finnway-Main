@@ -1231,6 +1231,147 @@ class UserController extends Controller
             }
         }
 
+        // Batch resolve "Referred By" details for all users on this page
+        $userLookups = [];
+        foreach ($users as $u) {
+            $uType = ($u->user_type == 'consumer') ? 'customer' : 'driver';
+            $userLookups[] = ['user_id' => (int)$u->id, 'user_type' => $uType];
+        }
+
+        $referralRecords = collect();
+        if (!empty($userLookups)) {
+            $referralRecords = DB::table('referral')
+                ->where(function ($q) use ($userLookups) {
+                    foreach ($userLookups as $ul) {
+                        $q->orWhere(function ($sub) use ($ul) {
+                            $sub->where('user_id', $ul['user_id'])
+                                ->where(function ($typeSub) use ($ul) {
+                                    $typeSub->where('user_type', $ul['user_type'])
+                                            ->orWhereNull('user_type');
+                                });
+                        });
+                    }
+                })
+                ->get()
+                ->keyBy(function ($item) {
+                    $t = (!empty($item->user_type) && in_array($item->user_type, ['driver', 'conducteur', 'business'])) ? 'driver' : 'customer';
+                    return $item->user_id . '_' . $t;
+                });
+        }
+
+        // Collect all distinct referrer IDs and codes to pre-fetch their names
+        $consumerReferrerIds = [];
+        $driverReferrerIds   = [];
+        $fallbackCodes       = [];
+
+        foreach ($users as $u) {
+            $uType = ($u->user_type == 'consumer') ? 'customer' : 'driver';
+            $ref = $referralRecords->get($u->id . '_' . $uType);
+            if ($ref) {
+                $byId   = $ref->referral_by_id ?? null;
+                $byType = $ref->referral_by_type ?? null;
+                $byCode = trim($ref->referral_by_code ?? '');
+
+                if (!empty($byId)) {
+                    if ($byType === 'driver') {
+                        $driverReferrerIds[] = (int)$byId;
+                    } elseif ($byType === 'customer') {
+                        $consumerReferrerIds[] = (int)$byId;
+                    } else {
+                        $consumerReferrerIds[] = (int)$byId;
+                        $driverReferrerIds[]   = (int)$byId;
+                    }
+                } elseif (!empty($byCode)) {
+                    $fallbackCodes[] = strtoupper($byCode);
+                }
+            }
+        }
+
+        $consumerNames = [];
+        if (!empty($consumerReferrerIds)) {
+            $consumerNames = DB::table('tj_user_app')
+                ->whereIn('id', array_unique($consumerReferrerIds))
+                ->select('id', 'prenom', 'nom', 'phone')
+                ->get()
+                ->keyBy('id');
+        }
+
+        $driverNames = [];
+        if (!empty($driverReferrerIds)) {
+            $driverNames = DB::table('tj_conducteur')
+                ->whereIn('id', array_unique($driverReferrerIds))
+                ->select('id', 'prenom', 'nom', 'phone', 'business_name')
+                ->get()
+                ->keyBy('id');
+        }
+
+        // Attach referred_by info to each user
+        foreach ($users as $u) {
+            $uType = ($u->user_type == 'consumer') ? 'customer' : 'driver';
+            $ref = $referralRecords->get($u->id . '_' . $uType);
+
+            $referredByName = null;
+            $referredByCode = null;
+            $referredByType = null;
+
+            if ($ref) {
+                $byId   = $ref->referral_by_id ?? null;
+                $byType = $ref->referral_by_type ?? null;
+                $byCode = trim($ref->referral_by_code ?? '');
+
+                if (!empty($byId)) {
+                    if ($byType === 'driver' && isset($driverNames[$byId])) {
+                        $d = $driverNames[$byId];
+                        $referredByName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: ($d->business_name ?? 'Business User #' . $byId);
+                        $referredByType = 'Business';
+                    } elseif ($byType === 'customer' && isset($consumerNames[$byId])) {
+                        $c = $consumerNames[$byId];
+                        $referredByName = trim(($c->prenom ?? '') . ' ' . ($c->nom ?? '')) ?: 'User #' . $byId;
+                        $referredByType = 'Customer';
+                    } else {
+                        // Attempt lookup in consumer first then driver
+                        if (isset($consumerNames[$byId])) {
+                            $c = $consumerNames[$byId];
+                            $referredByName = trim(($c->prenom ?? '') . ' ' . ($c->nom ?? '')) ?: 'User #' . $byId;
+                            $referredByType = 'Customer';
+                        } elseif (isset($driverNames[$byId])) {
+                            $d = $driverNames[$byId];
+                            $referredByName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: ($d->business_name ?? 'Business User #' . $byId);
+                            $referredByType = 'Business';
+                        }
+                    }
+                }
+
+                // If name not found by ID, try resolving code
+                if (empty($referredByName) && !empty($byCode)) {
+                    $resolved = \App\Services\ReferralCodeService::resolveReferrer($byCode);
+                    if ($resolved && !empty($resolved['user_id'])) {
+                        $resId = (int)$resolved['user_id'];
+                        $resType = $resolved['user_type'] ?? 'customer';
+                        if ($resType === 'driver') {
+                            $d = DB::table('tj_conducteur')->where('id', $resId)->first();
+                            if ($d) {
+                                $referredByName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: ($d->business_name ?? 'Business User #' . $resId);
+                                $referredByType = 'Business';
+                            }
+                        } else {
+                            $c = DB::table('tj_user_app')->where('id', $resId)->first();
+                            if ($c) {
+                                $referredByName = trim(($c->prenom ?? '') . ' ' . ($c->nom ?? '')) ?: 'User #' . $resId;
+                                $referredByType = 'Customer';
+                            }
+                        }
+                    }
+                }
+
+                $referredByCode = !empty($byCode) ? $byCode : null;
+            }
+
+            $u->referred_by_name = $referredByName;
+            $u->referred_by_code = $referredByCode;
+            $u->referred_by_type = $referredByType;
+        }
+
         return view('settings.users.all_users', compact('users'));
     }
 
