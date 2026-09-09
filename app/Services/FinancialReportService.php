@@ -72,8 +72,13 @@ class FinancialReportService
             return $q->whereNotIn('statut', $cancelledRideStatuses);
         };
 
-        $validService = function($q) use ($cancelledServiceStatuses) {
-            return $q->whereNotIn('status', $cancelledServiceStatuses);
+        // Only count service requests that are actually completed AND paid.
+        // Pending/unpaid bookings must NEVER be counted in any financial metric.
+        $validService = function($q) {
+            return $q->where(function($inner) {
+                $inner->whereIn('status', ['completed', 'complete', 'done', 'confirmed'])
+                      ->whereIn('payment_status', ['paid', 'paid_online', 'paid_cash', 'success', 'completed', 'cash']);
+            });
         };
 
         $validMarket = function($q) use ($cancelledMarketStatuses) {
@@ -271,17 +276,12 @@ class FinancialReportService
                 $homeGross += $bAmt;
 
                 $pb = !empty($hr->price_breakdown) ? (is_string($hr->price_breakdown) ? json_decode($hr->price_breakdown, true) : (array)$hr->price_breakdown) : [];
+                // Only count platform_fee if explicitly stored in price_breakdown (no arbitrary fallback)
                 $pF = (float)($pb['platform_fee'] ?? 0);
-                if ($pF == 0) {
-                    $pF = 50.0; // Standard nominal platform fee
-                }
                 $homePFee += $pF;
 
-                // Commission
+                // Commission: only use stored value, never estimate on potentially unpaid bookings
                 $sComm = (float)($pb['commission'] ?? 0);
-                if ($sComm == 0) {
-                    $sComm = round(max(0, $bAmt - $pF) * 0.10, 2);
-                }
                 $homeComm += $sComm;
 
                 // Pure GST: strictly pure tax amount without arbitrary percentage inflation
