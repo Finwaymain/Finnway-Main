@@ -51,7 +51,7 @@
         </div>
         @endif
 
-        @if($errors->any())
+        @if(isset($errors) && $errors->any())
         <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" style="border-radius: 12px; background: #fef2f2; color: #991b1b;" role="alert">
             <strong>⚠ Please fix the following errors:</strong>
             <ul class="mb-0 mt-1">
