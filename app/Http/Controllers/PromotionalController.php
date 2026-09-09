@@ -106,11 +106,23 @@ class PromotionalController extends Controller
             ->limit(25)
             ->get();
 
-        // 4. Recent Promotional Users
+        // 4. Promotional Users with Profile Info
         $users = DB::table('user_promotions')
             ->orderBy('id', 'desc')
-            ->limit(20)
-            ->get();
+            ->limit(50)
+            ->get()
+            ->map(function ($promo) {
+                if ($promo->user_type === 'driver') {
+                    $u = DB::table('tj_conducteur')->where('id', $promo->user_id)->select('prenom', 'nom', 'phone', 'email', 'ac_no')->first();
+                } else {
+                    $u = DB::table('tj_user_app')->where('id', $promo->user_id)->select('prenom', 'nom', 'phone', 'email', 'ac_no')->first();
+                }
+                $promo->user_name = ($u && (!empty($u->prenom) || !empty($u->nom))) ? trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) : 'User #' . $promo->user_id;
+                $promo->user_phone = $u->phone ?? '—';
+                $promo->user_email = $u->email ?? '—';
+                $promo->ac_no = $u->ac_no ?? '—';
+                return $promo;
+            });
 
         return view('promotional.index', compact('config', 'stats', 'logs', 'users'));
     }
