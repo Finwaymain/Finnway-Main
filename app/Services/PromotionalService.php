@@ -92,10 +92,14 @@ class PromotionalService
                 $fcmToken = null;
                 if ($userType === 'customer') {
                     $u = DB::table('tj_user_app')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
-                    $fcmToken = !empty($u->tonotify) ? $u->tonotify : ($u->fcm_id ?? null);
+                    if ($u) {
+                        $fcmToken = (!empty($u->fcm_id) && strlen($u->fcm_id) > 15) ? $u->fcm_id : ((!empty($u->tonotify) && strlen($u->tonotify) > 15) ? $u->tonotify : null);
+                    }
                 } else {
                     $d = DB::table('tj_conducteur')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
-                    $fcmToken = !empty($d->fcm_id) ? $d->fcm_id : ($d->tonotify ?? null);
+                    if ($d) {
+                        $fcmToken = (!empty($d->fcm_id) && strlen($d->fcm_id) > 15) ? $d->fcm_id : ((!empty($d->tonotify) && strlen($d->tonotify) > 15) ? $d->tonotify : null);
+                    }
                 }
 
                 if (!empty($fcmToken)) {

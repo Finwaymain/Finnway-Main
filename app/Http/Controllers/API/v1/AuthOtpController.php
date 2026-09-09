@@ -247,7 +247,7 @@ class AuthOtpController extends Controller
         $firstname     = trim($request->get('firstname'));
         $lastname      = trim($request->get('lastname'));
         $user_cat      = $request->get('user_cat', 'customer');
-        $referral_code = $request->get('referral_code', '');
+        $referral_code = trim((string)($request->get('referral_code') ?? ''));
         $category_id   = $request->get('category_id', null);
         $date_heure    = date('Y-m-d H:i:s');
 
@@ -960,7 +960,7 @@ class AuthOtpController extends Controller
         $firstname     = trim($request->get('firstname'));
         $lastname      = trim($request->get('lastname', ''));
         $user_cat      = $request->get('user_cat', 'customer');
-        $referral_code = $request->get('referral_code', '');
+        $referral_code = trim((string)($request->get('referral_code') ?? ''));
         $date_heure    = date('Y-m-d H:i:s');
 
         if (empty($phone) || empty($otp) || empty($mpin) || empty($firstname)) {
@@ -1331,12 +1331,12 @@ class AuthOtpController extends Controller
         return 0.0;
     }
 
-    public function handleReferral($userId, string $referralCode, string $dateHeure, string $userCat = 'customer'): void
+    public function handleReferral($userId, ?string $referralCode = null, string $dateHeure = '', string $userCat = 'customer'): void
     {
         try {
             $userId = (int)$userId;
             $userCat = in_array(strtolower(trim($userCat)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
-            $referralCode = trim($referralCode);
+            $referralCode = trim((string)$referralCode);
             $referrer = !empty($referralCode) ? $this->resolveReferrerUserId($referralCode) : null;
             $isSelf = false;
             if ($referrer) {
