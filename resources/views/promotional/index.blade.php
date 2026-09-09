@@ -23,13 +23,20 @@
                                     🎁 Promotional & Welcome Bonus Engine
                                 </h2>
                                 <p class="text-white-50 mb-0" style="font-size: 14px;">
-                                    Configure auto-grant welcome bonus credits, per-service discounts, and service-booking marketing deductions.
+                                    Configure independent welcome bonus credits, per-service discounts, validity, and bill thresholds for Tier 1 (Referral) and Tier 2 (Direct Join).
                                 </p>
                             </div>
-                            <div class="text-right">
-                                <span class="d-block text-white-50" style="font-size: 12px;">Active Discount Per Service</span>
-                                <span class="text-warning font-weight-bold" style="font-size: 24px;">₹{{ number_format($config->discount_per_service, 2) }}</span>
-                            </div>
+                            <div class="text-right d-flex gap-4">
+                                <div class="pr-3 border-right border-secondary">
+                                    <span class="d-block text-white-50" style="font-size: 12px;">Tier 1 (With Code)</span>
+                                    <span class="text-warning font-weight-bold" style="font-size: 20px;">₹{{ number_format($config->bonus_with_code ?? 300, 0) }}</span>
+                                    <small class="d-block text-white-50">₹{{ number_format($config->discount_per_service_with_code ?? 50, 0) }}/service ({{ $config->uses_with_code ?? 6 }}x)</small>
+                                </div>
+                                <div>
+                                    <span class="d-block text-white-50" style="font-size: 12px;">Tier 2 (Direct Join)</span>
+                                    <span class="text-info font-weight-bold" style="font-size: 20px;">₹{{ number_format($config->bonus_without_code ?? 150, 0) }}</span>
+                                    <small class="d-block text-white-50">₹{{ number_format($config->discount_per_service_without_code ?? 50, 0) }}/service ({{ $config->uses_without_code ?? 3 }}x)</small>
+                                </div>
                         </div>
                     </div>
                 </div>
@@ -112,173 +119,225 @@
             </div>
         </div>
 
-        <!-- Configuration Form & Marketing Rule Guide -->
+        <!-- Master Configuration Form (Full Width — Tier 1 & Tier 2 completely separated) -->
         <div class="row mb-4">
-            <!-- Left: Settings Form -->
-            <div class="col-lg-8 mb-4">
+            <div class="col-12">
                 <div class="card border-0 shadow-sm" style="border-radius: 16px;">
                     <div class="card-header bg-white border-bottom py-3 px-4" style="border-top-left-radius: 16px; border-top-right-radius: 16px;">
-                        <h5 class="font-weight-bold mb-0 text-dark">
-                            ⚙️ Master Promotional Configuration
-                        </h5>
-                        <small class="text-muted">Control bonus values, per-booking discount limits, and duration.</small>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h5 class="font-weight-bold mb-0 text-dark">
+                                    ⚙️ Master Promotional Configuration
+                                </h5>
+                                <small class="text-muted">Independent configurations for Referral Users (Tier 1) and Direct Join Users (Tier 2).</small>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="card-body p-4">
                         <form action="{{ route('promotional.update') }}" method="POST">
                             @csrf
 
-                            <!-- Section 1: Referral Code Join Tier -->
-                            <div class="p-3 mb-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-primary text-white mr-2">Tier 1</span>
-                                    <h6 class="font-weight-bold mb-0 text-dark">Join With Reference / Referral Code</h6>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
-                                            <input type="number" step="0.01" name="bonus_with_code" class="form-control" value="{{ old('bonus_with_code', $config->bonus_with_code) }}" required>
+                            <div class="row">
+                                <!-- ==================== TIER 1: WITH REFERRAL CODE ==================== -->
+                                <div class="col-lg-6 mb-4">
+                                    <div class="h-100 p-4 rounded" style="background: #f8fafc; border: 2px solid #e2e8f0; border-top: 4px solid #3b82f6;">
+                                        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-primary text-white mr-2 px-3 py-1 font-weight-bold" style="font-size: 12px; border-radius: 20px;">Tier 1</span>
+                                                <h5 class="font-weight-bold mb-0 text-dark">Join With Reference / Referral Code</h5>
+                                            </div>
                                         </div>
-                                        <small class="text-muted">Default: ₹300.00</small>
+                                        <p class="text-muted mb-3" style="font-size: 12px;">Applies to users who enter a valid referral code during onboarding or registration.</p>
+
+                                        <!-- Bonus & Uses -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold">₹</span></div>
+                                                    <input type="number" step="0.01" name="bonus_with_code" class="form-control font-weight-bold text-primary" value="{{ old('bonus_with_code', $config->bonus_with_code ?? 300.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹300.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Total Service Uses</label>
+                                                <input type="number" name="uses_with_code" class="form-control font-weight-bold" value="{{ old('uses_with_code', $config->uses_with_code ?? 6) }}" required>
+                                                <small class="text-muted">Default: 6 uses (e.g. ₹300 ÷ ₹50 = 6)</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Discount & Validity -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Discount Per Service (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold">₹</span></div>
+                                                    <input type="number" step="0.01" name="discount_per_service_with_code" class="form-control font-weight-bold text-success" value="{{ old('discount_per_service_with_code', $config->discount_per_service_with_code ?? $config->discount_per_service ?? 50.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹50.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Expiry (Days from Join)</label>
+                                                <input type="number" name="expiry_days_with_code" class="form-control" value="{{ old('expiry_days_with_code', $config->expiry_days_with_code ?? $config->expiry_days ?? 30) }}" required>
+                                                <small class="text-muted">Default: 30 days</small>
+                                            </div>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-12 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Fixed Expiry Date (Optional)</label>
+                                                <input type="date" name="custom_expiry_date_with_code" class="form-control" value="{{ old('custom_expiry_date_with_code', $config->custom_expiry_date_with_code ?? $config->custom_expiry_date) }}">
+                                                <small class="text-muted">Overrides days if set (dd-mm-yyyy)</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Bill Thresholds -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Min Bill Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
+                                                    <input type="number" step="0.01" name="min_bill_with_code" class="form-control" value="{{ old('min_bill_with_code', $config->min_bill_with_code ?? $config->min_bill_amount ?? 50.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹50.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Max Bill Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
+                                                    <input type="number" step="0.01" name="max_bill_with_code" class="form-control" value="{{ old('max_bill_with_code', $config->max_bill_with_code ?? $config->max_bill_amount ?? 100000.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹100000.00</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Roles -->
+                                        <div class="row">
+                                            <div class="col-md-12 mb-2">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Applicable User Roles</label>
+                                                @php $roleTier1 = old('applicable_roles_with_code', $config->applicable_roles_with_code ?? $config->applicable_roles ?? 'all'); @endphp
+                                                <select name="applicable_roles_with_code" class="form-control">
+                                                    <option value="all" {{ $roleTier1 === 'all' ? 'selected' : '' }}>All Users (Consumer & Drivers)</option>
+                                                    <option value="customer" {{ $roleTier1 === 'customer' ? 'selected' : '' }}>Consumers Only</option>
+                                                    <option value="driver" {{ $roleTier1 === 'driver' ? 'selected' : '' }}>Drivers / Business Only</option>
+                                                </select>
+                                                <small class="text-muted">Who is eligible for Tier 1 Welcome Bonus</small>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-md-6 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Total Service Uses</label>
-                                        <input type="number" name="uses_with_code" class="form-control" value="{{ old('uses_with_code', $config->uses_with_code) }}" required>
-                                        <small class="text-muted">Default: 6 uses (e.g. ₹300 ÷ ₹50 = 6)</small>
+                                </div>
+
+                                <!-- ==================== TIER 2: DIRECT JOIN (NO CODE) ==================== -->
+                                <div class="col-lg-6 mb-4">
+                                    <div class="h-100 p-4 rounded" style="background: #f8fafc; border: 2px solid #e2e8f0; border-top: 4px solid #06b6d4;">
+                                        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-info text-white mr-2 px-3 py-1 font-weight-bold" style="font-size: 12px; border-radius: 20px;">Tier 2</span>
+                                                <h5 class="font-weight-bold mb-0 text-dark">Direct Join Without Reference Code</h5>
+                                            </div>
+                                        </div>
+                                        <p class="text-muted mb-3" style="font-size: 12px;">Applies to users who register directly without any referral or invite code.</p>
+
+                                        <!-- Bonus & Uses -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold">₹</span></div>
+                                                    <input type="number" step="0.01" name="bonus_without_code" class="form-control font-weight-bold text-info" value="{{ old('bonus_without_code', $config->bonus_without_code ?? 150.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹150.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Total Service Uses</label>
+                                                <input type="number" name="uses_without_code" class="form-control font-weight-bold" value="{{ old('uses_without_code', $config->uses_without_code ?? 3) }}" required>
+                                                <small class="text-muted">Default: 3 uses (e.g. ₹150 ÷ ₹50 = 3)</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Discount & Validity -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Discount Per Service (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold">₹</span></div>
+                                                    <input type="number" step="0.01" name="discount_per_service_without_code" class="form-control font-weight-bold text-success" value="{{ old('discount_per_service_without_code', $config->discount_per_service_without_code ?? $config->discount_per_service ?? 50.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹50.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Expiry (Days from Join)</label>
+                                                <input type="number" name="expiry_days_without_code" class="form-control" value="{{ old('expiry_days_without_code', $config->expiry_days_without_code ?? $config->expiry_days ?? 30) }}" required>
+                                                <small class="text-muted">Default: 30 days</small>
+                                            </div>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-12 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Fixed Expiry Date (Optional)</label>
+                                                <input type="date" name="custom_expiry_date_without_code" class="form-control" value="{{ old('custom_expiry_date_without_code', $config->custom_expiry_date_without_code ?? $config->custom_expiry_date) }}">
+                                                <small class="text-muted">Overrides days if set (dd-mm-yyyy)</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Bill Thresholds -->
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Min Bill Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
+                                                    <input type="number" step="0.01" name="min_bill_without_code" class="form-control" value="{{ old('min_bill_without_code', $config->min_bill_without_code ?? $config->min_bill_amount ?? 50.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹50.00</small>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Max Bill Amount (₹)</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
+                                                    <input type="number" step="0.01" name="max_bill_without_code" class="form-control" value="{{ old('max_bill_without_code', $config->max_bill_without_code ?? $config->max_bill_amount ?? 100000.00) }}" required>
+                                                </div>
+                                                <small class="text-muted">Default: ₹100000.00</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Roles -->
+                                        <div class="row">
+                                            <div class="col-md-12 mb-2">
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Applicable User Roles</label>
+                                                @php $roleTier2 = old('applicable_roles_without_code', $config->applicable_roles_without_code ?? $config->applicable_roles ?? 'all'); @endphp
+                                                <select name="applicable_roles_without_code" class="form-control">
+                                                    <option value="all" {{ $roleTier2 === 'all' ? 'selected' : '' }}>All Users (Consumer & Drivers)</option>
+                                                    <option value="customer" {{ $roleTier2 === 'customer' ? 'selected' : '' }}>Consumers Only</option>
+                                                    <option value="driver" {{ $roleTier2 === 'driver' ? 'selected' : '' }}>Drivers / Business Only</option>
+                                                </select>
+                                                <small class="text-muted">Who is eligible for Tier 2 Welcome Bonus</small>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Section 2: Direct Join Tier -->
-                            <div class="p-3 mb-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="badge bg-info text-white mr-2">Tier 2</span>
-                                    <h6 class="font-weight-bold mb-0 text-dark">Direct Join Without Reference Code</h6>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-6 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
-                                            <input type="number" step="0.01" name="bonus_without_code" class="form-control" value="{{ old('bonus_without_code', $config->bonus_without_code) }}" required>
-                                        </div>
-                                        <small class="text-muted">Default: ₹150.00</small>
-                                    </div>
-                                    <div class="col-md-6 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Total Service Uses</label>
-                                        <input type="number" name="uses_without_code" class="form-control" value="{{ old('uses_without_code', $config->uses_without_code) }}" required>
-                                        <small class="text-muted">Default: 3 uses (e.g. ₹150 ÷ ₹50 = 3)</small>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Section 3: Usage Rules & Thresholds -->
-                            <div class="p-3 mb-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                                <h6 class="font-weight-bold mb-2 text-dark">Discount Limits & Validity</h6>
-                                <div class="row">
-                                    <div class="col-md-4 mb-3">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Discount Per Service (₹)</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
-                                            <input type="number" step="0.01" name="discount_per_service" class="form-control" value="{{ old('discount_per_service', $config->discount_per_service) }}" required>
-                                        </div>
-                                        <small class="text-muted">Default: ₹50.00</small>
-                                    </div>
-
-                                    <div class="col-md-4 mb-3">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Expiry (Days from Join)</label>
-                                        <input type="number" name="expiry_days" class="form-control" value="{{ old('expiry_days', $config->expiry_days) }}" required>
-                                        <small class="text-muted">Default: 30 days</small>
-                                    </div>
-
-                                    <div class="col-md-4 mb-3">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Fixed Expiry Date (Optional)</label>
-                                        <input type="date" name="custom_expiry_date" class="form-control" value="{{ old('custom_expiry_date', $config->custom_expiry_date) }}">
-                                        <small class="text-muted">Overrides days if set</small>
-                                    </div>
-
-                                    <div class="col-md-4 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Min Bill Amount (₹)</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
-                                            <input type="number" step="0.01" name="min_bill_amount" class="form-control" value="{{ old('min_bill_amount', $config->min_bill_amount) }}" required>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-4 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Max Bill Amount (₹)</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
-                                            <input type="number" step="0.01" name="max_bill_amount" class="form-control" value="{{ old('max_bill_amount', $config->max_bill_amount) }}" required>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-4 mb-2">
-                                        <label class="font-weight-semibold text-dark" style="font-size: 13px;">Applicable User Roles</label>
-                                        <select name="applicable_roles" class="form-control">
-                                            <option value="all" {{ $config->applicable_roles === 'all' ? 'selected' : '' }}>All Users (Consumer & Drivers)</option>
-                                            <option value="customer" {{ $config->applicable_roles === 'customer' ? 'selected' : '' }}>Consumers Only</option>
-                                            <option value="driver" {{ $config->applicable_roles === 'driver' ? 'selected' : '' }}>Drivers / Business Only</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Section 4: System Status Switch -->
-                            <div class="d-flex align-items-center justify-content-between p-3 rounded mb-4" style="background: #f1f5f9; border: 1px solid #cbd5e1;">
+                            <!-- System Status & Submit Footer -->
+                            <div class="d-flex flex-wrap align-items-center justify-content-between p-3 rounded mb-4" style="background: #f1f5f9; border: 1px solid #cbd5e1;">
                                 <div>
-                                    <h6 class="font-weight-bold mb-0 text-dark">Promotional System Master Status</h6>
+                                    <h6 class="font-weight-bold mb-0 text-dark">Promotional System Master Switch</h6>
                                     <small class="text-muted">Turn the entire promotional bonus and discount engine ON or OFF system-wide.</small>
                                 </div>
-                                <div>
-                                    <select name="status" class="form-control font-weight-bold {{ $config->status === 'active' ? 'text-success' : 'text-danger' }}" style="width: 130px;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <select name="status" class="form-control font-weight-bold {{ $config->status === 'active' ? 'text-success' : 'text-danger' }}" style="width: 150px;">
                                         <option value="active" {{ $config->status === 'active' ? 'selected' : '' }}>● ON (Active)</option>
                                         <option value="inactive" {{ $config->status === 'inactive' ? 'selected' : '' }}>○ OFF (Disabled)</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary font-weight-bold px-4 py-2" style="border-radius: 10px; background: #6AA720; border-color: #6AA720;">
-                                Save & Apply Promotional Settings
-                            </button>
+                            <div class="text-right">
+                                <button type="submit" class="btn btn-primary font-weight-bold px-5 py-2" style="border-radius: 10px; background: #6AA720; border-color: #6AA720; font-size: 15px;">
+                                    Save & Apply Promotional Settings
+                                </button>
+                            </div>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right: Marketing Logic Guide -->
-            <div class="col-lg-4 mb-4">
-                <div class="card border-0 shadow-sm" style="border-radius: 16px; background: #ffffff;">
-                    <div class="card-header bg-white border-bottom py-3 px-4">
-                        <h6 class="font-weight-bold mb-0 text-dark">💡 Marketing Strategy Breakdown</h6>
-                    </div>
-                    <div class="card-body p-4">
-                        <div class="alert alert-info border-0" style="border-radius: 12px; font-size: 13px; line-height: 1.6;">
-                            <strong>User Psychology Flow:</strong><br>
-                            When a customer has promotional balance (e.g. ₹50 discount available) and books a ₹100 service:
-                            <ul class="mb-0 mt-2 pl-3">
-                                <li>Service price shown: <strong>₹150</strong></li>
-                                <li>Option given to apply <strong>₹50 Welcome Promo Cash</strong></li>
-                                <li>Promo applied: <strong>-₹50</strong></li>
-                                <li>User pays: <strong>₹100</strong></li>
-                            </ul>
-                        </div>
-
-                        <div class="p-3 mb-3 rounded" style="background: #faf5ff; border: 1px solid #e9d5ff;">
-                            <h6 class="font-weight-bold text-purple mb-1" style="font-size: 13px; color: #7e22ce;">🔒 Non-Cash Guarantee</h6>
-                            <p class="mb-0 text-muted" style="font-size: 12px;">
-                                Promotional balance is strictly isolated from withdrawable funds (<code>tj_user_app.amount</code>). Users <strong>cannot</strong> withdraw, transfer, or convert promo money to real cash.
-                            </p>
-                        </div>
-
-                        <div class="p-3 rounded" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
-                            <h6 class="font-weight-bold text-success mb-1" style="font-size: 13px;">📱 In-App Wallet Display</h6>
-                            <p class="mb-0 text-muted" style="font-size: 12px;">
-                                Rendered as an active <strong>Promotion Card</strong> at the top right of the Smart Value Balance card in the webview wallet, displaying remaining discount allowance and validity.
-                            </p>
-                        </div>
                     </div>
                 </div>
             </div>

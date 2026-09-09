@@ -38,9 +38,15 @@ class PromotionalService
                 return false;
             }
 
-            // Verify applicable roles
-            if (!empty($config->applicable_roles) && $config->applicable_roles !== 'all') {
-                if ($config->applicable_roles !== $userType) {
+            $hasCode = !empty(trim((string)$referralCode));
+
+            // Verify applicable roles per tier
+            $applicableRoles = $hasCode 
+                ? ($config->applicable_roles_with_code ?? $config->applicable_roles ?? 'all')
+                : ($config->applicable_roles_without_code ?? $config->applicable_roles ?? 'all');
+
+            if (!empty($applicableRoles) && $applicableRoles !== 'all') {
+                if ($applicableRoles !== $userType) {
                     return false;
                 }
             }
@@ -55,18 +61,26 @@ class PromotionalService
                 return false;
             }
 
-            $hasCode = !empty(trim((string)$referralCode));
-
-            $initialBonus       = $hasCode ? (float)$config->bonus_with_code : (float)$config->bonus_without_code;
-            $totalUses          = $hasCode ? (int)$config->uses_with_code : (int)$config->uses_without_code;
-            $discountPerService = (float)$config->discount_per_service;
+            if ($hasCode) {
+                $initialBonus       = (float)($config->bonus_with_code ?? 300.00);
+                $totalUses          = (int)($config->uses_with_code ?? 6);
+                $discountPerService = (float)($config->discount_per_service_with_code ?? $config->discount_per_service ?? 50.00);
+                $customExpiry       = $config->custom_expiry_date_with_code ?? $config->custom_expiry_date ?? null;
+                $expiryDays         = (int)($config->expiry_days_with_code ?? $config->expiry_days ?? 30);
+            } else {
+                $initialBonus       = (float)($config->bonus_without_code ?? 150.00);
+                $totalUses          = (int)($config->uses_without_code ?? 3);
+                $discountPerService = (float)($config->discount_per_service_without_code ?? $config->discount_per_service ?? 50.00);
+                $customExpiry       = $config->custom_expiry_date_without_code ?? $config->custom_expiry_date ?? null;
+                $expiryDays         = (int)($config->expiry_days_without_code ?? $config->expiry_days ?? 30);
+            }
 
             // Compute expiry
             $expiryDate = null;
-            if (!empty($config->custom_expiry_date) && Carbon::parse($config->custom_expiry_date)->isFuture()) {
-                $expiryDate = Carbon::parse($config->custom_expiry_date)->endOfDay();
-            } elseif (!empty($config->expiry_days) && (int)$config->expiry_days > 0) {
-                $expiryDate = Carbon::now()->addDays((int)$config->expiry_days);
+            if (!empty($customExpiry) && Carbon::parse($customExpiry)->isFuture()) {
+                $expiryDate = Carbon::parse($customExpiry)->endOfDay();
+            } elseif ($expiryDays > 0) {
+                $expiryDate = Carbon::now()->addDays($expiryDays);
             }
 
             DB::table('user_promotions')->insert([
@@ -258,8 +272,15 @@ class PromotionalService
         }
 
         $config = self::getActiveConfig();
-        $minBill = $config ? (float)$config->min_bill_amount : 0.00;
-        $maxBill = $config ? (float)$config->max_bill_amount : 999999.00;
+        $promoUser = DB::table('user_promotions')->where('id', $promo['promo_id'])->first();
+        $isJoinedWithCode = $promoUser ? (bool)$promoUser->joined_with_code : false;
+
+        $minBill = $config 
+            ? (float)($isJoinedWithCode ? ($config->min_bill_with_code ?? $config->min_bill_amount ?? 0.00) : ($config->min_bill_without_code ?? $config->min_bill_amount ?? 0.00))
+            : 0.00;
+        $maxBill = $config 
+            ? (float)($isJoinedWithCode ? ($config->max_bill_with_code ?? $config->max_bill_amount ?? 999999.00) : ($config->max_bill_without_code ?? $config->max_bill_amount ?? 999999.00))
+            : 999999.00;
 
         if ($basePrice < $minBill || $basePrice > $maxBill) {
             return [
