@@ -92,8 +92,8 @@ class WalletController extends Controller
             $calcEarn = round(floatval($rideEarnings) + floatval($parcelEarnings) + floatval($serviceEarnings), 2);
             $storedEarn = floatval($row->earn_amount ?? 0);
             $row->earn_amount = strval(number_format(max($storedEarn, $calcEarn), 2, '.', ''));
-            // Driver wallet balance should strictly reflect actual withdrawable/debt balance in tj_conducteur.amount
             $row->amount = strval(number_format(floatval($row->amount ?? 0), 2, '.', ''));
+            $row->promotional = \App\Services\PromotionalService::getUserPromotion((int)$id_user, 'driver');
             $response['success']= 'success';
             $response['error']= null;
             $response['message'] = 'Successfully';
@@ -109,6 +109,7 @@ class WalletController extends Controller
 
     if($sql->count() > 0){
         $row = $sql->first();
+        $row->promotional = \App\Services\PromotionalService::getUserPromotion((int)$id_user, 'customer');
         $response['success']= 'success';
         $response['error']= null;
         $response['message'] = 'Successfully';

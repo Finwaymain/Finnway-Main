@@ -1445,6 +1445,7 @@ class UserProfileUpdateController extends Controller
         $finalEarn  = max($storedEarn, $calcEarn);
 
         $userArray['earn_amount'] = (string) number_format($finalEarn, 2, '.', '');
+        $userArray['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$userId, $userType);
 
         return response()->json([
             'res'  => 'success',
