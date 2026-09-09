@@ -1170,6 +1170,10 @@ Route::post('/wallet-growth/run', [App\Http\Controllers\WalletGrowthController::
 Route::get('/referral-engine', [App\Http\Controllers\ReferralRewardController::class, 'index'])->name('referral.index');
 Route::post('/referral-engine/update', [App\Http\Controllers\ReferralRewardController::class, 'update'])->name('referral.update');
 
+// ── Promotional & Welcome Bonus Engine ─────────────────────────────────────
+Route::get('/promotional', [App\Http\Controllers\PromotionalController::class, 'index'])->name('promotional.index');
+Route::post('/promotional/update', [App\Http\Controllers\PromotionalController::class, 'update'])->name('promotional.update');
+
 // ── Invoice Download ───────────────────────────────────────────────────────
 Route::get('/invoice/{id}/download', [App\Http\Controllers\InvoiceController::class, 'downloadInvoice'])->name('invoice.download');
 

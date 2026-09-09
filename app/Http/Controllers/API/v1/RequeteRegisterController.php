@@ -217,6 +217,16 @@ class RequeteRegisterController extends Controller
                     } else {
                         $id_conducteur = 0;
                     }
+                $baseFare = floatval($cout ?? 0);
+                $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int)$user_id, 'customer', $baseFare);
+                $isPromoApplied = false;
+                $promotionalAmount = 0.00;
+                $promotionalDiscount = 0.00;
+
+                if ($promoCalc['is_promo_available'] && $request->input('apply_promotional', '1') != '0') {
+                    $isPromoApplied = true;
+                    $promotionalAmount = $promoCalc['promotional_amount'];
+                    $promotionalDiscount = $promoCalc['welcome_discount'];
                 }
 
                 $id = DB::table('tj_requete')->insertGetId([
@@ -241,6 +251,9 @@ class RequeteRegisterController extends Controller
                     'distance' => $distance ?? '0',
                     'distance_unit' => $distance_unit ?? 'KM',
                     'montant' => $cout ?? '0',
+                    'promotional_amount' => $promotionalAmount,
+                    'promotional_discount' => $promotionalDiscount,
+                    'is_promotional_applied' => $isPromoApplied ? 1 : 0,
                     'duree' => !empty($duree) ? $duree : '0',
                     'trip_objective' => $trip_objective ?? '',
                     'age_children1' => $age_children1 ?? '',
@@ -256,6 +269,10 @@ class RequeteRegisterController extends Controller
                     'feel_safe_driver' => 0,
                     'stops' => $stops ?? '[]'
                 ]);
+
+                if ($id > 0 && $isPromoApplied) {
+                    \App\Services\PromotionalService::applyPromoUsage((int)$user_id, 'customer', 'cab', $id, $baseFare);
+                }
 
                 if ($id > 0) {
 
@@ -403,35 +420,35 @@ class RequeteRegisterController extends Controller
                 }
                 $date_heure = date('Y-m-d H:i:s');
 
+                $baseFare = floatval($cout ?? 0);
+                $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int)$user_id, 'customer', $baseFare);
+                $isPromoApplied = false;
+                $promotionalAmount = 0.00;
+                $promotionalDiscount = 0.00;
 
+                if ($promoCalc['is_promo_available'] && $request->input('apply_promotional', '1') != '0') {
+                    $isPromoApplied = true;
+                    $promotionalAmount = $promoCalc['promotional_amount'];
+                    $promotionalDiscount = $promoCalc['welcome_discount'];
+                }
 
                 $insertdata = DB::insert("insert into tj_requete(date_retour,statut_round,heure_retour,
-
             number_poeple,place,id_payment_method,trajet,depart_name,
-
             destination_name,id_conducteur,id_user_app,latitude_depart,longitude_depart,latitude_arrivee,
-
-            longitude_arrivee,statut,creer,distance,distance_unit,montant,duree,trip_objective,age_children1,
-
+            longitude_arrivee,statut,creer,distance,distance_unit,montant,promotional_amount,promotional_discount,is_promotional_applied,duree,trip_objective,age_children1,
             age_children2,age_children3,feel_safe,tip_amount,statut_paiement,
-
             modifier,statut_course,id_conducteur_accepter,trip_category,feel_safe_driver,stops,ride_type,user_info)
-
             values('" . $date_retour . "','" . $statut_round . "','" . $heure_retour . "','" . $number_poeple . "','" . $place . "','" . $id_payment . "','" . $filename . "','" . $depart_name . "','" . $destination_name . "'
-
             ,'" . $id_conducteur . "','" . $user_id . "','" . $lat1 . "','" . $lng1 . "','" . $lat2 . "','" . $lng2 . "',
-
-            'confirmed','" . $date_heure . "','" . $distance . "', '" . $distance_unit . "', '" . $cout . "','" . $duree . "',
-
+            'confirmed','" . $date_heure . "','" . $distance . "', '" . $distance_unit . "', '" . $cout . "', '" . $promotionalAmount . "', '" . $promotionalDiscount . "', " . ($isPromoApplied ? 1 : 0) . ", '" . $duree . "',
             '" . $trip_objective . "','" . $age_children1 . "','" . $age_children2 . "',
-
             '" . $age_children3 . "',0,0,'','" . $date_heure . "','',0,'',0,'" . $stops . "','" . $ride_type . "','" . $user_detail . "')");
 
-
-
-
-
                 $id = DB::getPdo()->lastInsertId();
+
+                if ($id > 0 && $isPromoApplied) {
+                    \App\Services\PromotionalService::applyPromoUsage((int)$user_id, 'customer', 'cab', $id, $baseFare);
+                }
 
                 if ($subscriptionModel == 'true' || $commissionModel == 'yes') {
                     if ($driverData->subscriptionTotalOrders != null && $driverData->subscriptionTotalOrders != '' && $driverData->subscriptionTotalOrders != '-1') {

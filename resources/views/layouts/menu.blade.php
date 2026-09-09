@@ -158,6 +158,16 @@
         </li>
         @endif
 
+        <!-- 6.5. Promotional -->
+        @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('marketing_campaigns') || $authUser->isSubAdmin()))
+        <li class="{{ request()->is('promotional*') ? 'active' : '' }}">
+            <a class="waves-effect waves-dark {{ request()->is('promotional*') ? 'active' : '' }}" href="{!! route('promotional.index') !!}">
+                <i class="mdi mdi-gift text-warning"></i>
+                <span class="hide-menu font-weight-bold">Promotional</span>
+            </a>
+        </li>
+        @endif
+
         <!-- 7. Services & Transport -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('services_transport')))
         <li>

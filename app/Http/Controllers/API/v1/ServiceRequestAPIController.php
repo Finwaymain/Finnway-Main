@@ -140,11 +140,32 @@ class ServiceRequestAPIController extends Controller
             'media' => json_encode($mediaUrls),
         ];
 
+        $baseServicePrice = (float) ($amount ?? 0);
+        $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int) $user_id, 'customer', $baseServicePrice);
+        $isPromoApplied = false;
+        $promotionalAmount = 0.00;
+        $promotionalDiscount = 0.00;
+
+        if ($promoCalc['is_promo_available'] && $request->input('apply_promotional', '1') != '0') {
+            $isPromoApplied = true;
+            $promotionalAmount = $promoCalc['promotional_amount'];
+            $promotionalDiscount = $promoCalc['welcome_discount'];
+        }
+
         if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'otp')) {
             $createData['otp'] = $this->generateServiceOtp();
         }
         if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'amount') && $amount !== null && $amount !== '') {
             $createData['amount'] = (float) $amount;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'promotional_amount')) {
+            $createData['promotional_amount'] = $promotionalAmount;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'promotional_discount')) {
+            $createData['promotional_discount'] = $promotionalDiscount;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'is_promotional_applied')) {
+            $createData['is_promotional_applied'] = $isPromoApplied ? 1 : 0;
         }
         if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'payment_status')) {
             $createData['payment_status'] = 'pending';
@@ -154,6 +175,10 @@ class ServiceRequestAPIController extends Controller
         }
 
         $serviceRequest = ServiceRequest::create($createData);
+
+        if ($isPromoApplied && $serviceRequest && !empty($serviceRequest->id)) {
+            \App\Services\PromotionalService::applyPromoUsage((int) $user_id, 'customer', 'home_service', $serviceRequest->id, $baseServicePrice);
+        }
 
         // Step 1 Notification: Notify Customer + Notify ONLY Matching/Nearby Service Partners
         try {

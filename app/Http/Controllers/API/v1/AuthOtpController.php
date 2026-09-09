@@ -1249,6 +1249,9 @@ class AuthOtpController extends Controller
         // Credit referral reward money to referrer's wallet (if milestone already met)
         $bonus = $this->creditReferralReward($referrerId, $referrerType, $userId, $userCat);
 
+        // Upgrade user's Welcome Bonus tier to With-Code bonus (₹300 / 6 uses)
+        \App\Services\PromotionalService::upgradeToReferralBonus((int)$userId, $userCat, $referralCode);
+
         \Log::info("applyReferral: user $userId ($userCat) applied code '$referralCode' by referrer $referrerId ($referrerType), credited ₹$bonus");
 
         $msg = ($bonus > 0)
@@ -1386,6 +1389,9 @@ class AuthOtpController extends Controller
             if ($referrerId && $referrerType) {
                 $this->creditReferralReward($referrerId, $referrerType, $userId, $userCat);
             }
+
+            // Grant Welcome Bonus (₹300 with code / ₹150 direct join)
+            \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, $referrerId ? $referralCode : null);
         } catch (\Throwable $e) {
             \Log::error("handleReferral error for user $userId: " . $e->getMessage());
         }

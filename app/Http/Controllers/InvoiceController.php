@@ -168,6 +168,21 @@ class InvoiceController extends Controller
             $paymentMethod = 'UPI / Online';
         }
 
+        $isPromoApplied = false;
+        $promotionalAmount = 0.0;
+        $promotionalDiscount = 0.0;
+        $bookingTotal = $amount;
+
+        if ($booking) {
+            $hasPromo = !empty($booking->is_promotional_applied) && $booking->is_promotional_applied == 1;
+            if ($hasPromo || (!empty($booking->promotional_discount) && (float)$booking->promotional_discount > 0)) {
+                $isPromoApplied = true;
+                $promotionalAmount = (float) ($booking->promotional_amount ?? 0);
+                $promotionalDiscount = (float) ($booking->promotional_discount ?? 0);
+                $bookingTotal = round($amount + $promotionalAmount, 2);
+            }
+        }
+
         $currencySymbol = Helper::getCurrencySymbol();
         $invoiceNo = 'FIIN-' . str_pad((string) $id, 7, '0', STR_PAD_LEFT);
 
@@ -186,7 +201,11 @@ class InvoiceController extends Controller
             'date',
             'paymentMethod',
             'isDebit',
-            'currencySymbol'
+            'currencySymbol',
+            'isPromoApplied',
+            'promotionalAmount',
+            'promotionalDiscount',
+            'bookingTotal'
         ));
     }
 }

@@ -334,7 +334,7 @@
                 </div>
             </div>
 
-            <!-- Simple Transaction Particulars Table (No Breakdown) -->
+            <!-- Transaction Particulars Table -->
             <table class="txn-table">
                 <thead>
                     <tr>
@@ -343,6 +343,26 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @if(!empty($isPromoApplied) && $isPromoApplied && $promotionalDiscount > 0)
+                    <tr>
+                        <td>
+                            <strong style="color:#0f172a; font-size:13.5px;">{{ $title }} (Booking Total)</strong><br>
+                            <span style="font-size:11.5px; color:#64748b;">Ref: #{{ $id }} &bull; Service Price</span>
+                        </td>
+                        <td style="color:#0f172a; font-size:14.5px; font-weight:700;">{{ $currencySymbol }}{{ number_format($bookingTotal, 2) }}</td>
+                    </tr>
+                    <tr style="background: #f0fdf4;">
+                        <td>
+                            <span style="font-size:13px; color:#15803D; font-weight:700;">🎁 Welcome Bonus Applied</span><br>
+                            <span style="font-size:11px; color:#16a34a;">Service Promotional Discount</span>
+                        </td>
+                        <td style="color:#15803D; font-size:14.5px; font-weight:800;">-{{ $currencySymbol }}{{ number_format($promotionalDiscount, 2) }}</td>
+                    </tr>
+                    <tr style="background:#f8fafc; font-weight:800;">
+                        <td><strong>Total {{ $isDebit ? 'Paid' : 'Received' }}</strong></td>
+                        <td style="color:#15803D; font-size:16px; font-weight:900;">{{ $currencySymbol }}{{ number_format($amount, 2) }}</td>
+                    </tr>
+                    @else
                     <tr>
                         <td>
                             <strong style="color:#0f172a; font-size:13.5px;">{{ $title }}</strong><br>
@@ -354,6 +374,7 @@
                         <td><strong>Total {{ $isDebit ? 'Paid' : 'Received' }}</strong></td>
                         <td style="color:#15803D; font-size:16px; font-weight:900;">{{ $currencySymbol }}{{ number_format($amount, 2) }}</td>
                     </tr>
+                    @endif
                 </tbody>
             </table>
         </div>

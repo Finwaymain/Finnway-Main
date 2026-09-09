@@ -1650,6 +1650,20 @@ class UserProfileUpdateController extends Controller
             $userBalance = round(floatval($user->amount ?? 0), 2);
         }
 
+        // Fetch non-cash promotional cashback info
+        $promotionalData = [
+            'has_promotion'        => false,
+            'balance'              => '0.00',
+            'discount_per_service' => '0.00',
+            'uses_remaining'       => 0,
+            'total_uses'           => 0,
+            'expiry_date'          => null,
+            'is_active'            => false,
+        ];
+        if ($user && !empty($user->id)) {
+            $promotionalData = \App\Services\PromotionalService::getUserPromotion((int)$user->id, $isDriverReq ? 'driver' : 'customer');
+        }
+
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Wallet amount fetched successfully',
@@ -1658,6 +1672,7 @@ class UserProfileUpdateController extends Controller
                 'wallet_amount'  => (string) $userBalance,
                 'earn_amount'    => $totalEarnings,
                 'total_earnings' => $totalEarnings,
+                'promotional'    => $promotionalData,
             ],
         ]);
     }
