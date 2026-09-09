@@ -1376,10 +1376,13 @@ class UserProfileUpdateController extends Controller
             }
 
             if ($user) {
+                $userArr = (array) $user;
+                $userType = isset($user->statut_vehicule) ? 'driver' : 'customer';
+                $userArr['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$user->id, $userType);
                 return response()->json([
                     'res'  => 'success',
                     'msg'  => 'User found successfully',
-                    'data' => (array) $user,
+                    'data' => $userArr,
                 ]);
             }
 
