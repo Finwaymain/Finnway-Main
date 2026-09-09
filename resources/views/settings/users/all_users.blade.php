@@ -114,19 +114,44 @@
                                             </td>
                                             {{-- S No --}}
                                             <td class="text-center font-weight-bold">{{ $users->firstItem() + $index }}</td>
-                                            {{-- Role --}}
+                                            {{-- Role / Category & Service --}}
                                             <td>
                                                 @if($user->user_type == 'consumer')
                                                     <span class="badge badge-info"><i class="fa fa-user mr-1"></i>Consumer</span>
                                                 @else
+                                                    {{-- Primary Categories / Profession --}}
                                                     @if(!empty($user->category_list) && count($user->category_list) > 0)
                                                         @foreach($user->category_list as $catName)
-                                                            <span class="badge badge-primary px-2 py-1 mb-1 d-inline-block">
+                                                            <span class="badge badge-primary px-2 py-1 mb-1 d-inline-block shadow-sm" style="font-size: 11.5px;">
                                                                 <i class="fa fa-briefcase mr-1"></i>{{ $catName }}
                                                             </span><br>
                                                         @endforeach
                                                     @else
-                                                        <span class="badge badge-primary"><i class="fa fa-briefcase mr-1"></i>{{ $user->role ?? 'Business Provider' }}</span>
+                                                        <span class="badge badge-primary px-2 py-1 mb-1 d-inline-block shadow-sm" style="font-size: 11.5px;">
+                                                            <i class="fa fa-briefcase mr-1"></i>{{ $user->role ?? 'Business Provider' }}
+                                                        </span><br>
+                                                    @endif
+
+                                                    {{-- Specific Vehicle Types (e.g. Bike Rider, Auto, Cab) --}}
+                                                    @if(!empty($user->vehicle_types) && count($user->vehicle_types) > 0)
+                                                        <div class="mt-1">
+                                                            @foreach($user->vehicle_types as $vType)
+                                                                <span class="badge badge-dark text-white px-2 py-1 mb-1 mr-1 d-inline-block" style="font-size: 11px;">
+                                                                    <i class="fa fa-motorcycle mr-1 text-warning"></i>{{ $vType }}
+                                                                </span>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- Specific Services / Skills (e.g. Electrician, Plumber, AC Repair) --}}
+                                                    @if(!empty($user->specific_services) && count($user->specific_services) > 0)
+                                                        <div class="mt-1" style="max-width: 250px;">
+                                                            @foreach($user->specific_services as $svc)
+                                                                <span class="badge badge-success px-2 py-1 mb-1 mr-1 d-inline-block" style="font-size: 10.5px; font-weight: 500;">
+                                                                    <i class="fa fa-wrench mr-1"></i>{{ $svc }}
+                                                                </span>
+                                                            @endforeach
+                                                        </div>
                                                     @endif
                                                 @endif
                                             </td>

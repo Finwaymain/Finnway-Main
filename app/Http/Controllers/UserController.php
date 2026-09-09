@@ -1165,24 +1165,55 @@ class UserController extends Controller
 
         $driverIds = collect($users)->where('user_type', 'driver')->pluck('id')->filter()->toArray();
         $multiCats = [];
+        $subCats   = [];
+        $skillCats = [];
         $vehCats   = [];
         $singleCats = [];
 
         if (!empty($driverIds)) {
-            $multiCats = DB::table('tj_conducteur_categories')
-                ->join('tj_categorie_user', 'tj_categorie_user.id', '=', 'tj_conducteur_categories.category_id')
-                ->whereIn('tj_conducteur_categories.driver_id', $driverIds)
-                ->select('tj_conducteur_categories.driver_id', 'tj_categorie_user.libelle')
-                ->get()
-                ->groupBy('driver_id');
+            if (Schema::hasTable('tj_conducteur_categories')) {
+                // Fetch mapped categories (category_id)
+                $multiCats = DB::table('tj_conducteur_categories')
+                    ->join('tj_categorie_user', 'tj_categorie_user.id', '=', 'tj_conducteur_categories.category_id')
+                    ->whereIn('tj_conducteur_categories.driver_id', $driverIds)
+                    ->where('tj_categorie_user.libelle', '!=', 'Online Seller')
+                    ->select('tj_conducteur_categories.driver_id', 'tj_categorie_user.libelle')
+                    ->get()
+                    ->groupBy('driver_id');
 
-            $vehCats = DB::table('tj_vehicule')
-                ->join('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
-                ->whereIn('tj_vehicule.id_conducteur', $driverIds)
-                ->select('tj_vehicule.id_conducteur', 'tj_type_vehicule.libelle')
-                ->get()
-                ->keyBy('id_conducteur');
+                // Fetch mapped subcategories (subcategory_id)
+                if (Schema::hasColumn('tj_conducteur_categories', 'subcategory_id')) {
+                    $subCats = DB::table('tj_conducteur_categories')
+                        ->join('tj_categorie_user', 'tj_categorie_user.id', '=', 'tj_conducteur_categories.subcategory_id')
+                        ->whereIn('tj_conducteur_categories.driver_id', $driverIds)
+                        ->where('tj_categorie_user.libelle', '!=', 'Online Seller')
+                        ->select('tj_conducteur_categories.driver_id', 'tj_categorie_user.libelle')
+                        ->get()
+                        ->groupBy('driver_id');
+                }
+            }
 
+            // Fetch specific skills from driver_service_skills (e.g. Electrician, Plumber, AC Repair)
+            if (Schema::hasTable('driver_service_skills')) {
+                $skillCats = DB::table('driver_service_skills')
+                    ->join('tj_categorie_user', 'tj_categorie_user.id', '=', 'driver_service_skills.skill_id')
+                    ->whereIn('driver_service_skills.driver_id', $driverIds)
+                    ->select('driver_service_skills.driver_id', 'tj_categorie_user.libelle')
+                    ->get()
+                    ->groupBy('driver_id');
+            }
+
+            // Fetch vehicle types (e.g. Bike, Auto, Car, Commercial Truck)
+            if (Schema::hasTable('tj_vehicule')) {
+                $vehCats = DB::table('tj_vehicule')
+                    ->leftJoin('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
+                    ->whereIn('tj_vehicule.id_conducteur', $driverIds)
+                    ->select('tj_vehicule.id_conducteur', 'tj_type_vehicule.libelle', 'tj_vehicule.brand', 'tj_vehicule.model')
+                    ->get()
+                    ->groupBy('id_conducteur');
+            }
+
+            // Single primary category on tj_conducteur
             $singleCats = DB::table('tj_conducteur')
                 ->whereIn('id', $driverIds)
                 ->whereNotNull('category_id')
@@ -1205,23 +1236,70 @@ class UserController extends Controller
                 }
                 $user->active_plan_display = $planName;
                 $user->category_list = [];
+                $user->specific_services = [];
+                $user->vehicle_types = [];
                 $user->profession    = 'N/A';
                 $user->role          = 'Customer';
             } else {
                 $cats = [];
+                $specifics = [];
+                $vehicles = [];
+
+                // 1. Primary Category
                 if (isset($multiCats[$user->id])) {
-                    $cats = $multiCats[$user->id]->pluck('libelle')->filter()->toArray();
+                    $cats = array_merge($cats, $multiCats[$user->id]->pluck('libelle')->filter()->toArray());
                 }
-                if (empty($cats) && isset($singleCats[$user->id])) {
+                if (isset($singleCats[$user->id])) {
                     $singleCat = DB::table('tj_categorie_user')->where('id', $singleCats[$user->id])->value('libelle');
-                    if ($singleCat) $cats[] = $singleCat;
+                    if ($singleCat && $singleCat !== 'Online Seller') {
+                        $cats[] = $singleCat;
+                    }
                 }
-                if (empty($cats) && isset($vehCats[$user->id])) {
-                    $cats[] = $vehCats[$user->id]->libelle;
+
+                // 2. Specific Subcategories
+                if (isset($subCats[$user->id])) {
+                    $specifics = array_merge($specifics, $subCats[$user->id]->pluck('libelle')->filter()->toArray());
                 }
-                $user->category_list = array_values(array_unique($cats));
-                $user->profession    = !empty($cats) ? implode(', ', $cats) : ($user->business_name ?: 'Business Provider');
-                $user->role          = $user->profession;
+
+                // 3. Specific Skills (e.g. Electrician, Plumber)
+                if (isset($skillCats[$user->id])) {
+                    $specifics = array_merge($specifics, $skillCats[$user->id]->pluck('libelle')->filter()->toArray());
+                }
+
+                // 4. Vehicle Types / Brand
+                if (isset($vehCats[$user->id])) {
+                    foreach ($vehCats[$user->id] as $v) {
+                        $vLabel = trim($v->libelle ?? '');
+                        if (empty($vLabel)) {
+                            $vLabel = trim(($v->brand ?? '') . ' ' . ($v->model ?? ''));
+                        }
+                        if (!empty($vLabel)) {
+                            $vehicles[] = $vLabel;
+                        }
+                    }
+                }
+
+                // Clean & deduplicate
+                $cats = array_values(array_unique(array_filter($cats)));
+                $specifics = array_values(array_unique(array_filter($specifics)));
+                $vehicles = array_values(array_unique(array_filter($vehicles)));
+
+                // If no categories found, fallback to business_name or vehicle or generic label
+                if (empty($cats)) {
+                    if (!empty($vehicles)) {
+                        $cats[] = $vehicles[0];
+                    } elseif (!empty($user->business_name)) {
+                        $cats[] = $user->business_name;
+                    } else {
+                        $cats[] = 'Business Provider';
+                    }
+                }
+
+                $user->category_list = $cats;
+                $user->specific_services = $specifics;
+                $user->vehicle_types = $vehicles;
+                $user->profession = implode(', ', array_merge($cats, $specifics, $vehicles));
+                $user->role = !empty($cats) ? implode(', ', $cats) : ($user->business_name ?: 'Business Provider');
                 $user->active_plan_display = 'Docs';
             }
             $user->referral_code = \App\Services\ReferralCodeService::getOrCreateReferralCode((int)$user->id, $user->user_type);
