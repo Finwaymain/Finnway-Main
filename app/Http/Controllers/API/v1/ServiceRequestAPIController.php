@@ -1771,6 +1771,9 @@ class ServiceRequestAPIController extends Controller
             'status' => $bookingStatus,
             'otp' => $otp,
             'amount' => $amount !== null ? (float) $amount : null,
+            'promotional_amount' => (float) ($booking->promotional_amount ?? 0.0),
+            'promotional_discount' => (float) ($booking->promotional_discount ?? 0.0),
+            'is_promotional_applied' => (bool) ($booking->is_promotional_applied ?? false),
             'tax' => !empty($booking->tax) ? (is_string($booking->tax) ? json_decode($booking->tax, true) : $booking->tax) : null,
             'tax_amount' => (float) ($booking->tax_amount ?? 0.0),
             'payment_status' => $paymentStatus,
@@ -2852,6 +2855,9 @@ class ServiceRequestAPIController extends Controller
                     'is_urgent' => stripos($description, '[VERY URGENT]') !== false,
                     'service_items' => $serviceItems,
                     'amount' => $bookingAmount,
+                    'promotional_amount' => (float) ($svc->promotional_amount ?? 0.0),
+                    'promotional_discount' => (float) ($svc->promotional_discount ?? 0.0),
+                    'is_promotional_applied' => (bool) ($svc->is_promotional_applied ?? false),
                     'payment_status' => $svc->payment_status ?? 'pending',
                     'date' => $scheduleDate
                         ? trim($scheduleDate . ' ' . $scheduleTime)

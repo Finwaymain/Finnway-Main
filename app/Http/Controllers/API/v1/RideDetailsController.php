@@ -109,6 +109,9 @@ class RideDetailsController extends Controller
                 $row->user_info = json_decode($row->user_info, true);
 
                 $row->discount = number_format((float) $row->discount, 2, '.', '');
+                $row->promotional_amount = number_format((float) ($row->promotional_amount ?? 0), 2, '.', '');
+                $row->promotional_discount = number_format((float) ($row->promotional_discount ?? 0), 2, '.', '');
+                $row->is_promotional_applied = (int) ($row->is_promotional_applied ?? 0);
 
                 // Calculate passenger rating (moyenne_driver)
                 $sql_nb_avis_driver = DB::table('tj_user_note')
