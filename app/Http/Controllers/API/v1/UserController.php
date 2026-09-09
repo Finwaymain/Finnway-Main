@@ -546,9 +546,11 @@ class UserController extends Controller
 
         // ✅ Generate and sync unique referral code (FIINC...)
         $userRefCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($id, 'customer');
+        $appliedReferralCode = null;
         if (!empty($referral_code)) {
             $referrer = \App\Services\ReferralCodeService::resolveReferrer($referral_code);
             if ($referrer && (int)$referrer['user_id'] != $id) {
+                $appliedReferralCode = $referral_code;
                 DB::table('referral')->where('user_id', $id)->where('user_type', 'customer')->update([
                     'referral_by_id'   => (int)$referrer['user_id'],
                     'referral_by_type' => $referrer['user_type'] ?? 'customer',
@@ -557,6 +559,9 @@ class UserController extends Controller
                 ]);
             }
         }
+
+        // ✅ Auto-grant Promotional Welcome Bonus (₹300 with code / ₹150 direct join)
+        \App\Services\PromotionalService::grantWelcomeBonus((int)$id, 'customer', $appliedReferralCode);
 
         if ($id > 0) {
             $response['success'] = 'success';
@@ -620,9 +625,11 @@ class UserController extends Controller
 
         // ✅ Generate and sync unique referral code (FIINB...)
         $driverRefCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($id, 'driver');
+        $appliedDriverRefCode = null;
         if (!empty($referral_code)) {
             $referrer = \App\Services\ReferralCodeService::resolveReferrer($referral_code);
             if ($referrer && (int)$referrer['user_id'] != $id) {
+                $appliedDriverRefCode = $referral_code;
                 DB::table('referral')->where('user_id', $id)->where('user_type', 'driver')->update([
                     'referral_by_id'   => (int)$referrer['user_id'],
                     'referral_by_type' => $referrer['user_type'] ?? 'driver',
@@ -631,6 +638,9 @@ class UserController extends Controller
                 ]);
             }
         }
+
+        // ✅ Auto-grant Promotional Welcome Bonus (₹300 with code / ₹150 direct join)
+        \App\Services\PromotionalService::grantWelcomeBonus((int)$id, 'driver', $appliedDriverRefCode);
 
         if ($id > 0) {
 

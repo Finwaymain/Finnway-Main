@@ -86,6 +86,29 @@ class PromotionalService
             ]);
 
             \Log::info("PromotionalService: Welcome bonus of ₹{$initialBonus} ({$totalUses} uses) granted to {$userType} #{$userId} (HasCode: " . ($hasCode ? 'Yes' : 'No') . ")");
+
+            // 🔔 Send Welcome Bonus Push Notification to User
+            try {
+                $fcmToken = null;
+                if ($userType === 'customer') {
+                    $u = DB::table('tj_user_app')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                    $fcmToken = !empty($u->tonotify) ? $u->tonotify : ($u->fcm_id ?? null);
+                } else {
+                    $d = DB::table('tj_conducteur')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                    $fcmToken = !empty($d->fcm_id) ? $d->fcm_id : ($d->tonotify ?? null);
+                }
+
+                if (!empty($fcmToken)) {
+                    \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmToken, [
+                        'title' => '🎁 Welcome Bonus Credited!',
+                        'body'  => "You received ₹" . number_format($initialBonus, 0) . " Welcome Bonus ({$totalUses} service discounts)! Use ₹" . number_format($discountPerService, 0) . " off on your bookings.",
+                        'tag'   => 'promotional_welcome',
+                    ]);
+                }
+            } catch (\Throwable $notifEx) {
+                \Log::warning("PromotionalService: Failed to send welcome bonus notification to {$userType} #{$userId}: " . $notifEx->getMessage());
+            }
+
             return true;
 
         } catch (\Throwable $e) {
