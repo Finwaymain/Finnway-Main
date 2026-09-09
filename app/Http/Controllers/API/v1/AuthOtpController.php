@@ -34,6 +34,15 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Please enter a valid Indian mobile number (+91XXXXXXXXXX).']);
         }
 
+        // Check if phone exists on opposite app platform (User cannot register on both apps)
+        if ($mode === 'signup' && PhoneService::oppositePlatformExists($phone, $user_cat)) {
+            $oppositeApp = ($user_cat === 'customer') ? 'Business / Driver App' : 'Customer / User App';
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "This mobile number is already registered in the {$oppositeApp}. One mobile number cannot be registered on both User and Driver apps."
+            ]);
+        }
+
         // Check if phone exists in the correct table based on user_cat
         $userExists = $this->phoneExists($phone, $user_cat);
 
@@ -259,6 +268,15 @@ class AuthOtpController extends Controller
 
         if (!$record) {
             return response()->json(['success' => 'Failed', 'error' => 'Invalid or expired OTP. Please try again.']);
+        }
+
+        // Check if phone exists on opposite app platform (User cannot register on both apps)
+        if (PhoneService::oppositePlatformExists($phone, $user_cat)) {
+            $oppositeApp = ($user_cat === 'customer') ? 'Business / Driver App' : 'Customer / User App';
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "This mobile number is already registered in the {$oppositeApp}. One mobile number cannot be registered on both User and Driver apps."
+            ]);
         }
 
         // ── Idempotent duplicate check ─────────────────────────────────────────
@@ -640,6 +658,15 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Please enter a valid Indian mobile number (+91XXXXXXXXXX).']);
         }
 
+        // Check if phone exists on opposite app platform (User cannot register on both apps)
+        if (PhoneService::oppositePlatformExists($phone, $user_cat)) {
+            $oppositeApp = ($user_cat === 'customer') ? 'Business / Driver App' : 'Customer / User App';
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "This mobile number is already registered in the {$oppositeApp}. One mobile number cannot be registered on both User and Driver apps."
+            ]);
+        }
+
         $userExists = $this->phoneExists($phone, $user_cat);
 
         return response()->json([
@@ -940,7 +967,14 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Phone, OTP, MPIN, and Name are required.']);
         }
 
-        \Log::info("registerSimple called with phone: $phone, otp: $otp, user_cat: $user_cat, firstname: $firstname");
+        // Check if phone exists on opposite app platform (User cannot register on both apps)
+        if (PhoneService::oppositePlatformExists($phone, $user_cat)) {
+            $oppositeApp = ($user_cat === 'customer') ? 'Business / Driver App' : 'Customer / User App';
+            return response()->json([
+                'success' => 'Failed',
+                'error' => "This mobile number is already registered in the {$oppositeApp}. One mobile number cannot be registered on both User and Driver apps."
+            ]);
+        }
 
         // Idempotency check: If user with this phone already exists, immediately return success
         $existingUser = $this->getUserByPhone($phone, $user_cat);

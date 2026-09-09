@@ -509,6 +509,14 @@ class UserController extends Controller
     // ====================== CUSTOMER ======================
     if ($account_type == "customer") {
 
+        // Check if phone already registered as driver/business
+        if (PhoneService::driverExists($phone)) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'This mobile number is already registered in the Business / Driver App. One mobile number cannot be registered on both User and Driver apps.'
+            ]);
+        }
+
         $chkephone = PhoneService::customerExists($phone);
         $chkemail = UserApp::where('email', $email)->first();
 
@@ -570,6 +578,14 @@ class UserController extends Controller
 
     // ====================== DRIVER ======================
     } elseif ($account_type == "driver") {
+
+        // Check if phone already registered as customer/user
+        if (PhoneService::customerExists($phone)) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'This mobile number is already registered in the Customer / User App. One mobile number cannot be registered on both User and Driver apps.'
+            ]);
+        }
 
         $chkephone = PhoneService::driverExists($phone);
         $chkemail = Driver::where('email', $email)->first();

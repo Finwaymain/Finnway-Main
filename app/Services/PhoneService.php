@@ -125,6 +125,27 @@ class PhoneService
     }
 
     /**
+     * Check if a phone number exists in EITHER customer (tj_user_app) or driver (tj_conducteur).
+     */
+    public static function anyExists(string $phone): bool
+    {
+        return self::customerExists($phone) || self::driverExists($phone);
+    }
+
+    /**
+     * Check if a phone number already exists on the opposite platform.
+     * If user_cat is customer, checks if already registered as driver.
+     * If user_cat is driver, checks if already registered as customer.
+     */
+    public static function oppositePlatformExists(string $phone, string $user_cat): bool
+    {
+        if ($user_cat === 'customer') {
+            return self::driverExists($phone);
+        }
+        return self::customerExists($phone);
+    }
+
+    /**
      * Find customer by phone across all variants, prioritizing canonical phone and highest ID.
      */
     public static function findCustomer(string $phone)
