@@ -264,12 +264,17 @@ class ReferralRewardController extends Controller
                         $bizVal = trim((string) $request->input("srv_cat_{$catId}_business_val", '2%'));
                         $custVal = trim((string) $request->input("srv_cat_{$catId}_customer_val", '2%'));
                         
-                        // If percentage mode, cap numeric part to 100
+                        // If percentage mode, cap numeric part to 100 and ensure % suffix; if flat mode, ensure clean number
                         if ($mode === 'percentage') {
-                            $bizNum = min(100.0, max(0.0, floatval(str_replace('%', '', $bizVal))));
+                            $bizNum = min(100.0, max(0.0, floatval(preg_replace('/[^0-9.]/', '', $bizVal))));
                             $bizVal = $bizNum . '%';
-                            $custNum = min(100.0, max(0.0, floatval(str_replace('%', '', $custVal))));
+                            $custNum = min(100.0, max(0.0, floatval(preg_replace('/[^0-9.]/', '', $custVal))));
                             $custVal = $custNum . '%';
+                        } else {
+                            $bizNum = max(0.0, floatval(preg_replace('/[^0-9.]/', '', $bizVal)));
+                            $bizVal = (string)$bizNum;
+                            $custNum = max(0.0, floatval(preg_replace('/[^0-9.]/', '', $custVal)));
+                            $custVal = (string)$custNum;
                         }
 
                         $status = $request->has("srv_cat_{$catId}_status");
@@ -294,10 +299,15 @@ class ReferralRewardController extends Controller
                         $custVal = trim((string) $request->input("srv_{$slug}_customer_val", '2%'));
 
                         if ($mode === 'percentage') {
-                            $bizNum = min(100.0, max(0.0, floatval(str_replace('%', '', $bizVal))));
+                            $bizNum = min(100.0, max(0.0, floatval(preg_replace('/[^0-9.]/', '', $bizVal))));
                             $bizVal = $bizNum . '%';
-                            $custNum = min(100.0, max(0.0, floatval(str_replace('%', '', $custVal))));
+                            $custNum = min(100.0, max(0.0, floatval(preg_replace('/[^0-9.]/', '', $custVal))));
                             $custVal = $custNum . '%';
+                        } else {
+                            $bizNum = max(0.0, floatval(preg_replace('/[^0-9.]/', '', $bizVal)));
+                            $bizVal = (string)$bizNum;
+                            $custNum = max(0.0, floatval(preg_replace('/[^0-9.]/', '', $custVal)));
+                            $custVal = (string)$custNum;
                         }
 
                         $status = $request->has("srv_{$slug}_status");

@@ -147,6 +147,15 @@
         color: #0f172a !important;
         font-weight: 700 !important;
     }
+    .srv-mode-select {
+        width: 120px;
+        border-radius: 20px;
+        border: 1px solid #cbd5e1;
+        color: #4338ca;
+        background: #f8fafc;
+        font-weight: 700;
+        font-size: 13px;
+    }
 
     /* Green Switch Styling matching screenshot */
     .switch-green {
@@ -288,8 +297,8 @@
                                                 <tr class="small text-muted">
                                                     <th>Sub-Service</th>
                                                     <th>Reward Mode</th>
-                                                    <th>Business Value (%)</th>
-                                                    <th>Customer Value (%)</th>
+                                                    <th>Business Value</th>
+                                                    <th>Customer Value</th>
                                                     <th class="text-center">Status</th>
                                                 </tr>
                                             </thead>
@@ -297,18 +306,34 @@
                                                 @forelse($parentCat->subcategories as $subCat)
                                                 @php
                                                     $cfg = isset($serviceRewardConfigs) ? $serviceRewardConfigs->get('cat_' . $subCat->id) : null;
+                                                    $rewardModeItem = $cfg ? ($cfg->reward_mode ?? 'percentage') : 'percentage';
                                                     $bizVal = $cfg ? $cfg->business_value : '2%';
                                                     $custVal = $cfg ? $cfg->customer_value : '2%';
+                                                    $bizValClean = preg_replace('/[^0-9.]/', '', (string)$bizVal);
+                                                    $custValClean = preg_replace('/[^0-9.]/', '', (string)$custVal);
                                                     $isActive = $cfg ? $cfg->is_active : true;
                                                 @endphp
                                                 <tr>
                                                     <td class="font-weight-bold text-dark">{{ $subCat->libelle }}</td>
-                                                    <td><span class="badge badge-high-contrast px-3 py-1">Percentage</span></td>
                                                     <td>
-                                                        <input type="text" name="srv_cat_{{ $subCat->id }}_business_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 110px; color: #0f172a !important;" value="{{ $bizVal }}" placeholder="e.g. 2%">
+                                                        <select name="srv_cat_{{ $subCat->id }}_mode" class="form-control form-control-sm srv-mode-select" onchange="updateServiceRewardMode('cat_{{ $subCat->id }}', this.value)">
+                                                            <option value="percentage" {{ $rewardModeItem === 'percentage' ? 'selected' : '' }}>Percentage</option>
+                                                            <option value="flat" {{ $rewardModeItem === 'flat' ? 'selected' : '' }}>Flat</option>
+                                                        </select>
                                                     </td>
                                                     <td>
-                                                        <input type="text" name="srv_cat_{{ $subCat->id }}_customer_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 110px; color: #0f172a !important;" value="{{ $custVal }}" placeholder="e.g. 2%">
+                                                        <div class="d-inline-flex align-items-center">
+                                                            <span id="prefix_srv_cat_{{ $subCat->id }}_biz" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                            <input type="text" name="srv_cat_{{ $subCat->id }}_business_val" id="input_srv_cat_{{ $subCat->id }}_biz" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $bizValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                            <span id="suffix_srv_cat_{{ $subCat->id }}_biz" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="d-inline-flex align-items-center">
+                                                            <span id="prefix_srv_cat_{{ $subCat->id }}_cust" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                            <input type="text" name="srv_cat_{{ $subCat->id }}_customer_val" id="input_srv_cat_{{ $subCat->id }}_cust" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $custValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                            <span id="suffix_srv_cat_{{ $subCat->id }}_cust" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                        </div>
                                                     </td>
                                                     <td class="text-center">
                                                         <label class="switch-indigo"><input type="checkbox" name="srv_cat_{{ $subCat->id }}_status" value="1" {{ $isActive ? 'checked' : '' }}><span class="slider-indigo"></span></label>
@@ -348,8 +373,8 @@
                                                         <tr class="small text-muted">
                                                             <th>Sub-Service</th>
                                                             <th>Reward Mode</th>
-                                                            <th>Business Value (%)</th>
-                                                            <th>Customer Value (%)</th>
+                                                            <th>Business Value</th>
+                                                            <th>Customer Value</th>
                                                             <th class="text-center">Status</th>
                                                         </tr>
                                                     </thead>
@@ -358,18 +383,34 @@
                                                         @php
                                                             $slug = Str::slug($subItem);
                                                             $cfg = isset($serviceRewardConfigs) ? $serviceRewardConfigs->get('slug_' . $slug) : null;
+                                                            $rewardModeItem = $cfg ? ($cfg->reward_mode ?? 'percentage') : 'percentage';
                                                             $bizVal = $cfg ? $cfg->business_value : '2%';
                                                             $custVal = $cfg ? $cfg->customer_value : '2%';
+                                                            $bizValClean = preg_replace('/[^0-9.]/', '', (string)$bizVal);
+                                                            $custValClean = preg_replace('/[^0-9.]/', '', (string)$custVal);
                                                             $isActive = $cfg ? $cfg->is_active : true;
                                                         @endphp
                                                         <tr>
                                                             <td class="font-weight-bold text-dark pl-3">{{ $subItem }}</td>
-                                                            <td><span class="badge badge-high-contrast px-2 py-1">Percentage</span></td>
                                                             <td>
-                                                                <input type="text" name="srv_{{ $slug }}_business_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 100px; color: #0f172a !important;" value="{{ $bizVal }}" placeholder="e.g. 2%">
+                                                                <select name="srv_{{ $slug }}_mode" class="form-control form-control-sm srv-mode-select" onchange="updateServiceRewardMode('{{ $slug }}', this.value)">
+                                                                    <option value="percentage" {{ $rewardModeItem === 'percentage' ? 'selected' : '' }}>Percentage</option>
+                                                                    <option value="flat" {{ $rewardModeItem === 'flat' ? 'selected' : '' }}>Flat</option>
+                                                                </select>
                                                             </td>
                                                             <td>
-                                                                <input type="text" name="srv_{{ $slug }}_customer_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 100px; color: #0f172a !important;" value="{{ $custVal }}" placeholder="e.g. 2%">
+                                                                <div class="d-inline-flex align-items-center">
+                                                                    <span id="prefix_srv_{{ $slug }}_biz" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                                    <input type="text" name="srv_{{ $slug }}_business_val" id="input_srv_{{ $slug }}_biz" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $bizValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                                    <span id="suffix_srv_{{ $slug }}_biz" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="d-inline-flex align-items-center">
+                                                                    <span id="prefix_srv_{{ $slug }}_cust" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                                    <input type="text" name="srv_{{ $slug }}_customer_val" id="input_srv_{{ $slug }}_cust" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $custValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                                    <span id="suffix_srv_{{ $slug }}_cust" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                                </div>
                                                             </td>
                                                             <td class="text-center">
                                                                 <label class="switch-indigo"><input type="checkbox" name="srv_{{ $slug }}_status" value="1" {{ $isActive ? 'checked' : '' }}><span class="slider-indigo"></span></label>
@@ -388,8 +429,8 @@
                                                     <tr class="small text-muted">
                                                         <th>Service</th>
                                                         <th>Reward Mode</th>
-                                                        <th>Business Value (%)</th>
-                                                        <th>Customer Value (%)</th>
+                                                        <th>Business Value</th>
+                                                        <th>Customer Value</th>
                                                         <th class="text-center">Status</th>
                                                     </tr>
                                                 </thead>
@@ -398,18 +439,34 @@
                                                     @php
                                                         $slug = Str::slug($subItem);
                                                         $cfg = isset($serviceRewardConfigs) ? $serviceRewardConfigs->get('slug_' . $slug) : null;
+                                                        $rewardModeItem = $cfg ? ($cfg->reward_mode ?? 'percentage') : 'percentage';
                                                         $bizVal = $cfg ? $cfg->business_value : '2%';
                                                         $custVal = $cfg ? $cfg->customer_value : '2%';
+                                                        $bizValClean = preg_replace('/[^0-9.]/', '', (string)$bizVal);
+                                                        $custValClean = preg_replace('/[^0-9.]/', '', (string)$custVal);
                                                         $isActive = $cfg ? $cfg->is_active : true;
                                                     @endphp
                                                     <tr>
                                                         <td class="font-weight-bold text-dark">{{ $subItem }}</td>
-                                                        <td><span class="badge badge-high-contrast px-3 py-1">Percentage</span></td>
                                                         <td>
-                                                            <input type="text" name="srv_{{ $slug }}_business_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 110px; color: #0f172a !important;" value="{{ $bizVal }}" placeholder="e.g. 2%">
+                                                            <select name="srv_{{ $slug }}_mode" class="form-control form-control-sm srv-mode-select" onchange="updateServiceRewardMode('{{ $slug }}', this.value)">
+                                                                <option value="percentage" {{ $rewardModeItem === 'percentage' ? 'selected' : '' }}>Percentage</option>
+                                                                <option value="flat" {{ $rewardModeItem === 'flat' ? 'selected' : '' }}>Flat</option>
+                                                            </select>
                                                         </td>
                                                         <td>
-                                                            <input type="text" name="srv_{{ $slug }}_customer_val" class="form-control form-control-sm font-weight-bold text-dark" style="width: 110px; color: #0f172a !important;" value="{{ $custVal }}" placeholder="e.g. 2%">
+                                                            <div class="d-inline-flex align-items-center">
+                                                                <span id="prefix_srv_{{ $slug }}_biz" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                                <input type="text" name="srv_{{ $slug }}_business_val" id="input_srv_{{ $slug }}_biz" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $bizValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                                <span id="suffix_srv_{{ $slug }}_biz" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="d-inline-flex align-items-center">
+                                                                <span id="prefix_srv_{{ $slug }}_cust" class="font-weight-bold mr-1 text-dark" style="{{ $rewardModeItem === 'flat' ? '' : 'display: none;' }}">₹</span>
+                                                                <input type="text" name="srv_{{ $slug }}_customer_val" id="input_srv_{{ $slug }}_cust" class="form-control form-control-sm font-weight-bold text-dark srv-val-input" data-mode="{{ $rewardModeItem }}" style="width: 85px; color: #0f172a !important;" value="{{ $custValClean ?: '2' }}" placeholder="{{ $rewardModeItem === 'flat' ? '50' : '2' }}">
+                                                                <span id="suffix_srv_{{ $slug }}_cust" class="font-weight-bold ml-1 text-dark" style="{{ $rewardModeItem === 'percentage' ? '' : 'display: none;' }}">%</span>
+                                                            </div>
                                                         </td>
                                                         <td class="text-center">
                                                             <label class="switch-indigo"><input type="checkbox" name="srv_{{ $slug }}_status" value="1" {{ $isActive ? 'checked' : '' }}><span class="slider-indigo"></span></label>
@@ -724,12 +781,64 @@
         }
     }
 
+    function updateServiceRewardMode(itemKey, mode) {
+        var prefixBiz = document.getElementById('prefix_srv_' + itemKey + '_biz');
+        var suffixBiz = document.getElementById('suffix_srv_' + itemKey + '_biz');
+        var inputBiz  = document.getElementById('input_srv_' + itemKey + '_biz');
+
+        var prefixCust = document.getElementById('prefix_srv_' + itemKey + '_cust');
+        var suffixCust = document.getElementById('suffix_srv_' + itemKey + '_cust');
+        var inputCust  = document.getElementById('input_srv_' + itemKey + '_cust');
+
+        if (mode === 'flat') {
+            if (prefixBiz) prefixBiz.style.display = 'inline';
+            if (suffixBiz) suffixBiz.style.display = 'none';
+            if (inputBiz) {
+                inputBiz.placeholder = '50';
+                inputBiz.dataset.mode = 'flat';
+            }
+
+            if (prefixCust) prefixCust.style.display = 'inline';
+            if (suffixCust) suffixCust.style.display = 'none';
+            if (inputCust) {
+                inputCust.placeholder = '50';
+                inputCust.dataset.mode = 'flat';
+            }
+        } else {
+            if (prefixBiz) prefixBiz.style.display = 'none';
+            if (suffixBiz) suffixBiz.style.display = 'inline';
+            if (inputBiz) {
+                inputBiz.placeholder = '2';
+                inputBiz.dataset.mode = 'percentage';
+                var valBiz = parseFloat(inputBiz.value);
+                if (valBiz > 100) inputBiz.value = 100;
+                else if (valBiz < 0) inputBiz.value = 0;
+            }
+
+            if (prefixCust) prefixCust.style.display = 'none';
+            if (suffixCust) suffixCust.style.display = 'inline';
+            if (inputCust) {
+                inputCust.placeholder = '2';
+                inputCust.dataset.mode = 'percentage';
+                var valCust = parseFloat(inputCust.value);
+                if (valCust > 100) inputCust.value = 100;
+                else if (valCust < 0) inputCust.value = 0;
+            }
+        }
+    }
+
     $(document).on('input', 'input[name$="_business_val"], input[name$="_customer_val"]', function() {
+        var mode = $(this).data('mode') || 'percentage';
         var valStr = $(this).val();
-        if (valStr.includes('%')) {
-            var num = parseFloat(valStr.replace('%', ''));
-            if (num > 100) {
-                $(this).val('100%');
+
+        if (mode === 'percentage') {
+            var cleanNum = parseFloat(valStr.replace('%', ''));
+            if (!isNaN(cleanNum)) {
+                if (cleanNum > 100) {
+                    $(this).val(100);
+                } else if (cleanNum < 0) {
+                    $(this).val(0);
+                }
             }
         }
     });
