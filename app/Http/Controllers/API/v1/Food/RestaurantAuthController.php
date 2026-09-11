@@ -283,6 +283,8 @@ class RestaurantAuthController extends Controller
                 'phone' => $owner->phone,
                 'email' => $owner->email,
                 'status' => $owner->status,
+                'has_mpin' => !empty($owner->mpin),
+                'profile_completed' => !empty($owner->name),
             ],
             'accesstoken' => $token ?: $owner->access_token,
             'token' => $token ?: $owner->access_token,
