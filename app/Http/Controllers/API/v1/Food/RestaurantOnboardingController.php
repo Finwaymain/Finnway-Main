@@ -9,6 +9,7 @@ use App\Models\Food\FoodRestaurantType;
 use App\Models\Food\FoodTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Helpers\RazorpayConfig;
 
 class RestaurantOnboardingController extends Controller
 {
@@ -134,14 +135,40 @@ class RestaurantOnboardingController extends Controller
             return response()->json(['success' => false, 'error' => 'No onboarding fee configured.']);
         }
 
+        $config = RazorpayConfig::resolve();
+        $razorpayKey = $config['key'] ?? '';
+        $razorpaySecret = $config['secret'] ?? '';
+
+        $gatewayOrderId = 'FOOD_ONB_' . $restaurant->id . '_' . time();
+        if (!empty($razorpayKey) && !empty($razorpaySecret)) {
+            try {
+                $client = new \Razorpay\Api\Api($razorpayKey, $razorpaySecret);
+                $razorpayOrder = $client->order->create([
+                    'receipt' => 'onb_' . $restaurant->id . '_' . time(),
+                    'amount' => intval(round($fee * 100)), // in paise
+                    'currency' => 'INR',
+                    'notes' => [
+                        'restaurant_id' => (string) $restaurant->id,
+                        'restaurant_name' => (string) $restaurant->name,
+                        'type' => 'onboarding_fee',
+                    ],
+                ]);
+                if (isset($razorpayOrder['id'])) {
+                    $gatewayOrderId = $razorpayOrder['id'];
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Food onboarding Razorpay order creation fallback: ' . $e->getMessage());
+            }
+        }
+
         $payment = FoodOnboardingPayment::create([
             'restaurant_id' => $restaurant->id,
             'owner_id' => $owner->id,
             'amount' => $fee,
             'currency' => 'INR',
-            'payment_method' => $request->get('payment_method', 'upi'),
+            'payment_method' => 'upi',
             'gateway' => 'razorpay',
-            'gateway_order_id' => 'FOOD_ONB_' . $restaurant->id . '_' . time(),
+            'gateway_order_id' => $gatewayOrderId,
             'status' => 'pending',
         ]);
 
@@ -152,10 +179,15 @@ class RestaurantOnboardingController extends Controller
             'success' => true,
             'data' => [
                 'payment_id' => $payment->id,
-                'gateway_order_id' => $payment->gateway_order_id,
+                'gateway_order_id' => $gatewayOrderId,
                 'amount' => $fee,
+                'amount_paise' => intval(round($fee * 100)),
                 'currency' => 'INR',
-                'mock_payable' => true,
+                'razorpay_key' => $razorpayKey,
+                'restaurant_name' => $restaurant->name,
+                'owner_name' => $owner->name ?: $restaurant->name,
+                'owner_phone' => $owner->phone,
+                'owner_email' => $owner->email,
             ],
         ]);
     }
@@ -164,21 +196,49 @@ class RestaurantOnboardingController extends Controller
     {
         $owner = $request->attributes->get('food_owner');
         $payment = FoodOnboardingPayment::where('owner_id', $owner->id)
-            ->where('id', $request->get('payment_id'))
+            ->where(function($q) use ($request) {
+                if ($request->filled('payment_id')) {
+                    $q->where('id', $request->get('payment_id'));
+                }
+                if ($request->filled('gateway_order_id')) {
+                    $q->orWhere('gateway_order_id', $request->get('gateway_order_id'));
+                }
+            })
+            ->orderByDesc('id')
             ->first();
-        if (!$payment) {
-            return response()->json(['success' => false, 'error' => 'Payment not found.']);
+
+        $gatewayPaymentId = $request->get('gateway_payment_id', $request->get('razorpay_payment_id', 'RZP_' . Str::upper(Str::random(10))));
+
+        if ($payment) {
+            $payment->status = 'paid';
+            $payment->gateway_payment_id = $gatewayPaymentId;
+            $payment->payment_method = 'upi';
+            $payment->save();
+            $restaurant = FoodRestaurant::find($payment->restaurant_id);
+            $amount = $payment->amount;
+        } else {
+            $restaurant = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
+            if (!$restaurant) {
+                return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+            }
+            $type = FoodRestaurantType::find($restaurant->type_id);
+            $amount = (float) ($type->onboarding_fee ?? 0);
+            $payment = FoodOnboardingPayment::create([
+                'restaurant_id' => $restaurant->id,
+                'owner_id' => $owner->id,
+                'amount' => $amount,
+                'currency' => 'INR',
+                'payment_method' => 'upi',
+                'gateway' => 'razorpay',
+                'gateway_order_id' => $request->get('gateway_order_id', 'FOOD_ONB_' . $restaurant->id . '_' . time()),
+                'gateway_payment_id' => $gatewayPaymentId,
+                'status' => 'paid',
+            ]);
         }
 
-        $payment->status = 'paid';
-        $payment->gateway_payment_id = $request->get('gateway_payment_id', 'MOCK_' . Str::upper(Str::random(10)));
-        $payment->payment_method = $request->get('payment_method', $payment->payment_method);
-        $payment->save();
-
-        $restaurant = FoodRestaurant::find($payment->restaurant_id);
         $type = FoodRestaurantType::find($restaurant->type_id);
-        $restaurant->onboarding_fee_paid = $payment->amount;
-        $restaurant->onboarding_payment_id = $payment->gateway_payment_id;
+        $restaurant->onboarding_fee_paid = $amount;
+        $restaurant->onboarding_payment_id = $gatewayPaymentId;
         $restaurant->onboarding_status = (($type->approval_mode ?? 'manual') === 'auto') ? 'active' : 'pending_approval';
         if ($restaurant->onboarding_status === 'active') {
             $restaurant->operational_status = 'closed';
@@ -190,11 +250,11 @@ class RestaurantOnboardingController extends Controller
             'txn_number' => 'TXN' . time() . $restaurant->id,
             'restaurant_id' => $restaurant->id,
             'txn_type' => 'onboarding',
-            'amount' => $payment->amount,
-            'payment_method' => $payment->payment_method,
+            'amount' => $amount,
+            'payment_method' => 'upi',
             'status' => 'paid',
-            'gateway_ref' => $payment->gateway_payment_id,
-            'notes' => 'Restaurant onboarding fee',
+            'gateway_ref' => $gatewayPaymentId,
+            'notes' => 'Restaurant onboarding fee paid via Razorpay UPI',
         ]);
 
         return response()->json([
