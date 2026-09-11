@@ -1229,6 +1229,15 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::post('/restaurants/{id}/approve', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'approve'])->name('restaurants.approve');
     Route::post('/restaurants/{id}/reject', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'reject'])->name('restaurants.reject');
     Route::post('/restaurants/{id}/suspend', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'suspend'])->name('restaurants.suspend');
+    Route::post('/restaurants/{id}/profile', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateProfile'])->name('restaurants.profile');
+    Route::post('/restaurants/{id}/status', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateOperationalStatus'])->name('restaurants.status');
+    Route::post('/restaurants/{id}/verify-doc', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'verifyDoc'])->name('restaurants.verifyDoc');
+    Route::post('/restaurants/{id}/request-reupload', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'requestDocReupload'])->name('restaurants.requestReupload');
+    Route::post('/restaurants/{id}/products/{productId?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveProduct'])->name('restaurants.saveProduct');
+    Route::post('/restaurants/{id}/products/{productId}/stock', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'toggleProductStock'])->name('restaurants.toggleStock');
+    Route::delete('/restaurants/{id}/products/{productId}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'deleteProduct'])->name('restaurants.deleteProduct');
+    Route::post('/restaurants/{id}/commission', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCustomCommission'])->name('restaurants.commission');
+    Route::post('/restaurants/{id}/dues/{paymentId}/approve', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'approveDuePayment'])->name('restaurants.approveDue');
     Route::get('/commissions', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'commissions'])->name('commissions');
     Route::post('/commissions/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCommission'])->name('commissions.save');
     Route::post('/markups/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveMarkup'])->name('markups.save');

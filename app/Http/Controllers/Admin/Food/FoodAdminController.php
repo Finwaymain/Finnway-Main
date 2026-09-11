@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin\Food;
 
 use App\Http\Controllers\Controller;
+use App\Models\Food\FoodCategory;
 use App\Models\Food\FoodChargeRule;
 use App\Models\Food\FoodCommissionRule;
 use App\Models\Food\FoodDeliveryChargeRule;
 use App\Models\Food\FoodDispute;
+use App\Models\Food\FoodDuePayment;
 use App\Models\Food\FoodMarkupRule;
 use App\Models\Food\FoodOrder;
 use App\Models\Food\FoodOrderItem;
@@ -14,11 +16,13 @@ use App\Models\Food\FoodPremiumDeal;
 use App\Models\Food\FoodProduct;
 use App\Models\Food\FoodRestaurant;
 use App\Models\Food\FoodRestaurantType;
+use App\Models\Food\FoodReview;
 use App\Models\Food\FoodSetting;
 use App\Models\Food\FoodSettlement;
 use App\Services\Food\FoodPricingEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class FoodAdminController extends Controller
 {
@@ -65,14 +69,45 @@ class FoodAdminController extends Controller
                     ->orWhere('city', 'like', "%$term%");
             });
         }
-        $restaurants = $q->paginate(30);
-        return view('admin.food.restaurants', compact('restaurants'));
+        $restaurants = $q->paginate(25);
+        $stats = [
+            'total' => FoodRestaurant::count(),
+            'active' => FoodRestaurant::where('onboarding_status', 'active')->count(),
+            'pending' => FoodRestaurant::where('onboarding_status', 'pending_approval')->count(),
+            'resubmit' => FoodRestaurant::where('onboarding_status', 'doc_resubmission_required')->count(),
+            'open_now' => FoodRestaurant::where('onboarding_status', 'active')->where('operational_status', 'open')->count(),
+        ];
+        return view('admin.food.restaurants', compact('restaurants', 'stats'));
     }
 
     public function restaurantShow($id)
     {
-        $restaurant = FoodRestaurant::with('owner', 'type', 'products', 'categories')->findOrFail($id);
-        return view('admin.food.restaurant_show', compact('restaurant'));
+        $restaurant = FoodRestaurant::with([
+            'owner',
+            'type',
+            'categories.products',
+            'products.category',
+            'products.variants',
+            'products.addons',
+        ])->findOrFail($id);
+
+        $categories = FoodCategory::where('restaurant_id', $id)->get();
+        $products = FoodProduct::where('restaurant_id', $id)->with('category')->get();
+        $orders = FoodOrder::where('restaurant_id', $id)->orderByDesc('id')->limit(30)->get();
+        $disputes = FoodDispute::where('restaurant_id', $id)->orderByDesc('id')->limit(20)->get();
+        $duePayments = FoodDuePayment::where('restaurant_id', $id)->orderByDesc('id')->get();
+        $settlements = FoodSettlement::where('restaurant_id', $id)->orderByDesc('id')->limit(20)->get();
+        $reviews = FoodReview::where('restaurant_id', $id)->orderByDesc('id')->limit(20)->get();
+        
+        $pendingDueTotal = FoodDuePayment::where('restaurant_id', $id)->where('status', 'pending')->sum('amount');
+        $totalOrdersDelivered = FoodOrder::where('restaurant_id', $id)->where('order_status', 'delivered')->count();
+        $totalGrossSales = FoodOrder::where('restaurant_id', $id)->where('order_status', 'delivered')->sum('food_subtotal');
+
+        return view('admin.food.restaurant_show', compact(
+            'restaurant', 'categories', 'products', 'orders', 'disputes',
+            'duePayments', 'settlements', 'reviews', 'pendingDueTotal',
+            'totalOrdersDelivered', 'totalGrossSales'
+        ));
     }
 
     public function approve($id)
@@ -84,15 +119,21 @@ class FoodAdminController extends Controller
         $restaurant->approved_by = auth()->id();
         $restaurant->rejection_reason = null;
         $restaurant->save();
-        return back()->with('success', 'Restaurant approved.');
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Restaurant approved and activated.']);
+        }
+        return back()->with('success', 'Restaurant approved and activated.');
     }
 
     public function reject(Request $request, $id)
     {
         $restaurant = FoodRestaurant::findOrFail($id);
         $restaurant->onboarding_status = 'rejected';
-        $restaurant->rejection_reason = $request->get('reason', 'Rejected by admin');
+        $restaurant->rejection_reason = $request->get('reason', 'Application rejected by administration.');
         $restaurant->save();
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Restaurant rejected.']);
+        }
         return back()->with('success', 'Restaurant rejected.');
     }
 
@@ -102,7 +143,184 @@ class FoodAdminController extends Controller
         $restaurant->onboarding_status = 'suspended';
         $restaurant->operational_status = 'closed';
         $restaurant->save();
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Restaurant suspended.']);
+        }
         return back()->with('success', 'Restaurant suspended.');
+    }
+
+    public function updateProfile(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $fields = [
+            'name', 'owner_name', 'owner_phone', 'owner_email',
+            'address', 'landmark', 'city', 'state', 'pincode',
+            'latitude', 'longitude', 'delivery_radius_km',
+            'avg_prep_minutes', 'min_order_amount', 'max_order_amount',
+            'opening_time', 'closing_time', 'fssai_number', 'gst_number', 'pan_number',
+            'bank_account_name', 'bank_name', 'bank_account_number', 'bank_ifsc', 'upi_id',
+        ];
+        foreach ($fields as $field) {
+            if ($request->has($field)) {
+                $restaurant->{$field} = $request->get($field);
+            }
+        }
+        $restaurant->pure_veg = $request->boolean('pure_veg');
+        $restaurant->delivery_available = $request->boolean('delivery_available', true);
+        $restaurant->takeaway_available = $request->boolean('takeaway_available');
+        $restaurant->dine_in_available = $request->boolean('dine_in_available');
+        if ($request->filled('custom_commission_rate')) {
+            $restaurant->custom_commission_rate = (float) $request->custom_commission_rate;
+        }
+
+        $restaurant->save();
+        return back()->with('success', 'Restaurant profile updated successfully.');
+    }
+
+    public function updateOperationalStatus(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $status = $request->get('operational_status', 'closed');
+        if (in_array($status, ['open', 'busy', 'closed', 'temporarily_closed'])) {
+            $restaurant->operational_status = $status;
+            $restaurant->save();
+        }
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Operational status changed to ' . ucfirst($status) . '.']);
+        }
+        return back()->with('success', 'Operational status changed to ' . ucfirst($status) . '.');
+    }
+
+    public function verifyDoc(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $docType = $request->get('doc_type', $request->get('document_type'));
+        $status = $request->get('status');
+        $notes = $request->get('notes', '');
+
+        $currentDocs = $restaurant->doc_status ?: [];
+        $currentDocs[$docType] = [
+            'status' => $status,
+            'verified_at' => now()->toDateTimeString(),
+            'notes' => $notes,
+        ];
+        $restaurant->doc_status = $currentDocs;
+        $restaurant->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => strtoupper($docType) . ' marked as ' . ucfirst($status) . '.']);
+        }
+        return back()->with('success', strtoupper($docType) . ' marked as ' . ucfirst($status) . '.');
+    }
+
+    public function requestDocReupload(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $reason = $request->get('reason', 'Document resubmission required.');
+        $docsNeeded = $request->get('docs_needed', $request->get('document_type', []));
+
+        $restaurant->onboarding_status = 'doc_resubmission_required';
+        $restaurant->rejection_reason = $reason;
+        $restaurant->doc_notes = is_array($docsNeeded) ? implode(', ', $docsNeeded) : (string) $docsNeeded;
+
+        $docType = $request->get('doc_type', $request->get('document_type'));
+        if ($docType) {
+            $currentDocs = $restaurant->doc_status ?: [];
+            $currentDocs[$docType] = [
+                'status' => 'reupload_requested',
+                'requested_at' => now()->toDateTimeString(),
+                'reason' => $reason,
+            ];
+            $restaurant->doc_status = $currentDocs;
+        }
+        $restaurant->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Document resubmission request sent to restaurant partner.']);
+        }
+        return back()->with('success', 'Document resubmission request sent to restaurant partner.');
+    }
+
+    public function saveProduct(Request $request, $id, $productId = null)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $product = $productId ? FoodProduct::where('restaurant_id', $id)->findOrFail($productId) : new FoodProduct();
+
+        $product->restaurant_id = $restaurant->id;
+        $product->category_id = $request->get('category_id');
+        $product->name = $request->get('name');
+        $product->description = $request->get('description');
+        $product->food_type = $request->get('food_type', 'veg');
+        $product->restaurant_price = (float) $request->get('price', $request->get('restaurant_price', 0));
+        $product->discount_price = $request->filled('discount_price') ? (float) $request->get('discount_price') : null;
+        $product->prep_minutes = (int) $request->get('prep_time_minutes', $request->get('prep_minutes', 20));
+        $product->availability = $request->boolean('is_available', $request->boolean('is_in_stock', true)) ? 'in_stock' : 'out_of_stock';
+        $product->is_active = $request->boolean('is_active', true);
+
+        if ($request->hasFile('image')) {
+            $product->image = $request->file('image')->store('food/products/' . $restaurant->id, 'public');
+        }
+
+        $product->save();
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Product ' . ($productId ? 'updated' : 'added') . ' successfully.', 'data' => $product]);
+        }
+        return back()->with('success', 'Product ' . ($productId ? 'updated' : 'added') . ' successfully.');
+    }
+
+    public function toggleProductStock(Request $request, $id, $productId)
+    {
+        $product = FoodProduct::where('restaurant_id', $id)->findOrFail($productId);
+        $product->availability = $product->availability === 'in_stock' ? 'out_of_stock' : 'in_stock';
+        $product->save();
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Product stock toggled to ' . ($product->availability === 'in_stock' ? 'In Stock' : 'Out of Stock') . '.']);
+        }
+        return back()->with('success', 'Product stock toggled to ' . ($product->availability === 'in_stock' ? 'In Stock' : 'Out of Stock') . '.');
+    }
+
+    public function deleteProduct($id, $productId)
+    {
+        $product = FoodProduct::where('restaurant_id', $id)->findOrFail($productId);
+        $product->delete();
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Product deleted successfully.']);
+        }
+        return back()->with('success', 'Product deleted successfully.');
+    }
+
+    public function saveCustomCommission(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $rate = (float) $request->get('custom_commission_rate', $request->get('commission_rate', 0));
+        $restaurant->custom_commission_rate = $rate;
+        $restaurant->save();
+
+        $rule = FoodCommissionRule::firstOrNew(['restaurant_id' => $id, 'scope' => 'restaurant']);
+        $rule->rule_type = $request->get('rule_type', 'percentage');
+        $rule->rule_value = $rate;
+        $rule->is_active = true;
+        $rule->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Custom commission rule updated to ' . $rate . '%.']);
+        }
+        return back()->with('success', 'Custom commission rule updated to ' . $rate . '%.');
+    }
+
+    public function approveDuePayment(Request $request, $id, $paymentId)
+    {
+        $due = FoodDuePayment::where('restaurant_id', $id)->findOrFail($paymentId);
+        $due->status = 'paid';
+        $due->paid_amount = $due->amount;
+        $due->paid_at = now();
+        $due->payment_ref = $request->get('payment_ref', 'ADMIN-RECON-' . time());
+        $due->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Due payment of ₹' . number_format($due->amount, 2) . ' approved and settled.']);
+        }
+        return back()->with('success', 'Due payment of ₹' . number_format($due->amount, 2) . ' approved and settled.');
     }
 
     public function commissions()

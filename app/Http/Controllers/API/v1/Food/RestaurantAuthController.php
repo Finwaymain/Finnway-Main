@@ -93,6 +93,94 @@ class RestaurantAuthController extends Controller
         ]);
     }
 
+    public function checkUser(Request $request)
+    {
+        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
+        if (empty($phone) || !preg_match('/^\+91[6-9]\d{9}$/', $phone)) {
+            return response()->json(['success' => false, 'error' => 'Valid Indian mobile (+91XXXXXXXXXX) required.']);
+        }
+
+        $owner = FoodOwner::where('phone', $phone)->first();
+        if (!$owner) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'exists' => false,
+                    'has_mpin' => false,
+                    'profile_completed' => false,
+                    'phone' => $phone,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'exists' => true,
+                'has_mpin' => !empty($owner->mpin),
+                'profile_completed' => !empty($owner->name),
+                'name' => $owner->name,
+                'phone' => $owner->phone,
+                'status' => $owner->status,
+            ],
+        ]);
+    }
+
+    public function loginMpin(Request $request)
+    {
+        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
+        $mpin = trim((string) $request->get('mpin'));
+
+        $owner = FoodOwner::where('phone', $phone)->first();
+        if (!$owner) {
+            return response()->json(['success' => false, 'error' => 'Account not found. Please register.']);
+        }
+        if ($owner->status !== 'active') {
+            return response()->json(['success' => false, 'error' => 'Account blocked. Contact support.']);
+        }
+        if (empty($owner->mpin) || !Hash::check($mpin, $owner->mpin)) {
+            return response()->json(['success' => false, 'error' => 'Invalid MPIN.']);
+        }
+
+        $token = $this->issueToken($owner);
+        return response()->json([
+            'success' => true,
+            'message' => 'Login successful.',
+            'data' => $this->ownerPayload($owner, $token),
+        ]);
+    }
+
+    public function setupMpin(Request $request)
+    {
+        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
+        $mpin = trim((string) $request->get('mpin'));
+
+        if (strlen($mpin) !== 4 || !ctype_digit($mpin)) {
+            return response()->json(['success' => false, 'error' => 'MPIN must be 4 digits.']);
+        }
+
+        $owner = FoodOwner::where('phone', $phone)->first();
+        if (!$owner) {
+            return response()->json(['success' => false, 'error' => 'Account not found.']);
+        }
+
+        $owner->mpin = Hash::make($mpin);
+        if ($request->filled('name')) {
+            $owner->name = $request->get('name');
+        }
+        if ($request->filled('email')) {
+            $owner->email = $request->get('email');
+        }
+        $owner->save();
+
+        $token = $this->issueToken($owner);
+        return response()->json([
+            'success' => true,
+            'message' => 'MPIN setup successfully.',
+            'data' => $this->ownerPayload($owner, $token),
+        ]);
+    }
+
     public function loginPassword(Request $request)
     {
         $phone = PhoneService::normalize(trim((string) $request->get('phone')));
@@ -175,6 +263,7 @@ class RestaurantAuthController extends Controller
                 'status' => $owner->status,
             ],
             'accesstoken' => $token ?: $owner->access_token,
+            'token' => $token ?: $owner->access_token,
             'restaurants' => $restaurants,
             'has_restaurant' => $restaurants->count() > 0,
             'onboarding_required' => $restaurants->where('onboarding_status', 'active')->count() === 0,

@@ -11,8 +11,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function () {
     // Auth (public within env key)
+    Route::post('auth/check-user', [RestaurantAuthController::class, 'checkUser']);
     Route::post('auth/send-otp', [RestaurantAuthController::class, 'sendOtp']);
     Route::post('auth/verify-otp', [RestaurantAuthController::class, 'verifyOtp']);
+    Route::post('auth/login-mpin', [RestaurantAuthController::class, 'loginMpin']);
+    Route::post('auth/setup-mpin', [RestaurantAuthController::class, 'setupMpin']);
     Route::post('auth/login-password', [RestaurantAuthController::class, 'loginPassword']);
     Route::get('types', [RestaurantAuthController::class, 'types']);
 

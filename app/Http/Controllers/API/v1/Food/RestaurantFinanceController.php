@@ -66,14 +66,31 @@ class RestaurantFinanceController extends Controller
     public function payDue(Request $request)
     {
         $restaurant = $this->restaurant($request);
-        $due = FoodDuePayment::where('restaurant_id', $restaurant->id)->where('id', $request->get('due_id'))->first();
+        $due = null;
+        if ($request->filled('due_id')) {
+            $due = FoodDuePayment::where('restaurant_id', $restaurant->id)->where('id', $request->get('due_id'))->first();
+        } else {
+            $due = FoodDuePayment::where('restaurant_id', $restaurant->id)->where('status', '!=', 'paid')->first();
+            if (!$due) {
+                $amount = (float) $request->get('amount', 0);
+                $due = FoodDuePayment::create([
+                    'restaurant_id' => $restaurant->id,
+                    'party_type' => 'restaurant',
+                    'due_type' => 'company_commission',
+                    'amount' => $amount,
+                    'paid_amount' => 0,
+                    'status' => 'pending',
+                    'payment_ref' => $request->get('transaction_reference', $request->get('payment_ref', 'DUE_' . time())),
+                ]);
+            }
+        }
         if (!$due) {
             return response()->json(['success' => false, 'error' => 'Due not found.']);
         }
         $amount = (float) $request->get('amount', $due->amount - $due->paid_amount);
         $due->paid_amount = min($due->amount, $due->paid_amount + $amount);
         $due->status = $due->paid_amount >= $due->amount ? 'paid' : 'partial';
-        $due->payment_ref = $request->get('payment_ref', 'DUE_' . time());
+        $due->payment_ref = $request->get('payment_ref', $request->get('transaction_reference', 'DUE_' . time()));
         if ($due->status === 'paid') {
             $due->paid_at = now();
         }

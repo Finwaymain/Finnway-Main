@@ -519,8 +519,7 @@ class RequeteRegisterController extends Controller
             $response['error'] = 'some field required';
             return response()->json($response);
         }
-
-      } catch (\Exception $e) {
+      }} catch (\Exception $e) {
           \Log::error('RequeteRegister error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
           return response()->json([
               'success' => 'Failed',

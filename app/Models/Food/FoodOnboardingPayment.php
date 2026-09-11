@@ -17,4 +17,9 @@ class FoodOnboardingPayment extends Model
         'amount' => 'float',
         'meta' => 'array',
     ];
+
+    public function restaurant()
+    {
+        return $this->belongsTo(FoodRestaurant::class, 'restaurant_id');
+    }
 }

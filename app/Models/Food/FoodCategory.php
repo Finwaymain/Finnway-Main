@@ -14,6 +14,11 @@ class FoodCategory extends Model
 
     protected $casts = ['is_active' => 'boolean'];
 
+    public function restaurant()
+    {
+        return $this->belongsTo(FoodRestaurant::class, 'restaurant_id');
+    }
+
     public function products()
     {
         return $this->hasMany(FoodProduct::class, 'category_id');

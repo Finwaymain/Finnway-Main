@@ -23,6 +23,9 @@ class FoodRestaurant extends Model
         'dine_in_available' => 'boolean',
         'auto_accept' => 'boolean',
         'is_premium' => 'boolean',
+        'pure_veg' => 'boolean',
+        'custom_commission_rate' => 'float',
+        'doc_status' => 'array',
         'approved_at' => 'datetime',
         'premium_expires_at' => 'datetime',
     ];

@@ -30,6 +30,11 @@ class FoodProduct extends Model
         return $this->hasMany(FoodProductAddon::class, 'product_id');
     }
 
+    public function restaurant()
+    {
+        return $this->belongsTo(FoodRestaurant::class, 'restaurant_id');
+    }
+
     public function variants()
     {
         return $this->hasMany(FoodProductVariant::class, 'product_id');
