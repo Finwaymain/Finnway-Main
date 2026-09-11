@@ -67,5 +67,6 @@ class Kernel extends HttpKernel
         'apiKeyAuth' => \App\Http\Middleware\ApiSecureKeyAuth::class,
         'envKeyAuth' => \App\Http\Middleware\ApiKeyAuth::class,
         'sub_admin_perm' => \App\Http\Middleware\CheckSubAdminPermission::class,
+        'restaurant.auth' => \App\Http\Middleware\RestaurantAuth::class,
     ];
 }

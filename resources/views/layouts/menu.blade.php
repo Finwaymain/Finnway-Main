@@ -101,6 +101,28 @@
         </li>
         @endif
 
+        <!-- 3.7. Restaurant / Food Delivery -->
+        @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('restaurant_management') || $authUser->isSubAdmin()))
+        <li>
+            <a class="has-arrow waves-effect waves-dark {{ request()->is('admin/food*') ? 'active' : '' }}" href="#" aria-expanded="false">
+                <i class="mdi mdi-food text-danger"></i>
+                <span class="hide-menu font-weight-bold">Restaurant</span>
+            </a>
+            <ul aria-expanded="false" class="collapse {{ request()->is('admin/food*') ? 'in' : '' }}">
+                <li><a href="{!! route('admin.food.dashboard') !!}"><i class="mdi mdi-view-dashboard mr-1 text-primary"></i> Food Dashboard</a></li>
+                <li><a href="{!! route('admin.food.live') !!}"><i class="mdi mdi-radar mr-1 text-danger"></i> Live Command</a></li>
+                <li><a href="{!! route('admin.food.restaurants') !!}"><i class="mdi mdi-store mr-1 text-success"></i> Restaurants</a></li>
+                <li><a href="{!! route('admin.food.types') !!}"><i class="mdi mdi-shape mr-1 text-info"></i> Types & Fees</a></li>
+                <li><a href="{!! route('admin.food.orders') !!}"><i class="mdi mdi-clipboard-list mr-1 text-warning"></i> Food Orders</a></li>
+                <li><a href="{!! route('admin.food.commissions') !!}"><i class="mdi mdi-percent mr-1 text-success"></i> Commission & Markup</a></li>
+                <li><a href="{!! route('admin.food.charges') !!}"><i class="mdi mdi-cash-multiple mr-1 text-primary"></i> Charges & Delivery</a></li>
+                <li><a href="{!! route('admin.food.settlements') !!}"><i class="mdi mdi-bank-transfer mr-1 text-info"></i> Settlements</a></li>
+                <li><a href="{!! route('admin.food.disputes') !!}"><i class="mdi mdi-gavel mr-1 text-danger"></i> Disputes</a></li>
+                <li><a href="{!! route('admin.food.settings') !!}"><i class="mdi mdi-settings mr-1 text-secondary"></i> Food Settings</a></li>
+            </ul>
+        </li>
+        @endif
+
         <!-- 4. Premium Plans -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('premium_plans')))
         <li>

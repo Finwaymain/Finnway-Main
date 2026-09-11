@@ -1217,3 +1217,29 @@ Route::get('/terms_condition', [App\Http\Controllers\TermsAndConditionsControlle
 Route::put('/terms_condition/update/{id}', [App\Http\Controllers\TermsAndConditionsController::class, 'update']);
 Route::get('/privacy_policy', [App\Http\Controllers\TermsAndConditionsController::class, 'indexPrivacy']);
 Route::put('/privacy_policy/update/{id}', [App\Http\Controllers\TermsAndConditionsController::class, 'updatePrivacy']);
+
+// ── Fiinway Food / Restaurant Admin ─────────────────────────────────────────
+Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/live', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'live'])->name('live');
+    Route::get('/types', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'types'])->name('types');
+    Route::post('/types/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveType'])->name('types.save');
+    Route::get('/restaurants', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'restaurants'])->name('restaurants');
+    Route::get('/restaurants/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'restaurantShow'])->name('restaurants.show');
+    Route::post('/restaurants/{id}/approve', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'approve'])->name('restaurants.approve');
+    Route::post('/restaurants/{id}/reject', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'reject'])->name('restaurants.reject');
+    Route::post('/restaurants/{id}/suspend', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'suspend'])->name('restaurants.suspend');
+    Route::get('/commissions', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'commissions'])->name('commissions');
+    Route::post('/commissions/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCommission'])->name('commissions.save');
+    Route::post('/markups/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveMarkup'])->name('markups.save');
+    Route::get('/charges', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'charges'])->name('charges');
+    Route::post('/charges/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCharge'])->name('charges.save');
+    Route::post('/delivery-charges/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveDeliveryCharge'])->name('delivery.save');
+    Route::get('/settings', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'settings'])->name('settings');
+    Route::post('/settings', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveSettings'])->name('settings.save');
+    Route::get('/orders', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'orders'])->name('orders');
+    Route::post('/orders/test', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'createTestOrder'])->name('orders.test');
+    Route::get('/settlements', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'settlements'])->name('settlements');
+    Route::get('/disputes', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'disputes'])->name('disputes');
+    Route::post('/disputes/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'resolveDispute'])->name('disputes.resolve');
+});

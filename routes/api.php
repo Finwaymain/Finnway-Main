@@ -972,6 +972,9 @@ Route::get('v1/app-version/check', [\App\Http\Controllers\API\AppVersionApiContr
 Route::get('v1/driver/kit-status', [\App\Http\Controllers\API\DriverKitApiController::class, 'getKitStatus']);
 Route::post('v1/driver/kit-purchase/record', [\App\Http\Controllers\API\DriverKitApiController::class, 'recordPurchase']);
 
+// ── Fiinway Food Delivery APIs ──────────────────────────────────────────────
+require __DIR__ . '/food_api.php';
+
 
 
 
