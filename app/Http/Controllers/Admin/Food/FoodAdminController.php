@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Food\FoodCategory;
 use App\Models\Food\FoodChargeRule;
 use App\Models\Food\FoodCommissionRule;
+use App\Models\Food\FoodCuisine;
 use App\Models\Food\FoodDeliveryChargeRule;
 use App\Models\Food\FoodDispute;
 use App\Models\Food\FoodDuePayment;
@@ -565,5 +566,41 @@ class FoodAdminController extends Controller
         $dispute->penalty_amount = $request->get('penalty_amount');
         $dispute->save();
         return back()->with('success', 'Dispute updated.');
+    }
+
+    // ── Cuisine Management ───────────────────────────────────────────────────────
+
+    public function cuisines()
+    {
+        $cuisines = FoodCuisine::orderBy('sort_order')->orderBy('name')->get();
+        return view('admin.food.cuisines', compact('cuisines'));
+    }
+
+    public function saveCuisine(Request $request, $id = null)
+    {
+        $cuisine = $id ? FoodCuisine::findOrFail($id) : new FoodCuisine();
+        $cuisine->name = trim($request->get('name', ''));
+        $cuisine->slug = \Illuminate\Support\Str::slug($cuisine->name);
+        $cuisine->icon = trim($request->get('icon', ''));
+        $cuisine->is_active = $request->boolean('is_active', true);
+        $cuisine->sort_order = (int) $request->get('sort_order', 0);
+        $cuisine->save();
+        return redirect()->route('admin.food.cuisines')->with('success', 'Cuisine saved.');
+    }
+
+    public function deleteCuisine($id)
+    {
+        FoodCuisine::findOrFail($id)->delete();
+        return redirect()->route('admin.food.cuisines')->with('success', 'Cuisine deleted.');
+    }
+
+    // Public JSON endpoint consumed by Flutter app
+    public function cuisinesApi()
+    {
+        $cuisines = FoodCuisine::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'icon']);
+        return response()->json(['success' => true, 'data' => $cuisines]);
     }
 }

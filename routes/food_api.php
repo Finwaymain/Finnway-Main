@@ -18,6 +18,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::post('auth/setup-mpin', [RestaurantAuthController::class, 'setupMpin']);
     Route::post('auth/login-password', [RestaurantAuthController::class, 'loginPassword']);
     Route::get('types', [RestaurantAuthController::class, 'types']);
+    Route::get('cuisines', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'cuisinesApi']);
 
     // Customer discovery / order (user token optional for MVP; phone/id in body)
     Route::get('customer/nearby', [CustomerFoodController::class, 'nearby']);

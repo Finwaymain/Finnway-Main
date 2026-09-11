@@ -26,6 +26,7 @@ class FoodRestaurant extends Model
         'pure_veg' => 'boolean',
         'custom_commission_rate' => 'float',
         'doc_status' => 'array',
+        'cuisines' => 'array',
         'approved_at' => 'datetime',
         'premium_expires_at' => 'datetime',
     ];

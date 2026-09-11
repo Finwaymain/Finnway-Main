@@ -1262,4 +1262,9 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::get('/settlements', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'settlements'])->name('settlements');
     Route::get('/disputes', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'disputes'])->name('disputes');
     Route::post('/disputes/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'resolveDispute'])->name('disputes.resolve');
+
+    // Cuisine master management
+    Route::get('/cuisines', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'cuisines'])->name('cuisines');
+    Route::post('/cuisines/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCuisine'])->name('cuisines.save');
+    Route::delete('/cuisines/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'deleteCuisine'])->name('cuisines.delete');
 });

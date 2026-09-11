@@ -39,6 +39,14 @@ class RestaurantOnboardingController extends Controller
         $restaurant->business_type = $type->code;
         $restaurant->category = $request->get('category');
         $restaurant->sub_category = $request->get('sub_category');
+        // cuisines: array of cuisine names selected by owner
+        $cuisinesInput = $request->get('cuisines');
+        if (is_array($cuisinesInput)) {
+            $restaurant->cuisines = $cuisinesInput;
+        } elseif (is_string($cuisinesInput) && $cuisinesInput !== '') {
+            $decoded = json_decode($cuisinesInput, true);
+            $restaurant->cuisines = is_array($decoded) ? $decoded : explode(',', $cuisinesInput);
+        }
         $restaurant->name = $name;
         $restaurant->slug = Str::slug($name) . '-' . $owner->id;
         $restaurant->description = $request->get('description');
