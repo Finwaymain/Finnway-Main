@@ -1,4 +1,4 @@
-﻿@extends("admin.food.layout")
+@extends("admin.food.layout")
 
 @section("food")
 <div class="mb-4">
@@ -149,6 +149,11 @@
                                             <span class="badge badge-light border">{{ ucwords(str_replace('_', ' ', $r->business_type ?: 'restaurant')) }}</span>
                                             @if($r->pure_veg)
                                                 <span class="badge badge-success">Pure Veg</span>
+                                            @endif
+                                            @if(!empty($r->cuisines) && is_array($r->cuisines))
+                                                <span class="text-secondary ml-1">• {{ implode(', ', array_slice($r->cuisines, 0, 3)) }}{{ count($r->cuisines) > 3 ? ' +' . (count($r->cuisines) - 3) : '' }}</span>
+                                            @elseif($r->sub_category)
+                                                <span class="text-secondary ml-1">• {{ $r->sub_category }}</span>
                                             @endif
                                         </small>
                                     </div>

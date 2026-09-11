@@ -113,6 +113,7 @@
                 <li><a href="{!! route('admin.food.live') !!}"><i class="mdi mdi-radar mr-1 text-danger"></i> Live Command</a></li>
                 <li><a href="{!! route('admin.food.restaurants') !!}"><i class="mdi mdi-store mr-1 text-success"></i> Restaurants</a></li>
                 <li><a href="{!! route('admin.food.types') !!}"><i class="mdi mdi-shape mr-1 text-info"></i> Types & Fees</a></li>
+                <li><a href="{!! route('admin.food.cuisines') !!}"><i class="mdi mdi-silverware-fork-knife mr-1 text-warning"></i> Cuisines Master</a></li>
                 <li><a href="{!! route('admin.food.orders') !!}"><i class="mdi mdi-clipboard-list mr-1 text-warning"></i> Food Orders</a></li>
                 <li><a href="{!! route('admin.food.commissions') !!}"><i class="mdi mdi-percent mr-1 text-success"></i> Commission & Markup</a></li>
                 <li><a href="{!! route('admin.food.charges') !!}"><i class="mdi mdi-cash-multiple mr-1 text-primary"></i> Charges & Delivery</a></li>

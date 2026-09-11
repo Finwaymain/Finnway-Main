@@ -211,7 +211,7 @@ class FoodAdminController extends Controller
     {
         $restaurant = FoodRestaurant::findOrFail($id);
         $fields = [
-            'name', 'owner_name', 'owner_phone', 'owner_email',
+            'name', 'category', 'business_type', 'sub_category', 'owner_name', 'owner_phone', 'owner_email',
             'address', 'landmark', 'city', 'state', 'pincode',
             'latitude', 'longitude', 'delivery_radius_km',
             'avg_prep_minutes', 'min_order_amount', 'max_order_amount',
@@ -221,6 +221,15 @@ class FoodAdminController extends Controller
         foreach ($fields as $field) {
             if ($request->has($field)) {
                 $restaurant->{$field} = $request->get($field);
+            }
+        }
+        if ($request->has('cuisines')) {
+            $cuisinesInput = $request->get('cuisines');
+            if (is_array($cuisinesInput)) {
+                $restaurant->cuisines = $cuisinesInput;
+            } elseif (is_string($cuisinesInput)) {
+                $decoded = json_decode($cuisinesInput, true);
+                $restaurant->cuisines = is_array($decoded) ? $decoded : array_values(array_filter(array_map('trim', explode(',', $cuisinesInput))));
             }
         }
         $restaurant->pure_veg = $request->boolean('pure_veg');

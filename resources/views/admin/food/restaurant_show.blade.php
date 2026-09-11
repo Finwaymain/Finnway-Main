@@ -290,6 +290,16 @@
                                         <input type="number" name="avg_prep_minutes" value="{{ $restaurant->avg_prep_minutes }}" class="form-control" required>
                                     </div>
                                 </div>
+                                @if(!empty($restaurant->cuisines) && is_array($restaurant->cuisines))
+                                <div class="form-group mb-3">
+                                    <label class="font-weight-bold small text-muted">Cuisines Served (Multi-Select)</label>
+                                    <div>
+                                        @foreach($restaurant->cuisines as $c)
+                                            <span class="badge badge-info px-2 py-1 mr-1 mb-1 font-weight-normal" style="font-size: 13px;">🍽️ {{ $c }}</span>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                @endif
                                 <div class="row">
                                     <div class="col-md-6 form-group">
                                         <label class="font-weight-bold small text-muted">Opening Time</label>
