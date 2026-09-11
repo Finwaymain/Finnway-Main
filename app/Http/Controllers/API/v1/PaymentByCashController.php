@@ -79,9 +79,40 @@ class PaymentByCashController extends Controller
         if (!empty($id_requete)) {
             $rideRecord = DB::table('tj_requete')->where('id', $id_requete)->first();
             if ($rideRecord) {
+                // STRICT IDEMPOTENCY GUARD: If ride was already paid, do not re-process deduction or insert duplicate entries
+                if (strtolower(trim((string)$rideRecord->statut_paiement)) === 'yes') {
+                    $response['success'] = 'Payment already processed';
+                    $response['error'] = null;
+                    $row = (array)$rideRecord;
+                    $row['tax'] = json_decode($rideRecord->tax ?? '[]', true);
+                    $response['data'] = $row;
+                    return response()->json($response);
+                }
                 if (empty($id_user)) $id_user = $rideRecord->id_conducteur;
                 if (empty($id_user_app)) $id_user_app = $rideRecord->id_user_app;
                 if ($amount_new <= 0) $amount_new = floatval($rideRecord->montant);
+            }
+        }
+
+        // Additional guard: check if commission was already deducted in ledger
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction') && !empty($id_requete) && !empty($id_user)) {
+            $hasComm = DB::table('tj_conducteur_transaction')
+                ->where('id_conducteur', $id_user)
+                ->where('id_ride', (string)$id_requete)
+                ->where('amount', '<', 0)
+                ->where(function($q) {
+                    $q->where('payment_method', 'Commission')
+                      ->orWhere('payment_method', 'Tax Deduction')
+                      ->orWhere('deduction_type', 'Commission')
+                      ->orWhere('deduction_type', 'Tax');
+                })
+                ->exists();
+            if ($hasComm) {
+                $response['success'] = 'Payment already processed';
+                $response['error'] = null;
+                $row = $rideRecord ? (array)$rideRecord : [];
+                $response['data'] = $row;
+                return response()->json($response);
             }
         }
 

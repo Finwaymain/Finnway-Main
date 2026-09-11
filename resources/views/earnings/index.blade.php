@@ -399,7 +399,7 @@
                                 <span class="badge badge-dark-info ml-1" title="Held in escrow until marketplace payout is released">Escrow Hold: ₹{{ number_format(($stats['marketplacePendingComm'] ?? 0) + ($stats['marketplacePendingPFee'] ?? 0), 2) }}</span>
                             @endif
                             @if(($stats['dueAdminRevenue'] ?? 0) > 0)
-                                <span class="badge badge-dark-danger ml-1">Due Cash: ₹{{ number_format($stats['dueAdminRevenue'], 2) }}</span>
+                                <span class="badge badge-dark-danger ml-1" title="Uncollected platform revenue owed by drivers from cash bookings">Pending Due: ₹{{ number_format($stats['dueAdminRevenue'], 2) }}</span>
                             @endif
                         </div>
                     </div>
@@ -416,7 +416,7 @@
                         <div class="stat-subtext mb-1">Admin Revenue Source #2</div>
                         <div class="font-11 text-muted">
                             <span>Online: ₹{{ number_format($stats['platformFeeOnline'] ?? 0, 2) }}</span> • 
-                            <span>Cash: ₹{{ number_format($stats['platformFeeCash'] ?? 0, 2) }}</span>
+                            <span>Recovered Cash: ₹{{ number_format($stats['platformFeeCash'] ?? 0, 2) }}</span>
                             @if(($stats['marketplacePendingPFee'] ?? 0) > 0)
                                 • <span class="text-info font-weight-bold" title="Marketplace platform fees waiting for payout release">Pending: ₹{{ number_format($stats['marketplacePendingPFee'], 2) }}</span>
                             @endif
@@ -437,7 +437,7 @@
                         </div>
                         <div class="font-11 text-muted">
                             <span>Online GST: ₹{{ number_format($stats['gstCollectedOnline'] ?? 0, 2) }}</span> • 
-                            <span>Cash GST: ₹{{ number_format($stats['gstCollectedCash'] ?? 0, 2) }}</span>
+                            <span>Recovered Cash GST: ₹{{ number_format($stats['gstCollectedCash'] ?? 0, 2) }}</span>
                         </div>
                     </div>
                 </div>

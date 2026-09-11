@@ -1474,6 +1474,25 @@ class ServiceRequestAPIController extends Controller
             return;
         }
 
+        // STRICT IDEMPOTENCY GUARD: Never deduct commission or taxes more than once for the same booking
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction')) {
+            $alreadyDeducted = \Illuminate\Support\Facades\DB::table('tj_conducteur_transaction')
+                ->where('id_conducteur', $booking->driver_id)
+                ->where('id_ride', (string) $booking->id)
+                ->where('amount', '<', 0)
+                ->where(function($q) {
+                    $q->where('payment_method', 'Commission')
+                      ->orWhere('payment_method', 'Tax Deduction')
+                      ->orWhere('deduction_type', 'Commission')
+                      ->orWhere('deduction_type', 'Tax');
+                })
+                ->exists();
+
+            if ($alreadyDeducted) {
+                return;
+            }
+        }
+
         // Read commission config from admin panel (first active row, fallback to first row)
         $commission = null;
         if (\Illuminate\Support\Facades\Schema::hasTable('tj_commission')) {
@@ -3112,6 +3131,13 @@ class ServiceRequestAPIController extends Controller
             }
             $this->applyDriverBillToBooking($booking, $request);
         } elseif ($normalized === 'Completed') {
+            if ($currentStatus === 'completed') {
+                return response()->json([
+                    'success' => 'success',
+                    'message' => 'Booking is already completed',
+                    'data'    => $booking->fresh(),
+                ]);
+            }
             $pm = strtolower(trim((string) ($request->input('payment_method') ?? $request->input('payment_type') ?? $request->input('payment_status') ?? '')));
             if ($pm === 'cash' || $pm === 'paid_cash' || $pm === 'other' || empty($booking->payment_status) || $booking->payment_status === 'pending') {
                 $booking->payment_status = 'paid_cash';

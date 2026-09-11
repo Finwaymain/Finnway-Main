@@ -12,7 +12,9 @@ class RestaurantAuth
     {
         $token = $request->header('X-Restaurant-Token')
             ?: $request->header('accesstoken')
+            ?: $request->header('token')
             ?: $request->get('accesstoken')
+            ?: $request->get('token')
             ?: $request->bearerToken();
 
         if (empty($token)) {

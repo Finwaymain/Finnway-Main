@@ -68,17 +68,20 @@ class FinancialReportService
         $cancelledParcelStatuses  = ['cancelled', 'canceled', 'rejected', 'failed'];
 
         // Helper scopes
+        // Strictly require completed AND paid status.
+        // Pending/accepted bookings must NEVER be counted in any financial metric before user pays!
         $validRide = function($q) use ($cancelledRideStatuses) {
-            return $q->whereNotIn('statut', $cancelledRideStatuses);
+            return $q->whereNotIn('statut', $cancelledRideStatuses)
+                     ->whereIn('statut', ['completed', 'complete', 'done'])
+                     ->where('statut_paiement', 'yes');
         };
 
         // Only count service requests that are actually completed AND paid.
         // Pending/unpaid bookings must NEVER be counted in any financial metric.
-        $validService = function($q) {
-            return $q->where(function($inner) {
-                $inner->whereIn('status', ['completed', 'complete', 'done', 'confirmed'])
-                      ->whereIn('payment_status', ['paid', 'paid_online', 'paid_cash', 'success', 'completed', 'cash']);
-            });
+        $validService = function($q) use ($cancelledServiceStatuses) {
+            return $q->whereNotIn('status', $cancelledServiceStatuses)
+                     ->whereIn('status', ['completed', 'complete', 'done'])
+                     ->whereIn('payment_status', ['paid', 'paid_online', 'paid_wallet', 'paid_upi', 'paid_cash', 'success', 'completed']);
         };
 
         $validMarket = function($q) use ($cancelledMarketStatuses) {
@@ -144,7 +147,7 @@ class FinancialReportService
                 if (is_array($decoded)) {
                     $sum = 0.0;
                     foreach ($decoded as $item) {
-                        $sum += (float)($item['value'] ?? $item['amount'] ?? 0);
+                        $sum += (float)($item['amount'] ?? $item['value'] ?? 0);
                     }
                     return $sum;
                 }
@@ -197,11 +200,36 @@ class FinancialReportService
         $hasRideTypeCol  = $hasRequete && Schema::hasColumn('tj_requete', 'ride_type');
         $hasAdminCommCol = $hasRequete && Schema::hasColumn('tj_requete', 'admin_commission');
 
+        // Driver Cash Debt Recovery Resolver (per-driver precision)
+        $driverBalances = Schema::hasTable('tj_conducteur')
+            ? DB::table('tj_conducteur')->pluck('amount', 'id')->map(fn($v) => (float)$v)->toArray()
+            : [];
+
+        $getDriverCashRecoveryRatio = function($driverId, $driverCashTotalCharges) use ($driverBalances) {
+            if ($driverCashTotalCharges <= 0) return 1.0;
+            $currentBal = (float)($driverBalances[$driverId] ?? 0);
+            if ($currentBal >= 0) {
+                return 1.0; // Paid or no debt -> 100% recovered
+            }
+            $driverDebt = abs($currentBal);
+            $recovered = max(0, $driverCashTotalCharges - $driverDebt);
+            return min(1.0, $recovered / $driverCashTotalCharges);
+        };
+
         // A. Cabs & Transport
         $cabGross = 0.0;
         $cabComm  = 0.0;
+        $cabCommOnline = 0.0;
+        $cabCommCash   = 0.0;
+        $cabCommRealized = 0.0;
         $cabGst   = 0.0;
+        $cabGstOnline  = 0.0;
+        $cabGstCash    = 0.0;
+        $cabGstRealized = 0.0;
         $cabPFee  = 0.0;
+        $cabPFeeOnline = 0.0;
+        $cabPFeeCash   = 0.0;
+        $cabPFeeRealized = 0.0;
         $cabBookings = 0;
         $cabOnlineGross = 0.0;
         $cabCashGross   = 0.0;
@@ -214,18 +242,16 @@ class FinancialReportService
                 });
             }
             $cabBookings = $cabQuery->count();
-            $cabRows = $cabQuery->select('id', 'montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method')->get();
+            $cabRows = $cabQuery->select('id', 'montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
 
             foreach ($cabRows as $cr) {
                 $fare = (float)($cr->montant ?? 0);
                 $cabGross += $fare;
+                $driverId = $cr->id_conducteur ?? null;
 
                 // Commission: use actual if > 0, else default commission rate
-                if (!empty($cr->admin_commission) && (float)$cr->admin_commission > 0) {
-                    $cabComm += (float)$cr->admin_commission;
-                } else {
-                    $cabComm += round($fare * ($defaultCommRate / 100), 2);
-                }
+                $cComm = (!empty($cr->admin_commission) && (float)$cr->admin_commission > 0) ? (float)$cr->admin_commission : round($fare * ($defaultCommRate / 100), 2);
+                $cabComm += $cComm;
 
                 // Pure GST: use recorded tax if present (JSON or numeric). Never inflate with phantom fallback.
                 $tAmt = 0.0;
@@ -236,7 +262,7 @@ class FinancialReportService
                         $tArr = json_decode($cr->tax, true);
                         if (is_array($tArr)) {
                             foreach ($tArr as $item) {
-                                $tAmt += (float)($item['value'] ?? $item['amount'] ?? 0);
+                                $tAmt += (float)($item['amount'] ?? $item['value'] ?? 0);
                             }
                         }
                     }
@@ -244,11 +270,21 @@ class FinancialReportService
                 $cabGst += $tAmt;
 
                 // Check cash vs online
-                $isCash = (str_contains(strtolower((string)($cr->statut_paiement ?? '')), 'cash') || $cr->id_payment_method == 1);
+                $isCash = (str_contains(strtolower((string)($cr->statut_paiement ?? '')), 'cash') || $cr->id_payment_method == 5 || $cr->id_payment_method == 1);
                 if ($isCash) {
                     $cabCashGross += $fare;
+                    $cabCommCash  += $cComm;
+                    $cabGstCash   += $tAmt;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $cComm + $tAmt);
+                    $cabCommRealized += round($cComm * $ratio, 2);
+                    $cabGstRealized  += round($tAmt * $ratio, 2);
                 } else {
-                    $cabOnlineGross += $fare;
+                    $cabOnlineGross  += $fare;
+                    $cabCommOnline   += $cComm;
+                    $cabGstOnline    += $tAmt;
+                    $cabCommRealized += $cComm;
+                    $cabGstRealized  += $tAmt;
                 }
             }
         }
@@ -256,15 +292,20 @@ class FinancialReportService
         // B. Home Services & Repairs
         $homeGross = 0.0;
         $homeComm  = 0.0;
+        $homeCommOnline = 0.0;
+        $homeCommCash   = 0.0;
+        $homeCommRealized = 0.0;
         $homeGst   = 0.0;
+        $homeGstOnline   = 0.0;
+        $homeGstCash     = 0.0;
+        $homeGstRealized = 0.0;
         $homePFee  = 0.0;
+        $homePFeeOnline  = 0.0;
+        $homePFeeCash    = 0.0;
+        $homePFeeRealized = 0.0;
         $homeBookings = 0;
         $homeOnlineGross = 0.0;
         $homeCashGross   = 0.0;
-        $homePFeeCash    = 0.0;
-        $homePFeeOnline  = 0.0;
-        $homeGstCash     = 0.0;
-        $homeGstOnline   = 0.0;
 
         if ($hasServiceReq) {
             $homeQuery = $validService(DB::table('service_requests'))->whereBetween('created_at', [$startStr, $endStr]);
@@ -274,14 +315,18 @@ class FinancialReportService
             foreach ($homeRows as $hr) {
                 $bAmt = (float)($hr->amount ?? 0);
                 $homeGross += $bAmt;
+                $driverId = $hr->driver_id ?? null;
 
                 $pb = !empty($hr->price_breakdown) ? (is_string($hr->price_breakdown) ? json_decode($hr->price_breakdown, true) : (array)$hr->price_breakdown) : [];
                 // Only count platform_fee if explicitly stored in price_breakdown (no arbitrary fallback)
                 $pF = (float)($pb['platform_fee'] ?? 0);
                 $homePFee += $pF;
 
-                // Commission: only use stored value, never estimate on potentially unpaid bookings
+                // Commission: only use stored value, fallback to default rate on confirmed completed booking
                 $sComm = (float)($pb['commission'] ?? 0);
+                if ($sComm <= 0) {
+                    $sComm = round($bAmt * ($defaultCommRate / 100), 2);
+                }
                 $homeComm += $sComm;
 
                 // Pure GST: strictly pure tax amount without arbitrary percentage inflation
@@ -297,12 +342,22 @@ class FinancialReportService
                 $isCash = in_array(strtolower(trim((string)($hr->payment_status ?? ''))), ['paid_cash', 'cash'], true);
                 if ($isCash) {
                     $homeCashGross += $bAmt;
+                    $homeCommCash  += $sComm;
                     $homePFeeCash  += $pF;
                     $homeGstCash   += $sTax;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $sComm + $pF + $sTax);
+                    $homeCommRealized += round($sComm * $ratio, 2);
+                    $homePFeeRealized += round($pF * $ratio, 2);
+                    $homeGstRealized  += round($sTax * $ratio, 2);
                 } else {
-                    $homeOnlineGross += $bAmt;
-                    $homePFeeOnline  += $pF;
-                    $homeGstOnline   += $sTax;
+                    $homeOnlineGross  += $bAmt;
+                    $homeCommOnline   += $sComm;
+                    $homePFeeOnline   += $pF;
+                    $homeGstOnline    += $sTax;
+                    $homeCommRealized += $sComm;
+                    $homePFeeRealized += $pF;
+                    $homeGstRealized  += $sTax;
                 }
             }
         }
@@ -310,27 +365,69 @@ class FinancialReportService
         // C. Food Delivery
         $foodGross = 0.0;
         $foodComm  = 0.0;
+        $foodCommOnline = 0.0;
+        $foodCommCash   = 0.0;
+        $foodCommRealized = 0.0;
         $foodGst   = 0.0;
+        $foodGstOnline  = 0.0;
+        $foodGstCash    = 0.0;
+        $foodGstRealized = 0.0;
         $foodPFee  = 0.0;
+        $foodPFeeOnline = 0.0;
+        $foodPFeeCash   = 0.0;
+        $foodPFeeRealized = 0.0;
         $foodBookings = 0;
+        $foodOnlineGross = 0.0;
+        $foodCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $foodQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food');
             $foodBookings = $foodQuery->count();
-            $foodRows = $foodQuery->select('montant', 'admin_commission', 'tax')->get();
+            $foodRows = $foodQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($foodRows as $fr) {
                 $fFare = (float)($fr->montant ?? 0);
                 $foodGross += $fFare;
-                $foodComm  += (!empty($fr->admin_commission) && (float)$fr->admin_commission > 0) ? (float)$fr->admin_commission : round($fFare * 0.18, 2);
-                $foodGst   += $parsePureRecordedTax($fr->tax ?? null);
+                $driverId = $fr->id_conducteur ?? null;
+                $fComm = (!empty($fr->admin_commission) && (float)$fr->admin_commission > 0) ? (float)$fr->admin_commission : round($fFare * 0.18, 2);
+                $foodComm += $fComm;
+                $fGst = $parsePureRecordedTax($fr->tax ?? null);
+                $foodGst += $fGst;
+
+                $isCash = (str_contains(strtolower((string)($fr->statut_paiement ?? '')), 'cash') || $fr->id_payment_method == 5 || $fr->id_payment_method == 1);
+                if ($isCash) {
+                    $foodCashGross += $fFare;
+                    $foodCommCash  += $fComm;
+                    $foodGstCash   += $fGst;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $fComm + $fGst);
+                    $foodCommRealized += round($fComm * $ratio, 2);
+                    $foodGstRealized  += round($fGst * $ratio, 2);
+                } else {
+                    $foodOnlineGross  += $fFare;
+                    $foodCommOnline   += $fComm;
+                    $foodGstOnline    += $fGst;
+                    $foodCommRealized += $fComm;
+                    $foodGstRealized  += $fGst;
+                }
             }
         }
 
         // D. Parcel & Courier
         $parcelGross = 0.0;
         $parcelComm  = 0.0;
+        $parcelCommOnline = 0.0;
+        $parcelCommCash   = 0.0;
+        $parcelCommRealized = 0.0;
         $parcelGst   = 0.0;
+        $parcelGstOnline  = 0.0;
+        $parcelGstCash    = 0.0;
+        $parcelGstRealized = 0.0;
         $parcelPFee  = 0.0;
+        $parcelPFeeOnline = 0.0;
+        $parcelPFeeCash   = 0.0;
+        $parcelPFeeRealized = 0.0;
         $parcelBookings = 0;
+        $parcelOnlineGross = 0.0;
+        $parcelCashGross   = 0.0;
         if ($hasParcelOrders) {
             $parcelQuery = $validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$startStr, $endStr]);
             $parcelBookings = $parcelQuery->count();
@@ -338,8 +435,28 @@ class FinancialReportService
             foreach ($parcelRows as $pr) {
                 $pFare = (float)($pr->amount ?? 0);
                 $parcelGross += $pFare;
-                $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
-                $parcelGst   += $parsePureRecordedTax($pr->tax ?? null);
+                $driverId = $pr->id_conducteur ?? null;
+                $pComm = (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
+                $parcelComm += $pComm;
+                $pGst = $parsePureRecordedTax($pr->tax ?? null);
+                $parcelGst += $pGst;
+
+                $isCash = (str_contains(strtolower((string)($pr->payment_status ?? $pr->payment_method ?? '')), 'cash'));
+                if ($isCash) {
+                    $parcelCashGross += $pFare;
+                    $parcelCommCash  += $pComm;
+                    $parcelGstCash   += $pGst;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pGst);
+                    $parcelCommRealized += round($pComm * $ratio, 2);
+                    $parcelGstRealized  += round($pGst * $ratio, 2);
+                } else {
+                    $parcelOnlineGross  += $pFare;
+                    $parcelCommOnline   += $pComm;
+                    $parcelGstOnline    += $pGst;
+                    $parcelCommRealized += $pComm;
+                    $parcelGstRealized  += $pGst;
+                }
             }
         }
         // Also add any rides marked parcel
@@ -349,46 +466,128 @@ class FinancialReportService
                 $parcelBookings++;
                 $pFare = (float)($pr->montant ?? 0);
                 $parcelGross += $pFare;
-                $parcelComm  += (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
-                $parcelGst   += $parsePureRecordedTax($pr->tax ?? null);
+                $driverId = $pr->id_conducteur ?? null;
+                $pComm = (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
+                $parcelComm += $pComm;
+                $pGst = $parsePureRecordedTax($pr->tax ?? null);
+                $parcelGst += $pGst;
+
+                $isCash = (str_contains(strtolower((string)($pr->statut_paiement ?? '')), 'cash') || $pr->id_payment_method == 5 || $pr->id_payment_method == 1);
+                if ($isCash) {
+                    $parcelCashGross += $pFare;
+                    $parcelCommCash  += $pComm;
+                    $parcelGstCash   += $pGst;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pGst);
+                    $parcelCommRealized += round($pComm * $ratio, 2);
+                    $parcelGstRealized  += round($pGst * $ratio, 2);
+                } else {
+                    $parcelOnlineGross  += $pFare;
+                    $parcelCommOnline   += $pComm;
+                    $parcelGstOnline    += $pGst;
+                    $parcelCommRealized += $pComm;
+                    $parcelGstRealized  += $pGst;
+                }
             }
         }
 
         // E. Travel & Outstation
         $travelGross = 0.0;
         $travelComm  = 0.0;
+        $travelCommOnline = 0.0;
+        $travelCommCash   = 0.0;
+        $travelCommRealized = 0.0;
         $travelGst   = 0.0;
+        $travelGstOnline  = 0.0;
+        $travelGstCash    = 0.0;
+        $travelGstRealized = 0.0;
         $travelPFee  = 0.0;
+        $travelPFeeOnline = 0.0;
+        $travelPFeeCash   = 0.0;
+        $travelPFeeRealized = 0.0;
         $travelBookings = 0;
+        $travelOnlineGross = 0.0;
+        $travelCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $travelQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel');
             $travelBookings = $travelQuery->count();
-            $travelRows = $travelQuery->select('montant', 'admin_commission', 'tax')->get();
+            $travelRows = $travelQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($travelRows as $tr) {
                 $tFare = (float)($tr->montant ?? 0);
                 $travelGross += $tFare;
-                $travelComm  += (!empty($tr->admin_commission) && (float)$tr->admin_commission > 0) ? (float)$tr->admin_commission : round($tFare * 0.10, 2);
-                $travelGst   += $parsePureRecordedTax($tr->tax ?? null);
+                $driverId = $tr->id_conducteur ?? null;
+                $tComm = (!empty($tr->admin_commission) && (float)$tr->admin_commission > 0) ? (float)$tr->admin_commission : round($tFare * 0.10, 2);
+                $travelComm += $tComm;
+                $tGst = $parsePureRecordedTax($tr->tax ?? null);
+                $travelGst += $tGst;
+
+                $isCash = (str_contains(strtolower((string)($tr->statut_paiement ?? '')), 'cash') || $tr->id_payment_method == 5 || $tr->id_payment_method == 1);
+                if ($isCash) {
+                    $travelCashGross += $tFare;
+                    $travelCommCash  += $tComm;
+                    $travelGstCash   += $tGst;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $tComm + $tGst);
+                    $travelCommRealized += round($tComm * $ratio, 2);
+                    $travelGstRealized  += round($tGst * $ratio, 2);
+                } else {
+                    $travelOnlineGross  += $tFare;
+                    $travelCommOnline   += $tComm;
+                    $travelGstOnline    += $tGst;
+                    $travelCommRealized += $tComm;
+                    $travelGstRealized  += $tGst;
+                }
             }
         }
 
         // F. Other Services
         $otherGross = 0.0;
         $otherComm  = 0.0;
+        $otherCommOnline = 0.0;
+        $otherCommCash   = 0.0;
+        $otherCommRealized = 0.0;
         $otherGst   = 0.0;
+        $otherGstOnline  = 0.0;
+        $otherGstCash    = 0.0;
+        $otherGstRealized = 0.0;
         $otherPFee  = 0.0;
+        $otherPFeeOnline = 0.0;
+        $otherPFeeCash   = 0.0;
+        $otherPFeeRealized = 0.0;
         $otherBookings = 0;
+        $otherOnlineGross = 0.0;
+        $otherCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $otherQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
                 ->whereNotIn('ride_type', ['cab', 'city', 'transport', 'taxi', 'food', 'parcel', 'travel'])
                 ->whereNotNull('ride_type')->where('ride_type', '!=', '');
             $otherBookings = $otherQuery->count();
-            $otherRows = $otherQuery->select('montant', 'admin_commission', 'tax')->get();
+            $otherRows = $otherQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($otherRows as $or) {
                 $oFare = (float)($or->montant ?? 0);
                 $otherGross += $oFare;
-                $otherComm  += (!empty($or->admin_commission) && (float)$or->admin_commission > 0) ? (float)$or->admin_commission : round($oFare * 0.10, 2);
-                $otherGst   += $parsePureRecordedTax($or->tax ?? null);
+                $driverId = $or->id_conducteur ?? null;
+                $oComm = (!empty($or->admin_commission) && (float)$or->admin_commission > 0) ? (float)$or->admin_commission : round($oFare * 0.10, 2);
+                $otherComm += $oComm;
+                $oGst = $parsePureRecordedTax($or->tax ?? null);
+                $otherGst += $oGst;
+
+                $isCash = (str_contains(strtolower((string)($or->statut_paiement ?? '')), 'cash') || $or->id_payment_method == 5 || $or->id_payment_method == 1);
+                if ($isCash) {
+                    $otherCashGross += $oFare;
+                    $otherCommCash  += $oComm;
+                    $otherGstCash   += $oGst;
+
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $oComm + $oGst);
+                    $otherCommRealized += round($oComm * $ratio, 2);
+                    $otherGstRealized  += round($oGst * $ratio, 2);
+                } else {
+                    $otherOnlineGross  += $oFare;
+                    $otherCommOnline   += $oComm;
+                    $otherGstOnline    += $oGst;
+                    $otherCommRealized += $oComm;
+                    $otherGstRealized  += $oGst;
+                }
             }
         }
 
@@ -484,29 +683,17 @@ class FinancialReportService
         }
 
         // ── 3. TOTAL ECOSYSTEM AGGREGATES ────────────────────────────────────
-        // Platform Fees (Admin Revenue Source #2 - includes realized marketplace platform fees)
-        $platformFeeTotal  = round($homePFee + $cabPFee + $foodPFee + $parcelPFee + $travelPFee + $otherPFee + $marketPFee, 2);
-        $platformFeeOnline = round($homePFeeOnline + $marketPFee, 2);
-        $platformFeeCash   = round($homePFeeCash, 2);
+        // Online Commissions, Platform Fees, and GST (Realized immediately upon customer payment)
+        $totalOnlineComm = round($cabCommOnline + $homeCommOnline + $foodCommOnline + $parcelCommOnline + $travelCommOnline + $otherCommOnline, 2);
+        $totalCashComm   = round($cabCommCash + $homeCommCash + $foodCommCash + $parcelCommCash + $travelCommCash + $otherCommCash, 2);
 
-        // GST Tax (Liability • Kept separate from Admin Revenue • Strict GST without platform fees)
-        $gstCollectedTotal  = round($cabGst + $homeGst + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
-        $gstCollectedOnline = round($cabGst + $homeGstOnline + $foodGst + $parcelGst + $travelGst + $otherGst + $marketGst, 2);
-        $gstCollectedCash   = round($homeGstCash, 2);
+        $totalOnlinePFee = round($homePFeeOnline + $cabPFeeOnline + $foodPFeeOnline + $parcelPFeeOnline + $travelPFeeOnline + $otherPFeeOnline + $marketPFee, 2);
+        $totalCashPFee   = round($homePFeeCash + $cabPFeeCash + $foodPFeeCash + $parcelPFeeCash + $travelPFeeCash + $otherPFeeCash, 2);
 
-        // Total Commissions Earned
-        $totalCommissionEarned = round($cabComm + $homeComm + $foodComm + $parcelComm + $travelComm + $otherComm, 2);
+        $totalOnlineGst  = round($cabGstOnline + $homeGstOnline + $foodGstOnline + $parcelGstOnline + $travelGstOnline + $otherGstOnline + $marketGst, 2);
+        $totalCashGst    = round($cabGstCash + $homeGstCash + $foodGstCash + $parcelGstCash + $travelGstCash + $otherGstCash, 2);
 
-        // Total Gross Ecosystem Revenue (GMV)
-        // ❗ PURE MERCHANDISE & SERVICE VOLUME ONLY: NEVER SUMS WALLET TOP-UPS!
-        $grossRevenue = round($cabGross + $homeGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
-        $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
-        $cashGrossVolume   = round($cabCashGross + $homeCashGross, 2);
-
-        // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
-        // Marketplace commission & platform fees ONLY included after payout release!
-        $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);
-        $totalTransactions = $cabBookings + $homeBookings + $foodBookings + $parcelBookings + $travelBookings + $otherBookings + $marketTxnCount + $subTxnCount;
+        $totalCashPlatformCharges = round($totalCashComm + $totalCashPFee + $totalCashGst, 2);
 
         // Pending Recovery (Debt owed by Service Providers / Drivers from Cash bookings)
         $pendingDriverDebt = 0.0;
@@ -523,9 +710,35 @@ class FinancialReportService
                 ->get();
         }
 
-        // Realized vs Due Cash Split
-        $dueAdminRevenue = round(min($netRevenue, $pendingDriverDebt), 2);
-        $realizedAdminRevenue = round(max(0, $netRevenue - $dueAdminRevenue), 2);
+        // Realized Metrics (Rule 1 & Rule 2 Online/Wallet + Rule 4 Recovered Cash Dues paid to company)
+        $totalCommissionEarned = round($cabCommRealized + $homeCommRealized + $foodCommRealized + $parcelCommRealized + $travelCommRealized + $otherCommRealized, 2);
+        $platformFeeTotal      = round($cabPFeeRealized + $homePFeeRealized + $foodPFeeRealized + $parcelPFeeRealized + $travelPFeeRealized + $otherPFeeRealized + $marketPFee, 2);
+        $gstCollectedTotal     = round($cabGstRealized + $homeGstRealized + $foodGstRealized + $parcelGstRealized + $travelGstRealized + $otherGstRealized + $marketGst, 2);
+
+        $recoveredCashComm = max(0, round($totalCommissionEarned - $totalOnlineComm, 2));
+        $recoveredCashPFee = max(0, round($platformFeeTotal - $totalOnlinePFee, 2));
+        $recoveredCashGst  = max(0, round($gstCollectedTotal - $totalOnlineGst, 2));
+
+        $platformFeeOnline     = round($totalOnlinePFee, 2);
+        $platformFeeCash       = round($recoveredCashPFee, 2);
+        $gstCollectedOnline    = round($totalOnlineGst, 2);
+        $gstCollectedCash      = round($recoveredCashGst, 2);
+
+        // Total Gross Ecosystem Volume (GMV)
+        $grossRevenue = round($cabGross + $homeGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
+        $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodOnlineGross + $parcelOnlineGross + $travelOnlineGross + $otherOnlineGross + $marketGross + $subRevenue, 2);
+        $cashGrossVolume   = round($cabCashGross + $homeCashGross + $foodCashGross + $parcelCashGross + $travelCashGross + $otherCashGross, 2);
+
+        // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
+        $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);
+        $totalTransactions = $cabBookings + $homeBookings + $foodBookings + $parcelBookings + $travelBookings + $otherBookings + $marketTxnCount + $subTxnCount;
+
+        // Due Cash Charges (Remaining unpaid by drivers • Kept strictly in Pending Due Recovery)
+        $dueCashComm = max(0, round($totalCashComm - $recoveredCashComm, 2));
+        $dueCashPFee = max(0, round($totalCashPFee - $recoveredCashPFee, 2));
+        $dueCashGst  = max(0, round($totalCashGst - $recoveredCashGst, 2));
+        $dueAdminRevenue = round($dueCashComm + $dueCashPFee, 2);
+        $realizedAdminRevenue = round($netRevenue, 2);
 
         // ── 4. SERVICE BREAKDOWN ARRAY (SECTION 2) ───────────────────────────
         $servicesBreakdown = [
@@ -534,60 +747,60 @@ class FinancialReportService
                 'rate'          => 'Dynamic %',
                 'bookings'      => $cabBookings,
                 'gross'         => round($cabGross, 2),
-                'commission'    => round($cabComm, 2),
-                'platform_fee'  => round($cabPFee, 2),
-                'gst'           => round($cabGst, 2),
-                'admin_earning' => round($cabComm + $cabPFee, 2),
+                'commission'    => round($cabCommRealized, 2),
+                'platform_fee'  => round($cabPFeeRealized, 2),
+                'gst'           => round($cabGstRealized, 2),
+                'admin_earning' => round($cabCommRealized + $cabPFeeRealized, 2),
             ],
             [
                 'service'       => 'Home Services & Repairs',
                 'rate'          => '10% + Platform Fee',
                 'bookings'      => $homeBookings,
                 'gross'         => round($homeGross, 2),
-                'commission'    => round($homeComm, 2),
-                'platform_fee'  => round($homePFee, 2),
-                'gst'           => round($homeGst, 2),
-                'admin_earning' => round($homeComm + $homePFee, 2),
+                'commission'    => round($homeCommRealized, 2),
+                'platform_fee'  => round($homePFeeRealized, 2),
+                'gst'           => round($homeGstRealized, 2),
+                'admin_earning' => round($homeCommRealized + $homePFeeRealized, 2),
             ],
             [
                 'service'       => 'Food Delivery Orders',
                 'rate'          => '18%',
                 'bookings'      => $foodBookings,
                 'gross'         => round($foodGross, 2),
-                'commission'    => round($foodComm, 2),
-                'platform_fee'  => round($foodPFee, 2),
-                'gst'           => round($foodGst, 2),
-                'admin_earning' => round($foodComm + $foodPFee, 2),
+                'commission'    => round($foodCommRealized, 2),
+                'platform_fee'  => round($foodPFeeRealized, 2),
+                'gst'           => round($foodGstRealized, 2),
+                'admin_earning' => round($foodCommRealized + $foodPFeeRealized, 2),
             ],
             [
                 'service'       => 'Parcel & Courier',
                 'rate'          => 'Flat / 10%',
                 'bookings'      => $parcelBookings,
                 'gross'         => round($parcelGross, 2),
-                'commission'    => round($parcelComm, 2),
-                'platform_fee'  => round($parcelPFee, 2),
-                'gst'           => round($parcelGst, 2),
-                'admin_earning' => round($parcelComm + $parcelPFee, 2),
+                'commission'    => round($parcelCommRealized, 2),
+                'platform_fee'  => round($parcelPFeeRealized, 2),
+                'gst'           => round($parcelGstRealized, 2),
+                'admin_earning' => round($parcelCommRealized + $parcelPFeeRealized, 2),
             ],
             [
                 'service'       => 'Travel & Outstation',
                 'rate'          => '10%',
                 'bookings'      => $travelBookings,
                 'gross'         => round($travelGross, 2),
-                'commission'    => round($travelComm, 2),
-                'platform_fee'  => round($travelPFee, 2),
-                'gst'           => round($travelGst, 2),
-                'admin_earning' => round($travelComm + $travelPFee, 2),
+                'commission'    => round($travelCommRealized, 2),
+                'platform_fee'  => round($travelPFeeRealized, 2),
+                'gst'           => round($travelGstRealized, 2),
+                'admin_earning' => round($travelCommRealized + $travelPFeeRealized, 2),
             ],
             [
                 'service'       => 'Other On-Demand Services',
                 'rate'          => '10%',
                 'bookings'      => $otherBookings,
                 'gross'         => round($otherGross, 2),
-                'commission'    => round($otherComm, 2),
-                'platform_fee'  => round($otherPFee, 2),
-                'gst'           => round($otherGst, 2),
-                'admin_earning' => round($otherComm + $otherPFee, 2),
+                'commission'    => round($otherCommRealized, 2),
+                'platform_fee'  => round($otherPFeeRealized, 2),
+                'gst'           => round($otherGstRealized, 2),
+                'admin_earning' => round($otherCommRealized + $otherPFeeRealized, 2),
             ],
         ];
 
