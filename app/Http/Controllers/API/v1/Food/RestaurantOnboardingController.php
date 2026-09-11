@@ -198,6 +198,73 @@ class RestaurantOnboardingController extends Controller
         ]);
     }
 
+    public function submitPaymentProof(Request $request)
+    {
+        $owner = $request->attributes->get('food_owner');
+        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant registration not found.']);
+        }
+
+        $utr = trim((string) $request->get('utr_number', $request->get('transaction_id')));
+        if (empty($utr)) {
+            return response()->json(['success' => false, 'error' => 'Please provide UTR or Transaction ID.']);
+        }
+
+        $type = FoodRestaurantType::find($restaurant->type_id);
+        $fee = (float) ($type->onboarding_fee ?? 0);
+
+        $payment = FoodOnboardingPayment::where('owner_id', $owner->id)
+            ->where('restaurant_id', $restaurant->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$payment) {
+            $payment = FoodOnboardingPayment::create([
+                'restaurant_id' => $restaurant->id,
+                'owner_id' => $owner->id,
+                'amount' => $fee,
+                'currency' => 'INR',
+                'payment_method' => $request->get('payment_method', 'upi'),
+                'gateway' => 'manual_qr',
+                'gateway_order_id' => 'FOOD_ONB_' . $restaurant->id . '_' . time(),
+                'status' => 'pending',
+            ]);
+        }
+
+        $proofPath = null;
+        if ($request->hasFile('payment_proof')) {
+            $proofPath = $request->file('payment_proof')->store('food/payments/' . $restaurant->id, 'public');
+        } elseif ($request->filled('payment_proof')) {
+            $proofPath = $request->get('payment_proof');
+        }
+
+        $payment->gateway_payment_id = $utr;
+        $payment->payment_method = $request->get('payment_method', $payment->payment_method ?: 'upi');
+        $payment->meta = array_merge(is_array($payment->meta) ? $payment->meta : [], [
+            'utr' => $utr,
+            'proof' => $proofPath,
+            'submitted_at' => now()->toDateTimeString(),
+            'payer_note' => $request->get('note'),
+        ]);
+        $payment->status = 'submitted';
+        $payment->save();
+
+        $restaurant->onboarding_payment_id = $utr;
+        $restaurant->onboarding_fee_paid = $fee;
+        $restaurant->onboarding_status = 'pending_approval';
+        $restaurant->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Onboarding payment details submitted successfully. Admin will verify and activate your restaurant.',
+            'data' => [
+                'restaurant' => $restaurant,
+                'payment' => $payment,
+            ],
+        ]);
+    }
+
     public function setOperationalStatus(Request $request)
     {
         $owner = $request->attributes->get('food_owner');

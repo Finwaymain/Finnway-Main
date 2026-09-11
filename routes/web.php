@@ -63,6 +63,16 @@ Route::get('/onboarding/food.html', function () {
     return OnboardingAccess::renderView('food');
 });
 
+Route::get('/onboarding/food', function () {
+    if (file_exists(public_path('onboarding-assets/food.html'))) {
+        return response()->file(public_path('onboarding-assets/food.html'));
+    }
+    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
+        return response()->file(public_path('onboarding-assets/food/index.html'));
+    }
+    return OnboardingAccess::renderView('food');
+});
+
 Route::get('/food', function () {
     if (file_exists(public_path('onboarding-assets/food.html'))) {
         return response()->file(public_path('onboarding-assets/food.html'));
@@ -1229,6 +1239,7 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::post('/restaurants/{id}/approve', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'approve'])->name('restaurants.approve');
     Route::post('/restaurants/{id}/reject', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'reject'])->name('restaurants.reject');
     Route::post('/restaurants/{id}/suspend', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'suspend'])->name('restaurants.suspend');
+    Route::post('/restaurants/{id}/onboarding-fee/verify', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'verifyOnboardingFee'])->name('restaurants.verifyOnboardingFee');
     Route::post('/restaurants/{id}/profile', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateProfile'])->name('restaurants.profile');
     Route::post('/restaurants/{id}/status', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateOperationalStatus'])->name('restaurants.status');
     Route::post('/restaurants/{id}/verify-doc', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'verifyDoc'])->name('restaurants.verifyDoc');

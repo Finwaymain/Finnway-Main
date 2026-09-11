@@ -22,6 +22,7 @@ class RestaurantModuleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Http::fake();
         $this->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
 
         $this->adminUser = User::where('role', 'super_admin')->first() ?: User::first();
@@ -131,17 +132,21 @@ class RestaurantModuleTest extends TestCase
         ], $this->apiHeaders());
         $sendResp->assertStatus(200)->assertJson(['success' => true]);
 
+        $owner = FoodOwner::where('phone', $this->testPhone)->first();
+        $realOtp = $owner ? $owner->otp : '1234';
+        $wrongOtp = ($realOtp === '9999') ? '8888' : '9999';
+
         // Verify invalid OTP
         $invalidResp = $this->postJson('/api/v1/food/auth/verify-otp', [
             'phone' => $this->testPhone,
-            'otp' => '9999',
+            'otp' => $wrongOtp,
         ], $this->apiHeaders());
         $invalidResp->assertStatus(200)->assertJson(['success' => false, 'error' => 'Invalid OTP.']);
 
         // Verify correct OTP
         $validResp = $this->postJson('/api/v1/food/auth/verify-otp', [
             'phone' => $this->testPhone,
-            'otp' => '1234',
+            'otp' => $realOtp,
             'name' => 'Royal Spice Owner',
             'email' => 'owner@royalspice.test',
         ], $this->apiHeaders());

@@ -190,6 +190,87 @@
 
                 <!-- TAB 1: OVERVIEW & EDITABLE PROFILE -->
                 <div class="tab-pane fade show active" id="overview" role="tabpanel">
+
+                    <!-- Onboarding Fee & Category Verification Card -->
+                    <div class="card border-0 bg-light shadow-sm mb-4">
+                        <div class="card-body p-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-7">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <h5 class="font-weight-bold text-dark mb-0 mr-3">
+                                            @if($restaurant->business_type === 'cloud_kitchen' || optional($restaurant->type)->code === 'cloud_kitchen')
+                                                🍳 Cloud Kitchen Partner
+                                            @else
+                                                🍽️ Actual Restaurant Partner
+                                            @endif
+                                        </h5>
+                                        <span class="badge badge-primary px-2 py-1">
+                                            Category: {{ optional($restaurant->type)->name ?: ucwords(str_replace('_', ' ', $restaurant->business_type ?: 'Restaurant')) }}
+                                        </span>
+                                    </div>
+                                    <div class="small text-muted mb-2">
+                                        <strong>Admin Onboarding Fee:</strong> ₹{{ number_format(optional($restaurant->type)->onboarding_fee ?? 0, 2) }}
+                                        <span class="mx-2">•</span>
+                                        <strong>Payment Status:</strong>
+                                        @if($restaurant->onboarding_fee_paid > 0)
+                                            <span class="badge badge-success">Paid (₹{{ number_format($restaurant->onboarding_fee_paid, 2) }})</span>
+                                        @elseif($restaurant->onboarding_payment_id)
+                                            <span class="badge badge-info">UTR Submitted — Needs Verification</span>
+                                        @else
+                                            <span class="badge badge-warning">Fee Pending</span>
+                                        @endif
+                                    </div>
+                                    <div class="small text-secondary">
+                                        <strong>Transaction / UTR Reference:</strong>
+                                        <code>{{ $restaurant->onboarding_payment_id ?: 'None submitted yet' }}</code>
+                                    </div>
+                                    @php
+                                        $latestPayment = $onboardingPayments->first();
+                                    @endphp
+                                    @if($latestPayment && isset($latestPayment->meta['proof']) && $latestPayment->meta['proof'])
+                                        <div class="mt-2">
+                                            <a href="{{ asset('storage/' . $latestPayment->meta['proof']) }}" target="_blank" class="btn btn-xs btn-outline-info">
+                                                <i class="fa fa-image mr-1"></i> View Payment Receipt Proof
+                                            </a>
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="col-md-5 text-md-right mt-3 mt-md-0">
+                                    <div class="d-flex justify-content-md-end align-items-center flex-wrap">
+                                        <!-- Approve Onboarding Fee -->
+                                        <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Verify and mark onboarding fee as paid? Partner will be activated.');">
+                                            @csrf
+                                            <input type="hidden" name="action" value="approve">
+                                            <button class="btn btn-sm btn-success">
+                                                <i class="fa fa-check-circle mr-1"></i> Verify & Approve Fee
+                                            </button>
+                                        </form>
+
+                                        <!-- Waive Onboarding Fee -->
+                                        <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Waive the onboarding fee for this partner? They will be activated with ₹0 fee.');">
+                                            @csrf
+                                            <input type="hidden" name="action" value="waive">
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fa fa-gift mr-1"></i> Waive Fee
+                                            </button>
+                                        </form>
+
+                                        @if($restaurant->onboarding_payment_id && $restaurant->onboarding_status === 'payment_pending')
+                                            <!-- Reject Payment Proof -->
+                                            <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mb-1" onsubmit="return confirm('Reject this payment submission?');">
+                                                @csrf
+                                                <input type="hidden" name="action" value="reject">
+                                                <button class="btn btn-sm btn-outline-danger">
+                                                    <i class="fa fa-times-circle mr-1"></i> Reject Proof
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <form method="post" action="{{ route('admin.food.restaurants.profile', $restaurant->id) }}">
                         @csrf
                         <div class="row">

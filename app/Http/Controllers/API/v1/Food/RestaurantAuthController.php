@@ -30,7 +30,30 @@ class RestaurantAuthController extends Controller
             return response()->json(['success' => false, 'error' => 'No restaurant account found. Please register.']);
         }
 
-        $otp = '1234'; // mirrors existing Fiinway OTP fallback; SMS gateway can replace later
+        // Generate random 4-digit OTP for real phone verification
+        $otp = (string) rand(1000, 9999);
+
+        // Clean 10-digit Indian mobile number
+        $cleanMobile = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($cleanMobile) > 10) {
+            $cleanMobile = substr($cleanMobile, -10);
+        }
+
+        // Dispatch VoiceFortius OBD OTP call
+        try {
+            \Illuminate\Support\Facades\Http::timeout(10)->get('http://voicefortius.com/api/OBDOTP/otpcall', [
+                'apikey'       => 'h9Tcpa5cYkudx88vWmgZ8w',
+                'callerId'     => '5226930826',
+                'mobileNumber' => $cleanMobile,
+                'fileName'     => '8 July.wav',
+                'otp'          => $otp,
+                'retry'        => '0',
+            ]);
+            \Illuminate\Support\Facades\Log::info("VoiceFortius Restaurant OTP dispatched to $cleanMobile");
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("VoiceFortius OTP Dispatch Error: " . $e->getMessage());
+        }
+
         if (!$owner) {
             $owner = FoodOwner::create([
                 'phone' => $phone,
@@ -45,10 +68,9 @@ class RestaurantAuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'OTP sent successfully.',
+            'message' => 'OTP sent successfully to your mobile number.',
             'data' => [
                 'phone' => $phone,
-                'otp_debug' => config('app.debug') ? $otp : null,
             ],
         ]);
     }

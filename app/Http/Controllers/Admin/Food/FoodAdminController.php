@@ -10,6 +10,7 @@ use App\Models\Food\FoodDeliveryChargeRule;
 use App\Models\Food\FoodDispute;
 use App\Models\Food\FoodDuePayment;
 use App\Models\Food\FoodMarkupRule;
+use App\Models\Food\FoodOnboardingPayment;
 use App\Models\Food\FoodOrder;
 use App\Models\Food\FoodOrderItem;
 use App\Models\Food\FoodPremiumDeal;
@@ -98,6 +99,7 @@ class FoodAdminController extends Controller
         $duePayments = FoodDuePayment::where('restaurant_id', $id)->orderByDesc('id')->get();
         $settlements = FoodSettlement::where('restaurant_id', $id)->orderByDesc('id')->limit(20)->get();
         $reviews = FoodReview::where('restaurant_id', $id)->orderByDesc('id')->limit(20)->get();
+        $onboardingPayments = FoodOnboardingPayment::where('restaurant_id', $id)->orderByDesc('id')->get();
         
         $pendingDueTotal = FoodDuePayment::where('restaurant_id', $id)->where('status', 'pending')->sum('amount');
         $totalOrdersDelivered = FoodOrder::where('restaurant_id', $id)->where('order_status', 'delivered')->count();
@@ -105,8 +107,8 @@ class FoodAdminController extends Controller
 
         return view('admin.food.restaurant_show', compact(
             'restaurant', 'categories', 'products', 'orders', 'disputes',
-            'duePayments', 'settlements', 'reviews', 'pendingDueTotal',
-            'totalOrdersDelivered', 'totalGrossSales'
+            'duePayments', 'settlements', 'reviews', 'onboardingPayments',
+            'pendingDueTotal', 'totalOrdersDelivered', 'totalGrossSales'
         ));
     }
 
@@ -147,6 +149,61 @@ class FoodAdminController extends Controller
             return response()->json(['success' => true, 'message' => 'Restaurant suspended.']);
         }
         return back()->with('success', 'Restaurant suspended.');
+    }
+
+    public function verifyOnboardingFee(Request $request, $id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $action = $request->get('action', 'approve'); // approve | waive | reject
+
+        if ($action === 'waive') {
+            $restaurant->onboarding_fee_paid = 0;
+            $restaurant->onboarding_payment_id = 'WAIVED_BY_ADMIN_' . auth()->id();
+            $restaurant->onboarding_status = 'active';
+            $restaurant->operational_status = 'closed';
+            $restaurant->approved_at = now();
+            $restaurant->approved_by = auth()->id();
+            $restaurant->save();
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => true, 'message' => 'Onboarding fee waived and partner activated.']);
+            }
+            return back()->with('success', 'Onboarding fee waived and partner activated.');
+        }
+
+        if ($action === 'reject') {
+            $restaurant->onboarding_status = 'payment_pending';
+            $restaurant->rejection_reason = $request->get('reason', 'Payment verification failed. Invalid UTR or proof.');
+            $restaurant->save();
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Onboarding payment rejected.']);
+            }
+            return back()->with('error', 'Onboarding payment rejected. Partner notified.');
+        }
+
+        // Approve
+        $type = FoodRestaurantType::find($restaurant->type_id);
+        $fee = (float) ($type->onboarding_fee ?? 0);
+        $restaurant->onboarding_fee_paid = $fee;
+        $restaurant->onboarding_status = 'active';
+        $restaurant->operational_status = 'closed';
+        $restaurant->approved_at = now();
+        $restaurant->approved_by = auth()->id();
+        $restaurant->rejection_reason = null;
+        $restaurant->save();
+
+        FoodOnboardingPayment::where('restaurant_id', $id)
+            ->whereIn('status', ['pending', 'submitted'])
+            ->update([
+                'status' => 'paid',
+                'gateway_payment_id' => $restaurant->onboarding_payment_id ?: ('ADMIN_VERIFIED_' . time()),
+            ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Onboarding fee verified and partner activated.']);
+        }
+        return back()->with('success', 'Onboarding fee verified and restaurant partner activated successfully!');
     }
 
     public function updateProfile(Request $request, $id)
