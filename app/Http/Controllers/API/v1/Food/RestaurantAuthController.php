@@ -15,8 +15,8 @@ class RestaurantAuthController extends Controller
 {
     public function sendOtp(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
-        $mode = $request->get('mode', 'login'); // login|signup
+        $phone = PhoneService::normalize(trim((string) $request->input('phone')));
+        $mode = $request->input('mode', 'login'); // login|signup
 
         if (empty($phone) || !preg_match('/^\+91[6-9]\d{9}$/', $phone)) {
             return response()->json(['success' => false, 'error' => 'Valid Indian mobile (+91XXXXXXXXXX) required.']);
@@ -59,7 +59,7 @@ class RestaurantAuthController extends Controller
         if (!$owner) {
             $owner = FoodOwner::create([
                 'phone' => $phone,
-                'name' => $request->get('name'),
+                'name' => $request->input('name'),
                 'status' => 'active',
             ]);
         }
@@ -79,8 +79,8 @@ class RestaurantAuthController extends Controller
 
     public function verifyOtp(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
-        $otp = trim((string) $request->get('otp'));
+        $phone = PhoneService::normalize(trim((string) $request->input('phone')));
+        $otp = trim((string) $request->input('otp'));
 
         $owner = $this->findOwnerByPhone($phone);
         if (!$owner) {
@@ -97,16 +97,16 @@ class RestaurantAuthController extends Controller
         $owner->otp = null;
         $owner->otp_expires_at = null;
         if ($request->filled('name')) {
-            $owner->name = $request->get('name');
+            $owner->name = $request->input('name');
         }
         if ($request->filled('email')) {
-            $owner->email = $request->get('email');
+            $owner->email = $request->input('email');
         }
         if ($request->filled('password')) {
-            $owner->password = Hash::make($request->get('password'));
+            $owner->password = Hash::make($request->input('password'));
         }
         if ($request->filled('fcm_token')) {
-            $owner->fcm_token = $request->get('fcm_token');
+            $owner->fcm_token = $request->input('fcm_token');
         }
         $owner->save();
 
@@ -141,7 +141,7 @@ class RestaurantAuthController extends Controller
 
     public function checkUser(Request $request)
     {
-        $rawPhone = trim((string) $request->get('phone'));
+        $rawPhone = trim((string) $request->input('phone'));
         $phone = PhoneService::normalize($rawPhone);
         if (empty($phone)) {
             return response()->json(['success' => false, 'error' => 'Valid Indian mobile (+91XXXXXXXXXX) required.']);
@@ -177,9 +177,9 @@ class RestaurantAuthController extends Controller
 
     public function loginMpin(Request $request)
     {
-        $rawPhone = trim((string) $request->get('phone'));
+        $rawPhone = trim((string) $request->input('phone'));
         $phone = PhoneService::normalize($rawPhone);
-        $mpin = trim((string) $request->get('mpin'));
+        $mpin = trim((string) $request->input('mpin'));
 
         $owner = $this->findOwnerByPhone($phone);
         $hasRestaurant = $owner ? FoodRestaurant::where('owner_id', $owner->id)->exists() : false;
@@ -213,8 +213,8 @@ class RestaurantAuthController extends Controller
 
     public function setupMpin(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
-        $mpin = trim((string) $request->get('mpin'));
+        $phone = PhoneService::normalize(trim((string) $request->input('phone')));
+        $mpin = trim((string) $request->input('mpin'));
 
         if (strlen($mpin) !== 4 || !ctype_digit($mpin)) {
             return response()->json(['success' => false, 'error' => 'MPIN must be 4 digits.']);
@@ -227,10 +227,10 @@ class RestaurantAuthController extends Controller
 
         $owner->mpin = Hash::make($mpin);
         if ($request->filled('name')) {
-            $owner->name = $request->get('name');
+            $owner->name = $request->input('name');
         }
         if ($request->filled('email')) {
-            $owner->email = $request->get('email');
+            $owner->email = $request->input('email');
         }
         $owner->save();
 
@@ -244,8 +244,8 @@ class RestaurantAuthController extends Controller
 
     public function loginPassword(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
-        $password = (string) $request->get('password');
+        $phone = PhoneService::normalize(trim((string) $request->input('phone')));
+        $password = (string) $request->input('password');
         $owner = FoodOwner::where('phone', $phone)->first();
         if (!$owner || empty($owner->password) || !Hash::check($password, $owner->password)) {
             return response()->json(['success' => false, 'error' => 'Invalid phone or password.']);
@@ -276,11 +276,11 @@ class RestaurantAuthController extends Controller
         $owner = $request->attributes->get('food_owner');
         foreach (['name', 'email', 'fcm_token'] as $field) {
             if ($request->filled($field)) {
-                $owner->{$field} = $request->get($field);
+                $owner->{$field} = $request->input($field);
             }
         }
         if ($request->filled('password')) {
-            $owner->password = Hash::make($request->get('password'));
+            $owner->password = Hash::make($request->input('password'));
         }
         $owner->save();
         return response()->json(['success' => true, 'data' => $this->ownerPayload($owner, $owner->access_token)]);
