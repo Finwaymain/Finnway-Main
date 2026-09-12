@@ -129,10 +129,8 @@ class RestaurantAuthController extends Controller
             return $owner;
         }
 
-        // Also check if any restaurant has this phone as owner_phone or phone
-        $restaurant = FoodRestaurant::whereIn('owner_phone', $variants)
-            ->orWhereIn('phone', $variants)
-            ->first();
+        // Also check if any restaurant has this phone as owner_phone
+        $restaurant = FoodRestaurant::whereIn('owner_phone', $variants)->first();
 
         if ($restaurant && $restaurant->owner_id) {
             return FoodOwner::find($restaurant->owner_id);
