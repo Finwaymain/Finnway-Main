@@ -341,11 +341,7 @@
 
     <!-- Main Content Wrapper -->
     <div class="wrapper">
-        <!-- Brand Header -->
-        <div class="brand-header">
-            <img src="/images/fiinway_logo.png" alt="Fiinway" class="brand-logo" onerror="this.style.display='none'">
-            <span class="brand-badge">FOOD</span>
-        </div>
+       
 
         <!-- Hero Dish Graphic -->
         <div class="hero-art-container">
@@ -408,10 +404,6 @@
 
     <!-- Bottom Footer -->
     <div class="footer-note">
-        <div class="partner-link-box">
-            Are you a restaurant or cafe owner?
-            <a href="/food?view=portal&tab=dashboard">Partner With Us &rarr;</a>
-        </div>
         <p class="copyright">&copy; {{ date('Y') }} Fiinway Technologies. All rights reserved.</p>
     </div>
 
