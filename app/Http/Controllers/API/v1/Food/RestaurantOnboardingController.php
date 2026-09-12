@@ -38,10 +38,10 @@ class RestaurantOnboardingController extends Controller
         $restaurant->owner_id = $owner->id;
         $restaurant->type_id = $type->id;
         $restaurant->business_type = $type->code;
-        $restaurant->category = $request->get('category');
-        $restaurant->sub_category = $request->get('sub_category');
+        $restaurant->category = $request->input('category');
+        $restaurant->sub_category = $request->input('sub_category');
         // cuisines: array of cuisine names selected by owner
-        $cuisinesInput = $request->get('cuisines');
+        $cuisinesInput = $request->input('cuisines');
         if (is_array($cuisinesInput)) {
             $restaurant->cuisines = $cuisinesInput;
         } elseif (is_string($cuisinesInput) && $cuisinesInput !== '') {
@@ -50,45 +50,45 @@ class RestaurantOnboardingController extends Controller
         }
         $restaurant->name = $name;
         $restaurant->slug = Str::slug($name) . '-' . $owner->id;
-        $restaurant->description = $request->get('description');
-        $restaurant->owner_name = $request->get('owner_name', $owner->name);
-        $restaurant->owner_phone = $request->get('owner_phone', $owner->phone);
-        $restaurant->owner_email = $request->get('owner_email', $owner->email);
-        $restaurant->address = $request->get('address');
-        $restaurant->landmark = $request->get('landmark');
-        $restaurant->area = $request->get('area');
-        $restaurant->city = $request->get('city');
-        $restaurant->state = $request->get('state');
-        $restaurant->pincode = $request->get('pincode');
-        $restaurant->latitude = $request->get('latitude');
-        $restaurant->longitude = $request->get('longitude');
-        $restaurant->opening_time = $request->get('opening_time');
-        $restaurant->closing_time = $request->get('closing_time');
-        $restaurant->working_days = is_array($request->get('working_days'))
-            ? json_encode($request->get('working_days'))
-            : $request->get('working_days');
-        $restaurant->avg_prep_minutes = (int) $request->get('avg_prep_minutes', 20);
-        $restaurant->delivery_radius_km = (float) $request->get('delivery_radius_km', 5);
-        $restaurant->min_order_amount = (float) $request->get('min_order_amount', 0);
-        $restaurant->max_order_amount = $request->get('max_order_amount');
-        $restaurant->delivery_available = (bool) $request->get('delivery_available', true);
-        $restaurant->takeaway_available = (bool) $request->get('takeaway_available', false);
-        $restaurant->dine_in_available = (bool) $request->get('dine_in_available', false);
-        $restaurant->fssai_number = $request->get('fssai_number');
-        $restaurant->gst_number = $request->get('gst_number');
-        $restaurant->pan_number = $request->get('pan_number');
-        $restaurant->bank_account_name = $request->get('bank_account_name');
-        $restaurant->bank_name = $request->get('bank_name');
-        $restaurant->bank_account_number = $request->get('bank_account_number');
-        $restaurant->bank_ifsc = $request->get('bank_ifsc');
-        $restaurant->bank_branch = $request->get('bank_branch');
-        $restaurant->upi_id = $request->get('upi_id');
+        $restaurant->description = $request->input('description');
+        $restaurant->owner_name = $request->input('owner_name', $owner->name);
+        $restaurant->owner_phone = $request->input('owner_phone', $owner->phone);
+        $restaurant->owner_email = $request->input('owner_email', $owner->email);
+        $restaurant->address = $request->input('address');
+        $restaurant->landmark = $request->input('landmark');
+        $restaurant->area = $request->input('area');
+        $restaurant->city = $request->input('city');
+        $restaurant->state = $request->input('state');
+        $restaurant->pincode = $request->input('pincode');
+        $restaurant->latitude = $request->input('latitude');
+        $restaurant->longitude = $request->input('longitude');
+        $restaurant->opening_time = $request->input('opening_time');
+        $restaurant->closing_time = $request->input('closing_time');
+        $restaurant->working_days = is_array($request->input('working_days'))
+            ? json_encode($request->input('working_days'))
+            : $request->input('working_days');
+        $restaurant->avg_prep_minutes = (int) $request->input('avg_prep_minutes', 20);
+        $restaurant->delivery_radius_km = (float) $request->input('delivery_radius_km', 5);
+        $restaurant->min_order_amount = (float) $request->input('min_order_amount', 0);
+        $restaurant->max_order_amount = $request->input('max_order_amount');
+        $restaurant->delivery_available = (bool) $request->input('delivery_available', true);
+        $restaurant->takeaway_available = (bool) $request->input('takeaway_available', false);
+        $restaurant->dine_in_available = (bool) $request->input('dine_in_available', false);
+        $restaurant->fssai_number = $request->input('fssai_number');
+        $restaurant->gst_number = $request->input('gst_number');
+        $restaurant->pan_number = $request->input('pan_number');
+        $restaurant->bank_account_name = $request->input('bank_account_name');
+        $restaurant->bank_name = $request->input('bank_name');
+        $restaurant->bank_account_number = $request->input('bank_account_number');
+        $restaurant->bank_ifsc = $request->input('bank_ifsc');
+        $restaurant->bank_branch = $request->input('bank_branch');
+        $restaurant->upi_id = $request->input('upi_id');
 
         foreach (['logo', 'cover_image', 'id_proof', 'business_proof', 'fssai_doc', 'gst_doc', 'cancelled_cheque'] as $fileField) {
             if ($request->hasFile($fileField)) {
                 $restaurant->{$fileField} = $request->file($fileField)->store('food/restaurants/' . $owner->id, 'public');
             } elseif ($request->filled($fileField)) {
-                $restaurant->{$fileField} = $request->get($fileField);
+                $restaurant->{$fileField} = $request->input($fileField);
             }
         }
 
