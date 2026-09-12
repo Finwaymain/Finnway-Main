@@ -486,14 +486,14 @@
         </div>
 
         <!-- ─────────────────────────────────────────────────────────────── -->
-        <!-- SECTION: 📋 BOOKING CHARGES & DUE SETTLEMENT LEDGER (MODEL EXAMPLE) -->
+        <!-- SECTION: 📋 BOOKING CHARGES & DUE SETTLEMENT LEDGER (LIVE DATA) -->
         <!-- ─────────────────────────────────────────────────────────────── -->
         <div class="section-box" id="sec-charges-ledger" style="border: 2px solid #3b82f6;">
             <div class="section-box-header">
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-1">
-                        <span class="badge" style="background: #1e3a8a; color: #ffffff; font-weight: 800; padding: 4px 10px; border-radius: 6px;">MODEL EXAMPLE BREAKDOWN</span>
-                        <span class="text-dark-bold font-13">• Charges, GST, Platform Fees & Fiinway Net Dues</span>
+                        <span class="badge" style="background: #059669; color: #ffffff; font-weight: 800; padding: 4px 10px; border-radius: 6px;">LIVE SETTLEMENT AUDIT</span>
+                        <span class="text-dark-bold font-13">• Real-time Booking Charges, GST & Settlement Dues</span>
                     </div>
                     <h2 class="section-heading">
                         <i class="mdi mdi-calculator text-primary"></i> Booking Charges & Due Settlement Ledger
@@ -507,47 +507,13 @@
                 </div>
             </div>
 
-            <!-- Summary KPI Cards -->
-            <div class="row g-3 mb-3">
-                <div class="col-6 col-lg-3">
-                    <div class="p-3 rounded" style="background: #f8fafc; border: 1.5px solid #e2e8f0;">
-                        <span class="font-11 text-muted text-uppercase font-weight-bold">Payment Modes</span>
-                        <div class="font-18 font-weight-900 text-dark mt-1">Cash • UPI • Wallet</div>
-                        <small class="text-muted">Multi-channel settlement</small>
-                    </div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="p-3 rounded" style="background: #f8fafc; border: 1.5px solid #e2e8f0;">
-                        <span class="font-11 text-muted text-uppercase font-weight-bold">Zones Covered</span>
-                        <div class="font-18 font-weight-900 text-primary mt-1">Haldwani, Kapur, Barabanki, Lucknow</div>
-                        <small class="text-muted">Inter-city & local services</small>
-                    </div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="p-3 rounded" style="background: #fef2f2; border: 1.5px solid #fca5a5;">
-                        <span class="font-11 text-danger text-uppercase font-weight-bold">Due From Provider (Cash)</span>
-                        <div class="font-18 font-weight-900 text-danger mt-1">Status: "yes"</div>
-                        <small class="text-danger">Provider owes Commission + GST + Platform Fee</small>
-                    </div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="p-3 rounded" style="background: #f0fdf4; border: 1.5px solid #86efac;">
-                        <span class="font-11 text-success text-uppercase font-weight-bold">Online Settlement (UPI/Wallet)</span>
-                        <div class="font-18 font-weight-900 text-success mt-1">Status: "Collected"</div>
-                        <small class="text-success">Fiinway auto-collects & credits wallet</small>
-                    </div>
-                </div>
-            </div>
-
-            <!-- View Switcher Tabs & Table Filter Controls -->
+            <!-- Table Filter Controls -->
             <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 p-2 rounded" style="background: #f1f5f9; border: 1px solid #cbd5e1;">
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm btn-dark font-weight-bold active" id="btnShowModel" onclick="switchLedgerTab('model')">
-                        <i class="mdi mdi-table mr-1"></i> Model Example Reference (6 Rows)
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-dark font-weight-bold" id="btnShowLive" onclick="switchLedgerTab('live')">
-                        <i class="mdi mdi-database mr-1"></i> Live System Bookings ({{ count($liveChargesLedger ?? []) }})
-                    </button>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge" style="background: #1e293b; color: #fff; font-weight: 700; padding: 6px 12px; font-size: 12px; border-radius: 6px;">
+                        <i class="mdi mdi-database mr-1"></i> Live Records: {{ count($liveChargesLedger ?? []) }}
+                    </span>
+                    <span class="text-muted font-12 font-weight-600">Calculated directly from live rides, services & food bookings</span>
                 </div>
 
                 <div class="d-flex align-items-center gap-2">
@@ -609,59 +575,9 @@
                         </tr>
                     </thead>
                     <tbody id="ledgerTableBody">
-                        <!-- Model Benchmark Rows -->
-                        @if(!empty($modelBenchmarkRows))
-                            @foreach($modelBenchmarkRows as $row)
-                            <tr class="ledger-row model-row" data-mode="{{ $row['payment_mode'] }}">
-                                <td class="font-weight-700 text-dark">{{ $row['date'] }}</td>
-                                <td class="font-weight-800 text-dark">{{ $row['consumer'] }}</td>
-                                <td class="font-weight-800 text-primary">{{ $row['provider'] }}</td>
-                                <td><span class="badge badge-dark" style="background: #e2e8f0; color: #0f172a; font-weight: 700;">{{ $row['zone'] }}</span></td>
-                                <td class="font-weight-700">{{ $row['book'] }}</td>
-                                <td class="text-muted font-weight-600" style="max-width: 220px; white-space: normal;">{{ $row['nature_of_service'] }}</td>
-                                <td class="text-right font-weight-700 text-danger">{{ $row['promo_used'] !== '-' ? '₹' . $row['promo_used'] : '-' }}</td>
-                                <td class="text-right font-weight-700">{{ $row['promo_after_used'] !== '-' ? '₹' . $row['promo_after_used'] : '-' }}</td>
-                                <td class="text-center font-12">{{ $row['promo_expired'] }}</td>
-                                <td class="text-right font-weight-700 text-success">{{ $row['wallet_available'] !== '-' ? '₹' . $row['wallet_available'] : '-' }}</td>
-                                <td class="text-right font-weight-700 text-danger">{{ $row['wallet_deduction'] !== '0' ? '₹' . $row['wallet_deduction'] : '0' }}</td>
-                                <td class="text-right font-weight-700">{{ $row['wallet_after_used'] !== '-' ? '₹' . $row['wallet_after_used'] : '-' }}</td>
-                                <td class="text-center font-weight-700">{{ $row['booking_count'] }}</td>
-                                <td class="text-right font-weight-800 text-dark font-14">₹{{ $row['booking_amt'] }}</td>
-                                <td class="text-right font-weight-700 text-primary">₹{{ $row['charges_commission'] }}</td>
-                                <td class="text-right font-weight-700 text-secondary">₹{{ $row['charges_gst'] }}</td>
-                                <td class="text-right font-weight-700 text-info">₹{{ $row['charges_platform_fee'] }}</td>
-                                <td class="text-right font-weight-700 text-purple">{{ $row['charges_upi_handling'] !== '0' ? '₹' . $row['charges_upi_handling'] : '0' }}</td>
-                                <td class="text-right font-weight-900 font-14" style="background: #f5f3ff; color: #6b21a8;">₹{{ $row['total_amt'] }}</td>
-                                <td class="text-center">
-                                    @if(strtolower($row['payment_mode']) === 'cash')
-                                        <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 800; border: 1px solid #f59e0b; padding: 4px 8px;">Cash</span>
-                                    @elseif(strtolower($row['payment_mode']) === 'upi')
-                                        <span class="badge" style="background: #e0f2fe; color: #075985; font-weight: 800; border: 1px solid #38bdf8; padding: 4px 8px;">UPI</span>
-                                    @else
-                                        <span class="badge" style="background: #ede9fe; color: #5b21b6; font-weight: 800; border: 1px solid #a78bfa; padding: 4px 8px;">Wallet</span>
-                                    @endif
-                                </td>
-                                <td class="text-right font-weight-800 text-primary">₹{{ $row['fiinway_due_comm'] }}</td>
-                                <td class="text-right font-weight-900 font-14" style="background: #fee2e2; color: #991b1b;">₹{{ $row['fiinway_due_total'] }}</td>
-                                <td class="text-center">
-                                    @if(strtolower($row['due_from_business']) === 'yes')
-                                        <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 900; border: 1px solid #ef4444; padding: 5px 10px;">
-                                            <i class="mdi mdi-alert-circle mr-1"></i>yes (Due from Provider)
-                                        </span>
-                                    @else
-                                        <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 900; border: 1px solid #22c55e; padding: 5px 10px;">
-                                            <i class="mdi mdi-check-circle mr-1"></i>Collected (Settled)
-                                        </span>
-                                    @endif
-                                </td>
-                            </tr>
-                            @endforeach
-                        @endif
-
-                        <!-- Live System Rows -->
-                        @if(!empty($liveChargesLedger))
+                        @if(!empty($liveChargesLedger) && count($liveChargesLedger) > 0)
                             @foreach($liveChargesLedger as $row)
-                            <tr class="ledger-row live-row d-none" data-mode="{{ $row['payment_mode'] }}">
+                            <tr class="ledger-row" data-mode="{{ $row['payment_mode'] }}">
                                 <td class="font-weight-700 text-dark">{{ $row['date'] }}</td>
                                 <td class="font-weight-800 text-dark">{{ $row['consumer'] }}</td>
                                 <td class="font-weight-800 text-primary">{{ $row['provider'] }}</td>
@@ -706,9 +622,9 @@
                             </tr>
                             @endforeach
                         @else
-                            <tr class="live-row d-none">
+                            <tr>
                                 <td colspan="23" class="text-center py-4 text-muted font-weight-bold">
-                                    <i class="mdi mdi-information-outline mr-1"></i> No live bookings found in the selected date range. Click "Model Example Reference" above to view standard benchmark calculations.
+                                    <i class="mdi mdi-information-outline mr-1"></i> No live bookings found in the selected date range.
                                 </td>
                             </tr>
                         @endif
@@ -717,34 +633,10 @@
             </div>
 
             <script>
-                let currentLedgerTab = 'model';
-
-                function switchLedgerTab(tab) {
-                    currentLedgerTab = tab;
-                    const btnModel = document.getElementById('btnShowModel');
-                    const btnLive = document.getElementById('btnShowLive');
-                    const modelRows = document.querySelectorAll('.model-row');
-                    const liveRows = document.querySelectorAll('.live-row');
-
-                    if (tab === 'model') {
-                        btnModel.className = 'btn btn-sm btn-dark font-weight-bold active';
-                        btnLive.className = 'btn btn-sm btn-outline-dark font-weight-bold';
-                        modelRows.forEach(r => r.classList.remove('d-none'));
-                        liveRows.forEach(r => r.classList.add('d-none'));
-                    } else {
-                        btnLive.className = 'btn btn-sm btn-dark font-weight-bold active';
-                        btnModel.className = 'btn btn-sm btn-outline-dark font-weight-bold';
-                        modelRows.forEach(r => r.classList.add('d-none'));
-                        liveRows.forEach(r => r.classList.remove('d-none'));
-                    }
-                    filterLedgerRows();
-                }
-
                 function filterLedgerRows() {
                     const query = (document.getElementById('ledgerTableSearch').value || '').toLowerCase();
                     const mode = (document.getElementById('ledgerPaymentFilter').value || '').toLowerCase();
-                    const activeClass = currentLedgerTab === 'model' ? '.model-row' : '.live-row';
-                    const rows = document.querySelectorAll(activeClass);
+                    const rows = document.querySelectorAll('.ledger-row');
 
                     rows.forEach(row => {
                         const text = row.innerText.toLowerCase();
