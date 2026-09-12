@@ -22,11 +22,13 @@ class RestaurantAuthController extends Controller
             return response()->json(['success' => false, 'error' => 'Valid Indian mobile (+91XXXXXXXXXX) required.']);
         }
 
-        $owner = FoodOwner::where('phone', $phone)->first();
-        if ($mode === 'signup' && $owner) {
-            return response()->json(['success' => false, 'error' => 'Phone already registered. Please login.']);
+        $owner = $this->findOwnerByPhone($phone);
+        $hasRestaurant = $owner ? FoodRestaurant::where('owner_id', $owner->id)->exists() : false;
+
+        if ($mode === 'signup' && $owner && $hasRestaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant already registered with this mobile. Please login.']);
         }
-        if ($mode === 'login' && !$owner) {
+        if ($mode === 'login' && (!$owner || !$hasRestaurant)) {
             return response()->json(['success' => false, 'error' => 'No restaurant account found. Please register.']);
         }
 
@@ -80,9 +82,9 @@ class RestaurantAuthController extends Controller
         $phone = PhoneService::normalize(trim((string) $request->get('phone')));
         $otp = trim((string) $request->get('otp'));
 
-        $owner = FoodOwner::where('phone', $phone)->first();
+        $owner = $this->findOwnerByPhone($phone);
         if (!$owner) {
-            return response()->json(['success' => false, 'error' => 'Account not found.']);
+            return response()->json(['success' => false, 'error' => 'Account not found. Please request OTP again.']);
         }
         if (empty($owner->otp) || $owner->otp !== $otp) {
             return response()->json(['success' => false, 'error' => 'Invalid OTP.']);
@@ -148,7 +150,9 @@ class RestaurantAuthController extends Controller
         }
 
         $owner = $this->findOwnerByPhone($phone);
-        if (!$owner) {
+        $hasRestaurant = $owner ? FoodRestaurant::where('owner_id', $owner->id)->exists() : false;
+
+        if (!$owner || !$hasRestaurant) {
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -180,8 +184,10 @@ class RestaurantAuthController extends Controller
         $mpin = trim((string) $request->get('mpin'));
 
         $owner = $this->findOwnerByPhone($phone);
-        if (!$owner) {
-            return response()->json(['success' => false, 'error' => 'Account not found. Please register.']);
+        $hasRestaurant = $owner ? FoodRestaurant::where('owner_id', $owner->id)->exists() : false;
+
+        if (!$owner || !$hasRestaurant) {
+            return response()->json(['success' => false, 'error' => 'No active restaurant found for this account. Please register.']);
         }
         if ($owner->status !== 'active') {
             return response()->json(['success' => false, 'error' => 'Account blocked. Contact support.']);

@@ -210,7 +210,16 @@ class FoodAdminController extends Controller
             }
 
             // Delete the restaurant itself
+            $ownerId = $restaurant->owner_id;
             $restaurant->delete();
+
+            // Also clean up owner if they have no other restaurants
+            if ($ownerId && Schema::hasTable('food_owners')) {
+                $otherCount = DB::table('food_restaurants')->where('owner_id', $ownerId)->count();
+                if ($otherCount === 0) {
+                    DB::table('food_owners')->where('id', $ownerId)->delete();
+                }
+            }
         });
 
         if (request()->wantsJson() || request()->ajax()) {
