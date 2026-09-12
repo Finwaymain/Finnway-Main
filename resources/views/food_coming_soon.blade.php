@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -410,7 +410,7 @@
     <div class="footer-note">
         <div class="partner-link-box">
             Are you a restaurant or cafe owner?
-            <a href="/onboarding/food">Partner With Us &rarr;</a>
+            <a href="/food?view=portal&tab=dashboard">Partner With Us &rarr;</a>
         </div>
         <p class="copyright">&copy; {{ date('Y') }} Fiinway Technologies. All rights reserved.</p>
     </div>

@@ -53,33 +53,34 @@ Route::get('/onboarding/marketplace.html', function () {
     return response()->file(public_path('onboarding-assets/marketplace.html'));
 });
 
-Route::get('/onboarding/food.html', function () {
-    if (file_exists(public_path('onboarding-assets/food.html'))) {
-        return response()->file(public_path('onboarding-assets/food.html'));
-    }
-    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
-        return response()->file(public_path('onboarding-assets/food/index.html'));
-    }
-    return OnboardingAccess::renderView('food');
-});
+// Food & Restaurant Partner Route Handler
+$serveFoodRoute = function (\Illuminate\Http\Request $request) {
+    // Check if request is from Restaurant Partner App / Portal
+    // Restaurant App always sends view=portal, tab=dashboard/orders/menu/etc., or restaurant token
+    $isRestaurantPortal = $request->query('view') === 'portal'
+        || $request->has('tab')
+        || ($request->has('token') && !$request->has('accesstoken'))
+        || $request->query('user_type') === 'restaurant'
+        || $request->query('role') === 'restaurant';
 
-Route::get('/onboarding/food', function () {
-    if (file_exists(public_path('onboarding-assets/food.html'))) {
-        return response()->file(public_path('onboarding-assets/food.html'));
+    if ($isRestaurantPortal) {
+        if (file_exists(public_path('onboarding-assets/food.html'))) {
+            return response()->file(public_path('onboarding-assets/food.html'));
+        }
+        if (file_exists(public_path('onboarding-assets/food/index.html'))) {
+            return response()->file(public_path('onboarding-assets/food/index.html'));
+        }
+        return OnboardingAccess::renderView('food');
     }
-    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
-        return response()->file(public_path('onboarding-assets/food/index.html'));
-    }
-    return OnboardingAccess::renderView('food');
-});
 
-Route::get('/food', function () {
+    // Customer Food Ordering (User App, Business App, or general /food)
     return view('food_coming_soon');
-});
+};
 
-Route::get('/food.html', function () {
-    return view('food_coming_soon');
-});
+Route::get('/onboarding/food.html', $serveFoodRoute);
+Route::get('/onboarding/food', $serveFoodRoute);
+Route::get('/food', $serveFoodRoute);
+Route::get('/food.html', $serveFoodRoute);
 
 Route::get('/onboarding', function (\Illuminate\Http\Request $request) {
     if (!$request->has('driver_id') && !$request->has('accesstoken') && !$request->has('mode') && !$request->has('step')) {
