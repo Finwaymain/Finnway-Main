@@ -24,6 +24,7 @@ use App\Models\Food\FoodSettlement;
 use App\Services\Food\FoodPricingEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class FoodAdminController extends Controller
@@ -150,6 +151,72 @@ class FoodAdminController extends Controller
             return response()->json(['success' => true, 'message' => 'Restaurant suspended.']);
         }
         return back()->with('success', 'Restaurant suspended.');
+    }
+
+    public function destroy($id)
+    {
+        $restaurant = FoodRestaurant::findOrFail($id);
+        $name = $restaurant->name;
+
+        DB::transaction(function () use ($restaurant, $id) {
+            // Delete product addons, variants, products
+            if (Schema::hasTable('food_products')) {
+                $productIds = DB::table('food_products')->where('restaurant_id', $id)->pluck('id');
+                if ($productIds->isNotEmpty()) {
+                    if (Schema::hasTable('food_product_variants')) {
+                        DB::table('food_product_variants')->whereIn('product_id', $productIds)->delete();
+                    }
+                    if (Schema::hasTable('food_product_addons')) {
+                        DB::table('food_product_addons')->whereIn('product_id', $productIds)->delete();
+                    }
+                    DB::table('food_products')->where('restaurant_id', $id)->delete();
+                }
+            }
+
+            // Delete categories
+            if (Schema::hasTable('food_categories')) {
+                DB::table('food_categories')->where('restaurant_id', $id)->delete();
+            }
+
+            // Delete disputes, due payments, settlements, reviews, onboarding payments, offers
+            if (Schema::hasTable('food_disputes')) {
+                DB::table('food_disputes')->where('restaurant_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_due_payments')) {
+                DB::table('food_due_payments')->where('restaurant_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_settlements')) {
+                DB::table('food_settlements')->where('restaurant_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_reviews')) {
+                DB::table('food_reviews')->where('restaurant_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_onboarding_payments')) {
+                DB::table('food_onboarding_payments')->where('restaurant_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_offers')) {
+                DB::table('food_offers')->where('restaurant_id', $id)->delete();
+            }
+
+            // Delete orders & order items
+            if (Schema::hasTable('food_orders')) {
+                $orderIds = DB::table('food_orders')->where('restaurant_id', $id)->pluck('id');
+                if ($orderIds->isNotEmpty()) {
+                    if (Schema::hasTable('food_order_items')) {
+                        DB::table('food_order_items')->whereIn('order_id', $orderIds)->delete();
+                    }
+                    DB::table('food_orders')->where('restaurant_id', $id)->delete();
+                }
+            }
+
+            // Delete the restaurant itself
+            $restaurant->delete();
+        });
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => "Restaurant '{$name}' deleted successfully."]);
+        }
+        return redirect()->route('admin.food.restaurants')->with('success', "Restaurant '{$name}' has been permanently deleted.");
     }
 
     public function verifyOnboardingFee(Request $request, $id)

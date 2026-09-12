@@ -115,14 +115,39 @@ class RestaurantAuthController extends Controller
         ]);
     }
 
+    protected function findOwnerByPhone(string $phone): ?FoodOwner
+    {
+        $variants = PhoneService::getVariants($phone);
+        if (empty($variants)) {
+            return null;
+        }
+
+        $owner = FoodOwner::whereIn('phone', $variants)->first();
+        if ($owner) {
+            return $owner;
+        }
+
+        // Also check if any restaurant has this phone as owner_phone or phone
+        $restaurant = FoodRestaurant::whereIn('owner_phone', $variants)
+            ->orWhereIn('phone', $variants)
+            ->first();
+
+        if ($restaurant && $restaurant->owner_id) {
+            return FoodOwner::find($restaurant->owner_id);
+        }
+
+        return null;
+    }
+
     public function checkUser(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
-        if (empty($phone) || !preg_match('/^\+91[6-9]\d{9}$/', $phone)) {
+        $rawPhone = trim((string) $request->get('phone'));
+        $phone = PhoneService::normalize($rawPhone);
+        if (empty($phone)) {
             return response()->json(['success' => false, 'error' => 'Valid Indian mobile (+91XXXXXXXXXX) required.']);
         }
 
-        $owner = FoodOwner::where('phone', $phone)->first();
+        $owner = $this->findOwnerByPhone($phone);
         if (!$owner) {
             return response()->json([
                 'success' => true,
@@ -150,17 +175,27 @@ class RestaurantAuthController extends Controller
 
     public function loginMpin(Request $request)
     {
-        $phone = PhoneService::normalize(trim((string) $request->get('phone')));
+        $rawPhone = trim((string) $request->get('phone'));
+        $phone = PhoneService::normalize($rawPhone);
         $mpin = trim((string) $request->get('mpin'));
 
-        $owner = FoodOwner::where('phone', $phone)->first();
+        $owner = $this->findOwnerByPhone($phone);
         if (!$owner) {
             return response()->json(['success' => false, 'error' => 'Account not found. Please register.']);
         }
         if ($owner->status !== 'active') {
             return response()->json(['success' => false, 'error' => 'Account blocked. Contact support.']);
         }
-        if (empty($owner->mpin) || !Hash::check($mpin, $owner->mpin)) {
+
+        if (empty($owner->mpin)) {
+            // First-time MPIN set for existing owner logging in
+            if (strlen($mpin) === 4 && ctype_digit($mpin)) {
+                $owner->mpin = Hash::make($mpin);
+                $owner->save();
+            } else {
+                return response()->json(['success' => false, 'error' => 'Please enter a 4-digit MPIN.']);
+            }
+        } elseif (!Hash::check($mpin, $owner->mpin)) {
             return response()->json(['success' => false, 'error' => 'Invalid MPIN.']);
         }
 

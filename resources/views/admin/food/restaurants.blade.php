@@ -215,6 +215,12 @@
                                             </button>
                                         </form>
                                     @endif
+                                    <form method="post" action="{{ route('admin.food.restaurants.destroy', $r->id) }}" class="d-inline ml-1" onsubmit="return confirm('⚠️ Are you sure you want to PERMANENTLY DELETE restaurant \'{{ addslashes($r->name) }}\' (ID: #{{ $r->id }})? This will delete all products, categories, reviews, and related data. This action CANNOT be undone!');">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Delete Restaurant">
+                                            <i class="fa fa-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>

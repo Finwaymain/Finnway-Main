@@ -1239,6 +1239,8 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::post('/restaurants/{id}/approve', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'approve'])->name('restaurants.approve');
     Route::post('/restaurants/{id}/reject', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'reject'])->name('restaurants.reject');
     Route::post('/restaurants/{id}/suspend', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'suspend'])->name('restaurants.suspend');
+    Route::delete('/restaurants/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'destroy'])->name('restaurants.delete');
+    Route::post('/restaurants/{id}/delete', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'destroy'])->name('restaurants.destroy');
     Route::post('/restaurants/{id}/onboarding-fee/verify', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'verifyOnboardingFee'])->name('restaurants.verifyOnboardingFee');
     Route::post('/restaurants/{id}/profile', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateProfile'])->name('restaurants.profile');
     Route::post('/restaurants/{id}/status', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'updateOperationalStatus'])->name('restaurants.status');
