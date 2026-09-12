@@ -74,13 +74,11 @@ Route::get('/onboarding/food', function () {
 });
 
 Route::get('/food', function () {
-    if (file_exists(public_path('onboarding-assets/food.html'))) {
-        return response()->file(public_path('onboarding-assets/food.html'));
-    }
-    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
-        return response()->file(public_path('onboarding-assets/food/index.html'));
-    }
-    return OnboardingAccess::renderView('food');
+    return view('food_coming_soon');
+});
+
+Route::get('/food.html', function () {
+    return view('food_coming_soon');
 });
 
 Route::get('/onboarding', function (\Illuminate\Http\Request $request) {
