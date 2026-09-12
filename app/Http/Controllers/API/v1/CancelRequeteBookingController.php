@@ -28,6 +28,10 @@ class CancelRequeteBookingController extends Controller
     $updatedata =  DB::update('update tj_requete_book set statut = ? where id = ?',['canceled',$id_requete]);
 
     if (!empty($updatedata)) {
+        $bookObj = DB::table('tj_requete_book')->where('id', $id_requete)->first();
+        if ($bookObj && !empty($bookObj->id_user_app)) {
+            \App\Services\PromotionalService::revertPromoUsage((int)$bookObj->id_user_app, 'customer', 'cab', $id_requete);
+        }
         $response['msg']['etat'] = 1;
         
         $tmsg='';

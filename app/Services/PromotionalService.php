@@ -118,9 +118,9 @@ class PromotionalService
 
                 if (!empty($fcmToken)) {
                     \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmToken, [
-                        'title' => '🎁 Welcome Bonus Credited!',
-                        'body'  => "You received ₹" . number_format($initialBonus, 0) . " Welcome Bonus ({$totalUses} service discounts)! Use ₹" . number_format($discountPerService, 0) . " off on your bookings.",
-                        'tag'   => 'promotional_welcome',
+                        'title' => '🎁 Promotion Bonus Credited!',
+                        'body'  => "You received ₹" . number_format($initialBonus, 0) . " Promotion Bonus ({$totalUses} service discounts)! Use ₹" . number_format($discountPerService, 0) . " off on your bookings.",
+                        'tag'   => 'promotional_bonus',
                     ]);
                 }
             } catch (\Throwable $notifEx) {
@@ -278,6 +278,9 @@ class PromotionalService
         $minBill = $config 
             ? (float)($isJoinedWithCode ? ($config->min_bill_with_code ?? $config->min_bill_amount ?? 0.00) : ($config->min_bill_without_code ?? $config->min_bill_amount ?? 0.00))
             : 0.00;
+        if ($minBill > 500.00) {
+            $minBill = 100.00;
+        }
         $maxBill = $config 
             ? (float)($isJoinedWithCode ? ($config->max_bill_with_code ?? $config->max_bill_amount ?? 999999.00) : ($config->max_bill_without_code ?? $config->max_bill_amount ?? 999999.00))
             : 999999.00;
@@ -373,6 +376,64 @@ class PromotionalService
 
         } catch (\Throwable $e) {
             \Log::error("PromotionalService::applyPromoUsage error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Revert promo usage when a booking/ride is cancelled or promo is removed
+     *
+     * @param int $userId
+     * @param string $userType
+     * @param string $serviceType ('cab' or 'home_service')
+     * @param string|int $bookingId
+     * @return bool
+     */
+    public static function revertPromoUsage(int $userId, string $userType, string $serviceType, $bookingId): bool
+    {
+        try {
+            if (!Schema::hasTable('user_promotion_logs') || !Schema::hasTable('user_promotions')) {
+                return false;
+            }
+
+            $log = DB::table('user_promotion_logs')
+                ->where('user_id', $userId)
+                ->where('service_type', $serviceType)
+                ->where('booking_id', (string)$bookingId)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if (!$log) {
+                return false;
+            }
+
+            $discount = (float)$log->promotional_amount;
+            $promoId = $log->user_promotion_id;
+
+            $promo = DB::table('user_promotions')->where('id', $promoId)->first();
+            if ($promo) {
+                $maxBonus = (float)$promo->initial_bonus;
+                $newBalance = min($maxBonus, (float)$promo->remaining_bonus + $discount);
+                $newUses = min((int)$promo->total_uses, (int)$promo->uses_remaining + 1);
+
+                $isExpired = !empty($promo->expiry_date) && Carbon::parse($promo->expiry_date)->isPast();
+                $newStatus = $isExpired ? 'expired' : 'active';
+
+                DB::table('user_promotions')->where('id', $promoId)->update([
+                    'remaining_bonus' => $newBalance,
+                    'uses_remaining'  => $newUses,
+                    'status'          => $newStatus,
+                    'updated_at'      => now(),
+                ]);
+            }
+
+            DB::table('user_promotion_logs')->where('id', $log->id)->delete();
+
+            \Log::info("PromotionalService::revertPromoUsage restored ₹{$discount} for {$userType} #{$userId} on {$serviceType} #{$bookingId}");
+            return true;
+
+        } catch (\Throwable $e) {
+            \Log::error("PromotionalService::revertPromoUsage error: " . $e->getMessage());
             return false;
         }
     }

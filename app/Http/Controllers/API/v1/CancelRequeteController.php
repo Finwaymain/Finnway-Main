@@ -32,6 +32,9 @@ class cancelRequeteController extends Controller
         if (!empty($updatedata)) {
 
             $sql = Requests::where('id', $id_requete)->first();
+            if ($sql && !empty($sql->id_user_app)) {
+                \App\Services\PromotionalService::revertPromoUsage((int)$sql->id_user_app, 'customer', 'cab', $id_requete);
+            }
             $rejectDriverIds = $sql->rejected_driver_id;
             $rejDriverIds = array();
             if ($rejectDriverIds != null) {

@@ -140,8 +140,13 @@ class ServiceRequestAPIController extends Controller
             'media' => json_encode($mediaUrls),
         ];
 
+        $userType = $request->input('user_type') ?? $request->input('user_cat') ?? $request->header('user_type') ?? 'customer';
+        if ($userType !== 'driver') {
+            $userType = 'customer';
+        }
+
         $baseServicePrice = (float) ($amount ?? 0);
-        $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int) $user_id, 'customer', $baseServicePrice);
+        $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int) $user_id, $userType, $baseServicePrice);
         $isPromoApplied = false;
         $promotionalAmount = 0.00;
         $promotionalDiscount = 0.00;
@@ -171,20 +176,34 @@ class ServiceRequestAPIController extends Controller
             $createData['payment_status'] = 'pending';
         }
         if (\Illuminate\Support\Facades\Schema::hasColumn('service_requests', 'price_breakdown') && !empty($priceBreakdown)) {
-            $createData['price_breakdown'] = is_string($priceBreakdown) ? $priceBreakdown : json_encode($priceBreakdown);
+            $pbArr = is_string($priceBreakdown) ? json_decode($priceBreakdown, true) : $priceBreakdown;
+            if (is_array($pbArr)) {
+                $pbArr['user_type'] = $userType;
+                if ($isPromoApplied) {
+                    $pbArr['is_promotional_applied'] = true;
+                    $pbArr['promotional_amount'] = $promotionalAmount;
+                    $pbArr['promotional_discount'] = $promotionalDiscount;
+                    $pbArr['displayed_booking_total'] = round($baseServicePrice + $promotionalAmount, 2);
+                    $pbArr['welcome_discount'] = $promotionalDiscount;
+                    $pbArr['final_payable'] = $baseServicePrice;
+                }
+                $createData['price_breakdown'] = json_encode($pbArr);
+            } else {
+                $createData['price_breakdown'] = is_string($priceBreakdown) ? $priceBreakdown : json_encode($priceBreakdown);
+            }
         }
 
         $serviceRequest = ServiceRequest::create($createData);
 
         if ($isPromoApplied && $serviceRequest && !empty($serviceRequest->id)) {
-            \App\Services\PromotionalService::applyPromoUsage((int) $user_id, 'customer', 'home_service', $serviceRequest->id, $baseServicePrice);
+            \App\Services\PromotionalService::applyPromoUsage((int) $user_id, $userType, 'home_service', $serviceRequest->id, $baseServicePrice);
         }
 
-        // Step 1 Notification: Notify Customer + Notify ONLY Matching/Nearby Service Partners
+        // Step 1 Notification: Notify Customer/Driver + Notify ONLY Matching/Nearby Service Partners
         try {
             $this->sendServiceNotification(
                 (int) $user_id,
-                'customer',
+                $userType,
                 "Booking Confirmed: {$serviceRequest->service_name}",
                 "We have received your booking #{$serviceRequest->id}. Looking for the best verified expert near you.",
                 ['booking_id' => (string) $serviceRequest->id, 'status' => 'Pending']
@@ -449,6 +468,16 @@ class ServiceRequestAPIController extends Controller
         $totalMin = round($servicesMinTotal + $visitingMin + $platformFee, 2);
         $totalMax = round($servicesMaxTotal + $visitingMax + $platformFee, 2);
 
+        $userId = $request->header('id_user') ?? $request->input('user_id');
+        $userType = $request->input('user_type') ?? $request->input('user_cat') ?? $request->header('user_type') ?? 'customer';
+        if ($userType !== 'driver') {
+            $userType = 'customer';
+        }
+        $promoInfo = null;
+        if (!empty($userId)) {
+            $promoInfo = \App\Services\PromotionalService::calculatePromoFare((int) $userId, $userType, $totalMin);
+        }
+
         return response()->json([
             'success' => 'success',
             'data' => $this->formatPriceEstimateResponse(
@@ -460,7 +489,8 @@ class ServiceRequestAPIController extends Controller
                 $servicesMaxTotal,
                 $totalMin,
                 $totalMax,
-                count($nearbyDriverIds)
+                count($nearbyDriverIds),
+                $promoInfo
             ),
         ]);
     }
@@ -522,8 +552,29 @@ class ServiceRequestAPIController extends Controller
         float $servicesMaxTotal,
         float $totalMin,
         float $totalMax,
-        int $providersNearby
+        int $providersNearby,
+        ?array $promoInfo = null
     ): array {
+        $isPromo = !empty($promoInfo['is_promo_available']);
+        $promotionalAmount = $isPromo ? (float) ($promoInfo['promotional_amount'] ?? 0.0) : 0.0;
+
+        // ONLY if user has an active promo bonus, increase the service line item charge
+        // by the promotional amount so that (Service Charge + Visiting Charge) matches displayed_booking_total!
+        // If user does not have promo bonus, $isPromo is false and prices remain completely normal.
+        if ($isPromo && $promotionalAmount > 0 && !empty($lineItems)) {
+            $lineItems[0]['min_price'] = round($lineItems[0]['min_price'] + $promotionalAmount, 2);
+            $lineItems[0]['max_price'] = round($lineItems[0]['max_price'] + $promotionalAmount, 2);
+            $lineItems[0]['price'] = $lineItems[0]['min_price'];
+            $lineItems[0]['price_label'] = $this->formatPriceRangeLabel($lineItems[0]['min_price'], $lineItems[0]['max_price'], true);
+            $servicesMinTotal += $promotionalAmount;
+            $servicesMaxTotal += $promotionalAmount;
+        }
+
+        $displayedTotalMin = $isPromo ? round($totalMin + $promotionalAmount, 2) : $totalMin;
+        $displayedTotalMax = $isPromo ? round($totalMax + $promotionalAmount, 2) : $totalMax;
+        $welcomeDiscount = $isPromo ? (float) ($promoInfo['welcome_discount'] ?? 0.0) : 0.0;
+        $finalPayable = $isPromo ? (float) ($promoInfo['final_payable'] ?? $totalMin) : $totalMin;
+
         return [
             'service_items' => $lineItems,
             'visiting_charge' => $visitingMin,
@@ -541,6 +592,16 @@ class ServiceRequestAPIController extends Controller
             'providers_nearby' => $providersNearby,
             'currency' => 'INR',
             'currency_symbol' => '₹',
+            'is_promotional_applied' => $isPromo,
+            'base_price' => $totalMin,
+            'promotional_amount' => $promotionalAmount,
+            'displayed_booking_total' => $displayedTotalMin,
+            'displayed_booking_total_max' => $displayedTotalMax,
+            'displayed_booking_total_label' => $this->formatPriceRangeLabel($displayedTotalMin, $displayedTotalMax, $displayedTotalMin > 0 || $displayedTotalMax > 0),
+            'welcome_discount' => $welcomeDiscount,
+            'final_payable' => $finalPayable,
+            'uses_remaining' => $promoInfo['uses_remaining'] ?? 0,
+            'promo_balance' => $promoInfo['balance'] ?? '0.00',
         ];
     }
 
@@ -576,7 +637,28 @@ class ServiceRequestAPIController extends Controller
             ], 422);
         }
 
-        $payable = $this->resolveBookingPayableAmount($booking);
+        $applyPromo = $request->input('apply_promotional', '1') != '0';
+        $hasPromo = (bool) ($booking->is_promotional_applied ?? false) || ((float)($booking->promotional_discount ?? 0) > 0);
+        $promoDiscount = (float) ($booking->promotional_discount ?? 0);
+
+        if (!$applyPromo && $hasPromo) {
+            // User toggled off promo at payment screen:
+            // Payable becomes the undiscounted amount
+            $payable = round(((float)($booking->amount ?? 0)) + $promoDiscount, 2);
+            // Revert promo deduction from user_promotions and logs
+            try {
+                \App\Services\PromotionalService::revertPromoUsage((int) $userId, 'customer', 'home_service', $booking->id);
+            } catch (\Throwable $revEx) {
+                \Log::error('Revert promo usage error: ' . $revEx->getMessage());
+            }
+            $booking->is_promotional_applied = 0;
+            $booking->promotional_amount = 0.00;
+            $booking->promotional_discount = 0.00;
+            $booking->amount = $payable;
+        } else {
+            $payable = $this->resolveBookingPayableAmount($booking);
+        }
+
         if ($payable <= 0) {
             return response()->json([
                 'success' => 'error',
@@ -676,11 +758,19 @@ class ServiceRequestAPIController extends Controller
             $booking->save();
         }
 
+        $userType = 'customer';
+        if (!empty($booking->price_breakdown)) {
+            $pb = is_string($booking->price_breakdown) ? json_decode($booking->price_breakdown, true) : $booking->price_breakdown;
+            if (!empty($pb['user_type']) && $pb['user_type'] === 'driver') {
+                $userType = 'driver';
+            }
+        }
+
         // Trigger dynamic referral cashback reward based on admin rules
         try {
             \App\Services\ReferralRewardService::processReward(
                 (int)$userId,
-                'customer',
+                $userType,
                 'service_booking',
                 $payable,
                 "Service Booking ({$booking->service_name})"
@@ -689,11 +779,11 @@ class ServiceRequestAPIController extends Controller
             \Illuminate\Support\Facades\Log::error("Service booking referral reward error: " . $ex->getMessage());
         }
 
-        // Trigger customer & provider payment notifications
+        // Trigger customer/driver & provider payment notifications
         try {
             $this->sendServiceNotification(
                 (int) $userId,
-                'customer',
+                $userType,
                 "Payment Successful: ₹{$payable}",
                 "Payment of ₹{$payable} recorded for {$booking->service_name}. Thank you!",
                 ['booking_id' => (string) $booking->id, 'payment_status' => $booking->payment_status]
@@ -770,33 +860,15 @@ class ServiceRequestAPIController extends Controller
         $booking->status = 'Cancelled';
         $booking->save();
 
-        // If driver was assigned, add cancellation platform fee to user's pending due for next bill
-        if (!empty($booking->driver_id)) {
-            try {
-                if (!\Illuminate\Support\Facades\Schema::hasColumn('tj_user_app', 'pending_due')) {
-                    \Illuminate\Support\Facades\Schema::table('tj_user_app', function ($table) {
-                        $table->decimal('pending_due', 10, 2)->default(0.00)->nullable();
-                    });
-                }
-                \Illuminate\Support\Facades\DB::table('tj_user_app')
-                    ->where('id', $userId)
-                    ->increment('pending_due', 50.00);
-
-                if (\Illuminate\Support\Facades\Schema::hasTable('tj_transaction')) {
-                    \Illuminate\Support\Facades\DB::table('tj_transaction')->insert([
-                        'amount' => '-50.00',
-                        'id_user_app' => $userId,
-                        'deduction_type' => 'Cancellation Fee (Added to Next Bill)',
-                        'ride_id' => (string) $booking->id,
-                        'payment_method' => 'Next Bill',
-                        'payment_status' => 'pending_due',
-                        'creer' => now(),
-                        'modifier' => now(),
-                    ]);
-                }
-            } catch (\Throwable $dueEx) {
-                \Log::error('cancelServiceBooking pending_due error: ' . $dueEx->getMessage());
-            }
+        // Revert any promotional discount applied on this booking
+        try {
+            \App\Services\PromotionalService::revertPromoUsage((int) $userId, 'customer', 'home_service', $booking->id);
+            $booking->is_promotional_applied = 0;
+            $booking->promotional_amount = 0.00;
+            $booking->promotional_discount = 0.00;
+            $booking->save();
+        } catch (\Throwable $promoEx) {
+            \Log::error('cancelServiceBooking promo revert error: ' . $promoEx->getMessage());
         }
 
         // Notify Driver if assigned and dismiss alerts on other providers
@@ -843,7 +915,7 @@ class ServiceRequestAPIController extends Controller
 
         return response()->json([
             'success' => 'success',
-            'message' => 'Booking cancelled. Cancellation charges will be added to your next bill.',
+            'message' => 'Booking cancelled successfully',
             'data' => $this->formatUserBooking($booking->fresh()),
         ]);
     }
@@ -1793,6 +1865,11 @@ class ServiceRequestAPIController extends Controller
             'promotional_amount' => (float) ($booking->promotional_amount ?? 0.0),
             'promotional_discount' => (float) ($booking->promotional_discount ?? 0.0),
             'is_promotional_applied' => (bool) ($booking->is_promotional_applied ?? false),
+            'displayed_booking_total' => ((bool) ($booking->is_promotional_applied ?? false))
+                ? round(((float) ($amount ?? 0)) + ((float) ($booking->promotional_amount ?? 0.0)), 2)
+                : ((float) ($amount ?? 0)),
+            'welcome_discount' => (float) ($booking->promotional_discount ?? 0.0),
+            'final_payable' => (float) ($amount ?? 0),
             'tax' => !empty($booking->tax) ? (is_string($booking->tax) ? json_decode($booking->tax, true) : $booking->tax) : null,
             'tax_amount' => (float) ($booking->tax_amount ?? 0.0),
             'payment_status' => $paymentStatus,
