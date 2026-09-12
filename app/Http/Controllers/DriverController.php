@@ -402,11 +402,7 @@ class DriverController extends Controller
 
     public function create()
     {
-        $brand = Brand::all();
-        $vehicleType = VehicleType::all();
-        $model = Carmodel::all();
-        $zones = Zone::where('status', 'yes')->get();
-        return view('drivers.create')->with('brand', $brand)->with('model', $model)->with('vehicleType', $vehicleType)->with('zones', $zones);
+        return view('drivers.create');
     }
 
     public function getModel(Request $request, $brand_id)
@@ -427,99 +423,81 @@ class DriverController extends Controller
 
     public function store(Request $request)
     {
-
-        $validator = Validator::make($request->all(), $rules = [
-            'nom' => 'required',
-            'prenom' => 'required',
-            'password' => 'required',
-            'phone' => 'required',
-            'email' => 'required|email',
-            'id_type_vehicule' => 'required',
-            'brand' => 'required',
-            'model' => 'required',
-            'km' => 'required',
-            'milage' => 'required',
-            'car_number' => 'required',
-            'color' => 'required',
-            'passenger' => 'required',
-            'photo' => 'required|mimes:jpg,jpeg,png|max:2048',
-            'zone' => 'required',
-        ], $messages = [
-            'nom.required' => 'The First Name field is required!',
+        $validator = Validator::make($request->all(), [
+            'nom'    => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
+            'phone'  => 'required|string',
+            'm_pin'  => 'required|min:4|max:6',
+        ], [
+            'nom.required'    => 'The Name field is required!',
             'prenom.required' => 'The Last Name field is required!',
-            'email.required' => 'The Email field is required!',
-            'email.unique' => 'The Email field is should be unique!',
-            'password.required' => 'The Password field is required!',
-            'phone.required' => 'The Phone field is required!',
-            'phone.unique' => 'The Phone field is should be unique!',
-            'id_type_vehicule.required' => 'The Vehicle type field is required!',
-            'brand.required' => 'The brand field is required!',
-            'model.required' => 'The model field is required!',
-            'km.required' => 'The km field is required!',
-            'milage.required' => 'The milage field is required!',
-            'car_number.required' => 'The NumberPlate field is required!',
-            'color.required' => 'The Color field is required!',
-            'passenger.required' => 'The Number of Passenger field is required!',
+            'phone.required'  => 'The Phone Number field is required!',
+            'm_pin.required'  => 'The MPIN field is required!',
         ]);
 
         if ($validator->fails()) {
             return redirect('drivers/create')
-                ->withErrors($validator)->with(['message' => $messages])
+                ->withErrors($validator)
                 ->withInput();
         }
-        $get_admin_commission = Commission::first();
-        $commissionObj = ['type' => $get_admin_commission->type, 'value' => $get_admin_commission->value];
+
+        $rawPhone = trim($request->input('phone'));
+        $cleanDigits = preg_replace('/[^0-9]/', '', $rawPhone);
+        if (strlen($cleanDigits) === 10) {
+            $phone = '+91' . $cleanDigits;
+        } elseif (strlen($cleanDigits) === 12 && str_starts_with($cleanDigits, '91')) {
+            $phone = '+' . $cleanDigits;
+        } elseif (str_starts_with($rawPhone, '+')) {
+            $phone = '+' . $cleanDigits;
+        } else {
+            $phone = '+91' . $cleanDigits;
+        }
+
+        // Check if a driver with this phone already exists
+        $existing = DB::table('tj_conducteur')->where('phone', $phone)->first();
+        if ($existing) {
+            return redirect('drivers/create')
+                ->withErrors(['phone' => 'A driver with phone ' . $phone . ' already exists!'])
+                ->withInput();
+        }
+
+        $mpin = trim((string)$request->input('m_pin'));
+
         $user = new Driver;
-        $user->nom = $request->input('nom');
-        $user->prenom = $request->input('prenom');
-        $user->email = $request->input('email');
-        $user->statut = $request->has('statut') ? 'yes' : 'no';
-        $user->statut_vehicule = $request->has('statut') ? 'yes' : 'no';
-        // $user->tonotify = $request->has('notify') ? 'yes' : 'no';
+        $user->nom = trim($request->input('nom'));
+        $user->prenom = trim($request->input('prenom'));
+        $user->phone = $phone;
+        $user->m_pin = $mpin;
+        $user->mdp = hash('md5', $mpin);
+        $user->email = '';
+        $user->statut = 'yes';
+        $user->statut_vehicule = 'yes';
         $user->online = 'yes';
         $user->status_car_image = 'yes';
         $user->login_type = 'phone';
-        // $user->address = $request->input('address');
-        $user->device_id = $request->input('device_id');
-        $password = $request->input('password');
-        $user->mdp = hash('md5', $password);
-        $user->phone = $request->input('phone');
+        $user->is_verified = 1;
+        $user->amount = "0";
+        $user->driver_on_ride = "no";
+        $user->parcel_delivery = "no";
         $user->creer = date('Y-m-d H:i:s');
         $user->modifier = date('Y-m-d H:i:s');
         $user->updated_at = date('Y-m-d H:i:s');
-        $user->bank_name = $request->input('bank_name');
-        $user->holder_name = $request->input('holder_name');
-        $user->account_no = $request->input('account_number');
-        $user->branch_name = $request->input('branch_name');
-        $user->other_info = $request->input('other_information');
-        $user->ifsc_code = $request->input('ifsc_code');
-        $user->amount = "0";
-        $user->parcel_delivery = $request->has('parcel_delivery') ? "yes" : "no";
-        $user->driver_on_ride = "no";
-        $user->adminCommission= $commissionObj;
-        $zone = $request->input('zone');
 
-        if ($request->hasfile('photo')) {
-            $file = $request->file('photo');
-            $extenstion = $file->getClientOriginalExtension();
-            $time = time() . '.' . $extenstion;
-            $filename = 'driver_image_' . $time;
-            $path = public_path('assets/images/driver/') . $filename;
-            if (!file_exists(public_path('assets/images/driver/'))) {
-                mkdir(public_path('assets/images/driver/'), 0777, true);
-            }
-            Image::make($file->getRealPath())->resize(150, 150)->save($path);
-
-            //$file->move(public_path('assets/images/driver'), $filename);
-            $image = str_replace('data:image/png;base64,', '', $file);
-            $image = str_replace(' ', '+', $image);
-            $user->photo_path = $filename;
+        $get_admin_commission = Commission::first();
+        if ($get_admin_commission) {
+            $user->adminCommission = ['type' => $get_admin_commission->type, 'value' => $get_admin_commission->value];
         }
-        $user->zone_id = $zone ? implode(',', $zone) : NULL;
+
         $user->save();
         $driver_id = $user->id;
 
-        // Assign default free subscription plan
+        // Assign unique 12-digit Pocket Number (ac_no)
+        if (class_exists(\App\Services\PocketNumberService::class)) {
+            $user->ac_no = \App\Services\PocketNumberService::generateForUser((int)$driver_id, 'driver');
+            $user->save();
+        }
+
+        // Assign default free subscription plan if available
         $freePlan = DB::table('subscription_plans')->where('type', 'free')->first();
         if ($freePlan) {
             DB::table('tj_conducteur')->where('id', $driver_id)->update([
@@ -529,25 +507,7 @@ class DriverController extends Controller
             ]);
         }
 
-
-        $vehicle = new Vehicle;
-        $vehicle->brand = $request->input('brand');
-        $vehicle->model = $request->input('model');
-        $vehicle->color = $request->input('color');
-        $vehicle->numberplate = $request->input('car_number');
-        $vehicle->car_make = '';
-        $vehicle->km = $request->input('km');
-        $vehicle->milage = $request->input('milage');
-        $vehicle->id_conducteur = $driver_id;
-        $vehicle->statut = 'yes';
-        $vehicle->creer = date('Y-m-d H:i:s');
-        $vehicle->modifier = date('Y-m-d H:i:s');
-        $vehicle->updated_at = date('Y-m-d H:i:s');
-        $vehicle->id_type_vehicule = $request->input('id_type_vehicule');
-        $vehicle->passenger = $request->input('passenger');
-        $vehicle->save();
-
-        return redirect('drivers');
+        return redirect('drivers')->with('success', 'Driver registered successfully with Pocket No: ' . ($user->ac_no ?? $driver_id) . '!');
     }
 
 

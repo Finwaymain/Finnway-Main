@@ -65,6 +65,12 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
+                        @if(session('success'))
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="fa fa-check-circle mr-1"></i> {{ session('success') }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        @endif
                         <div class="userlist-topsearch d-flex mb-3 align-items-center flex-wrap" style="gap:8px;">
                             <a class="btn btn-warning btn-sm text-dark font-weight-bold" href="{!! route('drivers.create') !!}"><i class="fa fa-plus mr-1"></i>Add Business User</a>
                             <form action="{{ route('drivers') }}" method="get" class="d-flex align-items-center ml-auto" style="gap:6px; flex-wrap:wrap;">
