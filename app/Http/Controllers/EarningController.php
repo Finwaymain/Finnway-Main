@@ -105,10 +105,10 @@ class EarningController extends Controller
                     $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
 
                     // Zone extraction
-                    $zone = 'Haldwani';
+                    $zone = '-';
                     if (!empty($r->depart_name)) {
                         $parts = explode(',', $r->depart_name);
-                        $zone = trim(end($parts)) ?: 'Haldwani';
+                        $zone = trim(end($parts)) ?: '-';
                     }
 
                     $nature = trim(($r->depart_name ?? '') . ' to ' . ($r->destination_name ?? ''));
@@ -128,8 +128,8 @@ class EarningController extends Controller
                     $rows[] = [
                         'mode_badge'           => $mode,
                         'date'                 => date('d/m/Y', $rawTime),
-                        'consumer'             => $r->consumer_name ?: 'Customer #' . $r->id,
-                        'provider'             => $r->provider_name ?: 'Driver #' . $r->id,
+                        'consumer'             => !empty($r->consumer_name) ? $r->consumer_name : '-',
+                        'provider'             => !empty($r->provider_name) ? $r->provider_name : '-',
                         'zone'                 => $zone,
                         'book'                 => ($r->ride_type === 'parcel') ? 'Parcel' : 'Cab',
                         'nature_of_service'    => $nature,
@@ -158,12 +158,13 @@ class EarningController extends Controller
             }
         }
 
-        // 2. Fetch from service_requests (Home Services)
+        // 2. Fetch from service_requests (Home Services - Only completed/paid bookings)
         if (Schema::hasTable('service_requests')) {
             try {
                 $sQuery = DB::table('service_requests')
                     ->leftJoin('tj_user_app', 'service_requests.user_id', '=', 'tj_user_app.id')
                     ->leftJoin('tj_conducteur', 'service_requests.driver_id', '=', 'tj_conducteur.id')
+                    ->whereIn(DB::raw('LOWER(service_requests.status)'), ['completed', 'success', 'paid'])
                     ->select([
                         'service_requests.id',
                         'service_requests.created_at',
@@ -188,7 +189,7 @@ class EarningController extends Controller
                 $services = $sQuery->orderBy('service_requests.id', 'desc')->limit(150)->get();
 
                 foreach ($services as $s) {
-                    $amt = (float)($s->amount ?? 500);
+                    $amt = (float)($s->amount ?? 0);
                     $comm = round($amt * 0.10, 2);
                     $gst = (float)($s->tax_amount ?? ($amt * 0.18));
                     $platformFee = 30.0;
@@ -221,11 +222,11 @@ class EarningController extends Controller
                     $rows[] = [
                         'mode_badge'           => $mode,
                         'date'                 => date('d/m/Y', $rawTime),
-                        'consumer'             => $s->consumer_name ?: 'Customer #' . $s->id,
-                        'provider'             => $s->provider_name ?: 'Service Pro #' . $s->id,
-                        'zone'                 => $s->city ?: 'Lucknow',
+                        'consumer'             => !empty($s->consumer_name) ? $s->consumer_name : '-',
+                        'provider'             => !empty($s->provider_name) ? $s->provider_name : '-',
+                        'zone'                 => !empty($s->city) ? $s->city : '-',
                         'book'                 => 'Home Service',
-                        'nature_of_service'    => $s->service_name ?: 'General Service',
+                        'nature_of_service'    => !empty($s->service_name) ? $s->service_name : 'General Service',
                         'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
                         'promo_after_used'     => $promoAfterUsed,
                         'promo_expired'        => $promoExpired,
@@ -251,11 +252,12 @@ class EarningController extends Controller
             }
         }
 
-        // 3. Fetch from food_orders (Food Delivery Orders)
+        // 3. Fetch from food_orders (Food Delivery Orders - Only completed/delivered bookings)
         if (Schema::hasTable('food_orders')) {
             try {
                 $fQuery = DB::table('food_orders')
                     ->leftJoin('food_restaurants', 'food_orders.restaurant_id', '=', 'food_restaurants.id')
+                    ->whereIn(DB::raw('LOWER(food_orders.status)'), ['completed', 'delivered', 'success', 'paid'])
                     ->select([
                         'food_orders.id',
                         'food_orders.created_at',
@@ -305,10 +307,12 @@ class EarningController extends Controller
                     $promoAfterUsed = ($promoUsed > 0) ? '100' : '-';
                     $promoExpired = ($promoUsed > 0) ? date('d/m/Y', strtotime('+30 days', strtotime($o->created_at ?? 'now'))) : '-';
 
-                    $zone = $o->restaurant_city ?: 'Haldwani';
-                    if (empty($zone) && !empty($o->delivery_address)) {
+                    $zone = '-';
+                    if (!empty($o->restaurant_city)) {
+                        $zone = $o->restaurant_city;
+                    } elseif (!empty($o->delivery_address)) {
                         $parts = explode(',', $o->delivery_address);
-                        $zone = trim(end($parts)) ?: 'Haldwani';
+                        $zone = trim(end($parts)) ?: '-';
                     }
 
                     $nature = 'Order #' . ($o->order_number ?: $o->id);
@@ -320,17 +324,17 @@ class EarningController extends Controller
                     $rows[] = [
                         'mode_badge'           => $mode,
                         'date'                 => date('d/m/Y', $rawTime),
-                        'consumer'             => $o->customer_name ?: 'Customer #' . $o->id,
-                        'provider'             => $o->rider_name ?: ($o->restaurant_name ?: 'Partner #' . $o->restaurant_id),
+                        'consumer'             => !empty($o->customer_name) ? $o->customer_name : '-',
+                        'provider'             => !empty($o->rider_name) ? $o->rider_name : (!empty($o->restaurant_name) ? $o->restaurant_name : '-'),
                         'zone'                 => $zone,
-                        'book'                 => 'Food',
+                        'book'                 => 'Food Delivery',
                         'nature_of_service'    => $nature,
                         'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
                         'promo_after_used'     => $promoAfterUsed,
                         'promo_expired'        => $promoExpired,
-                        'wallet_available'     => '0',
+                        'wallet_available'     => '-',
                         'wallet_deduction'     => ($mode === 'Wallet') ? (string)(int)$totalAmt : '0',
-                        'wallet_after_used'    => '0',
+                        'wallet_after_used'    => '-',
                         'booking_count'        => '1',
                         'booking_amt'          => (string)(int)$amt,
                         'charges_commission'   => (string)(int)$comm,
