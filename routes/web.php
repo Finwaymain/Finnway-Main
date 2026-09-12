@@ -350,6 +350,7 @@ Route::get('/earnings/export/payments', [App\Http\Controllers\EarningController:
 Route::get('/earnings/export/settlement', [App\Http\Controllers\EarningController::class, 'exportSettlement'])->name('earnings.export.settlement');
 Route::get('/earnings/export/profit-loss', [App\Http\Controllers\EarningController::class, 'exportProfitLoss'])->name('earnings.export.profit-loss');
 Route::get('/earnings/export/reports', [App\Http\Controllers\EarningController::class, 'exportDailyReports'])->name('earnings.export.reports');
+Route::get('/earnings/export/charges-ledger', [App\Http\Controllers\EarningController::class, 'exportChargesLedger'])->name('earnings.export.charges-ledger');
 Route::post('/earnings/reset-test-data', [App\Http\Controllers\EarningController::class, 'resetTestData'])->name('earnings.resetTestData');
 Route::get('/earnings/reset-test-data', [App\Http\Controllers\EarningController::class, 'resetTestData']);
 Route::post('/earnings/seed-test-data', [App\Http\Controllers\EarningController::class, 'seedSampleData'])->name('earnings.seedSampleData');

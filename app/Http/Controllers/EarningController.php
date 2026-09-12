@@ -24,14 +24,481 @@ class EarningController extends Controller
     }
 
     /**
-     * Master All-In-One Earning Overview Dashboard (10 Sections)
+     * Exact Model Benchmark Rows as defined by user specification
+     */
+    public function getModelBenchmarkRows(): array
+    {
+        return [
+            [
+                'mode_badge'           => 'Cash',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Rajesh',
+                'provider'             => 'Sani Ojah',
+                'zone'                 => 'haldwani',
+                'book'                 => 'Cab',
+                'nature_of_service'    => 'Durgacity Center to Mangal Padao',
+                'promo_used'           => '50',
+                'promo_after_used'     => '100',
+                'promo_expired'        => '12/10/2026',
+                'wallet_available'     => '0',
+                'wallet_deduction'     => '0',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '1',
+                'booking_amt'          => '500',
+                'charges_commission'   => '50',
+                'charges_gst'          => '90',
+                'charges_platform_fee' => '40',
+                'charges_upi_handling' => '0',
+                'total_amt'            => '630',
+                'payment_mode'         => 'Cash',
+                'fiinway_due_comm'     => '50',
+                'fiinway_due_total'    => '180',
+                'due_from_business'    => 'yes',
+            ],
+            [
+                'mode_badge'           => 'UPI',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Rajesh',
+                'provider'             => 'Sani Ojah',
+                'zone'                 => 'haldwani',
+                'book'                 => 'Cab',
+                'nature_of_service'    => 'Durgacity Center to Mangal Padao',
+                'promo_used'           => '50',
+                'promo_after_used'     => '100',
+                'promo_expired'        => '12/10/2026',
+                'wallet_available'     => '0',
+                'wallet_deduction'     => '0',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '1',
+                'booking_amt'          => '500',
+                'charges_commission'   => '50',
+                'charges_gst'          => '90',
+                'charges_platform_fee' => '30',
+                'charges_upi_handling' => '2',
+                'total_amt'            => '622',
+                'payment_mode'         => 'UPI',
+                'fiinway_due_comm'     => '50',
+                'fiinway_due_total'    => '172',
+                'due_from_business'    => 'Collected',
+            ],
+            [
+                'mode_badge'           => 'Wallet',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Rajesh',
+                'provider'             => 'Sani Ojah',
+                'zone'                 => 'haldwani',
+                'book'                 => 'Cab',
+                'nature_of_service'    => 'Durgacity Center to Mangal Padao',
+                'promo_used'           => '50',
+                'promo_after_used'     => '100',
+                'promo_expired'        => '12/10/2026',
+                'wallet_available'     => '900',
+                'wallet_deduction'     => '283',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '1',
+                'booking_amt'          => '500',
+                'charges_commission'   => '50',
+                'charges_gst'          => '90',
+                'charges_platform_fee' => '27',
+                'charges_upi_handling' => '0',
+                'total_amt'            => '617',
+                'payment_mode'         => 'Wallet',
+                'fiinway_due_comm'     => '50',
+                'fiinway_due_total'    => '167',
+                'due_from_business'    => 'Collected',
+            ],
+            [
+                'mode_badge'           => 'Cash',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Ram Kumar',
+                'provider'             => 'Arif Khan',
+                'zone'                 => 'Kapur',
+                'book'                 => 'Home Service',
+                'nature_of_service'    => 'Bed Install',
+                'promo_used'           => '50',
+                'promo_after_used'     => '250',
+                'promo_expired'        => '12/10/2026',
+                'wallet_available'     => '0',
+                'wallet_deduction'     => '0',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '1',
+                'booking_amt'          => '700',
+                'charges_commission'   => '70',
+                'charges_gst'          => '126',
+                'charges_platform_fee' => '40',
+                'charges_upi_handling' => '0',
+                'total_amt'            => '866',
+                'payment_mode'         => 'Cash',
+                'fiinway_due_comm'     => '70',
+                'fiinway_due_total'    => '236',
+                'due_from_business'    => 'yes',
+            ],
+            [
+                'mode_badge'           => 'UPI',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Shabnam',
+                'provider'             => 'Zaid',
+                'zone'                 => 'Barabanki',
+                'book'                 => 'Home Service',
+                'nature_of_service'    => 'Ac Install',
+                'promo_used'           => '50',
+                'promo_after_used'     => '200',
+                'promo_expired'        => '12/10/2026',
+                'wallet_available'     => '0',
+                'wallet_deduction'     => '0',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '2',
+                'booking_amt'          => '700',
+                'charges_commission'   => '70',
+                'charges_gst'          => '126',
+                'charges_platform_fee' => '30',
+                'charges_upi_handling' => '2',
+                'total_amt'            => '866',
+                'payment_mode'         => 'UPI',
+                'fiinway_due_comm'     => '70',
+                'fiinway_due_total'    => '228',
+                'due_from_business'    => 'Collected',
+            ],
+            [
+                'mode_badge'           => 'Wallet',
+                'date'                 => '12/9/2026',
+                'consumer'             => 'Ranjeeta',
+                'provider'             => 'Neelam',
+                'zone'                 => 'Lucknow',
+                'book'                 => 'Home Service',
+                'nature_of_service'    => 'Cleaning',
+                'promo_used'           => '-',
+                'promo_after_used'     => '-',
+                'promo_expired'        => '-',
+                'wallet_available'     => '0',
+                'wallet_deduction'     => '0',
+                'wallet_after_used'    => '0',
+                'booking_count'        => '5',
+                'booking_amt'          => '100',
+                'charges_commission'   => '10',
+                'charges_gst'          => '18',
+                'charges_platform_fee' => '20',
+                'charges_upi_handling' => '0',
+                'total_amt'            => '866',
+                'payment_mode'         => 'Wallet',
+                'fiinway_due_comm'     => '10',
+                'fiinway_due_total'    => '48',
+                'due_from_business'    => 'Collected',
+            ],
+        ];
+    }
+
+    /**
+     * Compute Real-time Per-Booking Charges & Due Ledger Rows
+     */
+    public function getChargesCalculateLedger(?string $startDate = null, ?string $endDate = null): array
+    {
+        $rows = [];
+
+        // 1. Fetch from tj_requete (Cabs, Rides, Parcels)
+        if (Schema::hasTable('tj_requete')) {
+            try {
+                $query = DB::table('tj_requete')
+                    ->leftJoin('tj_user_app', 'tj_requete.id_user_app', '=', 'tj_user_app.id')
+                    ->leftJoin('tj_conducteur', 'tj_requete.id_conducteur', '=', 'tj_conducteur.id')
+                    ->leftJoin('tj_payment_method', 'tj_requete.id_payment_method', '=', 'tj_payment_method.id')
+                    ->select([
+                        'tj_requete.id',
+                        'tj_requete.creer',
+                        'tj_requete.depart_name',
+                        'tj_requete.destination_name',
+                        'tj_requete.montant',
+                        'tj_requete.admin_commission',
+                        'tj_requete.tax',
+                        'tj_requete.tip_amount',
+                        'tj_requete.discount',
+                        'tj_requete.promotional_amount',
+                        'tj_requete.statut',
+                        'tj_requete.statut_paiement',
+                        'tj_requete.ride_type',
+                        DB::raw("TRIM(CONCAT(COALESCE(tj_user_app.prenom, ''), ' ', COALESCE(tj_user_app.nom, ''))) as consumer_name"),
+                        'tj_user_app.amount as consumer_wallet',
+                        DB::raw("TRIM(CONCAT(COALESCE(tj_conducteur.prenom, ''), ' ', COALESCE(tj_conducteur.nom, ''))) as provider_name"),
+                        'tj_payment_method.libelle as payment_mode',
+                    ]);
+
+                if ($startDate && $endDate) {
+                    $query->whereBetween('tj_requete.creer', [$startDate, $endDate]);
+                }
+
+                $rides = $query->orderBy('tj_requete.id', 'desc')->limit(100)->get();
+
+                foreach ($rides as $r) {
+                    $amt = (float)($r->montant ?? 0);
+                    $comm = (float)($r->admin_commission ?? ($amt * 0.10));
+                    
+                    // Parse GST
+                    $gst = 0.0;
+                    if (!empty($r->tax)) {
+                        if (is_numeric($r->tax)) {
+                            $gst = (float)$r->tax;
+                        } elseif (is_string($r->tax)) {
+                            $decoded = json_decode($r->tax, true);
+                            if (is_array($decoded)) {
+                                foreach ($decoded as $t) {
+                                    $gst += (float)($t['value'] ?? $t['amount'] ?? 0);
+                                }
+                            }
+                        }
+                    }
+                    if ($gst <= 0 && $amt > 0) {
+                        $gst = round($amt * 0.18, 2);
+                    }
+
+                    $platformFee = (float)($r->tip_amount ?? 0);
+                    if ($platformFee <= 0 && $amt > 0) {
+                        $platformFee = 30.0;
+                    }
+
+                    $rawMode = strtolower($r->payment_mode ?? 'cash');
+                    $mode = 'Cash';
+                    $upiHandling = 0.0;
+                    if (str_contains($rawMode, 'upi') || str_contains($rawMode, 'razor') || str_contains($rawMode, 'online') || str_contains($rawMode, 'card')) {
+                        $mode = 'UPI';
+                        $upiHandling = 2.0;
+                    } elseif (str_contains($rawMode, 'wallet')) {
+                        $mode = 'Wallet';
+                    }
+
+                    $totalAmt = $amt + $gst + $platformFee + $upiHandling;
+                    $fiinwayDueTotal = $comm + $gst + $platformFee + $upiHandling;
+                    $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
+
+                    // Zone extraction
+                    $zone = 'Haldwani';
+                    if (!empty($r->depart_name)) {
+                        $parts = explode(',', $r->depart_name);
+                        $zone = trim(end($parts)) ?: 'Haldwani';
+                    }
+
+                    $nature = trim(($r->depart_name ?? '') . ' to ' . ($r->destination_name ?? ''));
+                    if (empty($nature) || $nature === 'to') {
+                        $nature = 'Trip #' . $r->id;
+                    }
+
+                    $promoUsed = (float)($r->promotional_amount ?? $r->discount ?? 0);
+                    $promoAfterUsed = ($promoUsed > 0) ? '100' : '-';
+                    $promoExpired = ($promoUsed > 0) ? date('d/m/Y', strtotime('+30 days', strtotime($r->creer ?? 'now'))) : '-';
+
+                    $walletAvail = (float)($r->consumer_wallet ?? 0);
+                    $walletDeduction = ($mode === 'Wallet') ? $totalAmt : 0.0;
+                    $walletAfterUsed = ($mode === 'Wallet') ? max(0, $walletAvail - $walletDeduction) : $walletAvail;
+
+                    $rows[] = [
+                        'mode_badge'           => $mode,
+                        'date'                 => date('d/m/Y', strtotime($r->creer ?? 'now')),
+                        'consumer'             => $r->consumer_name ?: 'Customer #' . $r->id,
+                        'provider'             => $r->provider_name ?: 'Driver #' . $r->id,
+                        'zone'                 => $zone,
+                        'book'                 => ($r->ride_type === 'parcel') ? 'Parcel' : 'Cab',
+                        'nature_of_service'    => $nature,
+                        'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
+                        'promo_after_used'     => $promoAfterUsed,
+                        'promo_expired'        => $promoExpired,
+                        'wallet_available'     => (string)(int)$walletAvail,
+                        'wallet_deduction'     => (string)(int)$walletDeduction,
+                        'wallet_after_used'    => (string)(int)$walletAfterUsed,
+                        'booking_count'        => '1',
+                        'booking_amt'          => (string)(int)$amt,
+                        'charges_commission'   => (string)(int)$comm,
+                        'charges_gst'          => (string)(int)$gst,
+                        'charges_platform_fee' => (string)(int)$platformFee,
+                        'charges_upi_handling' => (string)(int)$upiHandling,
+                        'total_amt'            => (string)(int)$totalAmt,
+                        'payment_mode'         => $mode,
+                        'fiinway_due_comm'     => (string)(int)$comm,
+                        'fiinway_due_total'    => (string)(int)$fiinwayDueTotal,
+                        'due_from_business'    => $dueFromBusiness,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Ignore gracefully
+            }
+        }
+
+        // 2. Fetch from service_requests (Home Services)
+        if (Schema::hasTable('service_requests')) {
+            try {
+                $sQuery = DB::table('service_requests')
+                    ->leftJoin('tj_user_app', 'service_requests.user_id', '=', 'tj_user_app.id')
+                    ->leftJoin('tj_conducteur', 'service_requests.driver_id', '=', 'tj_conducteur.id')
+                    ->select([
+                        'service_requests.id',
+                        'service_requests.created_at',
+                        'service_requests.service_name',
+                        'service_requests.city',
+                        'service_requests.amount',
+                        'service_requests.tax',
+                        'service_requests.tax_amount',
+                        'service_requests.payment_status',
+                        'service_requests.promotional_amount',
+                        'service_requests.promotional_discount',
+                        'service_requests.status',
+                        DB::raw("TRIM(CONCAT(COALESCE(tj_user_app.prenom, ''), ' ', COALESCE(tj_user_app.nom, ''))) as consumer_name"),
+                        'tj_user_app.amount as consumer_wallet',
+                        DB::raw("TRIM(CONCAT(COALESCE(tj_conducteur.prenom, ''), ' ', COALESCE(tj_conducteur.nom, ''))) as provider_name"),
+                    ]);
+
+                if ($startDate && $endDate) {
+                    $sQuery->whereBetween('service_requests.created_at', [$startDate, $endDate]);
+                }
+
+                $services = $sQuery->orderBy('service_requests.id', 'desc')->limit(100)->get();
+
+                foreach ($services as $s) {
+                    $amt = (float)($s->amount ?? 500);
+                    $comm = round($amt * 0.10, 2);
+                    $gst = (float)($s->tax_amount ?? ($amt * 0.18));
+                    $platformFee = 30.0;
+                    $mode = 'UPI';
+                    $upiHandling = 2.0;
+
+                    if (str_contains(strtolower($s->payment_status ?? ''), 'cash')) {
+                        $mode = 'Cash';
+                        $upiHandling = 0.0;
+                        $platformFee = 40.0;
+                    } elseif (str_contains(strtolower($s->payment_status ?? ''), 'wallet')) {
+                        $mode = 'Wallet';
+                        $upiHandling = 0.0;
+                        $platformFee = 20.0;
+                    }
+
+                    $totalAmt = $amt + $gst + $platformFee + $upiHandling;
+                    $fiinwayDueTotal = $comm + $gst + $platformFee + $upiHandling;
+                    $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
+
+                    $promoUsed = (float)($s->promotional_amount ?? $s->promotional_discount ?? 0);
+                    $promoAfterUsed = ($promoUsed > 0) ? '200' : '-';
+                    $promoExpired = ($promoUsed > 0) ? date('d/m/Y', strtotime('+30 days', strtotime($s->created_at ?? 'now'))) : '-';
+
+                    $walletAvail = (float)($s->consumer_wallet ?? 0);
+                    $walletDeduction = ($mode === 'Wallet') ? $totalAmt : 0.0;
+                    $walletAfterUsed = ($mode === 'Wallet') ? max(0, $walletAvail - $walletDeduction) : $walletAvail;
+
+                    $rows[] = [
+                        'mode_badge'           => $mode,
+                        'date'                 => date('d/m/Y', strtotime($s->created_at ?? 'now')),
+                        'consumer'             => $s->consumer_name ?: 'Customer #' . $s->id,
+                        'provider'             => $s->provider_name ?: 'Service Pro #' . $s->id,
+                        'zone'                 => $s->city ?: 'Lucknow',
+                        'book'                 => 'Home Service',
+                        'nature_of_service'    => $s->service_name ?: 'General Service',
+                        'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
+                        'promo_after_used'     => $promoAfterUsed,
+                        'promo_expired'        => $promoExpired,
+                        'wallet_available'     => (string)(int)$walletAvail,
+                        'wallet_deduction'     => (string)(int)$walletDeduction,
+                        'wallet_after_used'    => (string)(int)$walletAfterUsed,
+                        'booking_count'        => '1',
+                        'booking_amt'          => (string)(int)$amt,
+                        'charges_commission'   => (string)(int)$comm,
+                        'charges_gst'          => (string)(int)$gst,
+                        'charges_platform_fee' => (string)(int)$platformFee,
+                        'charges_upi_handling' => (string)(int)$upiHandling,
+                        'total_amt'            => (string)(int)$totalAmt,
+                        'payment_mode'         => $mode,
+                        'fiinway_due_comm'     => (string)(int)$comm,
+                        'fiinway_due_total'    => (string)(int)$fiinwayDueTotal,
+                        'due_from_business'    => $dueFromBusiness,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Ignore gracefully
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Master All-In-One Earning Overview Dashboard (11 Sections)
      */
     public function index(Request $request)
     {
         [$startDate, $endDate, $dateRange] = $this->parseDateRange($request);
         $stats = $this->computeAllSectionStats($startDate, $endDate);
+        $liveChargesLedger = $this->getChargesCalculateLedger($startDate, $endDate);
+        $modelBenchmarkRows = $this->getModelBenchmarkRows();
 
-        return view('earnings.index', compact('stats', 'dateRange', 'startDate', 'endDate'));
+        return view('earnings.index', compact(
+            'stats',
+            'dateRange',
+            'startDate',
+            'endDate',
+            'liveChargesLedger',
+            'modelBenchmarkRows'
+        ));
+    }
+
+    /**
+     * Export Per-Booking Charges & Due Settlement Ledger to CSV
+     */
+    public function exportChargesLedger(Request $request)
+    {
+        [$startDate, $endDate, $dateRange] = $this->parseDateRange($request);
+        $type = $request->get('type', 'all');
+        $liveRows = $this->getChargesCalculateLedger($startDate, $endDate);
+        $modelRows = $this->getModelBenchmarkRows();
+
+        $rows = ($type === 'live' && count($liveRows) > 0) ? $liveRows : array_merge($modelRows, $liveRows);
+        $filename = "fiinway_booking_charges_due_ledger_" . date('Ymd_His') . ".csv";
+
+        return $this->csvResponse($filename, function () use ($rows, $startDate, $endDate, $dateRange) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($file, ['FIINWAY BOOKING CHARGES & DUE SETTLEMENT LEDGER']);
+            fputcsv($file, ['Date Range Filter:', $dateRange, 'From:', $startDate, 'To:', $endDate]);
+            fputcsv($file, ['Generated At:', date('Y-m-d H:i:s')]);
+            fputcsv($file, []);
+
+            // 23 Group Headers
+            fputcsv($file, [
+                'Payment Mode', 'Date', 'Consumer', 'Service Provider', 'Zone',
+                'Book', 'Nature Of Service',
+                'Promotion Used', 'Promotion After Used', 'Promotion Expired',
+                'Wallet Available', 'Wallet Deduction', 'Wallet After Used',
+                'Booking Count', 'Booking Amt',
+                'Commission', 'GST', 'Platform Fee', 'UPI Handling', 'Total Amt',
+                'Payment Mode', 'Fiinway Due Commission', 'Fiinway Due Total', 'Due From Business User'
+            ]);
+
+            foreach ($rows as $r) {
+                fputcsv($file, [
+                    $r['mode_badge'],
+                    $r['date'],
+                    $r['consumer'],
+                    $r['provider'],
+                    $r['zone'],
+                    $r['book'],
+                    $r['nature_of_service'],
+                    $r['promo_used'],
+                    $r['promo_after_used'],
+                    $r['promo_expired'],
+                    $r['wallet_available'],
+                    $r['wallet_deduction'],
+                    $r['wallet_after_used'],
+                    $r['booking_count'],
+                    $r['booking_amt'],
+                    $r['charges_commission'],
+                    $r['charges_gst'],
+                    $r['charges_platform_fee'],
+                    $r['charges_upi_handling'],
+                    $r['total_amt'],
+                    $r['payment_mode'],
+                    $r['fiinway_due_comm'],
+                    $r['fiinway_due_total'],
+                    $r['due_from_business'],
+                ]);
+            }
+
+            fclose($file);
+        });
     }
 
     /**
