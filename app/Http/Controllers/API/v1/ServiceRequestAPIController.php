@@ -1333,6 +1333,27 @@ class ServiceRequestAPIController extends Controller
         return round(max(0, $amount), 2);
     }
 
+    private function calculateBookingTotalWithTax(ServiceRequest $booking, string $paymentMethod = 'wallet'): float
+    {
+        $base = $this->resolveBookingPayableAmount($booking);
+        $taxAmount = 0.0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+            $taxes = \Illuminate\Support\Facades\DB::table('tj_tax')
+                ->where('statut', 'yes')
+                ->get();
+            foreach ($taxes as $tax) {
+                $methods = !empty($tax->applicable_on) ? explode(',', $tax->applicable_on) : ['cash', 'upi', 'wallet', 'online'];
+                $cleanMethods = array_map(fn($m) => strtolower(trim($m)), $methods);
+                if (in_array(strtolower($paymentMethod), $cleanMethods, true) || in_array('all', $cleanMethods, true) || empty($tax->applicable_on)) {
+                    $val = (float) ($tax->value ?? 0);
+                    $tAmt = ($tax->type === 'Percentage') ? round(($base * $val) / 100, 2) : $val;
+                    $taxAmount += $tAmt;
+                }
+            }
+        }
+        return round($base + $taxAmount, 2);
+    }
+
     private function isBookingPaid(ServiceRequest $booking): bool
     {
         $status = strtolower(trim((string) ($booking->payment_status ?? 'pending')));
@@ -3311,12 +3332,13 @@ class ServiceRequestAPIController extends Controller
                     ['booking_id' => (string) $booking->id, 'status' => 'In Progress']
                 );
             } elseif ($normalized === 'Awaiting Payment') {
-                $billAmount = $booking->final_total ?: $booking->amount;
+                $billAmount = $this->calculateBookingTotalWithTax($booking);
+                $formattedBillAmount = number_format($billAmount, 0, '.', '');
                 $this->sendServiceNotification(
                     (int) $booking->user_id,
                     'customer',
-                    "Bill Generated: ₹{$billAmount}",
-                    "Your {$booking->service_name} is complete. Please review and pay ₹{$billAmount}.",
+                    "Bill Generated: ₹{$formattedBillAmount}",
+                    "Your {$booking->service_name} is complete. Please review and pay ₹{$formattedBillAmount}.",
                     ['booking_id' => (string) $booking->id, 'status' => 'Awaiting Payment', 'amount' => (string) $billAmount]
                 );
             } elseif ($normalized === 'Completed') {
