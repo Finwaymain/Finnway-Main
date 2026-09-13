@@ -184,95 +184,59 @@
                                     @endif
                                 </td>
                                 <td class="text-right">
-                                    <div class="btn-group" role="group">
-                                        @if($v->status === 'pending')
-                                        <button type="button" class="btn btn-sm btn-success font-weight-semibold" data-toggle="modal" data-target="#approveModal{{ $v->id }}">
-                                            Approve & Set Rates
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger font-weight-semibold" data-toggle="modal" data-target="#rejectModal{{ $v->id }}">
-                                            Reject
-                                        </button>
-                                        @endif
-                                        <a href="{{ route('admin.marketing-vendors.show', $v->id) }}" class="btn btn-sm btn-primary font-weight-semibold">
-                                            View Profile & Team
-                                        </a>
-                                    </div>
+                                     <div class="btn-group" role="group">
+                                         @if($v->status === 'pending')
+                                         <button type="button" class="btn btn-sm btn-success font-weight-semibold" onclick="toggleIndexSection('approveBox{{ $v->id }}')">
+                                             Approve & Set Rates
+                                         </button>
+                                         <button type="button" class="btn btn-sm btn-outline-danger font-weight-semibold" onclick="toggleIndexSection('rejectBox{{ $v->id }}')">
+                                             Reject
+                                         </button>
+                                         @endif
+                                         <a href="{{ route('admin.marketing-vendors.show', $v->id) }}" class="btn btn-sm btn-primary font-weight-semibold">
+                                             View Profile & Team
+                                         </a>
+                                     </div>
 
-                                    <!-- Approve Modal -->
-                                    <div class="modal fade" id="approveModal{{ $v->id }}" tabindex="-1" role="dialog" aria-hidden="true">
-                                        <div class="modal-dialog modal-dialog-centered text-left" role="document">
-                                            <div class="modal-content" style="border-radius: 14px;">
-                                                <form action="{{ route('admin.marketing-vendors.approve', $v->id) }}" method="POST">
-                                                    @csrf
-                                                    <div class="modal-header">
-                                                        <h5 class="modal-title font-weight-bold">Approve Vendor & Configure Payout Rates</h5>
-                                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                            <span aria-hidden="true">&times;</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <p class="text-muted" style="font-size: 13px;">
-                                                            Applicant: <strong>{{ $v->applicant_name }}</strong> ({{ $v->team_location }})<br>
-                                                            Team Type: <strong>{{ $v->team_type }}</strong>
-                                                        </p>
-                                                        @if(!empty($v->remarks))
-                                                        <div class="alert alert-light p-2 mb-3 border text-muted" style="font-size: 12px;">
-                                                            <strong>Applicant Remarks:</strong> {{ $v->remarks }}
-                                                        </div>
-                                                        @endif
-                                                        <div class="form-group mb-3">
-                                                            <label class="font-weight-semibold">Payout Rate per Verified Customer (₹) <span class="text-danger">*</span></label>
-                                                            <div class="input-group">
-                                                                <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                                                <input type="number" step="0.01" min="0" name="rate_per_customer" class="form-control" value="15.00" required>
-                                                            </div>
-                                                            <small class="text-muted">How much vendor earns when a verified customer joins.</small>
-                                                        </div>
-                                                        <div class="form-group mb-3">
-                                                            <label class="font-weight-semibold">Payout Rate per Verified Business User / Driver (₹) <span class="text-danger">*</span></label>
-                                                            <div class="input-group">
-                                                                <div class="input-group-prepend"><span class="input-group-text">₹</span></div>
-                                                                <input type="number" step="0.01" min="0" name="rate_per_business" class="form-control" value="50.00" required>
-                                                            </div>
-                                                            <small class="text-muted">How much vendor earns when a verified business driver joins.</small>
-                                                        </div>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-success btn-sm font-weight-bold">Approve Vendor</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
+                                     @if($v->status === 'pending')
+                                     <!-- Inline Approve Panel (NO MODAL) -->
+                                     <div id="approveBox{{ $v->id }}" style="display: none; margin-top: 10px; background: #f0fdf4; border: 1.5px solid #86efac; padding: 12px; border-radius: 10px; text-align: left;">
+                                         <form action="{{ route('admin.marketing-vendors.approve', $v->id) }}" method="POST">
+                                             @csrf
+                                             <div class="font-weight-bold text-success mb-1" style="font-size: 13px;">Approve Vendor & Configure Rates</div>
+                                             <div class="row">
+                                                 <div class="col-6 mb-2">
+                                                     <label style="font-size: 11.5px; font-weight: 600;">Rate/Customer (₹) *</label>
+                                                     <input type="number" step="0.01" min="0" name="rate_per_customer" class="form-control form-control-sm" value="15.00" required>
+                                                 </div>
+                                                 <div class="col-6 mb-2">
+                                                     <label style="font-size: 11.5px; font-weight: 600;">Rate/Business (₹) *</label>
+                                                     <input type="number" step="0.01" min="0" name="rate_per_business" class="form-control form-control-sm" value="50.00" required>
+                                                 </div>
+                                             </div>
+                                             <div class="d-flex justify-content-end gap-1">
+                                                 <button type="button" class="btn btn-light btn-sm py-1 px-2" style="font-size: 11px;" onclick="toggleIndexSection('approveBox{{ $v->id }}')">Cancel</button>
+                                                 <button type="submit" class="btn btn-success btn-sm py-1 px-2 font-weight-bold" style="font-size: 11px;">✓ Confirm Approval</button>
+                                             </div>
+                                         </form>
+                                     </div>
 
-                                    <!-- Reject Modal -->
-                                    <div class="modal fade" id="rejectModal{{ $v->id }}" tabindex="-1" role="dialog" aria-hidden="true">
-                                        <div class="modal-dialog modal-dialog-centered text-left" role="document">
-                                            <div class="modal-content" style="border-radius: 14px;">
-                                                <form action="{{ route('admin.marketing-vendors.reject', $v->id) }}" method="POST">
-                                                    @csrf
-                                                    <div class="modal-header">
-                                                        <h5 class="modal-title font-weight-bold">Reject Vendor Application</h5>
-                                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                            <span aria-hidden="true">&times;</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <div class="form-group">
-                                                            <label class="font-weight-semibold">Rejection Reason</label>
-                                                            <textarea name="rejection_reason" class="form-control" rows="3" placeholder="Enter reason for rejection..." required>Does not meet territory requirements.</textarea>
-                                                        </div>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-danger btn-sm font-weight-bold">Reject Application</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-
+                                     <!-- Inline Reject Panel (NO MODAL) -->
+                                     <div id="rejectBox{{ $v->id }}" style="display: none; margin-top: 10px; background: #fef2f2; border: 1.5px solid #fca5a5; padding: 12px; border-radius: 10px; text-align: left;">
+                                         <form action="{{ route('admin.marketing-vendors.reject', $v->id) }}" method="POST">
+                                             @csrf
+                                             <div class="font-weight-bold text-danger mb-1" style="font-size: 13px;">Reject Vendor Application</div>
+                                             <div class="form-group mb-2">
+                                                 <label style="font-size: 11.5px; font-weight: 600;">Rejection Reason *</label>
+                                                 <input type="text" name="rejection_reason" class="form-control form-control-sm" placeholder="Reason..." value="Application did not meet territory requirements." required>
+                                             </div>
+                                             <div class="d-flex justify-content-end gap-1">
+                                                 <button type="button" class="btn btn-light btn-sm py-1 px-2" style="font-size: 11px;" onclick="toggleIndexSection('rejectBox{{ $v->id }}')">Cancel</button>
+                                                 <button type="submit" class="btn btn-danger btn-sm py-1 px-2 font-weight-bold" style="font-size: 11px;">Confirm Reject</button>
+                                             </div>
+                                         </form>
+                                     </div>
+                                     @endif
                                 </td>
                             </tr>
                             @empty
@@ -299,4 +263,16 @@
 
     </div>
 </div>
+
+<script>
+function toggleIndexSection(elementId) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    if (el.style.display === 'none' || el.style.display === '') {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+</script>
 @endsection
