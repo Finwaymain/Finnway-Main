@@ -45,7 +45,7 @@
                     <li><a href="{!! route('users.all') !!}">All Users</a></li>
                     <li><a href="{!! url('/users') !!}">Consumers</a></li>
                     <li><a href="{!! url('/drivers') !!}">Business Users</a></li>
-                    <li class="{{ request()->is('business-tracking*') ? 'active' : '' }}"><a href="{!! route('business.tracking') !!}"><i class="mdi mdi-crosshairs-gps text-danger mr-1"></i> Live Business Tracking</a></li>
+                    <li class="{{ request()->is('business-tracking*') ? 'active' : '' }}"><a href="{!! route('business.tracking') !!}">Live Business Tracking</a></li>
                 @endif
 
                 @if($authUser->isAdmin() || $authUser->hasPermission('kyc_approval'))
@@ -81,8 +81,8 @@
                 <span class="hide-menu font-weight-bold">Partner Kits</span>
             </a>
             <ul aria-expanded="false" class="collapse">
-                <li><a href="{!! route('driver-kits.index') !!}"><i class="mdi mdi-package-variant-closed text-primary mr-1"></i> Kits & Products</a></li>
-                <li><a href="{!! route('driver-kits.orders') !!}"><i class="mdi mdi-truck-delivery text-success mr-1"></i> Kit Orders & Tracking</a></li>
+                <li><a href="{!! route('driver-kits.index') !!}">Kits & Products</a></li>
+                <li><a href="{!! route('driver-kits.orders') !!}">Kit Orders & Tracking</a></li>
             </ul>
         </li>
         @endif
@@ -95,8 +95,8 @@
                 <span class="hide-menu font-weight-bold">Marketplace</span>
             </a>
             <ul aria-expanded="false" class="collapse {{ request()->is('marketplace/admin*') ? 'in' : '' }}">
-                <li><a href="{!! route('admin.marketplace.orders.index') !!}"><i class="mdi mdi-clipboard-text mr-1 text-primary"></i> Marketplace Orders</a></li>
-                <li><a href="{!! route('admin.marketplace.commission.index') !!}"><i class="mdi mdi-percent mr-1 text-success"></i> Marketplace Commission</a></li>
+                <li><a href="{!! route('admin.marketplace.orders.index') !!}">Marketplace Orders</a></li>
+                <li><a href="{!! route('admin.marketplace.commission.index') !!}">Marketplace Commission</a></li>
             </ul>
         </li>
         @endif
@@ -109,17 +109,17 @@
                 <span class="hide-menu font-weight-bold">Restaurant</span>
             </a>
             <ul aria-expanded="false" class="collapse {{ request()->is('admin/food*') ? 'in' : '' }}">
-                <li><a href="{!! route('admin.food.dashboard') !!}"><i class="mdi mdi-view-dashboard mr-1 text-primary"></i> Food Dashboard</a></li>
-                <li><a href="{!! route('admin.food.live') !!}"><i class="mdi mdi-radar mr-1 text-danger"></i> Live Command</a></li>
-                <li><a href="{!! route('admin.food.restaurants') !!}"><i class="mdi mdi-store mr-1 text-success"></i> Restaurants</a></li>
-                <li><a href="{!! route('admin.food.types') !!}"><i class="mdi mdi-shape mr-1 text-info"></i> Types & Fees</a></li>
-                <li><a href="{!! route('admin.food.cuisines') !!}"><i class="mdi mdi-silverware-fork-knife mr-1 text-warning"></i> Cuisines Master</a></li>
-                <li><a href="{!! route('admin.food.orders') !!}"><i class="mdi mdi-clipboard-list mr-1 text-warning"></i> Food Orders</a></li>
-                <li><a href="{!! route('admin.food.commissions') !!}"><i class="mdi mdi-percent mr-1 text-success"></i> Commission & Markup</a></li>
-                <li><a href="{!! route('admin.food.charges') !!}"><i class="mdi mdi-cash-multiple mr-1 text-primary"></i> Charges & Delivery</a></li>
-                <li><a href="{!! route('admin.food.settlements') !!}"><i class="mdi mdi-bank-transfer mr-1 text-info"></i> Settlements</a></li>
-                <li><a href="{!! route('admin.food.disputes') !!}"><i class="mdi mdi-gavel mr-1 text-danger"></i> Disputes</a></li>
-                <li><a href="{!! route('admin.food.settings') !!}"><i class="mdi mdi-settings mr-1 text-secondary"></i> Food Settings</a></li>
+                <li><a href="{!! route('admin.food.dashboard') !!}">Food Dashboard</a></li>
+                <li><a href="{!! route('admin.food.live') !!}">Live Command</a></li>
+                <li><a href="{!! route('admin.food.restaurants') !!}">Restaurants</a></li>
+                <li><a href="{!! route('admin.food.types') !!}">Types & Fees</a></li>
+                <li><a href="{!! route('admin.food.cuisines') !!}">Cuisines Master</a></li>
+                <li><a href="{!! route('admin.food.orders') !!}">Food Orders</a></li>
+                <li><a href="{!! route('admin.food.commissions') !!}">Commission & Markup</a></li>
+                <li><a href="{!! route('admin.food.charges') !!}">Charges & Delivery</a></li>
+                <li><a href="{!! route('admin.food.settlements') !!}">Settlements</a></li>
+                <li><a href="{!! route('admin.food.disputes') !!}">Disputes</a></li>
+                <li><a href="{!! route('admin.food.settings') !!}">Food Settings</a></li>
             </ul>
         </li>
         @endif
@@ -147,9 +147,9 @@
                 <span class="hide-menu font-weight-bold">Medical Cashback</span>
             </a>
             <ul aria-expanded="false" class="collapse">
-                <li><a href="{!! route('admin.medical.index') !!}"><i class="mdi mdi-clipboard-check text-warning mr-1"></i> Claims Verification Queue</a></li>
-                <li><a href="{!! route('admin.medical.plans.index') !!}"><i class="mdi mdi-settings text-primary mr-1"></i> Manage Card Plans</a></li>
-                <li><a href="{!! route('admin.medical.cards') !!}"><i class="mdi mdi-credit-card text-success mr-1"></i> Active Medical Cards</a></li>
+                <li><a href="{!! route('admin.medical.index') !!}">Claims Verification Queue</a></li>
+                <li><a href="{!! route('admin.medical.plans.index') !!}">Manage Card Plans</a></li>
+                <li><a href="{!! route('admin.medical.cards') !!}">Active Medical Cards</a></li>
             </ul>
         </li>
         @endif
@@ -269,10 +269,10 @@
                 <span class="hide-menu">Support & Customer Care</span>
             </a>
             <ul aria-expanded="false" class="collapse">
-                <li><a href="{!! route('support.chat.index') !!}"><i class="mdi mdi-forum"></i> Support Live Chat</a></li>
-                <li><a href="{!! route('support.questions.index') !!}"><i class="mdi mdi-help-circle-outline"></i> Quick Questions</a></li>
-                <li><a href="{!! route('customer-care.index') !!}"><i class="mdi mdi-phone-in-talk"></i> Customer Care Contact</a></li>
-                <li><a href="{!! url('complaints') !!}"><i class="mdi mdi-message-text-outline"></i> Complaints & Tickets</a></li>
+                <li><a href="{!! route('support.chat.index') !!}">Support Live Chat</a></li>
+                <li><a href="{!! route('support.questions.index') !!}">Quick Questions</a></li>
+                <li><a href="{!! route('customer-care.index') !!}">Customer Care Contact</a></li>
+                <li><a href="{!! url('complaints') !!}">Complaints & Tickets</a></li>
                 <li><a href="{!! url('sos') !!}">SOS Alerts</a></li>
                 @if($authUser->isAdmin() || $authUser->hasPermission('system_settings'))
                     <li><a href="{!! url('cms') !!}">CMS Pages</a></li>
@@ -291,7 +291,7 @@
                 <span class="hide-menu">System Settings</span>
             </a>
             <ul aria-expanded="false" class="collapse" style="max-height: 250px; overflow-y: auto;">
-                <li><a href="{!! route('app-version-control.index') !!}"><i class="mdi mdi-cellphone-arrow-down"></i> App Version Control</a></li>
+                <li><a href="{!! route('app-version-control.index') !!}">App Version Control</a></li>
                 <li><a href="{!! url('administration_tools/settings') !!}">General Settings</a></li>
                 <li><a href="{!! route('api-keys.index') !!}">Dynamic API Keys</a></li>
                 <li><a href="{!! url('administration_tools/tax') !!}">Tax Configuration</a></li>
@@ -302,7 +302,7 @@
                 <li><a href="{!! url('language') !!}">Languages</a></li>
                 <li><a href="{!! url('administration_tools/currency') !!}">Currencies</a></li>
                 <li><a href="{!! url('administration_tools/email_template') !!}">Email Templates</a></li>
-                <li><a href="{!! route('database-backup.index') !!}"><i class="mdi mdi-database"></i> Database Backup & Restore</a></li>
+                <li><a href="{!! route('database-backup.index') !!}">Database Backup & Restore</a></li>
                 <li><a href="{!! url('administration_tools/terms_condition') !!}">Terms & Conditions</a></li>
                 <li><a href="{!! url('administration_tools/privacy_policy') !!}">Privacy Policy</a></li>
             </ul>
