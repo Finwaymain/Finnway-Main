@@ -43,15 +43,15 @@
         <div class="card mb-4">
             <div class="card-body py-3">
                 <form method="GET" action="{{ route('users.all') }}" class="row align-items-center">
-                    <div class="col-md-3 mb-2 mb-md-0">
+                    <div class="col-md-2 mb-2 mb-md-0">
                         <label class="form-label font-weight-bold text-muted mb-1" style="font-size:12px;">User Type</label>
                         <select name="user_type_filter" class="form-control form-control-sm">
-                            <option value="">All Users (Consumer &amp; Business)</option>
-                            <option value="consumer" {{ request('user_type_filter')=='consumer' ? 'selected':'' }}>Consumers (Customers)</option>
-                            <option value="driver"   {{ request('user_type_filter')=='driver'   ? 'selected':'' }}>Business / Drivers / Delivery</option>
+                            <option value="">All Users</option>
+                            <option value="consumer" {{ request('user_type_filter')=='consumer' ? 'selected':'' }}>Consumers</option>
+                            <option value="driver"   {{ request('user_type_filter')=='driver'   ? 'selected':'' }}>Business / Drivers</option>
                         </select>
                     </div>
-                    <div class="col-md-3 mb-2 mb-md-0">
+                    <div class="col-md-2 mb-2 mb-md-0">
                         <label class="form-label font-weight-bold text-muted mb-1" style="font-size:12px;">Search By</label>
                         <select name="selected_search" class="form-control form-control-sm">
                             <option value="prenom" {{ request('selected_search')=='prenom' ? 'selected':'' }}>Name</option>
@@ -59,11 +59,19 @@
                             <option value="email"  {{ request('selected_search')=='email'  ? 'selected':'' }}>Email</option>
                         </select>
                     </div>
-                    <div class="col-md-4 mb-2 mb-md-0">
+                    <div class="col-md-3 mb-2 mb-md-0">
                         <label class="form-label font-weight-bold text-muted mb-1" style="font-size:12px;">Keyword</label>
                         <input type="text" name="search" class="form-control form-control-sm" placeholder="Search..." value="{{ request('search') }}">
                     </div>
-                    <div class="col-md-2 mt-md-4 text-right">
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <label class="form-label font-weight-bold text-muted mb-1" style="font-size:12px;">Per Page</label>
+                        <select name="per_page" class="form-control form-control-sm" onchange="this.form.submit()">
+                            <option value="50" {{ request('per_page', 50) == 50 ? 'selected':'' }}>50 / page</option>
+                            <option value="100" {{ request('per_page') == 100 ? 'selected':'' }}>100 / page</option>
+                            <option value="200" {{ request('per_page') == 200 ? 'selected':'' }}>200 / page</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mt-md-4 text-right">
                         <button type="submit" class="btn btn-sm btn-primary"><i class="fa fa-filter mr-1"></i>Filter</button>
                         <a href="{{ route('users.all') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
                     </div>
@@ -370,9 +378,19 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="text-muted small">
-                                Showing {{ $users->firstItem() ?? 0 }} to {{ $users->lastItem() ?? 0 }} of {{ $users->total() }} users
+                        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap" style="gap:10px;">
+                            <div class="d-flex align-items-center" style="gap:12px;">
+                                <div class="text-muted small">
+                                    Showing {{ $users->firstItem() ?? 0 }} to {{ $users->lastItem() ?? 0 }} of {{ $users->total() }} users
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="text-muted small mr-1 font-weight-bold">Per Page:</span>
+                                    <select class="form-control form-control-sm py-0" style="width: auto; height: 28px; font-size: 12px;" onchange="updatePerPage(this.value)">
+                                        <option value="50" {{ request('per_page', 50) == 50 ? 'selected' : '' }}>50</option>
+                                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100</option>
+                                        <option value="200" {{ request('per_page') == 200 ? 'selected' : '' }}>200</option>
+                                    </select>
+                                </div>
                             </div>
                             {{ $users->appends(request()->query())->links('pagination.pagination') }}
                         </div>
@@ -399,6 +417,13 @@ var USER_UPDATE_URL   = "{{ route('users.quickUpdate') }}";
 var DRIVER_UPDATE_URL = "{{ route('driver.quickUpdate') }}";
 var CSRF_TOKEN        = "{{ csrf_token() }}";
 
+function updatePerPage(val) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
 // Initialize DataTables properly to prevent UI glitch
 $(document).ready(function() {
     // Hide loader and show content
@@ -406,8 +431,8 @@ $(document).ready(function() {
     $('#filterSection').fadeIn();
     
     $('#allUsersTable').DataTable({
-        'pageLength': 20,
-        'lengthMenu': [10, 20, 50, 100],
+        'paging': false,
+        'info': false,
         'order': [[1, 'desc']],
         'columnDefs': [
             { 'orderable': false, 'targets': [0, -1] },
@@ -415,7 +440,7 @@ $(document).ready(function() {
         ],
         'language': {
             'search': '_INPUT_',
-            'searchPlaceholder': 'Search...'
+            'searchPlaceholder': 'Search on page...'
         },
         'initComplete': function() {
             $('#allUsersTable_wrapper').addClass('dt-initialized');

@@ -68,7 +68,11 @@ class DriverController extends Controller
         }
 
 
-        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate(20);
+        $perPage = (int) $request->input('per_page', 50);
+        if (!in_array($perPage, [50, 100, 200])) {
+            $perPage = 50;
+        }
+        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate($perPage)->appends($request->all());
 
         $driverIds = $drivers->pluck('id')->filter()->toArray();
         $multiCats = [];
@@ -162,7 +166,11 @@ class DriverController extends Controller
             $status == 'active' ? $query->where('tj_conducteur.statut', 'yes') : $query->where('tj_conducteur.statut', 'no');
         }
 
-        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate(20);
+        $perPage = (int) $request->input('per_page', 50);
+        if (!in_array($perPage, [50, 100, 200])) {
+            $perPage = 50;
+        }
+        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate($perPage)->appends($request->all());
 
         $drivers->map(function ($driver) {
             if (!empty($driver->email)) {
@@ -217,7 +225,11 @@ class DriverController extends Controller
             $status = $request->input('status_selector');
             $status == 'active' ? $query->where('tj_conducteur.statut', 'yes') : $query->where('tj_conducteur.statut', 'no');
         }
-        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate(20);
+        $perPage = (int) $request->input('per_page', 50);
+        if (!in_array($perPage, [50, 100, 200])) {
+            $perPage = 50;
+        }
+        $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate($perPage)->appends($request->all());
 
         $drivers->map(function ($driver) {
             if (!empty($driver->email)) {

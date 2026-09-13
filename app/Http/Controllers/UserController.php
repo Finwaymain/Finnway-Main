@@ -555,7 +555,11 @@ class UserController extends Controller
             $status = $request->input('status_selector');
             $status == 'active' ? $sql->where('statut', 'yes') : $sql->where('statut', 'no');
         }
-        $users = $sql->orderBy('id', 'desc')->paginate(20);
+        $perPage = (int) $request->input('per_page', 50);
+        if (!in_array($perPage, [50, 100, 200])) {
+            $perPage = 50;
+        }
+        $users = $sql->orderBy('id', 'desc')->paginate($perPage)->appends($request->all());
         $users->map(function ($user) {
             if (! empty($user->email)) {
                 $user->email = Helper::shortEmail($user->email);
@@ -1144,8 +1148,11 @@ class UserController extends Controller
             ->mergeBindings($unionQuery)
             ->count();
 
-        $page = $request->input('page', 1);
-        $perPage = 20;
+        $perPage = (int) $request->input('per_page', 50);
+        if (!in_array($perPage, [50, 100, 200])) {
+            $perPage = 50;
+        }
+        $page = (int) $request->input('page', 1);
         $offset = ($page - 1) * $perPage;
 
         $results = DB::table(DB::raw("({$unionQuery->toSql()}) as union_table"))

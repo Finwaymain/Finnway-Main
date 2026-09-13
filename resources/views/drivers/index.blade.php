@@ -74,6 +74,14 @@
                         <div class="userlist-topsearch d-flex mb-3 align-items-center flex-wrap" style="gap:8px;">
                             <a class="btn btn-warning btn-sm text-dark font-weight-bold" href="{!! route('drivers.create') !!}"><i class="fa fa-plus mr-1"></i>Add Business User</a>
                             <form action="{{ route('drivers') }}" method="get" class="d-flex align-items-center ml-auto" style="gap:6px; flex-wrap:wrap;">
+                                <div class="d-flex align-items-center mr-1">
+                                    <label class="mb-0 small text-muted font-weight-bold mr-1" style="white-space:nowrap;">Show:</label>
+                                    <select name="per_page" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
+                                        <option value="50" {{ request('per_page', 50) == 50 ? 'selected' : '' }}>50</option>
+                                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100</option>
+                                        <option value="200" {{ request('per_page') == 200 ? 'selected' : '' }}>200</option>
+                                    </select>
+                                </div>
                                 <select name="selected_search" class="form-control form-control-sm" style="width:130px;">
                                     <option value="prenom" {{ (isset($_GET['selected_search']) && $_GET['selected_search']=='prenom') ? 'selected' : '' }}>Name</option>
                                     <option value="phone" {{ (isset($_GET['selected_search']) && $_GET['selected_search']=='phone') ? 'selected' : '' }}>Mobile</option>
@@ -510,9 +518,19 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="text-muted small">
-                                Showing {{ $drivers->firstItem() ?? 0 }} to {{ $drivers->lastItem() ?? 0 }} of {{ $drivers->total() }} drivers
+                        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap" style="gap:10px;">
+                            <div class="d-flex align-items-center" style="gap:12px;">
+                                <div class="text-muted small">
+                                    Showing {{ $drivers->firstItem() ?? 0 }} to {{ $drivers->lastItem() ?? 0 }} of {{ $drivers->total() }} drivers
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="text-muted small mr-1 font-weight-bold">Per Page:</span>
+                                    <select class="form-control form-control-sm py-0" style="width: auto; height: 28px; font-size: 12px;" onchange="updatePerPage(this.value)">
+                                        <option value="50" {{ request('per_page', 50) == 50 ? 'selected' : '' }}>50</option>
+                                        <option value="100" {{ request('per_page') == 100 ? 'selected' : '' }}>100</option>
+                                        <option value="200" {{ request('per_page') == 200 ? 'selected' : '' }}>200</option>
+                                    </select>
+                                </div>
                             </div>
                             {{ $drivers->appends(request()->query())->links('pagination.pagination') }}
                         </div>
@@ -539,6 +557,13 @@ var QUICK_UPDATE_URL = "{{ route('driver.quickUpdate') }}";
 var CSRF_TOKEN       = "{{ csrf_token() }}";
 var _qeModal;
 
+function updatePerPage(val) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
 // Initialize DataTables properly to prevent UI glitch
 $(document).ready(function() {
     // Hide loader and show content
@@ -547,8 +572,8 @@ $(document).ready(function() {
     
     if ($.fn.DataTable && $('#example24').length) {
         $('#example24').DataTable({
-            'pageLength': 20,
-            'lengthMenu': [10, 20, 50, 100],
+            'paging': false,
+            'info': false,
             'order': [[1, 'desc']],
             'columnDefs': [
                 { 'orderable': false, 'targets': [0, 18] },
@@ -556,7 +581,7 @@ $(document).ready(function() {
             ],
             'language': {
                 'search': '_INPUT_',
-                'searchPlaceholder': 'Search...'
+                'searchPlaceholder': 'Search on page...'
             },
             'initComplete': function() {
                 $('#example24_wrapper').addClass('dt-initialized');
