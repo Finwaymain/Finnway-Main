@@ -41,10 +41,8 @@ class GcmController extends Controller
                          ($fcmData['tag'] ?? '') === 'ridenewrider' || 
                          ($fcmData['tag'] ?? '') === 'parcelnew';
 
-        $isHomeServiceAlert = ($fcmData['type'] ?? '') === 'homeservice' || 
-                              ($fcmData['tag'] ?? '') === 'homeservicerequest' || 
-                              ($fcmData['tag'] ?? '') === 'homeservicenotif' || 
-                              !empty($fcmData['booking_id']);
+        $isHomeServiceAlert = ($fcmData['tag'] ?? '') === 'homeservicerequest' || 
+                              (($fcmData['type'] ?? '') === 'homeservice' && ($fcmData['statut'] ?? '') === 'new');
 
         $isIncomingAlert = $isRideRequest || $isHomeServiceAlert;
         $channelId = $isIncomingAlert ? 'ride_requests' : 'high_importance_channel';

@@ -790,6 +790,17 @@ Route::get('v1/driver/bookings', [\App\Http\Controllers\API\v1\ServiceRequestAPI
 Route::post('v1/driver/bookings/service-status', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'updateServiceBookingStatus']);
 Route::get('v1/driver/wallet-status', [\App\Http\Controllers\API\v1\ServiceRequestAPIController::class, 'getDriverWalletStatus']);
 
+// ── Vendor & Team Marketing Management API ─────────────────────────────────
+Route::match(['get', 'post'], 'v1/vendor-team/status', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getStatus']);
+Route::match(['get', 'post'], 'vendor-team/status', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getStatus']);
+Route::post('v1/vendor-team/apply', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'apply']);
+Route::post('vendor-team/apply', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'apply']);
+Route::match(['get', 'post'], 'v1/vendor-team/vendor-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getVendorDashboard']);
+Route::match(['get', 'post'], 'vendor-team/vendor-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getVendorDashboard']);
+Route::match(['get', 'post'], 'v1/vendor-team/member-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getMemberDashboard']);
+Route::match(['get', 'post'], 'vendor-team/member-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getMemberDashboard']);
+
+
 // ── Dynamic Public API Keys Endpoint ──────────────────────────────────────
 Route::get('v1/app-settings/keys', function() {
     $keys = \App\Models\ApiKeySetting::where('is_active', true)->get()->mapWithKeys(function($item) {

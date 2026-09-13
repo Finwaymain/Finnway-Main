@@ -1270,3 +1270,16 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::post('/cuisines/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveCuisine'])->name('cuisines.save');
     Route::delete('/cuisines/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'deleteCuisine'])->name('cuisines.delete');
 });
+
+// ── Marketing Vendor & Multi-Tier Team Management ────────────────────────
+Route::middleware(['auth'])->prefix('admin/marketing-vendors')->name('admin.marketing-vendors.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'index'])->name('index');
+    Route::get('/{id}', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'show'])->name('show');
+    Route::post('/{id}/approve', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'approve'])->name('approve');
+    Route::post('/{id}/reject', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'reject'])->name('reject');
+    Route::post('/{id}/rates', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'updateRates'])->name('rates');
+    Route::post('/acquisition/{id}/verify', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'verifyAcquisition'])->name('verify-acquisition');
+    Route::post('/acquisition/{id}/reject', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'rejectAcquisition'])->name('reject-acquisition');
+    Route::post('/{id}/payout', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'settlePayout'])->name('payout');
+});
+

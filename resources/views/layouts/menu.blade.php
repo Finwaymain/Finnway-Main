@@ -191,6 +191,17 @@
         </li>
         @endif
 
+        <!-- 6.6. Vendor & Team Management -->
+        @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('referral_engine') || $authUser->hasPermission('marketing_campaigns') || $authUser->isSubAdmin()))
+        <li class="{{ request()->is('admin/marketing-vendors*') ? 'active' : '' }}">
+            <a class="waves-effect waves-dark {{ request()->is('admin/marketing-vendors*') ? 'active' : '' }}" href="{!! route('admin.marketing-vendors.index') !!}">
+                <i class="mdi mdi-account-group text-info"></i>
+                <span class="hide-menu font-weight-bold">Vendor & Teams</span>
+            </a>
+        </li>
+        @endif
+
+
         <!-- 7. Services & Transport -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('services_transport')))
         <li>

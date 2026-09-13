@@ -353,7 +353,7 @@
                     </tr>
                     <tr style="background: #f0fdf4;">
                         <td>
-                            <span style="font-size:13px; color:#15803D; font-weight:700;">🎁 Welcome Bonus Applied</span><br>
+                            <span style="font-size:13px; color:#15803D; font-weight:700;">🎁 Promotion Bonus Applied</span><br>
                             <span style="font-size:11px; color:#16a34a;">Service Promotional Discount</span>
                         </td>
                         <td style="color:#15803D; font-size:14.5px; font-weight:800;">-{{ $currencySymbol }}{{ number_format($promotionalDiscount, 2) }}</td>

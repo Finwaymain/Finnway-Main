@@ -33,6 +33,9 @@ class ServiceRequest extends Model
         'payment_status',
         'price_breakdown',
         'rejected_driver_ids',
+        'promotional_amount',
+        'promotional_discount',
+        'is_promotional_applied',
     ];
 
     public function user()

@@ -18,10 +18,10 @@
                                     </span>
                                 </div>
                                 <h2 class="font-weight-bold mb-1 text-dark" style="font-size: 24px; letter-spacing: -0.3px;">
-                                    Promotional & Welcome Bonus Engine
+                                    Promotional & Promotion Bonus Engine
                                 </h2>
                                 <p class="text-muted mb-0" style="font-size: 13px;">
-                                    Configure welcome bonus credits, per-service discounts, validity, and bill thresholds.
+                                    Configure promotion bonus credits, per-service discounts, validity, and bill thresholds.
                                 </p>
                             </div>
                             <div class="d-flex align-items-center gap-3">
@@ -148,7 +148,7 @@
                                         <!-- Bonus & Uses -->
                                         <div class="row">
                                             <div class="col-md-6 mb-3">
-                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Promotion Bonus Amount (₹)</label>
                                                 <div class="input-group">
                                                     <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
                                                     <input type="number" step="0.01" name="bonus_with_code" class="form-control font-weight-bold text-primary" value="{{ old('bonus_with_code', $config->bonus_with_code ?? 300.00) }}" required>
@@ -217,7 +217,7 @@
                                                     <option value="customer" {{ $roleTier1 === 'customer' ? 'selected' : '' }}>Consumers Only</option>
                                                     <option value="driver" {{ $roleTier1 === 'driver' ? 'selected' : '' }}>Drivers / Business Only</option>
                                                 </select>
-                                                <small class="text-muted">Who receives Tier 1 Welcome Bonus</small>
+                                                <small class="text-muted">Who receives Tier 1 Promotion Bonus</small>
                                             </div>
                                         </div>
                                     </div>
@@ -237,7 +237,7 @@
                                         <!-- Bonus & Uses -->
                                         <div class="row">
                                             <div class="col-md-6 mb-3">
-                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Welcome Bonus Amount (₹)</label>
+                                                <label class="font-weight-bold text-dark" style="font-size: 13px;">Promotion Bonus Amount (₹)</label>
                                                 <div class="input-group">
                                                     <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
                                                     <input type="number" step="0.01" name="bonus_without_code" class="form-control font-weight-bold text-info" value="{{ old('bonus_without_code', $config->bonus_without_code ?? 150.00) }}" required>
@@ -306,7 +306,7 @@
                                                     <option value="customer" {{ $roleTier2 === 'customer' ? 'selected' : '' }}>Consumers Only</option>
                                                     <option value="driver" {{ $roleTier2 === 'driver' ? 'selected' : '' }}>Drivers / Business Only</option>
                                                 </select>
-                                                <small class="text-muted">Who receives Tier 2 Welcome Bonus</small>
+                                                <small class="text-muted">Who receives Tier 2 Promotion Bonus</small>
                                             </div>
                                         </div>
                                     </div>
@@ -345,7 +345,7 @@
                     <div class="card-header bg-white border-bottom py-3 px-4 d-flex flex-wrap align-items-center justify-content-between gap-2" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
                         <div>
                             <h5 class="font-weight-bold mb-0 text-dark">Active Promotional Users Ledger</h5>
-                            <small class="text-muted">Users who have received promotional welcome bonus credits with active balances and uses.</small>
+                            <small class="text-muted">Users who have received promotional bonus credits with active balances and uses.</small>
                         </div>
                         <span class="badge bg-primary text-white px-3 py-1 font-weight-bold" style="border-radius: 20px; font-size: 12px;">
                             {{ count($users) }} Users Registered

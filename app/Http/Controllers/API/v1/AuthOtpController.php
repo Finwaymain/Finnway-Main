@@ -1337,6 +1337,40 @@ class AuthOtpController extends Controller
             $userId = (int)$userId;
             $userCat = in_array(strtolower(trim($userCat)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
             $referralCode = trim((string)$referralCode);
+
+            // ── CHECK MARKETING VENDOR / TEAM MEMBER CODES ─────────────────────────
+            if (!empty($referralCode)) {
+                // 1. Check if Vendor Code (TM...) — Registers user as Team Member under Vendor
+                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
+                if ($vendor) {
+                    \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
+                    \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                    if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
+                    return;
+                }
+
+                // 2. Check if Team Member Code (FR...) — Records marketing acquisition
+                $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
+                if ($teamMember) {
+                    \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
+                    \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                    if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
+                    return;
+                }
+            }
+
             $referrer = !empty($referralCode) ? $this->resolveReferrerUserId($referralCode) : null;
             $isSelf = false;
             if ($referrer) {
