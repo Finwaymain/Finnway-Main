@@ -406,53 +406,127 @@ class VendorTeamService
         foreach ($membersRaw as $m) {
             $name = 'Freelancer';
             $phone = '';
+            $photo = null;
+            $zone = $vendor->team_location ?? 'DELHI';
+
             if ($m->user_type === 'customer') {
-                $u = DB::table('tj_user_app')->where('id', $m->user_id)->select('prenom', 'nom', 'phone')->first();
+                $u = DB::table('tj_user_app')->where('id', $m->user_id)->first();
                 if ($u) {
                     $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Freelancer';
                     $phone = $u->phone ?? '';
+                    $photo = $u->photo_path ?? null;
                 }
             } else {
-                $d = DB::table('tj_conducteur')->where('id', $m->user_id)->select('prenom', 'nom', 'phone')->first();
+                $d = DB::table('tj_conducteur')->where('id', $m->user_id)->first();
                 if ($d) {
                     $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Freelancer';
                     $phone = $d->phone ?? '';
+                    $photo = $d->photo_path ?? null;
                 }
             }
 
-            $mCustTotal = DB::table('marketing_acquisitions')
+            $acqsRaw = DB::table('marketing_acquisitions')
                 ->where('team_member_id', $m->id)
-                ->where('acquired_user_type', 'customer')
-                ->count();
+                ->orderBy('id', 'desc')
+                ->get();
 
-            $mCustVer = DB::table('marketing_acquisitions')
-                ->where('team_member_id', $m->id)
-                ->where('acquired_user_type', 'customer')
-                ->where('verification_status', 'verified')
-                ->count();
+            $acquisitions = [];
+            $mCustTotal = 0;
+            $mCustVer = 0;
+            $mBizTotal = 0;
+            $mBizVer = 0;
+            $verCount = 0;
+            $pendCount = 0;
+            $rejCount = 0;
 
-            $mBizTotal = DB::table('marketing_acquisitions')
-                ->where('team_member_id', $m->id)
-                ->where('acquired_user_type', 'business')
-                ->count();
+            foreach ($acqsRaw as $acq) {
+                if ($acq->acquired_user_type === 'customer') {
+                    $mCustTotal++;
+                    if ($acq->verification_status === 'verified') $mCustVer++;
+                } else {
+                    $mBizTotal++;
+                    if ($acq->verification_status === 'verified') $mBizVer++;
+                }
 
-            $mBizVer = DB::table('marketing_acquisitions')
-                ->where('team_member_id', $m->id)
-                ->where('acquired_user_type', 'business')
-                ->where('verification_status', 'verified')
-                ->count();
+                if ($acq->verification_status === 'verified') {
+                    $verCount++;
+                } elseif ($acq->verification_status === 'rejected') {
+                    $rejCount++;
+                } else {
+                    $pendCount++;
+                }
+
+                $acqName = $acq->acquired_user_type === 'business' ? 'Partner Driver' : 'Customer User';
+                $acqPhone = '';
+                $acqZone = $zone;
+
+                if ($acq->acquired_user_type === 'customer') {
+                    $au = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
+                    if ($au) {
+                        $acqName = trim(($au->prenom ?? '') . ' ' . ($au->nom ?? '')) ?: 'Customer User';
+                        $acqPhone = $au->phone ?? '';
+                    }
+                } else {
+                    $ad = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
+                    if ($ad) {
+                        $acqName = trim(($ad->prenom ?? '') . ' ' . ($ad->nom ?? '')) ?: 'Partner Driver';
+                        $acqPhone = $ad->phone ?? '';
+                    }
+                }
+
+                // Masking in format: 888XXXX231
+                $maskedPhone = '';
+                if (!empty($acqPhone)) {
+                    $digits = preg_replace('/[^0-9]/', '', $acqPhone);
+                    if (strlen($digits) >= 10) {
+                        $maskedPhone = substr($digits, 0, 3) . 'XXXX' . substr($digits, -3);
+                    } else {
+                        $maskedPhone = $acqPhone;
+                    }
+                }
+
+                // 72-hour countdown for pending verification
+                $hoursLeft = null;
+                if ($acq->verification_status === 'pending') {
+                    $createdTime = Carbon::parse($acq->created_at);
+                    $deadline = $createdTime->copy()->addHours(72);
+                    $diffHours = now()->diffInHours($deadline, false);
+                    $hoursLeft = max(0, (int)$diffHours);
+                }
+
+                $acquisitions[] = [
+                    'id'                  => $acq->id,
+                    'name'                => $acqName,
+                    'phone'               => $maskedPhone,
+                    'zone'                => $acqZone,
+                    'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
+                    'user_type'           => $acq->acquired_user_type,
+                    'verification_status' => $acq->verification_status,
+                    'hours_left'          => $hoursLeft,
+                ];
+            }
+
+            $mEarnings = round(($mCustVer * $rateCustomer) + ($mBizVer * $rateBusiness), 2);
 
             $teamMembers[] = [
                 'member_id'           => $m->id,
                 'member_code'         => $m->member_code,
                 'name'                => $name,
                 'phone'               => $phone,
+                'photo'               => $photo,
+                'zone'                => $zone,
                 'status'              => $m->status,
                 'joined_at'           => Carbon::parse($m->created_at)->format('d M Y'),
+                'total_users'         => $verCount + $pendCount + $rejCount,
+                'verified_count'      => $verCount,
+                'pending_count'       => $pendCount,
+                'rejected_count'      => $rejCount,
                 'customers_total'     => $mCustTotal,
                 'customers_verified'  => $mCustVer,
                 'businesses_total'    => $mBizTotal,
                 'businesses_verified' => $mBizVer,
+                'total_earnings'      => $mEarnings,
+                'acquisitions'        => $acquisitions,
             ];
         }
 
@@ -542,20 +616,31 @@ class VendorTeamService
             if (!empty($phone)) {
                 $digits = preg_replace('/[^0-9]/', '', $phone);
                 if (strlen($digits) >= 10) {
-                    $maskedPhone = substr($digits, 0, 3) . '****' . substr($digits, -3);
+                    $maskedPhone = substr($digits, 0, 3) . 'XXXX' . substr($digits, -3);
                 } else {
                     $maskedPhone = $phone;
                 }
+            }
+
+            // 72-hour countdown for pending verification
+            $hoursLeft = null;
+            if ($acq->verification_status === 'pending') {
+                $createdTime = Carbon::parse($acq->created_at);
+                $deadline = $createdTime->copy()->addHours(72);
+                $diffHours = now()->diffInHours($deadline, false);
+                $hoursLeft = max(0, (int)$diffHours);
             }
 
             $recentAcquisitions[] = [
                 'id'                  => $acq->id,
                 'user_name'           => $name,
                 'phone'               => $maskedPhone,
+                'zone'                => $vendor->team_location ?? 'DELHI',
                 'user_type'           => $acq->acquired_user_type,
                 'user_type_label'     => $acq->acquired_user_type === 'business' ? 'Business Driver' : 'Customer',
                 'kyc_status'          => $kyc,
                 'verification_status' => $acq->verification_status,
+                'hours_left'          => $hoursLeft,
                 'joined_date'         => Carbon::parse($acq->created_at)->format('d M Y, h:i A'),
             ];
         }
