@@ -336,9 +336,9 @@ class RestaurantOnboardingController extends Controller
     public function setOperationalStatus(Request $request)
     {
         $owner = $request->attributes->get('food_owner');
-        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->where('onboarding_status', 'active')->first();
+        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
         if (!$restaurant) {
-            return response()->json(['success' => false, 'error' => 'Active restaurant not found.']);
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
         }
         $status = $request->get('operational_status', $request->get('status'));
         if (!in_array($status, ['open', 'busy', 'closed', 'temporarily_closed'], true)) {

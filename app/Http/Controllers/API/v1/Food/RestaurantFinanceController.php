@@ -66,6 +66,9 @@ class RestaurantFinanceController extends Controller
     public function payDue(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $due = null;
         if ($request->filled('due_id')) {
             $due = FoodDuePayment::where('restaurant_id', $restaurant->id)->where('id', $request->get('due_id'))->first();
@@ -105,7 +108,7 @@ class RestaurantFinanceController extends Controller
             'payment_method' => $request->get('payment_method', 'upi'),
             'status' => 'paid',
             'gateway_ref' => $due->payment_ref,
-            'notes' => 'Company due payment',
+            'notes' => 'Company due payment: ' . ($request->get('payment_ref') ?: 'Manual UPI'),
         ]);
 
         return response()->json(['success' => true, 'data' => $due]);
@@ -114,6 +117,9 @@ class RestaurantFinanceController extends Controller
     public function settlements(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $rows = FoodSettlement::where('restaurant_id', $restaurant->id)->orderByDesc('id')->paginate(20);
         return response()->json(['success' => true, 'data' => $rows]);
     }
@@ -121,6 +127,9 @@ class RestaurantFinanceController extends Controller
     public function transactions(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $rows = FoodTransaction::where('restaurant_id', $restaurant->id)->orderByDesc('id')->paginate(20);
         return response()->json(['success' => true, 'data' => $rows]);
     }
@@ -128,6 +137,9 @@ class RestaurantFinanceController extends Controller
     public function offers(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         return response()->json([
             'success' => true,
             'data' => FoodOffer::where('restaurant_id', $restaurant->id)->orderByDesc('id')->get(),
@@ -137,6 +149,9 @@ class RestaurantFinanceController extends Controller
     public function saveOffer(Request $request, $id = null)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $offer = $id
             ? FoodOffer::where('restaurant_id', $restaurant->id)->where('id', $id)->first()
             : new FoodOffer(['restaurant_id' => $restaurant->id]);
@@ -161,6 +176,9 @@ class RestaurantFinanceController extends Controller
     public function reviews(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $rows = FoodReview::where('restaurant_id', $restaurant->id)->orderByDesc('id')->paginate(20);
         return response()->json(['success' => true, 'data' => $rows]);
     }

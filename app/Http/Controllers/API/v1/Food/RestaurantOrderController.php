@@ -31,20 +31,34 @@ class RestaurantOrderController extends Controller
         }
         $today = now()->toDateString();
         $base = FoodOrder::where('restaurant_id', $restaurant->id)->whereDate('created_at', $today);
+        $totalOrders = (clone $base)->count();
+        $pending = (clone $base)->where('order_status', 'pending')->count();
+        $preparing = (clone $base)->whereIn('order_status', ['restaurant_accepted', 'preparing'])->count();
+        $ready = (clone $base)->where('order_status', 'ready_for_pickup')->count();
+        $outForDelivery = (clone $base)->whereIn('order_status', ['rider_assigned', 'rider_at_restaurant', 'food_picked_up', 'out_for_delivery', 'rider_at_location'])->count();
+        $delivered = (clone $base)->whereIn('order_status', ['delivered', 'completed'])->count();
+        $cancelled = (clone $base)->whereIn('order_status', ['rejected', 'cancelled'])->count();
+        $todaySales = (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('food_amount');
+        $todayCommission = (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('commission_amount');
+        $todayNet = (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('restaurant_net_amount');
+        $pendingDue = (float) FoodDuePayment::where('restaurant_id', $restaurant->id)->where('status', '!=', 'paid')->sum(DB::raw('amount - paid_amount'));
+
         return response()->json([
             'success' => true,
             'data' => [
                 'restaurant' => $restaurant,
-                'today_orders' => (clone $base)->count(),
-                'pending' => (clone $base)->where('order_status', 'pending')->count(),
-                'preparing' => (clone $base)->whereIn('order_status', ['restaurant_accepted', 'preparing'])->count(),
-                'ready' => (clone $base)->where('order_status', 'ready_for_pickup')->count(),
-                'out_for_delivery' => (clone $base)->whereIn('order_status', ['rider_assigned', 'food_picked_up', 'out_for_delivery'])->count(),
-                'delivered' => (clone $base)->whereIn('order_status', ['delivered', 'completed'])->count(),
-                'cancelled' => (clone $base)->whereIn('order_status', ['rejected', 'cancelled'])->count(),
-                'today_sales' => (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('food_amount'),
-                'today_net' => (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('restaurant_net_amount'),
-                'pending_due' => (float) FoodDuePayment::where('restaurant_id', $restaurant->id)->where('status', '!=', 'paid')->sum(DB::raw('amount - paid_amount')),
+                'today_orders' => $totalOrders,
+                'pending' => $pending,
+                'preparing' => $preparing,
+                'ready' => $ready,
+                'out_for_delivery' => $outForDelivery,
+                'delivered' => $delivered,
+                'cancelled' => $cancelled,
+                'active_orders' => $pending + $preparing + $ready + $outForDelivery,
+                'today_sales' => round($todaySales, 2),
+                'today_commission' => round($todayCommission, 2),
+                'today_net' => round($todayNet, 2),
+                'pending_due' => round($pendingDue, 2),
             ],
         ]);
     }
@@ -52,6 +66,9 @@ class RestaurantOrderController extends Controller
     public function incoming(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $orders = FoodOrder::with('items')
             ->where('restaurant_id', $restaurant->id)
             ->where('order_status', 'pending')
@@ -63,6 +80,9 @@ class RestaurantOrderController extends Controller
     public function list(Request $request)
     {
         $restaurant = $this->restaurant($request);
+        if (!$restaurant) {
+            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+        }
         $q = FoodOrder::with('items')->where('restaurant_id', $restaurant->id);
         if ($request->filled('status')) {
             $statuses = explode(',', $request->get('status'));
@@ -74,7 +94,16 @@ class RestaurantOrderController extends Controller
                 'rider_assigned', 'rider_at_restaurant', 'food_picked_up', 'out_for_delivery', 'rider_at_location',
             ]);
         }
-        $orders = $q->orderByDesc('id')->paginate((int) $request->get('per_page', 20));
+        if ($request->filled('search')) {
+            $s = trim($request->get('search'));
+            $q->where(function ($sub) use ($s) {
+                $sub->where('order_number', 'like', "%{$s}%")
+                    ->orWhere('customer_name', 'like', "%{$s}%")
+                    ->orWhere('customer_phone', 'like', "%{$s}%");
+            });
+        }
+        $perPage = (int) $request->get('per_page', 25);
+        $orders = $q->orderByDesc('id')->paginate($perPage);
         return response()->json(['success' => true, 'data' => $orders]);
     }
 
