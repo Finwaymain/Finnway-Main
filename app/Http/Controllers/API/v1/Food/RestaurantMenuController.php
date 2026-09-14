@@ -126,7 +126,19 @@ class RestaurantMenuController extends Controller
         if ($request->hasFile('image')) {
             $product->image = $request->file('image')->store('food/products', 'public');
         } elseif ($request->filled('image')) {
-            $product->image = $request->get('image');
+            $val = $request->get('image');
+            if (is_string($val) && preg_match('/^data:image\/(\w+);base64,/', $val, $type)) {
+                $data = substr($val, strpos($val, ',') + 1);
+                $ext = strtolower($type[1]) === 'jpeg' ? 'jpg' : strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $filename = 'food/products/' . uniqid('prod_', true) . '.' . $ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                    $product->image = $filename;
+                }
+            } else {
+                $product->image = $val;
+            }
         }
         $product->save();
 
