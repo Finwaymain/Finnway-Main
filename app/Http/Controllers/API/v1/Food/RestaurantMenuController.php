@@ -123,8 +123,23 @@ class RestaurantMenuController extends Controller
             'is_active' => $request->exists('is_active') ? (bool) $request->get('is_active') : ($product->is_active ?? true),
             'sort_order' => (int) $request->get('sort_order', $product->sort_order ?? 0),
         ]);
-        if ($request->hasFile('image')) {
-            $product->image = $request->file('image')->store('food/products', 'public');
+        if ($request->hasFile('image') && $request->file('image')->isValid()) {
+            $path = $request->file('image')->store('food/products', 'public');
+            $product->image = $path;
+            \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with uploaded file: {$path}");
+        } elseif ($request->filled('image_base64')) {
+            $val = $request->get('image_base64');
+            if (is_string($val) && preg_match('/^data:image\/(\w+);base64,/', $val, $type)) {
+                $data = substr($val, strpos($val, ',') + 1);
+                $ext = strtolower($type[1]) === 'jpeg' ? 'jpg' : strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $filename = 'food/products/' . uniqid('prod_', true) . '.' . $ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                    $product->image = $filename;
+                    \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with base64 image: {$filename}");
+                }
+            }
         } elseif ($request->filled('image')) {
             $val = $request->get('image');
             if (is_string($val) && preg_match('/^data:image\/(\w+);base64,/', $val, $type)) {
@@ -135,8 +150,9 @@ class RestaurantMenuController extends Controller
                     $filename = 'food/products/' . uniqid('prod_', true) . '.' . $ext;
                     \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
                     $product->image = $filename;
+                    \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with inline base64 image: {$filename}");
                 }
-            } else {
+            } elseif (is_string($val) && !empty($val) && !str_starts_with($val, 'blob:')) {
                 $product->image = $val;
             }
         }
