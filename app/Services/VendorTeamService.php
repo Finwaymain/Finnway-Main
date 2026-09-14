@@ -485,7 +485,7 @@ class VendorTeamService
     }
 
     /**
-     * Team Member Dashboard Statistics (Counts only — rates & vendor earnings strictly hidden)
+     * Team Member Dashboard Statistics & Acquisitions Detail
      */
     public static function getTeamMemberDashboardStats(int $userId, string $userType): ?array
     {
@@ -499,6 +499,8 @@ class VendorTeamService
             return null;
         }
 
+        $vendor = DB::table('marketing_vendors')->where('id', $member->vendor_id)->first();
+
         $customerTotal = DB::table('marketing_acquisitions')
             ->where('team_member_id', $member->id)
             ->where('acquired_user_type', 'customer')
@@ -509,16 +511,68 @@ class VendorTeamService
             ->where('acquired_user_type', 'business')
             ->count();
 
+        $acquisitionsRaw = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $recentAcquisitions = [];
+        foreach ($acquisitionsRaw as $acq) {
+            $name = $acq->acquired_user_type === 'business' ? 'Business Partner' : 'Customer User';
+            $phone = '';
+            $kyc = 'Pending';
+
+            if ($acq->acquired_user_type === 'customer') {
+                $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
+                if ($u) {
+                    $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Customer User';
+                    $phone = $u->phone ?? '';
+                    $kyc = ($u->statut_nic === 'yes') ? 'Verified' : 'Pending';
+                }
+            } else {
+                $d = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
+                if ($d) {
+                    $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Business Partner';
+                    $phone = $d->phone ?? '';
+                    $kyc = ($d->is_verified == 1) ? 'Verified' : 'Pending';
+                }
+            }
+
+            $maskedPhone = '';
+            if (!empty($phone)) {
+                $digits = preg_replace('/[^0-9]/', '', $phone);
+                if (strlen($digits) >= 10) {
+                    $maskedPhone = substr($digits, 0, 3) . '****' . substr($digits, -3);
+                } else {
+                    $maskedPhone = $phone;
+                }
+            }
+
+            $recentAcquisitions[] = [
+                'id'                  => $acq->id,
+                'user_name'           => $name,
+                'phone'               => $maskedPhone,
+                'user_type'           => $acq->acquired_user_type,
+                'user_type_label'     => $acq->acquired_user_type === 'business' ? 'Business Driver' : 'Customer',
+                'kyc_status'          => $kyc,
+                'verification_status' => $acq->verification_status,
+                'joined_date'         => Carbon::parse($acq->created_at)->format('d M Y, h:i A'),
+            ];
+        }
+
         return [
             'member_id'                => $member->id,
             'member_code'              => $member->member_code,
             'status'                   => $member->status,
+            'team_location'            => $vendor->team_location ?? 'Regional Territory',
+            'team_type'                => $vendor->team_type ?? 'Field Marketing',
             'customer_joined'          => $customerTotal,
             'acquired_customers_count' => $customerTotal,
             'business_joined'          => $businessTotal,
             'acquired_businesses_count'=> $businessTotal,
             'total_acquisitions'       => $customerTotal + $businessTotal,
             'total_acquisitions_count' => $customerTotal + $businessTotal,
+            'recent_acquisitions'      => $recentAcquisitions,
             'joined_at'                => Carbon::parse($member->created_at)->format('d M Y'),
         ];
     }
