@@ -66,16 +66,24 @@ class WalletController extends Controller
             $rideEarnings = DB::table('tj_requete')
                 ->where('id_conducteur', $id_user)
                 ->where('statut', 'completed')
+                ->where('statut_paiement', 'yes')
+                ->where(function($q) {
+                    $q->whereNotIn('id_payment_method', [1, 5])
+                      ->where('statut_paiement', '!=', 'cash')
+                      ->where('statut_paiement', '!=', 'Cash');
+                })
                 ->sum('montant');
             $parcelEarnings = DB::table('parcel_orders')
                 ->where('id_conducteur', $id_user)
                 ->where('status', 'completed')
+                ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                 ->sum('amount');
             $serviceEarnings = 0;
             if (\Illuminate\Support\Facades\Schema::hasTable('service_requests')) {
                 $serviceEarnings = DB::table('service_requests')
                     ->where('driver_id', $id_user)
                     ->whereIn('status', ['Completed', 'completed'])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                     ->sum('amount');
             }
             $earningWalletSum = 0;

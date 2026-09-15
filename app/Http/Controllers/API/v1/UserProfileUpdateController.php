@@ -1616,11 +1616,18 @@ class UserProfileUpdateController extends Controller
             $rideEarnings = DB::table('tj_requete')
                 ->where('id_conducteur', $user->id)
                 ->where('statut', 'completed')
+                ->where('statut_paiement', 'yes')
+                ->where(function($q) {
+                    $q->whereNotIn('id_payment_method', [1, 5])
+                      ->where('statut_paiement', '!=', 'cash')
+                      ->where('statut_paiement', '!=', 'Cash');
+                })
                 ->sum('montant');
 
             $parcelEarnings = DB::table('parcel_orders')
                 ->where('id_conducteur', $user->id)
                 ->where('status', 'completed')
+                ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                 ->sum('amount');
 
             $serviceEarnings = 0;
@@ -1628,6 +1635,7 @@ class UserProfileUpdateController extends Controller
                 $serviceEarnings = DB::table('service_requests')
                     ->where('driver_id', $user->id)
                     ->whereIn('status', ['Completed', 'completed'])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                     ->sum('amount');
             }
 

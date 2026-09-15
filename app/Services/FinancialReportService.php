@@ -163,20 +163,33 @@ class FinancialReportService
         $hasCondTxn      = Schema::hasTable('tj_conducteur_transaction');
         $hasUserTxn      = Schema::hasTable('tj_transaction');
 
-        // Helper to sum real GMV (merchandise & services ONLY, no wallet top-up double counting)
+        // Helper to sum real Online / Wallet Turnover (Cash collections go directly into provider's hands, so only Online/Wallet reflects in company Turnover)
         $calcPeriodGmv = function($pStart, $pEnd) use ($hasRequete, $hasMarketOrders, $hasServiceReq, $hasParcelOrders, $hasSubHist, $validRide, $validMarket, $validService, $validParcel, $calcSubRevenue) {
             $sum = 0.0;
             if ($hasRequete) {
-                $sum += (float)$validRide(DB::table('tj_requete'))->whereBetween('creer', [$pStart, $pEnd])->sum('montant');
+                $sum += (float)$validRide(DB::table('tj_requete'))
+                    ->whereBetween('creer', [$pStart, $pEnd])
+                    ->where(function($q) {
+                        $q->whereNotIn('id_payment_method', [1, 5])
+                          ->where('statut_paiement', '!=', 'cash')
+                          ->where('statut_paiement', '!=', 'Cash');
+                    })
+                    ->sum('montant');
             }
             if ($hasMarketOrders) {
                 $sum += (float)$validMarket(DB::table('marketplace_orders'))->whereBetween('created_at', [$pStart, $pEnd])->sum('total_amount');
             }
             if ($hasServiceReq) {
-                $sum += (float)$validService(DB::table('service_requests'))->whereBetween('created_at', [$pStart, $pEnd])->sum('amount');
+                $sum += (float)$validService(DB::table('service_requests'))
+                    ->whereBetween('created_at', [$pStart, $pEnd])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                    ->sum('amount');
             }
             if ($hasParcelOrders) {
-                $sum += (float)$validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$pStart, $pEnd])->sum('amount');
+                $sum += (float)$validParcel(DB::table('parcel_orders'))
+                    ->whereBetween('created_at', [$pStart, $pEnd])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                    ->sum('amount');
             }
             if ($hasSubHist) {
                 $sum += $calcSubRevenue(DB::table('subscription_history')->whereBetween('created_at', [$pStart, $pEnd]));
@@ -724,10 +737,10 @@ class FinancialReportService
         $gstCollectedOnline    = round($totalOnlineGst, 2);
         $gstCollectedCash      = round($recoveredCashGst, 2);
 
-        // Total Gross Ecosystem Volume (GMV)
-        $grossRevenue = round($cabGross + $homeGross + $foodGross + $parcelGross + $travelGross + $otherGross + $marketGross + $subRevenue, 2);
+        // Total Gross Ecosystem Volume (GMV) - Online & Wallet Turnover only (Cash is held in hand by providers)
         $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodOnlineGross + $parcelOnlineGross + $travelOnlineGross + $otherOnlineGross + $marketGross + $subRevenue, 2);
         $cashGrossVolume   = round($cabCashGross + $homeCashGross + $foodCashGross + $parcelCashGross + $travelCashGross + $otherCashGross, 2);
+        $grossRevenue      = round($onlineGrossVolume, 2);
 
         // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
         $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);

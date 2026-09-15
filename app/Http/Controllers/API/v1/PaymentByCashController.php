@@ -116,6 +116,17 @@ class PaymentByCashController extends Controller
             }
         }
 
+        // Guard: If payment method is Pending or empty, ride is completed but payment is awaiting collection
+        if (in_array(strtolower(trim((string)$paymethod)), ['pending', 'unpaid', ''])) {
+            $response['success'] = 'success';
+            $response['error'] = null;
+            $response['message'] = 'Ride completed, awaiting payment collection';
+            $row = $rideRecord ? (array)$rideRecord : [];
+            $row['tax'] = json_decode($rideRecord->tax ?? '[]', true);
+            $response['data'] = $row;
+            return response()->json($response);
+        }
+
         $baseFare = max(0, floatval($amount_new) - floatval($discount));
 
         // 1. Resolve Admin Commission directly from tj_commission active setting on base fare
@@ -235,8 +246,8 @@ class PaymentByCashController extends Controller
         }
 
         $driverUpdateData = ['amount' => strval(number_format($newWalletAmount, 2, '.', ''))];
-        if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'earn_amount')) {
-            $driverUpdateData['earn_amount'] = strval(number_format($earnAmount + $baseFare, 2, '.', ''));
+        if (strtolower($paymethod) !== 'cash' && \Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'earn_amount')) {
+            $driverUpdateData['earn_amount'] = strval(number_format($earnAmount + $driverShare, 2, '.', ''));
         }
         DB::table('tj_conducteur')->where('id', '=', $id_user)->update($driverUpdateData);
 

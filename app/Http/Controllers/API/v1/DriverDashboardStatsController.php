@@ -30,6 +30,7 @@ class DriverDashboardStatsController extends Controller
         $todayRides = DB::table('tj_requete')
             ->where('id_conducteur', $driverId)
             ->where('statut', 'completed')
+            ->where('statut_paiement', 'yes')
             ->whereDate('creer', $today)
             ->sum('montant');
 
