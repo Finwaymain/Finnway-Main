@@ -36,13 +36,10 @@ class HomeController extends Controller
         $currency = Currency::where('statut', 'yes')->first();
 
         $total_users = UserApp::count();
-        $total_drivers = Driver::leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-        ->leftJoin('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')->count();
+        $total_drivers = Driver::count();
 
         $today_users = UserApp::whereBetween('creer', [$date_start, $date_end])->count('id');
-        $today_drivers = Driver::join('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-        ->join('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
-        ->whereBetween('tj_conducteur.creer', [$date_start, $date_end])->count();
+        $today_drivers = Driver::whereBetween('creer', [$date_start, $date_end])->count();
         
         $new_rides = Requests::where('statut', 'new')->count('id');
         $on_rides = Requests::where('statut', 'on ride')->count('id');

@@ -42,9 +42,7 @@ class DriverController extends Controller
     public function index(Request $request)
     {
 
-        $query = Driver::leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-            ->leftJoin('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
-            ->select('tj_conducteur.*', 'tj_type_vehicule.libelle');
+        $query = Driver::query()->select('tj_conducteur.*');
 
         if ($request->search != '' && $request->selected_search != '') {
             $keyword = $request->input('search');
@@ -139,10 +137,9 @@ class DriverController extends Controller
     public function approvedDrivers(Request $request)
     {
 
-        $query = Driver::leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-            ->leftJoin('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
-            ->select('tj_conducteur.*', 'tj_type_vehicule.libelle');
-        $query->where('tj_conducteur.is_verified', '=', 1);
+        $query = Driver::query()
+            ->select('tj_conducteur.*')
+            ->where('tj_conducteur.is_verified', '=', 1);
 
         if ($request->search != '' && $request->selected_search != '') {
             $keyword = $request->input('search');
@@ -172,7 +169,19 @@ class DriverController extends Controller
         }
         $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate($perPage)->appends($request->all());
 
-        $drivers->map(function ($driver) {
+        $driverIds = $drivers->pluck('id')->filter()->toArray();
+        $vehCats = [];
+        if (!empty($driverIds)) {
+            $vehCats = DB::table('tj_vehicule')
+                ->join('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
+                ->whereIn('tj_vehicule.id_conducteur', $driverIds)
+                ->select('tj_vehicule.id_conducteur', 'tj_type_vehicule.libelle')
+                ->get()
+                ->keyBy('id_conducteur');
+        }
+
+        $drivers->map(function ($driver) use ($vehCats) {
+            $driver->libelle = isset($vehCats[$driver->id]) ? $vehCats[$driver->id]->libelle : '';
             if (!empty($driver->email)) {
                 $driver->email = Helper::shortEmail($driver->email);
             }
@@ -198,11 +207,10 @@ class DriverController extends Controller
 
     public function pendingDrivers(Request $request)
     {
-        $query = Driver::leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-            ->leftJoin('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
-            ->select('tj_conducteur.*', 'tj_type_vehicule.libelle')
+        $query = Driver::query()
+            ->select('tj_conducteur.*')
             ->where('tj_conducteur.is_verified', '=', 0)
-            ->where('tj_conducteur.deleted_at', '=', NULL);
+            ->whereNull('tj_conducteur.deleted_at');
 
         if ($request->search != '' && $request->selected_search != '') {
             $keyword = $request->input('search');
@@ -231,7 +239,19 @@ class DriverController extends Controller
         }
         $drivers = $query->orderBy('tj_conducteur.id', 'desc')->paginate($perPage)->appends($request->all());
 
-        $drivers->map(function ($driver) {
+        $driverIds = $drivers->pluck('id')->filter()->toArray();
+        $vehCats = [];
+        if (!empty($driverIds)) {
+            $vehCats = DB::table('tj_vehicule')
+                ->join('tj_type_vehicule', 'tj_type_vehicule.id', '=', 'tj_vehicule.id_type_vehicule')
+                ->whereIn('tj_vehicule.id_conducteur', $driverIds)
+                ->select('tj_vehicule.id_conducteur', 'tj_type_vehicule.libelle')
+                ->get()
+                ->keyBy('id_conducteur');
+        }
+
+        $drivers->map(function ($driver) use ($vehCats) {
+            $driver->libelle = isset($vehCats[$driver->id]) ? $vehCats[$driver->id]->libelle : '';
             if (!empty($driver->email)) {
                 $driver->email = Helper::shortEmail($driver->email);
             }
