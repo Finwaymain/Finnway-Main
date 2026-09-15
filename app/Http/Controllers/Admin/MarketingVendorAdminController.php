@@ -87,10 +87,11 @@ class MarketingVendorAdminController extends Controller
         }
 
         $counts = [
-            'all'      => DB::table('marketing_vendors')->count(),
-            'pending'  => DB::table('marketing_vendors')->where('status', 'pending')->count(),
-            'approved' => DB::table('marketing_vendors')->where('status', 'approved')->count(),
-            'rejected' => DB::table('marketing_vendors')->where('status', 'rejected')->count(),
+            'all'       => DB::table('marketing_vendors')->count(),
+            'pending'   => DB::table('marketing_vendors')->where('status', 'pending')->count(),
+            'approved'  => DB::table('marketing_vendors')->where('status', 'approved')->count(),
+            'rejected'  => DB::table('marketing_vendors')->where('status', 'rejected')->count(),
+            'all_users' => DB::table('marketing_acquisitions')->count(),
         ];
 
         // For rejected vendors – load users who joined via their code so admin can verify/reject them
@@ -118,7 +119,50 @@ class MarketingVendorAdminController extends Controller
             }
         }
 
-        return view('admin.marketing_vendors.index', compact('vendors', 'status', 'counts', 'rejectedAcquisitions'));
+        // All-users tab: every acquisition across all vendors with freelancer + vendor context
+        $allUsers = collect();
+        if ($status === 'all_users') {
+            $rawAcqs = DB::table('marketing_acquisitions as acq')
+                ->leftJoin('marketing_team_members as tm', 'tm.id', '=', 'acq.team_member_id')
+                ->leftJoin('marketing_vendors as mv', 'mv.id', '=', 'acq.vendor_id')
+                ->select(
+                    'acq.*',
+                    'tm.member_code as freelancer_code',
+                    'tm.user_id as freelancer_user_id',
+                    'tm.user_type as freelancer_user_type',
+                    'mv.applicant_name as vendor_label',
+                    'mv.vendor_code as vendor_code_label'
+                )
+                ->orderBy('acq.id', 'desc')
+                ->get();
+
+            foreach ($rawAcqs as $acq) {
+                // Acquired user details
+                $acqName = 'User'; $acqPhone = '';
+                if (($acq->acquired_user_type ?? 'customer') === 'customer') {
+                    $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
+                    if ($u) { $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer'; $acqPhone = $u->phone ?? ''; }
+                } else {
+                    $d = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
+                    if ($d) { $acqName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner'; $acqPhone = $d->phone ?? ''; }
+                }
+                // Freelancer name
+                $flName = 'Freelancer';
+                if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
+                    $fu = DB::table('tj_user_app')->where('id', $acq->freelancer_user_id)->first();
+                    if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
+                } else {
+                    $fd = DB::table('tj_conducteur')->where('id', $acq->freelancer_user_id)->first();
+                    if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
+                }
+                $acq->user_name      = $acqName;
+                $acq->user_phone     = $acqPhone;
+                $acq->freelancer_name = $flName;
+            }
+            $allUsers = $rawAcqs;
+        }
+
+        return view('admin.marketing_vendors.index', compact('vendors', 'status', 'counts', 'rejectedAcquisitions', 'allUsers'));
     }
 
     /**
@@ -232,7 +276,9 @@ class MarketingVendorAdminController extends Controller
             ->join('marketing_team_members', 'marketing_team_members.id', '=', 'marketing_acquisitions.team_member_id')
             ->select(
                 'marketing_acquisitions.*',
-                'marketing_team_members.member_code as freelancer_code'
+                'marketing_team_members.member_code as freelancer_code',
+                'marketing_team_members.user_id as freelancer_user_id',
+                'marketing_team_members.user_type as freelancer_user_type'
             )
             ->orderBy('marketing_acquisitions.id', 'desc')
             ->paginate(30);
@@ -261,6 +307,19 @@ class MarketingVendorAdminController extends Controller
             $acq->user_name = $acqName;
             $acq->user_phone = $acqPhone;
             $acq->kyc_status = $acqKyc;
+
+            // Freelancer name (team member who brought this user)
+            $flName = '—';
+            if (!empty($acq->freelancer_user_id)) {
+                if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
+                    $fu = DB::table('tj_user_app')->where('id', $acq->freelancer_user_id)->first();
+                    if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
+                } else {
+                    $fd = DB::table('tj_conducteur')->where('id', $acq->freelancer_user_id)->first();
+                    if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
+                }
+            }
+            $acq->freelancer_name = $flName;
         }
 
         // Financial Summary
@@ -348,17 +407,13 @@ class MarketingVendorAdminController extends Controller
     }
 
     /**
-     * Delete Vendor Request (only if not approved)
+     * Delete Vendor Request (any status)
      */
     public function destroy($id)
     {
         $vendor = DB::table('marketing_vendors')->where('id', $id)->first();
         if (!$vendor) {
             return redirect()->back()->with('error', 'Vendor not found.');
-        }
-
-        if ($vendor->status === 'approved') {
-            return redirect()->back()->with('error', 'Cannot delete an approved vendor. Reject it first.');
         }
 
         // Remove associated acquisitions and team members
@@ -371,7 +426,7 @@ class MarketingVendorAdminController extends Controller
         DB::table('marketing_vendors')->where('id', $id)->delete();
 
         return redirect()->route('admin.marketing-vendors.index', ['status' => 'all'])
-            ->with('success', 'Vendor application deleted successfully.');
+            ->with('success', 'Vendor deleted successfully.');
     }
 
     /**

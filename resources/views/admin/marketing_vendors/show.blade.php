@@ -277,6 +277,7 @@
                                         @endif
                                     </td>
                                     <td>
+                                        <div class="font-weight-bold text-dark" style="font-size: 12.5px;">{{ $acq->freelancer_name ?? '—' }}</div>
                                         <span class="badge bg-secondary text-white px-2 py-1 font-monospace" style="font-size: 11px;">
                                             {{ $acq->freelancer_code }}
                                         </span>
