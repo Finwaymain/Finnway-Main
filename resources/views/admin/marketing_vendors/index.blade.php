@@ -184,18 +184,31 @@
                                     @endif
                                 </td>
                                 <td class="text-right">
-                                     <div class="btn-group" role="group">
-                                         @if($v->status === 'pending')
-                                         <button type="button" class="btn btn-sm btn-success font-weight-semibold" onclick="toggleIndexSection('approveBox{{ $v->id }}')">
-                                             Approve & Set Rates
-                                         </button>
-                                         <button type="button" class="btn btn-sm btn-outline-danger font-weight-semibold" onclick="toggleIndexSection('rejectBox{{ $v->id }}')">
-                                             Reject
-                                         </button>
+                                     <div class="d-flex flex-column align-items-end gap-1">
+                                         <div class="btn-group" role="group">
+                                             @if($v->status === 'pending')
+                                             <button type="button" class="btn btn-sm btn-success font-weight-semibold" onclick="toggleIndexSection('approveBox{{ $v->id }}')">
+                                                 Approve &amp; Set Rates
+                                             </button>
+                                             <button type="button" class="btn btn-sm btn-outline-danger font-weight-semibold" onclick="toggleIndexSection('rejectBox{{ $v->id }}')">
+                                                 Reject
+                                             </button>
+                                             @endif
+                                             <a href="{{ route('admin.marketing-vendors.show', $v->id) }}" class="btn btn-sm btn-primary font-weight-semibold">
+                                                 View Profile &amp; Team
+                                             </a>
+                                         </div>
+
+                                         {{-- Delete button (only for non-approved vendors) --}}
+                                         @if($v->status !== 'approved')
+                                         <form action="{{ route('admin.marketing-vendors.delete', $v->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to permanently delete this vendor request? This cannot be undone.');">
+                                             @csrf
+                                             @method('DELETE')
+                                             <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 11px; border-radius: 6px;">
+                                                 <i class="mdi mdi-delete-outline mr-1"></i>Delete Request
+                                             </button>
+                                         </form>
                                          @endif
-                                         <a href="{{ route('admin.marketing-vendors.show', $v->id) }}" class="btn btn-sm btn-primary font-weight-semibold">
-                                             View Profile & Team
-                                         </a>
                                      </div>
 
                                      @if($v->status === 'pending')
@@ -203,7 +216,7 @@
                                      <div id="approveBox{{ $v->id }}" style="display: none; margin-top: 10px; background: #f0fdf4; border: 1.5px solid #86efac; padding: 12px; border-radius: 10px; text-align: left;">
                                          <form action="{{ route('admin.marketing-vendors.approve', $v->id) }}" method="POST">
                                              @csrf
-                                             <div class="font-weight-bold text-success mb-1" style="font-size: 13px;">Approve Vendor & Configure Rates</div>
+                                             <div class="font-weight-bold text-success mb-1" style="font-size: 13px;">Approve Vendor &amp; Configure Rates</div>
                                              <div class="row">
                                                  <div class="col-6 mb-2">
                                                      <label style="font-size: 11.5px; font-weight: 600;">Rate/Customer (₹) *</label>
@@ -239,6 +252,88 @@
                                      @endif
                                 </td>
                             </tr>
+
+                            {{-- Rejected tab: Show users who joined under this vendor's code --}}
+                            @if($status === 'rejected' && !empty($rejectedAcquisitions[$v->id]) && count($rejectedAcquisitions[$v->id]) > 0)
+                            <tr>
+                                <td colspan="9" class="p-0">
+                                    <div style="background: #fff7ed; border-top: 2px solid #f97316; border-bottom: 2px dashed #fed7aa; padding: 12px 16px;">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div class="font-weight-bold text-orange" style="font-size: 12px; color: #c2410c;">
+                                                <i class="mdi mdi-account-group mr-1"></i>
+                                                Users who joined via <strong>{{ $v->applicant_name }}</strong>'s vendor code
+                                                <span class="badge ml-1" style="background:#f97316; color:#fff; font-size:10px;">{{ count($rejectedAcquisitions[$v->id]) }} users</span>
+                                            </div>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered mb-0" style="font-size: 12px; background: #fff;">
+                                                <thead style="background: #fff7ed;">
+                                                    <tr class="text-muted text-uppercase" style="font-size: 10px; letter-spacing: 0.4px;">
+                                                        <th>#</th>
+                                                        <th>Name / Phone</th>
+                                                        <th>Type</th>
+                                                        <th>Status</th>
+                                                        <th>Registered</th>
+                                                        <th class="text-center">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($rejectedAcquisitions[$v->id] as $i => $acq)
+                                                    <tr>
+                                                        <td class="font-weight-bold text-muted">{{ $i + 1 }}</td>
+                                                        <td>
+                                                            <div class="font-weight-bold text-dark">{{ $acq->user_name }}</div>
+                                                            <div class="text-muted" style="font-size: 11px;">{{ $acq->user_phone }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge {{ $acq->acquired_user_type === 'customer' ? 'bg-info' : 'bg-secondary' }} text-white" style="font-size: 10px;">
+                                                                {{ ucfirst($acq->acquired_user_type ?? 'customer') }}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            @if($acq->verification_status === 'verified')
+                                                                <span class="badge bg-success text-white" style="font-size: 10px;">Verified</span>
+                                                            @elseif($acq->verification_status === 'rejected')
+                                                                <span class="badge bg-danger text-white" style="font-size: 10px;">Rejected</span>
+                                                            @else
+                                                                <span class="badge bg-warning text-white" style="font-size: 10px;">Pending</span>
+                                                            @endif
+                                                        </td>
+                                                        <td class="text-muted" style="font-size: 11px;">{{ $acq->created_at ? \Carbon\Carbon::parse($acq->created_at)->format('d M Y') : '-' }}</td>
+                                                        <td class="text-center">
+                                                            @if($acq->verification_status !== 'verified')
+                                                            <form action="{{ route('admin.marketing-vendors.verify-acquisition', $acq->id) }}" method="POST" class="d-inline">
+                                                                @csrf
+                                                                <button type="submit" class="btn btn-xs btn-success py-0 px-2" style="font-size: 11px; border-radius: 5px;">
+                                                                    ✓ Verify
+                                                                </button>
+                                                            </form>
+                                                            @endif
+                                                            @if($acq->verification_status !== 'rejected')
+                                                            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2" style="font-size: 11px; border-radius: 5px;" onclick="toggleIndexSection('acqRejectBox{{ $acq->id }}')">
+                                                                ✕ Reject
+                                                            </button>
+                                                            <div id="acqRejectBox{{ $acq->id }}" style="display:none; margin-top:6px; background:#fef2f2; border:1px solid #fca5a5; padding:8px; border-radius:8px; text-align:left; min-width:200px;">
+                                                                <form action="{{ route('admin.marketing-vendors.reject-acquisition', $acq->id) }}" method="POST">
+                                                                    @csrf
+                                                                    <input type="text" name="reason" class="form-control form-control-sm mb-1" placeholder="Rejection reason..." value="Verification criteria not met." required style="font-size:11px;">
+                                                                    <div class="d-flex gap-1">
+                                                                        <button type="button" class="btn btn-light btn-sm py-0 px-2" style="font-size:10px;" onclick="toggleIndexSection('acqRejectBox{{ $acq->id }}')">Cancel</button>
+                                                                        <button type="submit" class="btn btn-danger btn-sm py-0 px-2 font-weight-bold" style="font-size:10px;">Reject</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            @endif
                             @empty
                             <tr>
                                 <td colspan="9" class="text-center py-5 text-muted">

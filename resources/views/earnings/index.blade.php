@@ -583,7 +583,7 @@
                                 <td class="font-weight-800 text-primary">{{ $row['provider'] }}</td>
                                 <td><span class="badge badge-dark" style="background: #e2e8f0; color: #0f172a; font-weight: 700;">{{ $row['zone'] }}</span></td>
                                 <td class="font-weight-700">{{ $row['book'] }}</td>
-                                <td class="text-muted font-weight-600" style="max-width: 220px; white-space: normal;">{{ $row['nature_of_service'] }}</td>
+                                <td style="max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="text-muted font-weight-600" title="{{ $row['nature_of_service'] }}">{{ $row['nature_of_service'] }}</td>
                                 <td class="text-right font-weight-700 text-danger">{{ $row['promo_used'] !== '-' ? '₹' . $row['promo_used'] : '-' }}</td>
                                 <td class="text-right font-weight-700">{{ $row['promo_after_used'] !== '-' ? '₹' . $row['promo_after_used'] : '-' }}</td>
                                 <td class="text-center font-12">{{ $row['promo_expired'] }}</td>

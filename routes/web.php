@@ -1281,5 +1281,6 @@ Route::middleware(['auth'])->prefix('admin/marketing-vendors')->name('admin.mark
     Route::post('/acquisition/{id}/verify', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'verifyAcquisition'])->name('verify-acquisition');
     Route::post('/acquisition/{id}/reject', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'rejectAcquisition'])->name('reject-acquisition');
     Route::post('/{id}/payout', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'settlePayout'])->name('payout');
+    Route::delete('/{id}/delete', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'destroy'])->name('delete');
 });
 

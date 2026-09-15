@@ -93,7 +93,32 @@ class MarketingVendorAdminController extends Controller
             'rejected' => DB::table('marketing_vendors')->where('status', 'rejected')->count(),
         ];
 
-        return view('admin.marketing_vendors.index', compact('vendors', 'status', 'counts'));
+        // For rejected vendors – load users who joined via their code so admin can verify/reject them
+        $rejectedAcquisitions = [];
+        if ($status === 'rejected') {
+            foreach ($vendors as $v) {
+                $acqs = DB::table('marketing_acquisitions')
+                    ->where('vendor_id', $v->id)
+                    ->orderBy('id', 'desc')
+                    ->get();
+
+                foreach ($acqs as $acq) {
+                    $acqName = 'User'; $acqPhone = ''; $acqType = $acq->acquired_user_type ?? 'customer';
+                    if ($acqType === 'customer') {
+                        $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
+                        if ($u) { $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer'; $acqPhone = $u->phone ?? ''; }
+                    } else {
+                        $d = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
+                        if ($d) { $acqName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner'; $acqPhone = $d->phone ?? ''; }
+                    }
+                    $acq->user_name  = $acqName;
+                    $acq->user_phone = $acqPhone;
+                }
+                $rejectedAcquisitions[$v->id] = $acqs;
+            }
+        }
+
+        return view('admin.marketing_vendors.index', compact('vendors', 'status', 'counts', 'rejectedAcquisitions'));
     }
 
     /**
@@ -323,6 +348,33 @@ class MarketingVendorAdminController extends Controller
     }
 
     /**
+     * Delete Vendor Request (only if not approved)
+     */
+    public function destroy($id)
+    {
+        $vendor = DB::table('marketing_vendors')->where('id', $id)->first();
+        if (!$vendor) {
+            return redirect()->back()->with('error', 'Vendor not found.');
+        }
+
+        if ($vendor->status === 'approved') {
+            return redirect()->back()->with('error', 'Cannot delete an approved vendor. Reject it first.');
+        }
+
+        // Remove associated acquisitions and team members
+        $teamMemberIds = DB::table('marketing_team_members')->where('vendor_id', $id)->pluck('id');
+        if ($teamMemberIds->isNotEmpty()) {
+            DB::table('marketing_acquisitions')->whereIn('team_member_id', $teamMemberIds)->delete();
+        }
+        DB::table('marketing_acquisitions')->where('vendor_id', $id)->delete();
+        DB::table('marketing_team_members')->where('vendor_id', $id)->delete();
+        DB::table('marketing_vendors')->where('id', $id)->delete();
+
+        return redirect()->route('admin.marketing-vendors.index', ['status' => 'all'])
+            ->with('success', 'Vendor application deleted successfully.');
+    }
+
+    /**
      * Settle Vendor Payout
      */
     public function settlePayout(Request $request, $id)
@@ -349,3 +401,4 @@ class MarketingVendorAdminController extends Controller
         return redirect()->back()->with('success', "Settled payout for {$updated} verified acquisitions (Ref: {$reference}).");
     }
 }
+
