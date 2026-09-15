@@ -371,6 +371,18 @@ class VendorTeamService
             ->where('verification_status', 'verified')
             ->count();
 
+        $customerPending = DB::table('marketing_acquisitions')
+            ->where('vendor_id', $vendorId)
+            ->where('acquired_user_type', 'customer')
+            ->where('verification_status', 'pending')
+            ->count();
+
+        $customerRejected = DB::table('marketing_acquisitions')
+            ->where('vendor_id', $vendorId)
+            ->where('acquired_user_type', 'customer')
+            ->where('verification_status', 'rejected')
+            ->count();
+
         $businessJoined = DB::table('marketing_acquisitions')
             ->where('vendor_id', $vendorId)
             ->where('acquired_user_type', 'business')
@@ -382,11 +394,37 @@ class VendorTeamService
             ->where('verification_status', 'verified')
             ->count();
 
+        $businessPending = DB::table('marketing_acquisitions')
+            ->where('vendor_id', $vendorId)
+            ->where('acquired_user_type', 'business')
+            ->where('verification_status', 'pending')
+            ->count();
+
+        $businessRejected = DB::table('marketing_acquisitions')
+            ->where('vendor_id', $vendorId)
+            ->where('acquired_user_type', 'business')
+            ->where('verification_status', 'rejected')
+            ->count();
+
+        $totalVerified = $customerVerified + $businessVerified;
+        $totalPending  = $customerPending + $businessPending;
+        $totalRejected = $customerRejected + $businessRejected;
+        $totalInstall  = $customerJoined + $businessJoined;
+
         $rateCustomer = (float)$vendor->rate_per_customer;
         $rateBusiness = (float)$vendor->rate_per_business;
 
+        // Verified Due & Upcoming Income
+        $customerDue = round($customerVerified * $rateCustomer, 2);
+        $businessDue = round($businessVerified * $rateBusiness, 2);
+        $totalVerifiedDue = round($customerDue + $businessDue, 2);
+
+        $customerUpcoming = round($customerPending * $rateCustomer, 2);
+        $businessUpcoming = round($businessPending * $rateBusiness, 2);
+        $totalUpcomingIncome = round($customerUpcoming + $businessUpcoming, 2);
+
         // Verified earnings
-        $totalEarned = round(($customerVerified * $rateCustomer) + ($businessVerified * $rateBusiness), 2);
+        $totalEarned = $totalVerifiedDue;
 
         // Paid earnings
         $paidEarned = (float)DB::table('marketing_acquisitions')
@@ -433,8 +471,12 @@ class VendorTeamService
             $acquisitions = [];
             $mCustTotal = 0;
             $mCustVer = 0;
+            $mCustPend = 0;
+            $mCustRej = 0;
             $mBizTotal = 0;
             $mBizVer = 0;
+            $mBizPend = 0;
+            $mBizRej = 0;
             $verCount = 0;
             $pendCount = 0;
             $rejCount = 0;
@@ -442,10 +484,22 @@ class VendorTeamService
             foreach ($acqsRaw as $acq) {
                 if ($acq->acquired_user_type === 'customer') {
                     $mCustTotal++;
-                    if ($acq->verification_status === 'verified') $mCustVer++;
+                    if ($acq->verification_status === 'verified') {
+                        $mCustVer++;
+                    } elseif ($acq->verification_status === 'rejected') {
+                        $mCustRej++;
+                    } else {
+                        $mCustPend++;
+                    }
                 } else {
                     $mBizTotal++;
-                    if ($acq->verification_status === 'verified') $mBizVer++;
+                    if ($acq->verification_status === 'verified') {
+                        $mBizVer++;
+                    } elseif ($acq->verification_status === 'rejected') {
+                        $mBizRej++;
+                    } else {
+                        $mBizPend++;
+                    }
                 }
 
                 if ($acq->verification_status === 'verified') {
@@ -507,6 +561,7 @@ class VendorTeamService
             }
 
             $mEarnings = round(($mCustVer * $rateCustomer) + ($mBizVer * $rateBusiness), 2);
+            $mPendingEarnings = round(($mCustPend * $rateCustomer) + ($mBizPend * $rateBusiness), 2);
 
             $teamMembers[] = [
                 'member_id'           => $m->id,
@@ -523,38 +578,58 @@ class VendorTeamService
                 'rejected_count'      => $rejCount,
                 'customers_total'     => $mCustTotal,
                 'customers_verified'  => $mCustVer,
+                'customers_pending'   => $mCustPend,
+                'customers_rejected'  => $mCustRej,
                 'businesses_total'    => $mBizTotal,
                 'businesses_verified' => $mBizVer,
+                'businesses_pending'  => $mBizPend,
+                'businesses_rejected' => $mBizRej,
                 'total_earnings'      => $mEarnings,
+                'verified_earnings'   => $mEarnings,
+                'pending_earnings'    => $mPendingEarnings,
                 'acquisitions'        => $acquisitions,
             ];
         }
 
         return [
-            'vendor_id'           => $vendor->id,
-            'vendor_code'         => $vendor->vendor_code,
-            'team_location'       => $vendor->team_location,
-            'team_type'           => $vendor->team_type,
-            'rate_per_customer'   => number_format($rateCustomer, 2, '.', ''),
-            'rate_per_business'   => number_format($rateBusiness, 2, '.', ''),
-            'total_members'       => $totalMembers,
-            'freelancers_count'   => $totalMembers,
-            'active_members'      => $activeMembers,
-            'inactive_members'    => $inactiveMembers,
-            'customer_joined'     => $customerJoined,
-            'total_customers'     => $customerJoined,
-            'customer_verified'   => $customerVerified,
-            'verified_customers'  => $customerVerified,
-            'business_joined'     => $businessJoined,
-            'total_businesses'    => $businessJoined,
-            'business_verified'   => $businessVerified,
-            'verified_businesses' => $businessVerified,
-            'total_earned'        => number_format($totalEarned, 2, '.', ''),
-            'total_earnings'      => number_format($totalEarned, 2, '.', ''),
-            'paid_earned'         => number_format($paidEarned, 2, '.', ''),
-            'paid_earnings'       => number_format($paidEarned, 2, '.', ''),
-            'pending_payout'      => number_format($pendingPayout, 2, '.', ''),
-            'team_members'        => $teamMembers,
+            'vendor_id'            => $vendor->id,
+            'vendor_code'          => $vendor->vendor_code,
+            'team_location'        => $vendor->team_location,
+            'team_type'            => $vendor->team_type,
+            'rate_per_customer'    => number_format($rateCustomer, 2, '.', ''),
+            'rate_per_business'    => number_format($rateBusiness, 2, '.', ''),
+            'total_members'        => $totalMembers,
+            'freelancers_count'    => $totalMembers,
+            'active_members'       => $activeMembers,
+            'inactive_members'     => $inactiveMembers,
+            'customer_joined'      => $customerJoined,
+            'total_customers'      => $customerJoined,
+            'customer_verified'    => $customerVerified,
+            'verified_customers'   => $customerVerified,
+            'customer_pending'     => $customerPending,
+            'customer_rejected'    => $customerRejected,
+            'business_joined'      => $businessJoined,
+            'total_businesses'     => $businessJoined,
+            'business_verified'    => $businessVerified,
+            'verified_businesses'  => $businessVerified,
+            'business_pending'     => $businessPending,
+            'business_rejected'    => $businessRejected,
+            'total_verified'       => $totalVerified,
+            'total_pending'        => $totalPending,
+            'total_rejected'       => $totalRejected,
+            'total_install'        => $totalInstall,
+            'customer_due'         => number_format($customerDue, 2, '.', ''),
+            'business_due'         => number_format($businessDue, 2, '.', ''),
+            'total_verified_due'   => number_format($totalVerifiedDue, 2, '.', ''),
+            'customer_upcoming'    => number_format($customerUpcoming, 2, '.', ''),
+            'business_upcoming'    => number_format($businessUpcoming, 2, '.', ''),
+            'total_upcoming_income'=> number_format($totalUpcomingIncome, 2, '.', ''),
+            'total_earned'         => number_format($totalEarned, 2, '.', ''),
+            'total_earnings'       => number_format($totalEarned, 2, '.', ''),
+            'paid_earned'          => number_format($paidEarned, 2, '.', ''),
+            'paid_earnings'        => number_format($paidEarned, 2, '.', ''),
+            'pending_payout'       => number_format($pendingPayout, 2, '.', ''),
+            'team_members'         => $teamMembers,
         ];
     }
 
@@ -580,10 +655,51 @@ class VendorTeamService
             ->where('acquired_user_type', 'customer')
             ->count();
 
+        $customerVerified = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'customer')
+            ->where('verification_status', 'verified')
+            ->count();
+
+        $customerPending = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'customer')
+            ->where('verification_status', 'pending')
+            ->count();
+
+        $customerRejected = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'customer')
+            ->where('verification_status', 'rejected')
+            ->count();
+
         $businessTotal = DB::table('marketing_acquisitions')
             ->where('team_member_id', $member->id)
             ->where('acquired_user_type', 'business')
             ->count();
+
+        $businessVerified = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'business')
+            ->where('verification_status', 'verified')
+            ->count();
+
+        $businessPending = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'business')
+            ->where('verification_status', 'pending')
+            ->count();
+
+        $businessRejected = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'business')
+            ->where('verification_status', 'rejected')
+            ->count();
+
+        $totalVerified = $customerVerified + $businessVerified;
+        $totalPending  = $customerPending + $businessPending;
+        $totalRejected = $customerRejected + $businessRejected;
+        $totalUsers    = $customerTotal + $businessTotal;
 
         $acquisitionsRaw = DB::table('marketing_acquisitions')
             ->where('team_member_id', $member->id)
@@ -653,10 +769,20 @@ class VendorTeamService
             'team_type'                => $vendor->team_type ?? 'Field Marketing',
             'customer_joined'          => $customerTotal,
             'acquired_customers_count' => $customerTotal,
+            'customer_verified'        => $customerVerified,
+            'customer_pending'         => $customerPending,
+            'customer_rejected'        => $customerRejected,
             'business_joined'          => $businessTotal,
             'acquired_businesses_count'=> $businessTotal,
-            'total_acquisitions'       => $customerTotal + $businessTotal,
-            'total_acquisitions_count' => $customerTotal + $businessTotal,
+            'business_verified'        => $businessVerified,
+            'business_pending'         => $businessPending,
+            'business_rejected'        => $businessRejected,
+            'total_acquisitions'       => $totalUsers,
+            'total_acquisitions_count' => $totalUsers,
+            'total_users'              => $totalUsers,
+            'total_verified'           => $totalVerified,
+            'total_pending'            => $totalPending,
+            'total_rejected'           => $totalRejected,
             'recent_acquisitions'      => $recentAcquisitions,
             'joined_at'                => Carbon::parse($member->created_at)->format('d M Y'),
         ];
