@@ -557,6 +557,7 @@ class VendorTeamService
                     'user_type'           => $acq->acquired_user_type,
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
+                    'rejection_reason'    => $acq->rejection_reason ?? $acq->remarks ?? null,
                 ];
             }
 
@@ -757,6 +758,7 @@ class VendorTeamService
                 'kyc_status'          => $kyc,
                 'verification_status' => $acq->verification_status,
                 'hours_left'          => $hoursLeft,
+                'rejection_reason'    => $acq->rejection_reason ?? $acq->remarks ?? null,
                 'joined_date'         => Carbon::parse($acq->created_at)->format('d M Y, h:i A'),
             ];
         }
