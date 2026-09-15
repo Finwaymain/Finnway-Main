@@ -130,8 +130,9 @@ class MarketingVendorAdminController extends Controller
                     'tm.member_code as freelancer_code',
                     'tm.user_id as freelancer_user_id',
                     'tm.user_type as freelancer_user_type',
-                    'mv.applicant_name as vendor_label',
-                    'mv.vendor_code as vendor_code_label'
+                    'mv.vendor_code as vendor_code_label',
+                    'mv.user_id as vendor_user_id',
+                    'mv.user_type as vendor_user_type'
                 )
                 ->orderBy('acq.id', 'desc')
                 ->get();
@@ -148,12 +149,14 @@ class MarketingVendorAdminController extends Controller
                 }
                 // Freelancer name
                 $flName = 'Freelancer';
-                if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
-                    $fu = DB::table('tj_user_app')->where('id', $acq->freelancer_user_id)->first();
-                    if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
-                } else {
-                    $fd = DB::table('tj_conducteur')->where('id', $acq->freelancer_user_id)->first();
-                    if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
+                if (!empty($acq->freelancer_user_id)) {
+                    if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
+                        $fu = DB::table('tj_user_app')->where('id', $acq->freelancer_user_id)->first();
+                        if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
+                    } else {
+                        $fd = DB::table('tj_conducteur')->where('id', $acq->freelancer_user_id)->first();
+                        if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
+                    }
                 }
                 $acq->user_name      = $acqName;
                 $acq->user_phone     = $acqPhone;
