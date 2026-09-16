@@ -98,11 +98,8 @@ class DriverWalletHistoryController extends Controller
 
     $total_earning = strval(round(floatval($rideEarnings) + floatval($parcelEarnings) + floatval($serviceEarnings), 2));
 
+    $handledRideIds = [];
     $sql = DB::table('tj_requete')
-    ->leftJoin('tj_conducteur_transaction', function($join) {
-        $join->on('tj_conducteur_transaction.id_ride', '=', 'tj_requete.id')
-             ->where('tj_conducteur_transaction.payment_method', '!=', 'Commission');
-    })
     ->leftJoin('tj_payment_method', 'tj_requete.id_payment_method', '=', 'tj_payment_method.id')
     ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'tj_requete.id_user_app')
     ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'tj_requete.id_conducteur')
@@ -151,8 +148,7 @@ class DriverWalletHistoryController extends Controller
                     'tj_requete.tip_amount',
                     'tj_requete.discount',
                     'tj_requete.admin_commission',
-                    'tj_requete.user_info',
-                    DB::raw('COALESCE(tj_conducteur_transaction.amount, tj_requete.montant) as amount'))
+                    'tj_requete.user_info')
     ->where('tj_requete.statut', '=', 'completed')
     ->where('tj_requete.id_conducteur', '=', $id_diver)
     ->orderBy('tj_requete.creer', 'desc')
@@ -164,6 +160,8 @@ class DriverWalletHistoryController extends Controller
 
     {
 
+        $handledRideIds[] = (string) $row->id;
+
         $row->userId = (string)$row->userId;
 
         $row->discount = $row->discount;
@@ -172,9 +170,52 @@ class DriverWalletHistoryController extends Controller
 
         $row->tax = json_decode($row->tax,true);
 
-        $row->montant = $row->montant;
+        $taxAmt = 0;
+        if (!empty($row->tax) && is_array($row->tax)) {
+            foreach ($row->tax as &$tItem) {
+                if (is_array($tItem)) {
+                    $tVal = floatval($tItem['amount'] ?? 0);
+                    if ($tVal <= 0 && !empty($tItem['value'])) {
+                        $v = floatval($tItem['value']);
+                        $tVal = (strtolower($tItem['type'] ?? '') === 'percentage') ? round((floatval($row->montant) * $v) / 100, 2) : round($v, 2);
+                        $tItem['amount'] = $tVal;
+                    }
+                    $taxAmt += $tVal;
+                }
+            }
+            unset($tItem);
+        }
+        if ($taxAmt <= 0 && floatval($row->montant) > 0 && \Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+            $dbTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+            $payMethod = strtolower(trim((string)($row->payment ?? 'cash')));
+            foreach ($dbTaxes as $t) {
+                $methods = !empty($t->applicable_on) ? explode(',', strtolower($t->applicable_on)) : ['cash', 'upi', 'wallet', 'online'];
+                $applies = in_array($payMethod, $methods, true) ||
+                           in_array('all', $methods, true) ||
+                           ($payMethod === 'upi' && in_array('online', $methods, true)) ||
+                           (str_contains($payMethod, 'cash') && in_array('cash', $methods, true)) ||
+                           (str_contains($payMethod, 'wallet') && in_array('wallet', $methods, true));
+                if ($applies) {
+                    $val = floatval($t->value ?? 0);
+                    $tAmt = (strtolower((string)$t->type) === 'percentage') ? round((floatval($row->montant) * $val) / 100, 2) : round($val, 2);
+                    $taxAmt += $tAmt;
+                }
+            }
+        }
+        $baseFare = floatval($row->montant);
+        $discount = floatval($row->discount ?? 0);
+        $tip = floatval($row->tip_amount ?? 0);
+        $totalFare = round(max(0, $baseFare - $discount) + $taxAmt + $tip, 2);
+        $adminComm = floatval($row->admin_commission ?? 0);
 
-        $row->amount = (string)$row->amount;
+        $row->amount = (string) round(max(0, $totalFare - $adminComm), 2);
+        $row->admin_commission = (string) $adminComm;
+        $row->montant = (string) $totalFare;
+        $row->base_montant = (string) $baseFare;
+        $row->base_fare = (string) $baseFare;
+        $row->total_tax = (string) $taxAmt;
+        $row->total_tax_amount = (string) $taxAmt;
+        $row->total_fare = (string) $totalFare;
 
         $row->destination_name = $row->destination_name;
 
@@ -296,11 +337,8 @@ class DriverWalletHistoryController extends Controller
 
     }
 
+    $handledParcelIds = [];
     $parcelOrder = DB::table('parcel_orders')
-    ->leftJoin('tj_conducteur_transaction', function($join) {
-        $join->on('tj_conducteur_transaction.id_parcel', '=', 'parcel_orders.id')
-             ->where('tj_conducteur_transaction.payment_method', '!=', 'Commission');
-    })
     ->leftJoin('tj_payment_method', 'parcel_orders.id_payment_method', '=', 'tj_payment_method.id')
     ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
     ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'parcel_orders.id_conducteur')
@@ -315,7 +353,7 @@ class DriverWalletHistoryController extends Controller
                     'tj_user_app.id as userId',
                     'tj_payment_method.libelle as payment',
                     'tj_payment_method.image as payment_image',
-                    DB::raw('COALESCE(tj_conducteur_transaction.amount, parcel_orders.amount) as transactionAmount'))
+                    'parcel_orders.amount as transactionAmount')
     ->where('parcel_orders.status', '=', 'completed')
     ->where('parcel_orders.id_conducteur', '=', $id_diver)
     ->orderBy('parcel_orders.created_at', 'desc')
@@ -326,6 +364,8 @@ class DriverWalletHistoryController extends Controller
     if(!empty($parcelOrder)){
 
         foreach($parcelOrder as $po){
+
+        $handledParcelIds[] = (string)$po->id;
 
         $po->id=(string)$po->id;
 
@@ -442,16 +482,64 @@ class DriverWalletHistoryController extends Controller
         ->orderBy('creer', 'desc')
         ->get();
 
-    $existingTxnIds = array_map(function($item) {
-        return (string) ($item->id ?? '');
-    }, $output);
-
     foreach ($allDriverTxns as $wt) {
         $txnIdStr = (string) $wt->id;
-        if (in_array($txnIdStr, $existingTxnIds, true)) {
+        $rideIdStr = !empty($wt->id_ride) ? (string) $wt->id_ride : '';
+        $parcelIdStr = !empty($wt->id_parcel) ? (string) $wt->id_parcel : '';
+        $amt = floatval($wt->amount ?? 0);
+
+        // 1. If this transaction belongs to a ride already processed from tj_requete:
+        if (!empty($rideIdStr) && in_array($rideIdStr, $handledRideIds, true)) {
+            // Positive cash earning entry is skipped because the Ride itself is already shown as the credit
+            if ($amt >= 0) {
+                continue;
+            }
+            // Negative entries are deductions (Commission, Tax Deduction)
+            $wt->id                  = $txnIdStr;
+            $wt->amount              = (string) $wt->amount; // e.g. "-29.46" or "-93.03"
+            $wt->admin_commission    = "0.0"; // Must be 0 so Flutter's wallet_screen.dart does not add commission to deductions
+            $wt->order_type          = 'ride';
+            $wt->libelle             = (string) ($wt->payment_method ?? 'Deduction');
+            $rawCreer                = $wt->creer ?? null;
+            $wt->raw_date            = $rawCreer;
+            $wt->creer               = !empty($rawCreer) ? date("d", strtotime($rawCreer)) . " " . ($months[date("F", strtotime($rawCreer))] ?? date("M", strtotime($rawCreer))) . ", " . date("Y", strtotime($rawCreer)) : "";
+            $wt->montant             = (string) abs($amt);
+
+            $payM = strtolower(trim((string)($wt->payment_method ?? '')));
+            $dedT = strtolower(trim((string)($wt->deduction_type ?? '')));
+            if ($payM === 'commission' || $dedT === 'commission' || stripos($wt->note ?? '', 'commission') !== false) {
+                $wt->depart_name      = 'Admin Commission Deduction';
+                $wt->destination_name = 'Ride #' . $rideIdStr;
+                $wt->libelle          = 'Admin Commission';
+            } else {
+                $wt->depart_name      = 'GST & Platform Fee Deduction';
+                $wt->destination_name = 'Ride #' . $rideIdStr;
+                $wt->libelle          = 'GST & Taxes';
+            }
+            $output[] = $wt;
             continue;
         }
 
+        // 2. If this transaction belongs to a parcel already processed:
+        if (!empty($parcelIdStr) && in_array($parcelIdStr, $handledParcelIds, true)) {
+            if ($amt >= 0) {
+                continue;
+            }
+            $wt->id                  = $txnIdStr;
+            $wt->transactionAmount   = (string) $wt->amount;
+            $wt->amount              = (string) $wt->amount;
+            $wt->admin_commission    = "0.0";
+            $wt->order_type          = 'parcel';
+            $wt->libelle             = (string) ($wt->payment_method ?? 'Deduction');
+            $rawCreer                = $wt->creer ?? null;
+            $wt->raw_date            = $rawCreer;
+            $wt->creer               = !empty($rawCreer) ? date("d", strtotime($rawCreer)) . " " . ($months[date("F", strtotime($rawCreer))] ?? date("M", strtotime($rawCreer))) . ", " . date("Y", strtotime($rawCreer)) : "";
+            $wt->montant             = (string) abs($amt);
+            $output[] = $wt;
+            continue;
+        }
+
+        // 3. Other driver wallet transactions (Top-up, Withdrawal, Subscription, Standalone Commission/Tax, etc.)
         $wt->id                  = $txnIdStr;
         $wt->amount              = (string) $wt->amount;
         $wt->id_payment_method   = "";
@@ -465,11 +553,11 @@ class DriverWalletHistoryController extends Controller
         $wt->destination_name    = "";
         $wt->depart_name         = "";
         $wt->id_user_app         = "";
-        $wt->admin_commission    = "";
+        $wt->admin_commission    = "0.0";
         $wt->discount            = "";
         $wt->tip_amount          = "";
         $wt->tax                 = "";
-        $wt->montant             = $wt->amount;
+        $wt->montant             = (string) abs($amt);
 
         $note = (string) ($wt->note ?? '');
         $desc = (string) ($wt->description ?? '');
@@ -477,10 +565,15 @@ class DriverWalletHistoryController extends Controller
         $dedType = (string) ($wt->deduction_type ?? '');
 
         if ($paymentMethod === 'Commission' || stripos($note, 'commission') !== false || stripos($desc, 'commission') !== false) {
-            $wt->order_type       = 'commission';
+            $wt->order_type       = 'ride';
             $wt->depart_name      = 'Admin Commission Deduction';
             $wt->destination_name = 'Admin Panel';
             $wt->libelle          = 'Admin Commission';
+        } elseif ($paymentMethod === 'Tax Deduction' || $paymentMethod === 'Tax/GST' || $dedType === 'Tax' || stripos($paymentMethod, 'tax') !== false) {
+            $wt->order_type       = 'ride';
+            $wt->depart_name      = 'GST & Platform Fee Deduction';
+            $wt->destination_name = 'Taxes & Fees';
+            $wt->libelle          = 'GST & Taxes';
         } elseif (stripos($desc, 'marketplace') !== false || stripos($note, 'marketplace') !== false || stripos($paymentMethod, 'marketplace') !== false) {
             $wt->order_type       = 'marketplace';
             $wt->depart_name      = 'Marketplace Sale Earnings';
@@ -496,11 +589,6 @@ class DriverWalletHistoryController extends Controller
             $wt->depart_name      = 'Wallet Top-Up';
             $wt->destination_name = 'Wallet';
             $wt->libelle          = 'Wallet Top-Up';
-        } elseif ($paymentMethod === 'Tax/GST' || stripos($note, 'tax') !== false || stripos($paymentMethod, 'tax') !== false || stripos($paymentMethod, 'gst') !== false) {
-            $wt->order_type       = 'tax';
-            $wt->depart_name      = 'Tax & Charges Deduction';
-            $wt->destination_name = 'Taxes & Fees';
-            $wt->libelle          = 'GST & Taxes';
         } elseif (!empty($wt->id_ride) && DB::table('service_requests')->where('id', $wt->id_ride)->exists()) {
             $svc                  = DB::table('service_requests')->where('id', $wt->id_ride)->first();
             $svcTitle             = !empty($svc->service_name) ? (trim($svc->service_name) . ' Earnings') : 'Home Service Earnings';

@@ -108,6 +108,34 @@ class RideDetailsController extends Controller
 
                 $row->user_info = json_decode($row->user_info, true);
 
+                $taxAmt = 0;
+                if (!empty($row->tax) && is_array($row->tax)) {
+                    foreach ($row->tax as &$tItem) {
+                        if (is_array($tItem)) {
+                            $tVal = floatval($tItem['amount'] ?? 0);
+                            if ($tVal <= 0 && !empty($tItem['value'])) {
+                                $v = floatval($tItem['value']);
+                                $tVal = (strtolower($tItem['type'] ?? '') === 'percentage') ? round((floatval($row->montant) * $v) / 100, 2) : round($v, 2);
+                                $tItem['amount'] = $tVal;
+                            }
+                            $taxAmt += $tVal;
+                        }
+                    }
+                    unset($tItem);
+                }
+                $baseFare = floatval($row->montant);
+                $discount = floatval($row->discount ?? 0);
+                $tip = floatval($row->tip_amount ?? 0);
+                $finalPaid = round(max(0, $baseFare - $discount) + $taxAmt + $tip, 2);
+                $row->base_montant = (string) $baseFare;
+                $row->base_fare = (string) $baseFare;
+                $row->total_tax = (string) $taxAmt;
+                $row->total_tax_amount = (string) $taxAmt;
+                $row->total_fare = (string) $finalPaid;
+                if ($row->statut === 'completed' || strtolower(trim((string)$row->statut_paiement)) === 'yes') {
+                    $row->montant = (string) $finalPaid;
+                }
+
                 $row->discount = number_format((float) $row->discount, 2, '.', '');
                 $row->promotional_amount = number_format((float) ($row->promotional_amount ?? 0), 2, '.', '');
                 $row->promotional_discount = number_format((float) ($row->promotional_discount ?? 0), 2, '.', '');
@@ -371,6 +399,49 @@ class RideDetailsController extends Controller
             $row->stops = json_decode($row->stops, true);
 
             $row->tax = json_decode($row->tax, true);
+
+            $taxAmt = 0;
+            if (!empty($row->tax) && is_array($row->tax)) {
+                foreach ($row->tax as &$tItem) {
+                    if (is_array($tItem)) {
+                        $tVal = floatval($tItem['amount'] ?? 0);
+                        if ($tVal <= 0 && !empty($tItem['value'])) {
+                            $v = floatval($tItem['value']);
+                            $tVal = (strtolower($tItem['type'] ?? '') === 'percentage') ? round((floatval($row->montant) * $v) / 100, 2) : round($v, 2);
+                            $tItem['amount'] = $tVal;
+                        }
+                        $taxAmt += $tVal;
+                    }
+                }
+                unset($tItem);
+            }
+            if ($taxAmt <= 0 && floatval($row->montant) > 0 && \Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+                $dbTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+                $payMethod = strtolower(trim((string)($row->payment ?? 'cash')));
+                foreach ($dbTaxes as $t) {
+                    $methods = !empty($t->applicable_on) ? explode(',', strtolower($t->applicable_on)) : ['cash', 'upi', 'wallet', 'online'];
+                    $applies = in_array($payMethod, $methods, true) ||
+                               in_array('all', $methods, true) ||
+                               ($payMethod === 'upi' && in_array('online', $methods, true)) ||
+                               (str_contains($payMethod, 'cash') && in_array('cash', $methods, true)) ||
+                               (str_contains($payMethod, 'wallet') && in_array('wallet', $methods, true));
+                    if ($applies) {
+                        $val = floatval($t->value ?? 0);
+                        $tAmt = (strtolower((string)$t->type) === 'percentage') ? round((floatval($row->montant) * $val) / 100, 2) : round($val, 2);
+                        $taxAmt += $tAmt;
+                    }
+                }
+            }
+            $baseFare = floatval($row->montant);
+            $discount = floatval($row->discount ?? 0);
+            $tip = floatval($row->tip_amount ?? 0);
+            $finalPaid = round(max(0, $baseFare - $discount) + $taxAmt + $tip, 2);
+            $row->base_montant = (string) $baseFare;
+            $row->base_fare = (string) $baseFare;
+            $row->total_tax = (string) $taxAmt;
+            $row->total_tax_amount = (string) $taxAmt;
+            $row->total_fare = (string) $finalPaid;
+            $row->montant = (string) $finalPaid;
 
 
 
@@ -865,6 +936,49 @@ class RideDetailsController extends Controller
 
                 $row->user_info = json_decode($row->user_info, true);
 
+                $taxAmt = 0;
+                if (!empty($row->tax) && is_array($row->tax)) {
+                    foreach ($row->tax as &$tItem) {
+                        if (is_array($tItem)) {
+                            $tVal = floatval($tItem['amount'] ?? 0);
+                            if ($tVal <= 0 && !empty($tItem['value'])) {
+                                $v = floatval($tItem['value']);
+                                $tVal = (strtolower($tItem['type'] ?? '') === 'percentage') ? round((floatval($row->montant) * $v) / 100, 2) : round($v, 2);
+                                $tItem['amount'] = $tVal;
+                            }
+                            $taxAmt += $tVal;
+                        }
+                    }
+                    unset($tItem);
+                }
+                if ($taxAmt <= 0 && floatval($row->montant) > 0 && \Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+                    $dbTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+                    $payMethod = strtolower(trim((string)($row->payment ?? 'cash')));
+                    foreach ($dbTaxes as $t) {
+                        $methods = !empty($t->applicable_on) ? explode(',', strtolower($t->applicable_on)) : ['cash', 'upi', 'wallet', 'online'];
+                        $applies = in_array($payMethod, $methods, true) ||
+                                   in_array('all', $methods, true) ||
+                                   ($payMethod === 'upi' && in_array('online', $methods, true)) ||
+                                   (str_contains($payMethod, 'cash') && in_array('cash', $methods, true)) ||
+                                   (str_contains($payMethod, 'wallet') && in_array('wallet', $methods, true));
+                        if ($applies) {
+                            $val = floatval($t->value ?? 0);
+                            $tAmt = (strtolower((string)$t->type) === 'percentage') ? round((floatval($row->montant) * $val) / 100, 2) : round($val, 2);
+                            $taxAmt += $tAmt;
+                        }
+                    }
+                }
+                $baseFare = floatval($row->montant);
+                $discount = floatval($row->discount ?? 0);
+                $tip = floatval($row->tip_amount ?? 0);
+                $finalPaid = round(max(0, $baseFare - $discount) + $taxAmt + $tip, 2);
+                $row->base_montant = (string) $baseFare;
+                $row->base_fare = (string) $baseFare;
+                $row->total_tax = (string) $taxAmt;
+                $row->total_tax_amount = (string) $taxAmt;
+                $row->total_fare = (string) $finalPaid;
+                $row->montant = (string) $finalPaid;
+
 
 
                 $row->userId = (string) $row->userId;
@@ -1150,225 +1264,11 @@ class RideDetailsController extends Controller
 
 
                 if ($row->statut == 'new') {
-
-                    if ($trip_accept_reject_driver_time_sec != '') {
-
-                        $rideData = Requests::find($row->id);
-
-                        $rejectDriverIds = $rideData->rejected_driver_id;
-
-                        $rejDriverIds = array();
-
-                        if ($rejectDriverIds != null) {
-
-                            $rejDriverIds = json_decode($rejectDriverIds, true);
-
-                        }
-
-                        $seconds = $trip_accept_reject_driver_time_sec;
-
-                        if(sizeof($rejDriverIds)>0){
-
-                            $seconds = $trip_accept_reject_driver_time_sec + (sizeof($rejDriverIds) * $trip_accept_reject_driver_time_sec);
-
-                        }
-
-                        $date = Date("Y-m-d H:i:s", strtotime("$seconds seconds", strtotime($row->creer)));
-
-                       
-
-                        if ($currentDateTime > $date) {
-
-
-
-                            $rideData->statut = "canceled";
-
-                            $rideData->save();
-
-
-
-                            $row->statut = "canceled";
-
-
-
-                            $title = str_replace("'", "\'", "Canceled your ride");
-
-                            $msg = str_replace("'", "\'", $row->nomConducteur . " " . $row->prenomConducteur . " is Canceled your ride.");
-
-
-
-                            $tab[] = array();
-
-                            $tab = explode("\\", $msg);
-
-                            $msg_ = "";
-
-                            for ($i = 0; $i < count($tab); $i++) {
-
-                                $msg_ = $msg_ . "" . $tab[$i];
-
-                            }
-
-
-
-                            $message = array("body" => $msg_, "title" => $title, "sound" => "mySound", "tag" => "ridecanceled");
-
-                            $fcm_token = DB::table('tj_user_app')->where('fcm_id','!=','')->where('id','=',$row->userId)->value('fcm_id');
-
-                            if (!empty($fcm_token)) {
-
-                                GcmController::sendNotification($fcm_token, $message);
-
-                            }
-
-                            
-
-                            $vehicleType = DB::table('tj_vehicule')->select('id_type_vehicule')->where('id_conducteur', $id_driver)->first();
-                            $vehicleTypeId = $vehicleType ? $vehicleType->id_type_vehicule : 0;
-                            $libelle = DB::table('tj_type_vehicule')->where('id', $vehicleTypeId)->value('libelle');
-                            $typeIds = $libelle ? DB::table('tj_type_vehicule')->where('libelle', '=', $libelle)->pluck('id')->toArray() : [$vehicleTypeId];
-
-                            $settings = DB::table('tj_settings')->select('driver_radios', 'minimum_deposit_amount')->first();
-                            $radius = $settings->driver_radios;
-                            $minimum_wallet_balance = $settings->minimum_deposit_amount;
-
-                            $sql = DB::table("tj_conducteur")
-
-                                ->join('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-
-                                ->select(
-
-                                    "tj_conducteur.id"
-
-                                    , DB::raw("6371 * acos(GREATEST(-1, LEAST(1, cos(radians(" . floatval($lat) . ")) * cos(radians(tj_conducteur.latitude)) * cos(radians(tj_conducteur.longitude) - radians(" . floatval($long) . ")) + sin(radians(" . floatval($lat) . ")) * sin(radians(tj_conducteur.latitude))))) AS distance")
-
-                                )
-
-                                ->having('distance', '<=', $radius)
-
-                                ->distinct('tj_conducteur.id')
-
-                                ->orderBy('distance', 'asc')
-
-                                ->where('tj_conducteur.statut', 'yes')
-
-                                ->where('tj_conducteur.id', '!=', $id_driver)
-
-                                ->whereNotIn('tj_conducteur.id', $rejDriverIds)
-                                // ->where('tj_conducteur.amount', '>=', $minimum_wallet_balance)
-                                ->where('tj_conducteur.is_verified', '=', '1')
-
-                                ->where('tj_conducteur.online', '!=', 'no')
-                                
-                                ->where('tj_conducteur.driver_on_ride', '=', 'no')
-
-                                ->whereIn('id_type_vehicule', $typeIds);
-
-                            if ($subscriptionModel == "true" || $commissionModel == 'yes') {
-                                $sql->where('tj_conducteur.subscriptionPlanId', '!=', null)
-                                ->where(function ($query) {
-                                    $query->where('tj_conducteur.subscriptionTotalOrders', '>', 0)
-                                    ->orWhere('tj_conducteur.subscriptionTotalOrders', '=', -1);
-                                })
-                                ->where(function ($query) {
-                                    $query->whereNull('tj_conducteur.subscriptionExpiryDate')
-                                    ->orWhere('tj_conducteur.subscriptionExpiryDate', '>', now());
-                                });
-                            }
-                            $data=$sql->first();
-
-
-
-                            if (!empty($data)) {
-
-                               
-
-                                    $id = $data->id;
-
-                                    $title = str_replace("'", "\'", "New ride");
-
-                                    $msg = str_replace("'", "\'", "You have just received a request from a client");
-
-
-
-                                    $tab[] = array();
-
-                                    $tab = explode("\\", $msg);
-
-                                    $msg_ = "";
-
-                                    for ($i = 0; $i < count($tab); $i++) {
-
-                                        $msg_ = $msg_ . "" . $tab[$i];
-
-                                    }
-
-
-
-                                    $message = array("body" => $msg_, "title" => $title, "sound" => "mySound", "tag" => "ridenewrider");
-
-                                    $fcm_token = DB::table('tj_conducteur')->where('fcm_id','!=','')->where('id','=',$id)->value('fcm_id');
-
-                                    if (!empty($fcm_token)) {
-
-                                        GcmController::sendNotification($fcm_token, $message);
-
-                                    }
-
-
-
-                                    if ($id) {
-
-                                        $row->statut = "new";
-
-                                        if(!in_array($id_driver,$rejDriverIds)){
-
-                                            array_push($rejDriverIds, $id_driver);
-
-
-
-                                        }
-
-                                        $updateRejDriverArr = json_encode($rejDriverIds);
-
-                                        $updatedata = DB::update('update tj_requete set statut = ?,id_conducteur = ?,rejected_driver_id=? where id = ?', ['new', $id, $updateRejDriverArr, $ride_id]);
-
-                                    }
-
-                                
-
-                            } else {
-
-                                $row->statut = "driver rejected";
-
-                                if (!in_array($id_driver, $rejDriverIds)) {
-
-                                    array_push($rejDriverIds, $id_driver);
-
-
-
-                                }
-
-                                $updateRejDriverArr = json_encode($rejDriverIds);
-
-                                $updatedata = DB::update('update tj_requete set statut = ?,rejected_driver_id=? where id = ?', ['driver rejected', $updateRejDriverArr, $ride_id]);
-
-
-
-                            }
-
-
-
-
-
-                        }
-
-
-
+                    $updatedRide = Requests::rotateRequestIfNeeded($row->id);
+                    if ($updatedRide) {
+                        $row->statut = $updatedRide->statut;
+                        $row->id_conducteur = (string) $updatedRide->id_conducteur;
                     }
-
-
-
                 }
 
 
