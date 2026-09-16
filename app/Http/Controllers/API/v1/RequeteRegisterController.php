@@ -215,7 +215,33 @@ class RequeteRegisterController extends Controller
                     if ($closestDriver) {
                         $id_conducteur = $closestDriver->id;
                     } else {
-                        $id_conducteur = 0;
+                        // Try expanded radius up to 25km
+                        $expandedRadius = max($radius * 2, 25);
+                        $closestDriver = DB::table("tj_conducteur")
+                            ->join('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
+                            ->select(
+                                "tj_conducteur.id",
+                                "tj_conducteur.fcm_id",
+                                DB::raw("6371 * acos(GREATEST(-1, LEAST(1,
+                                    cos(radians(" . floatval($lat1) . "))
+                                    * cos(radians(tj_conducteur.latitude))
+                                    * cos(radians(tj_conducteur.longitude) - radians(" . floatval($lng1) . "))
+                                    + sin(radians(" . floatval($lat1) . "))
+                                    * sin(radians(tj_conducteur.latitude))))) AS distance")
+                            )
+                            ->having('distance', '<=', $expandedRadius)
+                            ->where('tj_conducteur.statut', 'yes')
+                            ->where('tj_conducteur.online', '!=', 'no')
+                            ->where('tj_conducteur.is_verified', '=', '1')
+                            ->where(function($q) {
+                                $q->whereNull('tj_conducteur.driver_on_ride')
+                                  ->orWhere('tj_conducteur.driver_on_ride', '!=', 'yes');
+                            })
+                            ->whereIn('tj_vehicule.id_type_vehicule', $typeIds)
+                            ->orderBy('distance', 'asc')
+                            ->first();
+
+                        $id_conducteur = $closestDriver ? $closestDriver->id : 0;
                     }
                 $baseFare = floatval($cout ?? 0);
                 $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int)$user_id, 'customer', $baseFare);
@@ -246,7 +272,7 @@ class RequeteRegisterController extends Controller
                     'longitude_depart' => $lng1 ?? '0',
                     'latitude_arrivee' => $lat2 ?? '0',
                     'longitude_arrivee' => $lng2 ?? '0',
-                    'statut' => ($id_conducteur > 0) ? 'new' : 'driver_rejected',
+                    'statut' => 'new',
                     'creer' => $date_heure,
                     'distance' => $distance ?? '0',
                     'distance_unit' => $distance_unit ?? 'KM',
@@ -297,7 +323,7 @@ class RequeteRegisterController extends Controller
                     "title" => $title,
                     "sound" => "ride_request_sound",
                     "tag" => "ridenewrider",
-                    "statut" => ($id_conducteur > 0) ? 'new' : 'driver_rejected'
+                    "statut" => "new"
                 );
 
                 if ($id > 0 && isset($rowData)) {
@@ -364,11 +390,11 @@ class RequeteRegisterController extends Controller
                         $fcm_token = DB::table('tj_user_app')->where('fcm_id','!=','')->where('id','=',$user_id)->value('fcm_id');
                         if (!empty($fcm_token)) {
                             $userMsg = array(
-                                "body" => "No drivers available in your area.",
-                                "title" => "No Drivers Found",
+                                "body" => "Searching for nearby captains...",
+                                "title" => "Searching Captains",
                                 "sound" => "mySound",
-                                "tag" => "riderejected",
-                                "statut" => "driver_rejected"
+                                "tag" => "ridebooked",
+                                "statut" => "new"
                             );
                             if ($id > 0 && isset($rowData)) {
                                 $rideArray = $rowData;

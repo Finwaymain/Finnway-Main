@@ -57,10 +57,14 @@ class DriverDispatchController extends Controller
 
         $ride = Requests::find($ride_id);
         if ($ride) {
-            // When user retries dispatch, reset to 'new' and clear rejected driver list so nearby drivers can be matched again
+            $now = date('Y-m-d H:i:s');
+            // When user retries dispatch, reset to 'new', clear assigned driver and rejected list,
+            // and refresh creation timestamp so the user gets a fresh full search window.
             $ride->statut = 'new';
+            $ride->id_conducteur = 0;
             $ride->rejected_driver_id = '[]';
-            $ride->modifier = date('Y-m-d H:i:s');
+            $ride->creer = $now;
+            $ride->modifier = $now;
             $ride->save();
         }
 

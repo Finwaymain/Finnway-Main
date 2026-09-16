@@ -196,34 +196,39 @@ class SetRejectedRequeteController extends Controller
                         $row = $sql_update->toArray();
                         $row['id'] = (string)$row['id'];
                     }
-                } else {
-                    // Pre-trip cancellation (confirmed or new, before OTP)
+                } elseif ($rideStatus == 'confirmed') {
+                    // Pre-trip cancellation after driver previously accepted: notify user
                     $row_sql['statut'] = 'driver_rejected';
                     $message = array_merge($row_sql, array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected", "statut" => "driver_rejected"));
 
                     $fcm_token = DB::table('tj_user_app')->where('fcm_id', '!=', '')->where('id', '=', $id_user)->value('fcm_id');
-
                     if (!empty($fcm_token)) {
                         GcmController::sendNotification($fcm_token, $message);
                     }
-
-                    $lat = $row_sql['latitude_depart'];
-                    $long = $row_sql['longitude_depart'];
-
-                    $vehicleType = DB::table('tj_vehicule')->select('id_type_vehicule')->where('id_conducteur', $from_id)->first();
-                    $id_type_vehicule = $vehicleType ? $vehicleType->id_type_vehicule : ($sql->id_type_vehicule ?? 0);
-
-                    $settings = DB::table('tj_settings')->select('driver_radios', 'minimum_deposit_amount')->first();
-                    $radius = $settings->driver_radios ?? 10;
-                    $minimum_wallet_balance = $settings->minimum_deposit_amount ?? 0;
 
                     if (!in_array($from_id, $rejDriverIds)) {
                         array_push($rejDriverIds, $from_id);
                     }
                     $updateRejDriverArr = json_encode($rejDriverIds);
                     
-                    // Update rejected list and temporarily reset driver to new
-                    DB::update('update tj_requete set rejected_driver_id = ?, statut = ? where id = ?', [$updateRejDriverArr, 'new', $id_requete]);
+                    DB::update('update tj_requete set rejected_driver_id = ?, statut = ?, id_conducteur = 0 where id = ?', [$updateRejDriverArr, 'new', $id_requete]);
+                    Requests::rotateRequestIfNeeded($id_requete, true);
+                    
+                    $sql_update = Requests::where('id', '=', $id_requete)->first();
+                    if ($sql_update) {
+                        $row = $sql_update->toArray();
+                        $row['id'] = (string)$row['id'];
+                    }
+                } else {
+                    // $rideStatus == 'new': Driver declined an incoming dispatch ping.
+                    // Do NOT notify the user of rejection here; quietly rotate to the next driver!
+                    if (!in_array($from_id, $rejDriverIds)) {
+                        array_push($rejDriverIds, $from_id);
+                    }
+                    $updateRejDriverArr = json_encode($rejDriverIds);
+                    
+                    // Reset assigned driver to 0 so next driver can be picked cleanly
+                    DB::update('update tj_requete set rejected_driver_id = ?, statut = ?, id_conducteur = 0 where id = ?', [$updateRejDriverArr, 'new', $id_requete]);
                     
                     // Perform automated rotation to assign next driver and notify them
                     Requests::rotateRequestIfNeeded($id_requete, true);
