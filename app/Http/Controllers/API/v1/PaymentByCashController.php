@@ -256,21 +256,9 @@ class PaymentByCashController extends Controller
         // Driver Transaction Ledger (Transparent 3-row logging matching Home Service)
         if (\Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction')) {
             if (strtolower($paymethod) == 'cash') {
-                // 1. Gross Cash Earning Entry
-                $grossTxData = [
-                    'id_conducteur'  => $id_user,
-                    'amount'         => (string) $totalamount,
-                    'payment_method' => 'Cash',
-                    'id_ride'        => (string) $id_requete,
-                    'creer'          => $date,
-                ];
-                if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'deduction_type')) {
-                    $grossTxData['deduction_type'] = 'Cab Ride';
-                }
-                if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur_transaction', 'note')) {
-                    $grossTxData['note'] = 'Received cash payment (including ' . $currency . $totalTaxAmount . ' taxes) for Ride #' . $id_requete;
-                }
-                DB::table('tj_conducteur_transaction')->insert($grossTxData);
+                // Cash collected by driver in hand: physical cash is NOT deposited into the driver's digital wallet.
+                // Therefore, do NOT insert gross cash as a wallet credit in tj_conducteur_transaction.
+                // Only log Commission Deduction and Tax Deduction from driver's digital wallet balance.
 
                 // 2. Admin Commission Deduction
                 if (!empty($commission_amount)) {

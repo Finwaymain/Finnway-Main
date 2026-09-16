@@ -325,7 +325,11 @@ class DriverWalletHistoryController extends Controller
                 }
                 $row->libelle = $rideLabel;
 
-                $row->existing_user_id = (string)$row->existing_user_id;
+                $payMethodStr = strtolower(trim((string)($row->payment ?? 'cash')));
+                if ($payMethodStr === 'cash' || str_contains($payMethodStr, 'cash')) {
+                    // Physical cash in hand: NOT credited to digital wallet
+                    continue;
+                }
 
                 $output[] = $row;
 
@@ -540,6 +544,9 @@ class DriverWalletHistoryController extends Controller
         }
 
         // 3. Other driver wallet transactions (Top-up, Withdrawal, Subscription, Standalone Commission/Tax, etc.)
+        if ($amt >= 0 && strtolower(trim((string)($wt->payment_method ?? ''))) === 'cash') {
+            continue;
+        }
         $wt->id                  = $txnIdStr;
         $wt->amount              = (string) $wt->amount;
         $wt->id_payment_method   = "";

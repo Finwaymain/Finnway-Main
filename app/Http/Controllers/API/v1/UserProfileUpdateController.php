@@ -1809,6 +1809,13 @@ class UserProfileUpdateController extends Controller
         foreach ($transactions as $row) {
             $rideIdStr = !empty($row->id_ride) ? (string) $row->id_ride : null;
             $rawAmount = floatval($row->amount ?? 0);
+            $payM = strtolower(trim((string)($row->payment_method ?? '')));
+
+            // Cash collected by driver in person is NOT a digital wallet credit
+            if ($userType === 'driver' && ($payM === 'cash' || str_contains($payM, 'cash')) && !str_starts_with(trim((string) ($row->amount ?? '')), '-')) {
+                continue;
+            }
+
             $isComm = (($row->payment_method ?? '') === 'Commission')
                 || stripos((string) ($row->note ?? ''), 'commission') !== false
                 || stripos((string) ($row->description ?? ''), 'commission') !== false
@@ -1889,6 +1896,12 @@ class UserProfileUpdateController extends Controller
 
             foreach ($completedRides as $cr) {
                 $rideIdStr = (string) $cr->id;
+                // Cash rides were collected in physical cash in hand, never credited to digital wallet
+                $payLib = strtolower(trim((string)($cr->payment ?? '')));
+                if (empty($cr->id_payment_method) || $payLib === 'cash' || str_contains($payLib, 'cash')) {
+                    continue;
+                }
+
                 if (!in_array($rideIdStr, $existingRideEarningIds, true)) {
                     $baseRideAmt = (float) ($cr->montant ?? 0);
                     $discountAmt = (float) ($cr->discount ?? 0);
