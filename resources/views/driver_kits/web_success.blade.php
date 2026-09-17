@@ -165,7 +165,10 @@
             </div>
         </div>
 
-        <button type="button" onclick="closeAndReturn()" class="btn-done">
+        <a href="{{ route('driver-kits.webCheckout', ['driver_id' => $driver ? $driver->id : $order->driver_id]) }}" class="btn-done" style="margin-bottom: 10px; text-decoration: none; text-align: center; display: block;">
+            Track Delivery Live →
+        </a>
+        <button type="button" onclick="closeAndReturn()" style="background: transparent; border: 1.5px solid var(--border-color); color: var(--text-main); padding: 12px 0; border-radius: 10px; width: 100%; font-size: 13.5px; font-weight: 700; cursor: pointer;">
             Return to Dashboard
         </button>
     </div>

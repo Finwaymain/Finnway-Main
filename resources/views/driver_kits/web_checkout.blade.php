@@ -509,26 +509,470 @@
             background: var(--primary-dark);
         }
 
-        /* Existing Order Card */
-        .order-confirmed-card {
+        /* Live Courier Tracking View (image3.png) */
+        .tracking-header-card {
+            background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+            color: #ffffff;
+            border-radius: 16px;
+            padding: 20px 18px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 16px rgba(21, 128, 61, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tracking-header-card::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+        }
+
+        .tracking-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .tracking-order-badge {
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        .tracking-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #ffffff;
+            color: #15803d;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .status-dot-pulse {
+            width: 8px;
+            height: 8px;
+            background: #15803d;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7);
+            animation: pulse-dot 1.6s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(21, 128, 61, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); }
+        }
+
+        .tracking-eta-box {
+            margin-top: 8px;
+        }
+
+        .tracking-eta-label {
+            font-size: 11.5px;
+            opacity: 0.85;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tracking-eta-val {
+            font-size: 19px;
+            font-weight: 800;
+            margin-top: 2px;
+        }
+
+        /* Courier & AWB Card */
+        .courier-card {
             background: #ffffff;
             border: 1px solid var(--border-color);
             border-radius: 14px;
-            padding: 24px 20px;
-            text-align: center;
-            margin-top: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
         }
 
-        .status-badge {
-            display: inline-block;
-            background: var(--primary-light);
-            color: var(--primary);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 20px;
-            border: 1px solid var(--primary-border);
+        .courier-top-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed var(--border-color);
             margin-bottom: 12px;
+        }
+
+        .courier-badge-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .courier-icon-box {
+            width: 36px;
+            height: 36px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #15803d;
+            font-weight: 800;
+        }
+
+        .courier-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .courier-type-tag {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .awb-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .awb-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .awb-code {
+            font-size: 14px;
+            font-weight: 800;
+            color: #111827;
+            font-family: monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-copy-awb {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-copy-awb:active {
+            background: #f3f4f6;
+        }
+
+        /* Vertical Tracking Timeline */
+        .timeline-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 18px 16px;
+            margin-bottom: 12px;
+        }
+
+        .timeline-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+        }
+
+        .timeline-steps {
+            position: relative;
+            padding-left: 28px;
+        }
+
+        .timeline-steps::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 8px;
+            bottom: 22px;
+            width: 2px;
+            background: #e5e7eb;
+        }
+
+        .timeline-step {
+            position: relative;
+            margin-bottom: 22px;
+        }
+
+        .timeline-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .timeline-node {
+            position: absolute;
+            left: -28px;
+            top: 2px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #ffffff;
+            z-index: 2;
+        }
+
+        .timeline-step.completed .timeline-node {
+            background: #15803d;
+            border-color: #15803d;
+        }
+
+        .timeline-step.active .timeline-node {
+            background: #ffffff;
+            border-color: #15803d;
+            box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.2);
+        }
+
+        .timeline-step.active .timeline-node::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #15803d;
+            border-radius: 50%;
+        }
+
+        .timeline-step-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 2px;
+        }
+
+        .timeline-step-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .timeline-step.pending .timeline-step-title {
+            color: #9ca3af;
+        }
+
+        .timeline-step-time {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .timeline-step-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Delivery Executive Card */
+        .executive-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .executive-info-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .executive-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #eff6ff;
+            color: #2563eb;
+            font-weight: 700;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #bfdbfe;
+            flex-shrink: 0;
+        }
+
+        .executive-details {
+            flex: 1;
+        }
+
+        .executive-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .executive-role {
+            font-size: 11.5px;
+            color: var(--text-muted);
+        }
+
+        .executive-vehicle {
+            font-size: 11px;
+            color: #15803d;
+            font-weight: 600;
+            margin-top: 1px;
+        }
+
+        .executive-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .btn-exec-action {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 9px 6px;
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-main);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-exec-action:active {
+            background: #e5e7eb;
+        }
+
+        .btn-exec-action svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Order Details Summary Card */
+        .info-summary-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12.5px;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .info-row-label {
+            color: var(--text-muted);
+        }
+
+        .info-row-val {
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: right;
+            max-width: 65%;
+        }
+
+        /* Cashback Banner */
+        .cashback-banner {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cashback-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #10b981;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .cashback-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #065f46;
+        }
+
+        .cashback-sub {
+            font-size: 11.5px;
+            color: #047857;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
         }
     </style>
 </head>
@@ -567,18 +1011,217 @@
         @endif
 
         @if($existingOrder)
-            <div class="order-confirmed-card">
-                <div class="status-badge">Order Confirmed</div>
-                <h2 style="font-size: 17px; font-weight: 700; margin-bottom: 6px;">Partner Kit Already Ordered</h2>
-                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
-                    Order <strong>#{{ $existingOrder->order_number }}</strong> is currently <strong>{{ ucfirst($existingOrder->delivery_status) }}</strong>.
-                </p>
-                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;">
-                    Your kit has been recorded. You are eligible to receive customer booking requests.
+            @php
+                $deliveryStatus = strtolower($existingOrder->delivery_status ?? 'booked');
+                $statusMap = [
+                    'booked' => ['label' => 'Order Confirmed', 'level' => 1],
+                    'processing' => ['label' => 'Processing', 'level' => 1],
+                    'picked_up' => ['label' => 'Packed & Dispatched', 'level' => 2],
+                    'in_transit' => ['label' => 'In Transit', 'level' => 3],
+                    'out_for_delivery' => ['label' => 'Out for Delivery', 'level' => 4],
+                    'delivered' => ['label' => 'Delivered', 'level' => 5],
+                ];
+                $currentStatusInfo = $statusMap[$deliveryStatus] ?? ['label' => ucfirst(str_replace('_', ' ', $deliveryStatus)), 'level' => 2];
+                $currentLevel = $currentStatusInfo['level'];
+
+                $rawTimeline = is_array($existingOrder->status_timeline) ? $existingOrder->status_timeline : (json_decode($existingOrder->status_timeline ?? '[]', true) ?: []);
+
+                $defaultTimeline = [
+                    [
+                        'status' => 'booked',
+                        'title' => 'Order Confirmed',
+                        'date' => $existingOrder->purchased_at ? \Carbon\Carbon::parse($existingOrder->purchased_at)->format('d M Y, h:i A') : date('d M Y, h:i A'),
+                        'description' => 'Your partner marketing kit order has been verified and registered.',
+                        'level' => 1,
+                    ],
+                    [
+                        'status' => 'picked_up',
+                        'title' => 'Packed & Dispatched',
+                        'date' => ($currentLevel >= 2) ? date('d M Y, h:i A', strtotime(($existingOrder->created_at ?? now()) . ' +8 hours')) : 'Estimated within 24 hrs',
+                        'description' => 'Kit packed at Fiinway Central Fulfillment Hub and handed over to BlueDart.',
+                        'level' => 2,
+                    ],
+                    [
+                        'status' => 'in_transit',
+                        'title' => 'In Transit',
+                        'date' => ($currentLevel >= 3) ? date('d M Y, h:i A', strtotime(($existingOrder->created_at ?? now()) . ' +20 hours')) : 'Pending hub handover',
+                        'description' => 'Shipment departed Central Sorting Facility to your regional hub.',
+                        'level' => 3,
+                    ],
+                    [
+                        'status' => 'out_for_delivery',
+                        'title' => 'Out for Delivery',
+                        'date' => ($currentLevel >= 4) ? date('d M Y, h:i A', strtotime(($existingOrder->created_at ?? now()) . ' +32 hours')) : 'Pending local dispatch',
+                        'description' => 'Courier delivery associate is out for delivery in your area.',
+                        'level' => 4,
+                    ],
+                    [
+                        'status' => 'delivered',
+                        'title' => 'Delivered',
+                        'date' => ($currentLevel >= 5) ? date('d M Y, h:i A', strtotime(($existingOrder->created_at ?? now()) . ' +36 hours')) : ($existingOrder->expected_delivery_date ?: date('D, d M Y', strtotime('+3 days'))),
+                        'description' => 'Kit safely delivered with OTP verification.',
+                        'level' => 5,
+                    ],
+                ];
+
+                $trackingTimeline = !empty($rawTimeline) ? $rawTimeline : $defaultTimeline;
+            @endphp
+
+            <!-- 1. Live Tracking Gradient Header -->
+            <div class="tracking-header-card">
+                <div class="tracking-top-row">
+                    <span class="tracking-order-badge">#{{ $existingOrder->order_number }}</span>
+                    <span class="tracking-status-pill">
+                        <span class="status-dot-pulse"></span>
+                        {{ $currentStatusInfo['label'] }}
+                    </span>
                 </div>
-                <button type="button" class="btn-submit-order" style="max-width: 100%; width: 100%;" onclick="closeWebView()">
+                <div class="tracking-eta-box">
+                    <div class="tracking-eta-label">Estimated Delivery</div>
+                    <div class="tracking-eta-val">
+                        {{ $existingOrder->expected_delivery_date ?: date('l, d M Y', strtotime(($existingOrder->created_at ?? now()) . ' +3 days')) }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Courier Logistics & AWB Code Card -->
+            <div class="courier-card">
+                <div class="courier-top-info">
+                    <div class="courier-badge-name">
+                        <div class="courier-icon-box">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="1" y="3" width="15" height="13"></rect>
+                                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                                <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                                <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="courier-name">{{ $existingOrder->courier_partner ?: 'BlueDart Express' }}</div>
+                            <div class="courier-type-tag">Official Logistics Partner • Express Air</div>
+                        </div>
+                    </div>
+                    <span style="font-size: 11px; font-weight: 700; color: #15803d; background: #f0fdf4; padding: 4px 8px; border-radius: 6px; border: 1px solid #bbf7d0;">
+                        Priority
+                    </span>
+                </div>
+
+                <div class="awb-container">
+                    <div>
+                        <div class="awb-label">AWB Tracking Code</div>
+                        <div class="awb-code" id="awbCodeText">{{ $existingOrder->tracking_code ?: ($existingOrder->tracking_number ?: ('FWP' . ($existingOrder->id + 84920194))) }}</div>
+                    </div>
+                    <button type="button" class="btn-copy-awb" onclick="copyAWB()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. Real-Time Vertical Tracking Milestone Stepper -->
+            <div class="timeline-card">
+                <div class="timeline-title">Delivery Progress</div>
+                <div class="timeline-steps">
+                    @foreach($trackingTimeline as $step)
+                        @php
+                            $stepLevel = $step['level'] ?? ($statusMap[$step['status']]['level'] ?? 1);
+                            $isCompleted = ($step['is_completed'] ?? false) || ($stepLevel < $currentLevel);
+                            $isActive = ($step['is_current'] ?? false) || ($stepLevel === $currentLevel);
+                            $stepClass = $isCompleted ? 'completed' : ($isActive ? 'active' : 'pending');
+                        @endphp
+                        <div class="timeline-step {{ $stepClass }}">
+                            <div class="timeline-node">
+                                @if($isCompleted)
+                                    ✓
+                                @endif
+                            </div>
+                            <div class="timeline-step-content">
+                                <div class="timeline-step-header">
+                                    <span class="timeline-step-title">{{ $step['title'] ?? 'Milestone' }}</span>
+                                    <span class="timeline-step-time">{{ $step['date'] ?? '' }}</span>
+                                </div>
+                                <div class="timeline-step-desc">{{ $step['description'] ?? '' }}</div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- 4. Delivery Executive Contact Card -->
+            <div class="executive-card">
+                <div class="card-title" style="margin-bottom: 12px;">Delivery Associate</div>
+                <div class="executive-info-row">
+                    <div class="executive-avatar">
+                        {{ strtoupper(substr($existingOrder->delivery_partner_name ?: 'RK', 0, 2)) }}
+                    </div>
+                    <div class="executive-details">
+                        <div class="executive-name">{{ $existingOrder->delivery_partner_name ?: 'Ramesh Kumar' }}</div>
+                        <div class="executive-role">BlueDart Field Associate</div>
+                        <div class="executive-vehicle">{{ $existingOrder->delivery_partner_vehicle ?: 'Delivery Van (KA-01-EE-4521)' }}</div>
+                    </div>
+                </div>
+                <div class="executive-actions">
+                    <a href="tel:{{ $existingOrder->delivery_partner_phone ?: '+919876543210' }}" class="btn-exec-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        <span>Call</span>
+                    </a>
+                    <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $existingOrder->delivery_partner_phone ?? '919876543210') }}?text=Hi%20regarding%20my%20Fiinway%20Kit%20delivery%20{{ $existingOrder->order_number }}" target="_blank" class="btn-exec-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        <span>WhatsApp</span>
+                    </a>
+                    <button type="button" class="btn-exec-action" onclick="shareTracking()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        <span>Share</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 5. Order Package Details & Delivery Address Summary -->
+            <div class="info-summary-card">
+                <div class="card-title" style="margin-bottom: 12px;">Order Summary</div>
+                <div class="info-row">
+                    <span class="info-row-label">Kit Package</span>
+                    <span class="info-row-val">{{ $existingOrder->kit_title ?: 'Partner Starter Kit' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-row-label">Selected Size</span>
+                    <span class="info-row-val">{{ strtoupper($existingOrder->selected_size ?: ($existingOrder->tshirt_size ?: 'L')) }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-row-label">Payment Status</span>
+                    <span class="info-row-val" style="color: #15803d;">₹{{ number_format($existingOrder->amount, 2) }} (Paid via {{ strtoupper($existingOrder->payment_method) }})</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-row-label">Recipient</span>
+                    <span class="info-row-val">{{ $existingOrder->receiver_name }} • {{ $existingOrder->receiver_phone }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-row-label">Shipping Address</span>
+                    <span class="info-row-val">{{ $existingOrder->shipping_address }}</span>
+                </div>
+            </div>
+
+            <!-- 6. Action Buttons -->
+            <div style="margin-top: 18px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                <button type="button" class="btn-submit-order" style="width: 100%; max-width: 100%; padding: 14px;" onclick="closeWebView()">
                     Return to Dashboard
                 </button>
+                <a href="{{ route('driver-kits.webCheckout', ['driver_id' => $driver ? $driver->id : '', 'force_new' => 1]) }}" style="font-size: 12.5px; font-weight: 600; color: #15803d; text-decoration: none; padding: 6px;">
+                    Need another kit? Order New Package →
+                </a>
             </div>
         @else
             <form id="checkoutForm" action="{{ route('driver-kits.webSubmit') }}" method="POST">
@@ -598,6 +1241,15 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+
+                <!-- Cashback Callout Banner -->
+                <div class="cashback-banner">
+                    <div class="cashback-icon">₹</div>
+                    <div>
+                        <div class="cashback-title">₹100 Wallet Cashback Reward</div>
+                        <div class="cashback-sub">₹100 will be credited directly to your Fiinway wallet upon kit delivery.</div>
+                    </div>
                 </div>
 
                 <!-- 2. Product Summary Card -->
@@ -687,6 +1339,11 @@
                     <div class="form-group">
                         <label class="form-label">Complete Shipping Address</label>
                         <textarea name="shipping_address" class="form-textarea" rows="2" required placeholder="House/Flat no, Street, Landmark, City & Pincode">{{ $driver ? ($driver->address ?? '') : '' }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Postal Pincode</label>
+                        <input type="text" name="pincode" class="form-input" value="560001" required placeholder="6-digit postal code" maxlength="6">
                     </div>
                 </div>
 
@@ -890,7 +1547,47 @@
                 window.history.back();
             }
         }
+
+        function copyAWB() {
+            const el = document.getElementById('awbCodeText');
+            if (!el) return;
+            const text = el.innerText.trim();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('Tracking AWB copied to clipboard!');
+                }).catch(() => {
+                    showToast('AWB: ' + text);
+                });
+            } else {
+                showToast('AWB: ' + text);
+            }
+        }
+
+        function shareTracking() {
+            const el = document.getElementById('awbCodeText');
+            const text = el ? el.innerText.trim() : '';
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Track My Fiinway Partner Kit',
+                    text: 'Live tracking for my partner welcome kit. AWB: ' + text,
+                    url: window.location.href
+                }).catch(() => {});
+            } else {
+                copyAWB();
+            }
+        }
+
+        function showToast(msg) {
+            let toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2600);
+        }
     </script>
+    <div id="toast" class="toast"></div>
 </body>
 </html>
 

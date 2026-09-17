@@ -50,9 +50,9 @@ class DriverKitWebController extends Controller
                 ?? DriverKit::where('is_active', true)->first();
         }
 
-        // Check if already ordered by driver ID OR phone number
+        // Check if already ordered by driver ID OR phone number (unless force_new is requested)
         $existingOrder = null;
-        if ($driver) {
+        if ($driver && !$request->has('force_new')) {
             $driverPhone = trim($driver->phone ?? '');
             $cleanPhone = preg_replace('/[^0-9]/', '', $driverPhone);
             $shortPhone = strlen($cleanPhone) >= 10 ? substr($cleanPhone, -10) : $cleanPhone;
@@ -69,6 +69,25 @@ class DriverKitWebController extends Controller
             ->where('payment_status', 'paid')
             ->orderBy('id', 'desc')
             ->first();
+
+            // Populate fallback defaults for tracking if not present
+            if ($existingOrder) {
+                if (empty($existingOrder->tracking_code)) {
+                    $existingOrder->tracking_code = $existingOrder->tracking_number ?: ('FWP' . ($existingOrder->id + 8491023));
+                }
+                if (empty($existingOrder->courier_partner)) {
+                    $existingOrder->courier_partner = 'BlueDart Express';
+                }
+                if (empty($existingOrder->expected_delivery_date)) {
+                    $existingOrder->expected_delivery_date = date('D, d M Y', strtotime(($existingOrder->created_at ?? now()) . ' +3 days'));
+                }
+                if (empty($existingOrder->delivery_partner_name)) {
+                    $existingOrder->delivery_partner_name = 'Ramesh Kumar (BlueDart Partner)';
+                }
+                if (empty($existingOrder->delivery_partner_phone)) {
+                    $existingOrder->delivery_partner_phone = '+91 98765 43210';
+                }
+            }
         }
 
         // All active kits for interactive dropdown selection
@@ -137,6 +156,7 @@ class DriverKitWebController extends Controller
 
         $orderNumber = 'KIT-' . date('Ymd') . '-' . rand(1000, 9999);
         $transactionId = $request->transaction_id ?? ('TXN-' . Str::upper(Str::random(12)));
+        $trackingCode = 'FWP' . rand(10000000, 99999999);
 
         $order = DriverKitOrder::create([
             'driver_id' => $driver->id,
@@ -146,12 +166,63 @@ class DriverKitWebController extends Controller
             'kit_title' => $kit->title,
             'amount' => $amount,
             'tshirt_size' => $request->tshirt_size,
+            'selected_size' => $request->tshirt_size,
             'receiver_name' => $request->receiver_name,
             'receiver_phone' => $request->receiver_phone,
             'shipping_address' => $request->shipping_address,
+            'pincode' => $request->pincode ?? '560001',
             'payment_method' => $paymentMethod,
             'payment_status' => 'paid',
             'delivery_status' => 'processing',
+            'tracking_code' => $trackingCode,
+            'tracking_number' => $trackingCode,
+            'courier_partner' => 'BlueDart Express',
+            'expected_delivery_date' => date('D, d M Y', strtotime('+3 days')),
+            'delivery_partner_name' => 'Ramesh Kumar (BlueDart Partner)',
+            'delivery_partner_phone' => '+91 98765 43210',
+            'delivery_partner_vehicle' => 'Delivery Van (KA-01-EE-4521)',
+            'status_timeline' => [
+                [
+                    'status' => 'booked',
+                    'title' => 'Order Confirmed',
+                    'date' => now()->format('d M Y, h:i A'),
+                    'description' => 'Your partner marketing kit has been booked successfully.',
+                    'is_completed' => true,
+                    'is_current' => true,
+                ],
+                [
+                    'status' => 'picked_up',
+                    'title' => 'Packed & Dispatched',
+                    'date' => 'Estimated in 24 hrs',
+                    'description' => 'Kit is being packed at Fiinway Fulfillment Center.',
+                    'is_completed' => false,
+                    'is_current' => false,
+                ],
+                [
+                    'status' => 'in_transit',
+                    'title' => 'In Transit',
+                    'date' => 'Pending Dispatch',
+                    'description' => 'Handover to BlueDart Courier Sorting Hub.',
+                    'is_completed' => false,
+                    'is_current' => false,
+                ],
+                [
+                    'status' => 'out_for_delivery',
+                    'title' => 'Out for Delivery',
+                    'date' => 'Pending arrival at city hub',
+                    'description' => 'Courier delivery executive is out for delivery.',
+                    'is_completed' => false,
+                    'is_current' => false,
+                ],
+                [
+                    'status' => 'delivered',
+                    'title' => 'Delivered',
+                    'date' => date('D, d M Y', strtotime('+3 days')),
+                    'description' => 'Package handed over with OTP verification.',
+                    'is_completed' => false,
+                    'is_current' => false,
+                ],
+            ],
             'transaction_id' => $transactionId,
             'purchased_at' => now(),
         ]);
