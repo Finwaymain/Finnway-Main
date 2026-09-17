@@ -183,18 +183,51 @@ class ConfirmRequeteController extends Controller
 
                 $driver = DB::table('tj_conducteur')->where('id', $row['id_conducteur'])->first();
                 if ($driver) {
-                    $row['prenomConducteur'] = $driver->prenom;
-                    $row['nomConducteur'] = $driver->nom;
-                    $row['photo_path'] = $driver->photo_path;
-                    if ($row['photo_path'] != '') {
-                        if (file_exists(public_path('assets/images/driver' . '/' . $row['photo_path']))) {
-                            $row['photo_path'] = asset('assets/images/driver') . '/' . $row['photo_path'];
-                        } else {
-                            $row['photo_path'] = asset('assets/images/placeholder_image.jpg');
-                        }
+                    $row['prenomConducteur'] = $driver->prenom ?? '';
+                    $row['nomConducteur'] = $driver->nom ?? '';
+                    $row['driverPhone'] = $driver->phone ?? '';
+                    $row['driver_phone'] = $driver->phone ?? '';
+                    $row['photo_path'] = Helper::resolveImagePath($driver->photo_path, 'assets/images/driver') ?: asset('assets/images/placeholder_image.jpg');
+
+                    $vehicle = DB::table('tj_vehicule')
+                        ->where('id_conducteur', '=', $row['id_conducteur'])
+                        ->first();
+
+                    if ($vehicle) {
+                        $row['idVehicule'] = (string)$vehicle->id;
+                        $row['brand'] = (string)($vehicle->brand ?? '');
+                        $row['model'] = (string)($vehicle->model ?? '');
+                        $row['car_make'] = (string)($vehicle->car_make ?? $vehicle->brand ?? '');
+                        $row['color'] = (string)($vehicle->color ?? '');
+                        $row['numberplate'] = (string)($vehicle->numberplate ?? '');
+                        $row['passenger'] = (string)($vehicle->passenger ?? '4');
                     } else {
-                        $row['photo_path'] = asset('assets/images/placeholder_image.jpg');
+                        $vehType = !empty($row['id_type_vehicule']) 
+                            ? DB::table('tj_type_vehicule')->where('id', $row['id_type_vehicule'])->first() 
+                            : null;
+                        $typeName = $vehType ? $vehType->libelle : 'Cab';
+                        $isBike = stripos($typeName, 'bike') !== false || stripos($typeName, 'moto') !== false;
+                        $row['idVehicule'] = '';
+                        $row['brand'] = $typeName;
+                        $row['model'] = '';
+                        $row['car_make'] = $typeName;
+                        $row['color'] = '';
+                        $row['numberplate'] = '';
+                        $row['passenger'] = $isBike ? '1' : '4';
                     }
+                } else {
+                    $row['prenomConducteur'] = '';
+                    $row['nomConducteur'] = '';
+                    $row['driverPhone'] = '';
+                    $row['driver_phone'] = '';
+                    $row['photo_path'] = asset('assets/images/placeholder_image.jpg');
+                    $row['idVehicule'] = '';
+                    $row['brand'] = '';
+                    $row['model'] = '';
+                    $row['car_make'] = '';
+                    $row['color'] = '';
+                    $row['numberplate'] = '';
+                    $row['passenger'] = '4';
                 }
                 
                 $sql_nb_avis = DB::table('tj_note')
@@ -219,6 +252,9 @@ class ConfirmRequeteController extends Controller
                 }
                 $row['moyenne'] = $moyenne;
                 $row['statut'] = 'confirmed';
+                if (empty($row['distance_unit'])) {
+                    $row['distance_unit'] = 'km';
+                }
 
                 $message = array_merge($row, array("body" => $msg_, "title" => $title, "sound" => "default", "tag" => "rideconfirmed", "statut" => "confirmed"));
 

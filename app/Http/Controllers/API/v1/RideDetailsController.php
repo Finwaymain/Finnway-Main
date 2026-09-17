@@ -170,7 +170,36 @@ class RideDetailsController extends Controller
                     if ($driver) {
                         $row->nomConducteur = $driver->nom;
                         $row->prenomConducteur = $driver->prenom;
-                        $row->driverPhone = $driver->phone;
+                        $row->driverPhone = $driver->phone ?? '';
+                        $row->driver_phone = $driver->phone ?? '';
+
+                        // Query driver vehicle details from tj_vehicule
+                        $vehicle = DB::table('tj_vehicule')
+                            ->where('id_conducteur', '=', $id_conducteur)
+                            ->first();
+
+                        if ($vehicle) {
+                            $row->idVehicule = (string)$vehicle->id;
+                            $row->brand = (string)($vehicle->brand ?? '');
+                            $row->model = (string)($vehicle->model ?? '');
+                            $row->car_make = (string)($vehicle->car_make ?? $vehicle->brand ?? '');
+                            $row->color = (string)($vehicle->color ?? '');
+                            $row->numberplate = (string)($vehicle->numberplate ?? '');
+                            $row->passenger = (string)($vehicle->passenger ?? '4');
+                        } else {
+                            $vehType = !empty($row->id_type_vehicule) 
+                                ? DB::table('tj_type_vehicule')->where('id', $row->id_type_vehicule)->first() 
+                                : null;
+                            $typeName = $vehType ? $vehType->libelle : 'Cab';
+                            $isBike = stripos($typeName, 'bike') !== false || stripos($typeName, 'moto') !== false;
+                            $row->idVehicule = '';
+                            $row->brand = $typeName;
+                            $row->model = '';
+                            $row->car_make = $typeName;
+                            $row->color = '';
+                            $row->numberplate = '';
+                            $row->passenger = $isBike ? '1' : '4';
+                        }
 
                         // Calculate driver rating
                         $sql_nb_avis = DB::table('tj_note')
@@ -196,12 +225,20 @@ class RideDetailsController extends Controller
                         if ($user_type === 'driver') {
                             $row->photo_path = Helper::resolveImagePath($row->user_photo_path, 'assets/images/users') ?: asset('assets/images/placeholder_image.jpg');
                         } else {
-                            $row->photo_path = Helper::resolveImagePath($driver->photo_path) ?: asset('assets/images/placeholder_image.jpg');
+                            $row->photo_path = Helper::resolveImagePath($driver->photo_path, 'assets/images/driver') ?: asset('assets/images/placeholder_image.jpg');
                         }
                     } else {
                         $row->nomConducteur = '';
                         $row->prenomConducteur = '';
                         $row->driverPhone = '';
+                        $row->driver_phone = '';
+                        $row->idVehicule = '';
+                        $row->brand = '';
+                        $row->model = '';
+                        $row->car_make = '';
+                        $row->color = '';
+                        $row->numberplate = '';
+                        $row->passenger = '4';
                         $row->moyenne = '0.0';
                         $row->photo_path = asset('assets/images/placeholder_image.jpg');
                     }
@@ -209,10 +246,22 @@ class RideDetailsController extends Controller
                     $row->nomConducteur = '';
                     $row->prenomConducteur = '';
                     $row->driverPhone = '';
+                    $row->driver_phone = '';
+                    $row->idVehicule = '';
+                    $row->brand = '';
+                    $row->model = '';
+                    $row->car_make = '';
+                    $row->color = '';
+                    $row->numberplate = '';
+                    $row->passenger = '4';
                     $row->moyenne = '0.0';
 
                     // No driver assigned yet. Return passenger photo in photo_path
                     $row->photo_path = Helper::resolveImagePath($row->user_photo_path, 'assets/images/users') ?: asset('assets/images/placeholder_image.jpg');
+                }
+
+                if (empty($row->distance_unit)) {
+                    $row->distance_unit = 'km';
                 }
 
                 $response['success'] = 'success';
