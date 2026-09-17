@@ -178,6 +178,7 @@ class SubscriptionPlanController extends Controller
             'isEnable'     => ($request->has('status')) ? 'true' : 'false',
             'image'        => $filename,
             'plan_points'  => $data['plan_points'],
+            'benefits_list' => $data['plan_points'],
             'bookingLimit' => $data['set_booking_limit'] == 'limited' ? $data['booking_limit'] : '-1',
             // Benefit config
             'plan_tier'                  => $data['plan_tier'] ?? 'basic',
@@ -360,6 +361,7 @@ class SubscriptionPlanController extends Controller
             'isEnable'     => ($request->has('status')) ? 'true' : 'false',
             'image'        => $filename,
             'plan_points'  => $data['plan_points'],
+            'benefits_list' => $data['plan_points'],
             'bookingLimit' => $data['set_booking_limit'] == 'limited' ? $data['booking_limit'] : '-1',
             // Benefit config
             'plan_tier'                  => $data['plan_tier'] ?? 'basic',

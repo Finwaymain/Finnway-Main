@@ -49,36 +49,9 @@ class SubscriptionPlanController extends Controller
         $output = [];
         $subscriptionPlan = SubscriptionPlan::where('isEnable', '=', 'true')->orderBy('tier_level', 'asc')->get();
 
-        $default26Benefits = [
-            "Instant Payout / Daily Withdrawal",
-            "Zero Commission on Rides / Orders",
-            "Priority Booking Dispatch",
-            "Premium Customer Support",
-            "Dedicated Relationship Manager",
-            "Free Marketing & Profile Promotion",
-            "Verified Partner Badge",
-            "Access to High-Value Bookings",
-            "Advanced Analytics & Earnings Report",
-            "Custom Service Area Selection",
-            "Fuel / Vehicle Maintenance Discounts",
-            "Free Health & Accidental Insurance Cover",
-            "Priority Customer Care (No Waiting)",
-            "Free Replacement of Damaged QR / Standee",
-            "Multi-City Booking Access",
-            "Festival Bonus & Incentive Eligibility",
-            "Customer Review Removal Request (Unfair reviews)",
-            "Free Uniform / Merchandising Top-Up",
-            "Direct Customer Chat Feature",
-            "Flexible Working Hours Toggle",
-            "Peak Hour Surcharge Earnings (100% to partner)",
-            "Weekly Training & Skill Upgradation",
-            "Referral Bonus Booster (2x Earnings)",
-            "Zero Cancellation Penalty (up to 3/month)",
-            "Tax & GST Invoicing Assistance",
-            "VIP Partner Club Membership"
-        ];
-
         if (count($subscriptionPlan) > 0) {
+            $allUpgradePerks = [];
+
             foreach ($subscriptionPlan as $row) {
                 $row->id = (string)$row->id;
                 $row->tier_level = intval($row->tier_level ?? 1);
@@ -93,18 +66,30 @@ class SubscriptionPlanController extends Controller
                     }
                 }
 
+                // Show only perks/benefits added by admin from panel
                 $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: []);
-                if (empty($planPoints)) {
-                    $planPoints = $default26Benefits;
-                }
+                $benefitsList = is_array($row->benefits_list) ? $row->benefits_list : (json_decode($row->benefits_list ?? '[]', true) ?: []);
+
+                $points = !empty($planPoints) ? $planPoints : (!empty($benefitsList) ? $benefitsList : []);
+                $points = array_values(array_filter($points, function($pt) {
+                    return !empty(trim((string)$pt));
+                }));
+
                 if (Schema::hasColumn('subscription_plans', 'cashback_on_purchase') && floatval($row->cashback_on_purchase ?? 0) > 0) {
-                    $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
+                    $points[] = "₹" . number_format(floatval($row->cashback_on_purchase), 0) . " instant cashback on plan purchase";
                 }
-                $row->plan_points = $planPoints;
-                $row->benefits_list = is_array($row->benefits_list) ? $row->benefits_list : (json_decode($row->benefits_list ?? '[]', true) ?: $default26Benefits);
+
+                $row->plan_points = $points;
+                $row->benefits_list = $points;
+
+                if (floatval($row->price) > 0 && !empty($points)) {
+                    $allUpgradePerks = array_merge($allUpgradePerks, $points);
+                }
 
                 $output[] = $row;
             }
+
+            $uniqueUpgradePerks = array_values(array_unique($allUpgradePerks));
 
             return response()->json([
                 'success' => 'success',
@@ -117,7 +102,8 @@ class SubscriptionPlanController extends Controller
                     'example_monthly_loss' => 5000,
                     'example_yearly_loss' => 60000,
                     'cta_text' => 'Switch to a Subscription Plan & Save Up to ₹60,000/Year!',
-                    'all_26_locked_benefits' => $default26Benefits,
+                    'locked_benefits' => $uniqueUpgradePerks,
+                    'all_26_locked_benefits' => $uniqueUpgradePerks,
                 ],
             ]);
         } else {
