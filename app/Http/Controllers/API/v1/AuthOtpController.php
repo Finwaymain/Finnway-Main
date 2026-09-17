@@ -88,9 +88,11 @@ class AuthOtpController extends Controller
         }
         // ─────────────────────────────────────────────────────────────────────
 
+        $variants = PhoneService::getVariants($phone);
+
         // Delete any existing unused OTPs for this phone+type
         DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where('type', 'phone')
             ->where('user_cat', $user_cat)
             ->delete();
@@ -102,7 +104,7 @@ class AuthOtpController extends Controller
             'type'       => 'phone',
             'user_cat'   => $user_cat,
             'verified'   => 0,
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+15 minutes')),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -129,25 +131,29 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Phone and OTP are required.']);
         }
 
+        $cleanOtp = preg_replace('/\D/', '', $otp);
         $setting = DB::table('tj_settings')->first();
         $otpStatus = $setting->voice_fortius_otp_status ?? '0';
         $isOtpOff = ($otpStatus != '1' && strtolower($otpStatus) != 'yes' && strtolower($otpStatus) != 'on');
 
+        $variants = PhoneService::getVariants($phone);
+
         $record = DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where('type', 'phone')
             ->where('user_cat', $user_cat)
             ->where('verified', 0)
-            ->where('expires_at', '>', date('Y-m-d H:i:s'))
-            ->where(function($q) use ($otp, $isOtpOff) {
-                $q->where('otp', $otp);
-                if ($isOtpOff && ($otp === '1234' || $otp === '123456')) {
+            ->where('expires_at', '>', now()->subMinutes(2))
+            ->where(function($q) use ($cleanOtp, $isOtpOff) {
+                $q->where('otp', $cleanOtp);
+                if ($isOtpOff && ($cleanOtp === '1234' || $cleanOtp === '123456')) {
                     $q->orWhereRaw('1 = 1');
                 }
             })
+            ->latest('id')
             ->first();
 
-        if (!$record && !($isOtpOff && ($otp === '1234' || $otp === '123456'))) {
+        if (!$record && !($isOtpOff && ($cleanOtp === '1234' || $cleanOtp === '123456'))) {
             return response()->json(['success' => 'Failed', 'error' => 'Invalid or expired OTP. Please try again.']);
         }
 
@@ -181,9 +187,11 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Please enter a valid email address.']);
         }
 
+        $variants = PhoneService::getVariants($phone);
+
         // Check phone was verified in step 2
         $phoneVerified = DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->whereIn('phone', $variants)
             ->where('type', 'phone')
             ->where('user_cat', $user_cat)
             ->where('verified', 1)
@@ -202,22 +210,25 @@ class AuthOtpController extends Controller
         // Generate 6-digit OTP
         $otp = strval(random_int(100000, 999999));
 
-        // Delete existing email OTPs for this phone
+        // Delete existing email OTPs for this phone/email
         DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->where(function($q) use ($variants, $email) {
+                $q->whereIn('phone', $variants)
+                  ->orWhere('email', $email);
+            })
             ->where('type', 'email')
             ->where('user_cat', $user_cat)
             ->delete();
 
         // Store OTP
         DB::table('auth_otp_temp')->insert([
-            'phone'      => $phone,
+            'phone'      => PhoneService::normalize($phone),
             'email'      => $email,
             'otp'        => $otp,
             'type'       => 'email',
             'user_cat'   => $user_cat,
             'verified'   => 0,
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+15 minutes')),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -255,15 +266,22 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Required fields are missing.']);
         }
 
+        $cleanOtp = preg_replace('/\D/', '', $otp);
+        $variants = PhoneService::getVariants($phone);
+
         // Verify email OTP
         $record = DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->where(function($q) use ($variants, $email) {
+                $q->whereIn('phone', $variants)
+                  ->orWhere('email', $email);
+            })
             ->where('email', $email)
-            ->where('otp', $otp)
+            ->where('otp', $cleanOtp)
             ->where('type', 'email')
             ->where('user_cat', $user_cat)
             ->where('verified', 0)
-            ->where('expires_at', '>', date('Y-m-d H:i:s'))
+            ->where('expires_at', '>', now()->subMinutes(2))
+            ->latest('id')
             ->first();
 
         if (!$record) {
@@ -426,21 +444,26 @@ class AuthOtpController extends Controller
         // Generate 6-digit OTP
         $otp = strval(random_int(100000, 999999));
 
-        // Delete existing login email OTPs for this phone
+        $variants = PhoneService::getVariants($phone);
+
+        // Delete existing login email OTPs for this phone/email
         DB::table('auth_otp_temp')
-            ->where('phone', $phone)
+            ->where(function($q) use ($variants, $email) {
+                $q->whereIn('phone', $variants)
+                  ->orWhere('email', $email);
+            })
             ->where('type', 'email')
             ->where('user_cat', $user_cat)
             ->delete();
 
         DB::table('auth_otp_temp')->insert([
-            'phone'      => $phone,
+            'phone'      => PhoneService::normalize($phone),
             'email'      => $email,
             'otp'        => $otp,
             'type'       => 'email',
             'user_cat'   => $user_cat,
             'verified'   => 0,
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+15 minutes')),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -475,13 +498,17 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Phone and OTP are required.']);
         }
 
+        $cleanOtp = preg_replace('/\D/', '', $otp);
+        $variants = PhoneService::getVariants($phone);
+
         $record = DB::table('auth_otp_temp')
-            ->where('phone', $phone)
-            ->where('otp', $otp)
+            ->whereIn('phone', $variants)
+            ->where('otp', $cleanOtp)
             ->where('type', 'email')
             ->where('user_cat', $user_cat)
             ->where('verified', 0)
-            ->where('expires_at', '>', date('Y-m-d H:i:s'))
+            ->where('expires_at', '>', now()->subMinutes(2))
+            ->latest('id')
             ->first();
 
         if (!$record) {
@@ -914,17 +941,21 @@ class AuthOtpController extends Controller
         $isOtpOff = ($otpStatus != '1' && strtolower($otpStatus) != 'yes' && strtolower($otpStatus) != 'on');
 
         // When OTP service is OFF, accept default '1234' directly
-        if ($isOtpOff && $otp === '1234') {
+        $cleanOtp = preg_replace('/\D/', '', $otp);
+        $variants = PhoneService::getVariants($phone);
+
+        if ($isOtpOff && ($cleanOtp === '1234' || $cleanOtp === '123456')) {
             \Log::info("resetMpin: OTP service OFF, accepting default 1234 for phone: $phone");
         } else {
             // Verify the phone OTP first
             $record = DB::table('auth_otp_temp')
-                ->where('phone', $phone)
-                ->where('otp', $otp)
+                ->whereIn('phone', $variants)
+                ->where('otp', $cleanOtp)
                 ->where('type', 'phone')
                 ->where('user_cat', $user_cat)
                 ->where('verified', 1)
-                ->where('expires_at', '>', date('Y-m-d H:i:s'))
+                ->where('expires_at', '>', now()->subMinutes(2))
+                ->latest('id')
                 ->first();
 
             if (!$record) {
@@ -1018,23 +1049,30 @@ class AuthOtpController extends Controller
         $otpStatus = $setting->voice_fortius_otp_status ?? '0';
         $isOtpOff = ($otpStatus != '1' && strtolower($otpStatus) != 'yes' && strtolower($otpStatus) != 'on');
 
+        $cleanOtp = preg_replace('/\D/', '', $otp);
+        $variants = PhoneService::getVariants($phone);
+
         // Verify phone OTP against DB record flexibly
-        if ($isOtpOff && $otp === '1234') {
+        if ($isOtpOff && ($cleanOtp === '1234' || $cleanOtp === '123456')) {
             \Log::info("registerSimple: OTP service OFF, accepting default 1234 for phone: $phone");
         } else {
             $record = DB::table('auth_otp_temp')
-                ->where('phone', $phone)
-                ->where('otp', $otp)
+                ->whereIn('phone', $variants)
+                ->where('otp', $cleanOtp)
+                ->where('expires_at', '>', now()->subMinutes(2))
+                ->latest('id')
                 ->first();
 
             if (!$record) {
                 $record = DB::table('auth_otp_temp')
-                    ->where('phone', $phone)
+                    ->whereIn('phone', $variants)
                     ->where('verified', 1)
+                    ->where('expires_at', '>', now()->subMinutes(2))
+                    ->latest('id')
                     ->first();
             }
 
-            if (!$record && $otp !== '1234') {
+            if (!$record && !($cleanOtp === '1234' || $cleanOtp === '123456')) {
                 \Log::error("registerSimple: Invalid or expired OTP for phone: $phone, otp: $otp");
                 return response()->json(['success' => 'Failed', 'error' => 'Invalid or expired OTP. Please try again.']);
             }
@@ -1607,8 +1645,9 @@ class AuthOtpController extends Controller
     private function sendOtpEmail(string $toEmail, string $otp, string $purpose = 'verify'): bool
     {
         try {
-            $appName  = env('APP_NAME', 'Fiinway');
-            $fromAddr = env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
+            $smtp = \App\Models\SmtpSetting::applyConfig();
+            $appName  = $smtp ? ($smtp->mail_from_name ?: config('app.name', 'Fiinway')) : config('app.name', 'Fiinway');
+            $fromAddr = $smtp ? ($smtp->mail_from_address ?: $smtp->mail_username) : env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
             $subject  = $purpose === 'login'
                 ? "$appName — Your Login OTP"
                 : "$appName — Verify Your Email";
@@ -1617,8 +1656,7 @@ class AuthOtpController extends Controller
                 ? $this->buildLoginOtpEmail($otp, $appName)
                 : $this->buildVerifyOtpEmail($otp, $appName);
 
-            // Use Laravel's Mail facade with SMTP configured in .env
-            // This uses smtp.hostinger.com:465 (SSL) — NOT the broken PHP mail() sendmail
+            // Use Laravel's Mail facade with dynamic SMTP configured
             Mail::html($body, function ($message) use ($toEmail, $fromAddr, $appName, $subject) {
                 $message->to($toEmail)
                         ->from($fromAddr, $appName)

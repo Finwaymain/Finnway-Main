@@ -813,7 +813,7 @@ class SubscriptionPlanController extends Controller
 
         DB::table('auth_otp_temp')
             ->where('email', $email)
-            ->where('type', 'plan_email_otp')
+            ->whereIn('type', ['plan_email_otp', 'email', ''])
             ->delete();
 
         DB::table('auth_otp_temp')->insert([
@@ -823,7 +823,7 @@ class SubscriptionPlanController extends Controller
             'type'       => 'plan_email_otp',
             'user_cat'   => $userType,
             'verified'   => 0,
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+15 minutes')),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -831,13 +831,13 @@ class SubscriptionPlanController extends Controller
         if (!$sent) {
             return response()->json([
                 'success' => 'Failed',
-                'error' => 'Failed to send OTP email. Please verify your email configuration.'
+                'error' => 'Failed to send OTP email. Please verify your SMTP settings in Admin Panel.'
             ], 500);
         }
 
         return response()->json([
             'success' => 'success',
-            'message' => 'A 6-digit OTP has been sent to ' . $email . '. Valid for 10 minutes.',
+            'message' => 'A 6-digit OTP has been sent to ' . $email . '. Valid for 15 minutes.',
             'email' => $email,
         ]);
     }
@@ -860,15 +860,17 @@ class SubscriptionPlanController extends Controller
             ], 422);
         }
 
+        $cleanOtp = preg_replace('/\D/', '', $otp);
+
         $record = DB::table('auth_otp_temp')
             ->where('email', $email)
-            ->where('type', 'plan_email_otp')
+            ->whereIn('type', ['plan_email_otp', 'email', ''])
             ->where('verified', 0)
-            ->where('expires_at', '>', now())
+            ->where('expires_at', '>', now()->subMinutes(2))
             ->orderBy('id', 'desc')
             ->first();
 
-        if (!$record || $record->otp !== $otp) {
+        if (!$record || trim((string)$record->otp) !== $cleanOtp) {
             return response()->json([
                 'success' => 'Failed',
                 'error' => 'Invalid or expired OTP. Please enter the correct 6-digit code.'
