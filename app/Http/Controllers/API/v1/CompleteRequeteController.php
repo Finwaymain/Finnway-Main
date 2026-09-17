@@ -295,6 +295,49 @@ class CompleteRequeteController extends Controller
                 $row['stops'] = json_decode($row['stops'], true);
                 $row['user_info'] = json_decode($row['user_info'], true);
 
+                $taxAmt = 0;
+                if (!empty($row['tax']) && is_array($row['tax'])) {
+                    foreach ($row['tax'] as &$tItem) {
+                        if (is_array($tItem)) {
+                            $tVal = floatval($tItem['amount'] ?? 0);
+                            if ($tVal <= 0 && !empty($tItem['value'])) {
+                                $v = floatval($tItem['value']);
+                                $tVal = (strtolower($tItem['type'] ?? '') === 'percentage') ? round((floatval($row['montant']) * $v) / 100, 2) : round($v, 2);
+                                $tItem['amount'] = $tVal;
+                            }
+                            $taxAmt += $tVal;
+                        }
+                    }
+                    unset($tItem);
+                }
+                if ($taxAmt <= 0 && floatval($row['montant']) > 0 && \Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+                    $dbTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+                    $payMethod = strtolower(trim((string)($row['payment'] ?? 'cash')));
+                    foreach ($dbTaxes as $t) {
+                        $methods = !empty($t->applicable_on) ? explode(',', strtolower($t->applicable_on)) : ['cash', 'upi', 'wallet', 'online'];
+                        $applies = in_array($payMethod, $methods, true) ||
+                                   in_array('all', $methods, true) ||
+                                   ($payMethod === 'upi' && in_array('online', $methods, true)) ||
+                                   (str_contains($payMethod, 'cash') && in_array('cash', $methods, true)) ||
+                                   (str_contains($payMethod, 'wallet') && in_array('wallet', $methods, true));
+                        if ($applies) {
+                            $val = floatval($t->value ?? 0);
+                            $tAmt = (strtolower((string)$t->type) === 'percentage') ? round((floatval($row['montant']) * $val) / 100, 2) : round($val, 2);
+                            $taxAmt += $tAmt;
+                        }
+                    }
+                }
+                $baseFare = floatval($row['montant']);
+                $discount = floatval($row['discount'] ?? 0);
+                $tip = floatval($row['tip_amount'] ?? 0);
+                $finalPaid = round(max(0, $baseFare - $discount) + $taxAmt + $tip, 2);
+                $row['base_montant'] = (string) $baseFare;
+                $row['base_fare'] = (string) $baseFare;
+                $row['total_tax'] = (string) $taxAmt;
+                $row['total_tax_amount'] = (string) $taxAmt;
+                $row['total_fare'] = (string) $finalPaid;
+                $row['montant'] = (string) $baseFare;
+
                 // Trigger Referral Rewards dynamically for both Customer and Driver referee
                 try {
                     $rideAmount = (float)($row['montant'] ?? 0);

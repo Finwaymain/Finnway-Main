@@ -210,7 +210,7 @@ class DriverWalletHistoryController extends Controller
 
         $row->amount = (string) round(max(0, $totalFare - $adminComm), 2);
         $row->admin_commission = (string) $adminComm;
-        $row->montant = (string) $totalFare;
+        $row->montant = (string) $baseFare;
         $row->base_montant = (string) $baseFare;
         $row->base_fare = (string) $baseFare;
         $row->total_tax = (string) $taxAmt;

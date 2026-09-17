@@ -132,9 +132,8 @@ class RideDetailsController extends Controller
                 $row->total_tax = (string) $taxAmt;
                 $row->total_tax_amount = (string) $taxAmt;
                 $row->total_fare = (string) $finalPaid;
-                if ($row->statut === 'completed' || strtolower(trim((string)$row->statut_paiement)) === 'yes') {
-                    $row->montant = (string) $finalPaid;
-                }
+                $row->montant = (string) $baseFare;
+
 
                 $row->discount = number_format((float) $row->discount, 2, '.', '');
                 $row->promotional_amount = number_format((float) ($row->promotional_amount ?? 0), 2, '.', '');
@@ -489,11 +488,8 @@ class RideDetailsController extends Controller
             $row->base_fare = (string) $baseFare;
             $row->total_tax = (string) $taxAmt;
             $row->total_fare = (string) $finalPaid;
-            if ($row->statut === 'completed' || strtolower(trim((string)$row->statut_paiement)) === 'yes') {
-                $row->montant = (string) $finalPaid;
-            } else {
-                $row->montant = (string) $baseFare;
-            }
+            $row->montant = (string) $baseFare;
+
 
 
 
@@ -1028,11 +1024,8 @@ class RideDetailsController extends Controller
                 $row->base_fare = (string) $baseFare;
                 $row->total_tax = (string) $taxAmt;
                 $row->total_fare = (string) $finalPaid;
-                if ($row->statut === 'completed' || strtolower(trim((string)$row->statut_paiement)) === 'yes') {
-                    $row->montant = (string) $finalPaid;
-                } else {
-                    $row->montant = (string) $baseFare;
-                }
+                $row->montant = (string) $baseFare;
+
 
 
 

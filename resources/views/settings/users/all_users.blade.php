@@ -88,27 +88,36 @@
                             <table id="allUsersTable" class="display nowrap table table-hover table-striped table-bordered" cellspacing="0" width="100%">
                                 <thead>
                                     <tr>
-                                        <th class="text-center" style="width:40px;"><input type="checkbox" id="is_active"><label class="m-0 ml-1" for="is_active"><a id="deleteAll" class="do_not_delete text-danger" href="javascript:void(0)"><i class="fa fa-trash"></i></a></label></th>
-                                        <th class="text-center">S No</th>
-                                        <th>Role / Category</th>
+                                        <th class="text-center" style="width:30px;"><input type="checkbox" id="is_active"><label class="m-0 ml-1" for="is_active"><a id="deleteAll" class="do_not_delete text-danger" href="javascript:void(0)"><i class="fa fa-trash"></i></a></label></th>
+                                        <th class="text-center">#</th>
+                                        <th>Role/Cat</th>
                                         <th>Type</th>
-                                        <th>User Name <small class="text-muted">(click)</small></th>
-                                        <th class="text-center">Referral Code</th>
-                                        <th>Referred By</th>
-                                        <th>Email <small class="text-muted">(click)</small></th>
-                                        <th>Mobile <small class="text-muted">(click)</small></th>
-                                        <th>Alternate No <small class="text-muted">(click)</small></th>
-                                        <th>Wallet Balance</th>
-                                        <th>Cashback</th>
-                                        <th>Refer &amp; Earn</th>
-                                        <th>KYC Status</th>
-                                        <th>Aadhaar No <small class="text-muted">(click)</small></th>
-                                        <th>Status</th>
-                                        <th>Active Plan / Doc</th>
-                                        <th>MPIN</th>
-                                        <th>Pocket No</th>
-                                        <th>Registration Date</th>
-                                        <th class="text-center">Actions</th>
+                                        <th>Name</th>
+                                        <th>Zone</th>
+                                        <th class="text-center">Rating</th>
+                                        <th class="text-center">Tot Book</th>
+                                        <th>Top Svc</th>
+                                        <th class="text-right">Tot Earn</th>
+                                        <th class="text-right">Tod Earn</th>
+                                        <th class="text-right">Wallet</th>
+                                        <th class="text-right">Cashback</th>
+                                        <th class="text-right">Promo Val</th>
+                                        <th class="text-right">W/D Req</th>
+                                        <th class="text-right">W/D Setld</th>
+                                        <th class="text-center">W/D Stage</th>
+                                        <th class="text-center">Ref Code</th>
+                                        <th>Ref By</th>
+                                        <th>Mobile</th>
+                                        <th>Email</th>
+                                        <th>Alt No</th>
+                                        <th class="text-center">KYC</th>
+                                        <th>Aadhaar</th>
+                                        <th class="text-center">Status</th>
+                                        <th>Plan/Doc</th>
+                                        <th class="text-center">MPIN</th>
+                                        <th>Pocket</th>
+                                        <th>Reg Date</th>
+                                        <th class="text-center">Act</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -120,58 +129,44 @@
                                                 <input type="checkbox" id="is_open_{{$user->id}}_{{$user->user_type}}" class="is_open" dataid="{{$user->id}}">
                                                 <label for="is_open_{{$user->id}}_{{$user->user_type}}" class="m-0"></label>
                                             </td>
-                                            {{-- S No --}}
+                                            {{-- # --}}
                                             <td class="text-center font-weight-bold">{{ $users->firstItem() + $index }}</td>
-                                            {{-- Role / Category & Service --}}
+                                            {{-- Role/Cat --}}
                                             <td>
                                                 @if($user->user_type == 'consumer')
-                                                    <span class="badge badge-info"><i class="fa fa-user mr-1"></i>Consumer</span>
+                                                    <span class="badge badge-info badge-compact"><i class="fa fa-user mr-1"></i>User</span>
                                                 @else
-                                                    {{-- Primary Categories / Profession --}}
-                                                    @if(!empty($user->category_list) && count($user->category_list) > 0)
-                                                        @foreach($user->category_list as $catName)
-                                                            <span class="badge badge-primary px-2 py-1 mb-1 d-inline-block shadow-sm" style="font-size: 11.5px;">
-                                                                <i class="fa fa-briefcase mr-1"></i>{{ $catName }}
-                                                            </span><br>
-                                                        @endforeach
-                                                    @else
-                                                        <span class="badge badge-primary px-2 py-1 mb-1 d-inline-block shadow-sm" style="font-size: 11.5px;">
-                                                            <i class="fa fa-briefcase mr-1"></i>{{ $user->role ?? 'Business Provider' }}
-                                                        </span><br>
-                                                    @endif
-
-                                                    {{-- Specific Vehicle Types (e.g. Bike Rider, Auto, Cab) --}}
-                                                    @if(!empty($user->vehicle_types) && count($user->vehicle_types) > 0)
-                                                        <div class="mt-1">
-                                                            @foreach($user->vehicle_types as $vType)
-                                                                <span class="badge badge-dark text-white px-2 py-1 mb-1 mr-1 d-inline-block" style="font-size: 11px;">
-                                                                    <i class="fa fa-motorcycle mr-1 text-warning"></i>{{ $vType }}
-                                                                </span>
+                                                    <div class="d-flex flex-wrap align-items-center" style="gap:2px; max-width:170px;">
+                                                        @if(!empty($user->category_list) && count($user->category_list) > 0)
+                                                            @foreach(array_slice($user->category_list, 0, 2) as $catName)
+                                                                <span class="badge badge-primary badge-compact">{{ $catName }}</span>
                                                             @endforeach
-                                                        </div>
-                                                    @endif
+                                                            @if(count($user->category_list) > 2)
+                                                                <span class="badge badge-light border text-muted badge-compact">+{{ count($user->category_list) - 2 }}</span>
+                                                            @endif
+                                                        @else
+                                                            <span class="badge badge-primary badge-compact">{{ $user->role ?? 'Provider' }}</span>
+                                                        @endif
 
-                                                    {{-- Specific Services / Skills (e.g. Electrician, Plumber, AC Repair) --}}
-                                                    @if(!empty($user->specific_services) && count($user->specific_services) > 0)
-                                                        <div class="mt-1" style="max-width: 250px;">
-                                                            @foreach($user->specific_services as $svc)
-                                                                <span class="badge badge-success px-2 py-1 mb-1 mr-1 d-inline-block" style="font-size: 10.5px; font-weight: 500;">
-                                                                    <i class="fa fa-wrench mr-1"></i>{{ $svc }}
-                                                                </span>
-                                                            @endforeach
-                                                        </div>
-                                                    @endif
+                                                        @if(!empty($user->vehicle_types) && count($user->vehicle_types) > 0)
+                                                            <span class="badge badge-dark badge-compact text-warning"><i class="fa fa-motorcycle mr-1"></i>{{ $user->vehicle_types[0] }}</span>
+                                                        @endif
+
+                                                        @if(!empty($user->specific_services) && count($user->specific_services) > 0)
+                                                            <span class="badge badge-success badge-compact"><i class="fa fa-wrench mr-1"></i>{{ $user->specific_services[0] }}</span>
+                                                        @endif
+                                                    </div>
                                                 @endif
                                             </td>
                                             {{-- Type --}}
                                             <td>
                                                 @if($user->user_type == 'consumer')
-                                                    <span class="badge badge-secondary">Individual</span>
+                                                    <span class="badge badge-secondary badge-compact">Indiv</span>
                                                 @else
-                                                    <span class="badge badge-warning text-dark">Business</span>
+                                                    <span class="badge badge-warning text-dark badge-compact font-weight-bold">Biz</span>
                                                 @endif
                                             </td>
-                                            {{-- User Name → popup --}}
+                                            {{-- Name --}}
                                             <td>
                                                 <a href="javascript:void(0)"
                                                    class="qe-trigger font-weight-bold text-primary"
@@ -180,61 +175,121 @@
                                                    data-user-type="{{ $user->user_type }}"
                                                    data-prenom="{{ $user->prenom }}"
                                                    data-nom="{{ $user->nom }}"
-                                                   data-label="User Name"
+                                                   data-label="Name"
                                                    title="Click to edit">{{ $user->prenom }} {{ $user->nom }}</a>
                                                 @if(!empty($user->business_name))
-                                                    <br><small class="text-muted"><i class="fa fa-building mr-1"></i>{{ $user->business_name }}</small>
+                                                    <small class="text-muted d-block" style="font-size:10px;"><i class="fa fa-building mr-1"></i>{{ Str::limit($user->business_name, 15) }}</small>
                                                 @endif
                                             </td>
-                                            {{-- Referral Code --}}
+                                            {{-- Zone --}}
+                                            <td>
+                                                <span class="badge badge-light border text-dark badge-compact">{{ $user->zone_name ?? 'All' }}</span>
+                                            </td>
+                                            {{-- Rating --}}
+                                            <td class="text-center">
+                                                <span class="badge badge-warning text-dark badge-compact font-weight-bold"><i class="fa fa-star text-warning mr-1"></i>{{ number_format($user->rating ?? 5.0, 1) }}</span>
+                                            </td>
+                                            {{-- Tot Book --}}
+                                            <td class="text-center font-weight-bold">
+                                                <span class="badge {{ ($user->tot_book ?? 0) > 0 ? 'badge-info' : 'badge-light text-muted' }} badge-compact">{{ $user->tot_book ?? 0 }}</span>
+                                            </td>
+                                            {{-- Top Svc --}}
+                                            <td>
+                                                @if(!empty($user->top_svc) && $user->top_svc !== '—')
+                                                    <span class="badge badge-success badge-compact">{{ $user->top_svc }}</span>
+                                                @else
+                                                    <span class="text-muted small">—</span>
+                                                @endif
+                                            </td>
+                                            {{-- Tot Earn --}}
+                                            <td class="text-right font-weight-bold text-success">
+                                                {{ ($user->tot_earn ?? 0) > 0 ? '₹' . number_format($user->tot_earn, 0) : '₹0' }}
+                                            </td>
+                                            {{-- Tod Earn --}}
+                                            <td class="text-right font-weight-bold {{ ($user->tod_earn ?? 0) > 0 ? 'text-primary' : 'text-muted' }}">
+                                                {{ ($user->tod_earn ?? 0) > 0 ? '₹' . number_format($user->tod_earn, 0) : '₹0' }}
+                                            </td>
+                                            {{-- Wallet --}}
+                                            <td class="text-right">
+                                                @if($user->user_type == 'consumer')
+                                                    <a href="{{ route('users.walletstransaction', ['id'=>$user->id]) }}" class="badge badge-success badge-compact" title="Wallet">
+                                                @else
+                                                    <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-success badge-compact" title="Wallet">
+                                                @endif
+                                                    ₹{{ number_format(floatval($user->amount ?? 0), 0) }}</a>
+                                            </td>
+                                            {{-- Cashback --}}
+                                            <td class="text-right">
+                                                @if($user->user_type == 'consumer')
+                                                    <a href="{{ route('users.walletstransaction', ['id'=>$user->id]) }}" class="badge badge-warning px-1 py-0 text-dark badge-compact" title="Cashback">
+                                                @else
+                                                    <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-warning px-1 py-0 text-dark badge-compact" title="Cashback">
+                                                @endif
+                                                    ₹{{ number_format(floatval($user->earn_amount ?? 0), 0) }}</a>
+                                            </td>
+                                            {{-- Promo Val --}}
+                                            <td class="text-right">
+                                                @if(($user->promo_val ?? 0) > 0)
+                                                    <span class="badge badge-primary badge-compact font-weight-bold">₹{{ number_format($user->promo_val, 0) }}</span>
+                                                @else
+                                                    <span class="text-muted small">—</span>
+                                                @endif
+                                            </td>
+                                            {{-- W/D Req --}}
+                                            <td class="text-right">
+                                                @if(($user->with_req ?? 0) > 0)
+                                                    <span class="badge badge-danger badge-compact font-weight-bold">₹{{ number_format($user->with_req, 0) }}</span>
+                                                @else
+                                                    <span class="text-muted small">—</span>
+                                                @endif
+                                            </td>
+                                            {{-- W/D Setld --}}
+                                            <td class="text-right font-weight-bold text-success">
+                                                @if(($user->with_settled ?? 0) > 0)
+                                                    ₹{{ number_format($user->with_settled, 0) }}
+                                                @else
+                                                    <span class="text-muted small font-weight-normal">—</span>
+                                                @endif
+                                            </td>
+                                            {{-- W/D Stage --}}
+                                            <td class="text-center">
+                                                @if(($user->with_stage ?? 'None') === 'Pend')
+                                                    <span class="badge badge-warning text-dark badge-compact font-weight-bold">Pend</span>
+                                                @elseif(($user->with_stage ?? 'None') === 'Paid')
+                                                    <span class="badge badge-success badge-compact font-weight-bold">Paid</span>
+                                                @elseif(($user->with_stage ?? 'None') === 'Rej')
+                                                    <span class="badge badge-danger badge-compact font-weight-bold">Rej</span>
+                                                @else
+                                                    <span class="text-muted small">—</span>
+                                                @endif
+                                            </td>
+                                            {{-- Ref Code --}}
                                             <td class="text-center">
                                                 @if(!empty($user->referral_code))
-                                                    <span class="badge {{ $user->user_type == 'consumer' ? 'badge-info' : 'badge-dark' }} px-2 py-1 font-weight-bold shadow-sm"
-                                                          style="font-family: monospace; font-size: 13px; letter-spacing: 0.5px; cursor: pointer;"
-                                                          onclick="navigator.clipboard.writeText('{{ $user->referral_code }}'); alert('Referral code copied: {{ $user->referral_code }}');"
-                                                          title="Click to copy referral code">
-                                                        <i class="fa fa-ticket mr-1"></i>{{ $user->referral_code }}
-                                                    </span>
+                                                    <span class="badge {{ $user->user_type == 'consumer' ? 'badge-info' : 'badge-dark' }} badge-compact font-weight-bold"
+                                                          style="font-family:monospace; cursor:pointer;"
+                                                          onclick="navigator.clipboard.writeText('{{ $user->referral_code }}'); alert('Copied: {{ $user->referral_code }}');"
+                                                          title="Click to copy">{{ $user->referral_code }}</span>
                                                 @else
-                                                    <span class="text-muted">—</span>
+                                                    <span class="text-muted small">—</span>
                                                 @endif
                                             </td>
-                                            {{-- Referred By --}}
+                                            {{-- Ref By --}}
                                             <td>
                                                 @if(!empty($user->referred_by_name) || !empty($user->referred_by_code))
-                                                    <div>
-                                                        <span class="font-weight-bold" style="color: #1e293b;">
-                                                            <i class="fa fa-user-plus mr-1 text-primary"></i>{{ $user->referred_by_name ?: 'Unknown' }}
+                                                    <span class="font-weight-bold" style="color: #1e293b;">
+                                                        {{ Str::limit($user->referred_by_name ?: 'Unknown', 14) }}
+                                                    </span>
+                                                    @if(!empty($user->referred_by_type))
+                                                        <span class="badge {{ $user->referred_by_type == 'Business' ? 'badge-warning text-dark' : 'badge-info' }} badge-compact ml-1">
+                                                            {{ $user->referred_by_type == 'Business' ? 'Biz' : 'User' }}
                                                         </span>
-                                                        @if(!empty($user->referred_by_type))
-                                                            <span class="badge {{ $user->referred_by_type == 'Business' ? 'badge-warning text-dark' : 'badge-info' }} px-1 py-0 ml-1" style="font-size:10px;">
-                                                                {{ $user->referred_by_type }}
-                                                            </span>
-                                                        @endif
-                                                    </div>
-                                                    @if(!empty($user->referred_by_code))
-                                                        <div class="mt-1">
-                                                            <span class="badge badge-light border text-dark px-1 py-0 font-weight-bold" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px;">
-                                                                <i class="fa fa-tag mr-1 text-muted"></i>{{ $user->referred_by_code }}
-                                                            </span>
-                                                        </div>
                                                     @endif
                                                 @else
-                                                    <span class="badge badge-secondary px-2 py-1 font-weight-normal" style="font-size: 11px; opacity: 0.85;">NA</span>
+                                                    <span class="text-muted small">NA</span>
                                                 @endif
                                             </td>
-                                            {{-- Email → popup --}}
-                                            <td>
-                                                <a href="javascript:void(0)"
-                                                   class="qe-trigger text-dark"
-                                                   data-id="{{ $user->id }}"
-                                                   data-field="email"
-                                                   data-user-type="{{ $user->user_type }}"
-                                                   data-value="{{ $user->email }}"
-                                                   data-label="Email Address"
-                                                   title="Click to edit">{{ $user->email ?: '—' }}</a>
-                                            </td>
-                                            {{-- Mobile → popup --}}
+                                            {{-- Mobile --}}
                                             <td>
                                                 <a href="javascript:void(0)"
                                                    class="qe-trigger font-weight-bold text-dark"
@@ -242,10 +297,21 @@
                                                    data-field="phone"
                                                    data-user-type="{{ $user->user_type }}"
                                                    data-value="{{ $user->phone }}"
-                                                   data-label="Mobile Number"
-                                                   title="Click to edit">{{ $user->phone }}</a>
+                                                   data-label="Mobile"
+                                                   title="Edit">{{ $user->phone }}</a>
                                             </td>
-                                            {{-- Alternate → popup --}}
+                                            {{-- Email --}}
+                                            <td>
+                                                <a href="javascript:void(0)"
+                                                   class="qe-trigger text-dark"
+                                                   data-id="{{ $user->id }}"
+                                                   data-field="email"
+                                                   data-user-type="{{ $user->user_type }}"
+                                                   data-value="{{ $user->email }}"
+                                                   data-label="Email"
+                                                   title="Edit">{{ $user->email ? Str::limit($user->email, 16) : '—' }}</a>
+                                            </td>
+                                            {{-- Alt No --}}
                                             <td>
                                                 <a href="javascript:void(0)"
                                                    class="qe-trigger text-muted"
@@ -253,53 +319,33 @@
                                                    data-field="alternate_phone"
                                                    data-user-type="{{ $user->user_type }}"
                                                    data-value="{{ $user->alternate_phone }}"
-                                                   data-label="Alternate Number"
-                                                   title="Click to edit">{{ $user->alternate_phone ?: '—' }}</a>
+                                                   data-label="Alt No"
+                                                   title="Edit">{{ $user->alternate_phone ? Str::limit($user->alternate_phone, 10) : '—' }}</a>
                                             </td>
-                                            {{-- Wallet --}}
-                                            <td>
-                                                @if($user->user_type == 'consumer')
-                                                    <a href="{{ route('users.walletstransaction', ['id'=>$user->id]) }}" class="badge badge-success px-2 py-1" style="font-size:13px;" title="Wallet History">
-                                                @else
-                                                    <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-success px-2 py-1" style="font-size:13px;" title="Wallet History">
-                                                @endif
-                                                    {{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }}{{ number_format(floatval($user->amount ?? 0), 2) }}</a>
-                                            </td>
-                                            {{-- Cashback --}}
-                                            <td>
-                                                @if($user->user_type == 'consumer')
-                                                    <a href="{{ route('users.walletstransaction', ['id'=>$user->id]) }}" class="badge badge-warning px-2 py-1 text-dark" style="font-size:13px;" title="Cashback History">
-                                                @else
-                                                    <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-warning px-2 py-1 text-dark" style="font-size:13px;" title="Cashback History">
-                                                @endif
-                                                    {{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }}{{ number_format(floatval($user->earn_amount ?? 0), 2) }}</a>
-                                            </td>
-                                            {{-- Refer & Earn --}}
-                                            <td><span class="badge badge-info px-2 py-1" style="font-size:13px;">—</span></td>
                                             {{-- KYC --}}
-                                            <td>
-                                                <a href="{{ route('users.kycVerification') }}" title="Manage KYC">
+                                            <td class="text-center">
+                                                <a href="{{ route('users.kycVerification') }}" title="KYC">
                                                     @if(($user->kyc_status ?? '') == '1')
-                                                        <span class="badge badge-success"><i class="fa fa-check-circle mr-1"></i>Approved</span>
+                                                        <span class="badge badge-success badge-compact">Appr</span>
                                                     @else
-                                                        <span class="badge badge-danger"><i class="fa fa-times-circle mr-1"></i>Pending</span>
+                                                        <span class="badge badge-danger badge-compact">Pend</span>
                                                     @endif
                                                 </a>
                                             </td>
-                                            {{-- Aadhaar → popup --}}
+                                            {{-- Aadhaar --}}
                                             <td>
                                                 <a href="javascript:void(0)"
-                                                   class="qe-trigger badge font-weight-bold"
-                                                   style="font-family:monospace; font-size:12px; color: #1e293b; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 8px; letter-spacing: 0.5px;"
+                                                   class="qe-trigger font-weight-bold text-dark"
+                                                   style="font-family:monospace; font-size:11px;"
                                                    data-id="{{ $user->id }}"
                                                    data-field="aadhar_number"
                                                    data-user-type="{{ $user->user_type }}"
                                                    data-value="{{ $user->aadhar_no }}"
-                                                   data-label="Aadhaar Number"
-                                                   title="Click to edit Aadhaar">{{ $user->aadhar_no ?: 'N/A' }}</a>
+                                                   data-label="Aadhaar"
+                                                   title="Edit">{{ $user->aadhar_no ? Str::limit($user->aadhar_no, 12) : '—' }}</a>
                                             </td>
                                             {{-- Status --}}
-                                            <td>
+                                            <td class="text-center">
                                                 <label class="switch mb-0">
                                                     <input type="checkbox"
                                                            class="any-status-toggle"
@@ -309,14 +355,14 @@
                                                     <span class="slider round"></span>
                                                 </label>
                                             </td>
-                                            {{-- Active Plan / Doc --}}
+                                            {{-- Plan/Doc --}}
                                             @php
-                                                $planDisplay = $user->active_plan_display ?? 'Standard';
+                                                $planDisplay = $user->active_plan_display ?? 'Std';
                                                 if (empty($user->active_plan_display) && !empty($user->active_plan)) {
                                                     $rawPlan = trim((string)$user->active_plan);
                                                     if (str_starts_with($rawPlan, '{') || str_starts_with($rawPlan, '[')) {
                                                         $decoded = json_decode($rawPlan, true);
-                                                        $planDisplay = is_array($decoded) ? ($decoded['name'] ?? $decoded['title'] ?? $decoded['plan_name'] ?? 'Standard') : $rawPlan;
+                                                        $planDisplay = is_array($decoded) ? ($decoded['name'] ?? $decoded['title'] ?? 'Std') : $rawPlan;
                                                     } else {
                                                         $planDisplay = $rawPlan;
                                                     }
@@ -325,55 +371,49 @@
                                             <td>
                                                 @if($user->user_type == 'consumer')
                                                     <a href="javascript:void(0)"
-                                                       class="qe-trigger badge badge-primary px-2 py-1 font-weight-bold"
+                                                       class="qe-trigger badge badge-primary badge-compact"
                                                        data-id="{{ $user->id }}"
                                                        data-field="active_plan"
                                                        data-user-type="consumer"
                                                        data-value="{{ $planDisplay }}"
-                                                       data-label="Active Plan"
-                                                       title="Edit / Upgrade Plan">
-                                                        <i class="fa fa-star mr-1"></i>{{ $planDisplay }}
-                                                    </a>
+                                                       data-label="Plan"
+                                                       title="Plan">{{ Str::limit($planDisplay, 10) }}</a>
                                                 @else
-                                                    <a href="{{ route('driver.documentView', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-info px-2 py-1 font-weight-bold" title="View Documents">
-                                                        <i class="fa fa-file-text-o mr-1"></i>View Docs
-                                                    </a>
+                                                    <a href="{{ route('driver.documentView', ['id'=>$user->id]) }}" class="badge badge-info badge-compact" title="Docs">Docs</a>
                                                 @endif
                                             </td>
                                             {{-- MPIN --}}
-                                            <td style="white-space: nowrap;">
+                                            <td class="text-center" style="white-space: nowrap;">
                                                 @if(!empty($user->mpin))
-                                                    <div class="d-inline-flex align-items-center bg-white border px-2 py-1 rounded shadow-sm" style="font-family: monospace;">
-                                                        <span class="mpin-val font-weight-bold" data-secret="{{ $user->mpin }}" data-masked="••••" style="color: #0f172a; letter-spacing: 2px; font-size: 13px;">••••</span>
-                                                        <a href="javascript:void(0)" class="text-primary ml-2 toggle-mpin-eye" onclick="toggleMpinSecret(this)" title="Show/Hide MPIN">
-                                                            <i class="fa fa-eye"></i>
-                                                        </a>
+                                                    <div class="d-inline-flex align-items-center" style="font-family: monospace;">
+                                                        <span class="mpin-val" data-secret="{{ $user->mpin }}" data-masked="••" style="font-size:11px;">••</span>
+                                                        <a href="javascript:void(0)" class="text-primary ml-1 toggle-mpin-eye" onclick="toggleMpinSecret(this)" title="Show"><i class="fa fa-eye" style="font-size:10px;"></i></a>
                                                     </div>
                                                 @else
-                                                    <span class="text-muted small">N/A</span>
+                                                    <span class="text-muted small">—</span>
                                                 @endif
                                             </td>
-                                            {{-- Pocket No --}}
-                                            <td><span class="font-weight-bold text-dark" style="font-family:monospace;">{{ $user->ac_no ?: 'N/A' }}</span></td>
+                                            {{-- Pocket --}}
+                                            <td><span class="font-weight-bold text-dark" style="font-family:monospace; font-size:11px;">{{ $user->ac_no ?: '—' }}</span></td>
                                             {{-- Reg Date --}}
-                                            <td><small class="text-muted">{{ date('d M Y h:i A', strtotime($user->creer)) }}</small></td>
-                                            {{-- Actions --}}
+                                            <td><small class="text-muted">{{ date('d M y', strtotime($user->creer)) }}</small></td>
+                                            {{-- Act --}}
                                             <td class="text-center" style="white-space:nowrap;">
                                                 @if($user->user_type == 'consumer')
-                                                    <a href="{{ route('users.show', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-info px-2 py-1" title="Details"><i class="fa fa-eye"></i></a>
-                                                    <a href="{{ route('users.edit', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-primary px-2 py-1" title="Full Edit"><i class="fa fa-edit"></i></a>
-                                                    <a href="{{ route('user.delete', ['id'=>$user->id]) }}" class="delete-btn btn btn-xs btn-outline-danger px-2 py-1" title="Delete"><i class="fa fa-trash"></i></a>
+                                                    <a href="{{ route('users.show', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-info" title="View"><i class="fa fa-eye"></i></a>
+                                                    <a href="{{ route('users.edit', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-primary" title="Edit"><i class="fa fa-edit"></i></a>
+                                                    <a href="{{ route('user.delete', ['id'=>$user->id]) }}" class="delete-btn btn btn-xs btn-outline-danger" title="Delete"><i class="fa fa-trash"></i></a>
                                                 @else
-                                                    <a href="{{ route('driver.show', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-info px-2 py-1" title="Details"><i class="fa fa-eye"></i></a>
-                                                    <a href="{{ route('driver.documentView', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-warning px-2 py-1" title="Docs"><i class="fa fa-file-pdf-o"></i></a>
-                                                    <a href="{{ route('drivers.edit', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-primary px-2 py-1" title="Full Edit"><i class="fa fa-edit"></i></a>
-                                                    <a href="{{ route('driver.delete', ['id'=>$user->id]) }}" class="delete-btn btn btn-xs btn-outline-danger px-2 py-1" title="Delete"><i class="fa fa-trash"></i></a>
+                                                    <a href="{{ route('driver.show', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-info" title="View"><i class="fa fa-eye"></i></a>
+                                                    <a href="{{ route('driver.documentView', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-warning" title="Docs"><i class="fa fa-file-pdf-o"></i></a>
+                                                    <a href="{{ route('drivers.edit', ['id'=>$user->id]) }}" class="btn btn-xs btn-outline-primary" title="Edit"><i class="fa fa-edit"></i></a>
+                                                    <a href="{{ route('driver.delete', ['id'=>$user->id]) }}" class="delete-btn btn btn-xs btn-outline-danger" title="Delete"><i class="fa fa-trash"></i></a>
                                                 @endif
                                             </td>
                                         </tr>
                                         @endforeach
                                     @else
-                                        <tr><td colspan="21" class="text-center py-4 text-muted">No users found.</td></tr>
+                                        <tr><td colspan="30" class="text-center py-3 text-muted">No users found.</td></tr>
                                     @endif
                                 </tbody>
                             </table>
@@ -410,6 +450,104 @@
 }
 #allUsersTable_wrapper.dt-initialized {
     opacity: 1;
+}
+
+/* Compact Table Layout - Remove extra gaps & bring details close together */
+.page-wrapper {
+    padding-top: 10px !important;
+}
+.page-wrapper .container-fluid {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+}
+.page-wrapper .page-titles {
+    margin-bottom: 6px !important;
+    padding: 4px 0 !important;
+}
+.card {
+    margin-bottom: 8px !important;
+    border-radius: 6px !important;
+}
+.card .card-body {
+    padding: 6px 8px !important;
+}
+.table-responsive {
+    margin: 0 !important;
+}
+#allUsersTable {
+    margin: 0 !important;
+    font-size: 11px !important;
+}
+#allUsersTable th {
+    padding: 4px 5px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+    white-space: nowrap !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.2px !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    vertical-align: middle !important;
+}
+#allUsersTable td {
+    padding: 3px 5px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+}
+#allUsersTable tr:hover {
+    background-color: #f8fafc !important;
+}
+.badge-compact {
+    font-size: 9.5px !important;
+    padding: 1px 4px !important;
+    line-height: 1.1 !important;
+    border-radius: 3px !important;
+    font-weight: 600 !important;
+}
+.btn-xs {
+    padding: 1px 4px !important;
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+}
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 24px;
+    height: 14px;
+    margin: 0 !important;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e1;
+    transition: .2s;
+    border-radius: 14px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 10px;
+    width: 10px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .2s;
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: #5B4FE9;
+}
+input:checked + .slider:before {
+    transform: translateX(10px);
 }
 </style>
 <script>

@@ -79,6 +79,11 @@ class PayRequeteWalletController extends Controller
             }
         }
 
+        $promoDiscount = floatval($request->get('promotional_discount', 0));
+        if ($promoDiscount <= 0 && $rideRecord && !empty($rideRecord->is_promotional_applied)) {
+            $promoDiscount = floatval($rideRecord->promotional_discount ?? 0);
+        }
+
         $baseFare = max(0, floatval($amount_new) - floatval($discount));
 
         // 1. Resolve Admin Commission directly from tj_commission active setting on base fare
@@ -92,7 +97,7 @@ class PayRequeteWalletController extends Controller
             $commType = strtolower(trim((string) ($admin_commisions->type ?? 'percentage')));
             $commVal = floatval($admin_commisions->value ?? 0);
             if ($commType == 'percentage' || $commType == 'percent') {
-                $commission_amount = round(($commVal * floatval($baseFare)) / 100, 2);
+                $commission_amount = round(($commVal * floatval($baseFare + $promoDiscount)) / 100, 2);
             } else {
                 $commission_amount = round($commVal, 2);
             }
@@ -129,7 +134,8 @@ class PayRequeteWalletController extends Controller
         $tax_json = json_encode($taxDetails);
 
         $totalUserAmount = round($baseFare + $totalTaxAmount + $tip, 2);
-        $driverBaseAmount = round($baseFare + $tip, 2);
+        $driverGrossBase = round($baseFare + $promoDiscount, 2);
+        $driverBaseAmount = round($driverGrossBase + $tip, 2);
         $totalDriverAmount = max(0, round($driverBaseAmount - $commission_amount, 2));
 
         // 3. User Wallet Deduction
@@ -230,6 +236,11 @@ class PayRequeteWalletController extends Controller
             'transaction_id' => $transaction_id,
             'admin_commission' => $commission_amount,
         ];
+        if ($promoDiscount > 0) {
+            $updateFields['is_promotional_applied'] = 1;
+            $updateFields['promotional_discount'] = $promoDiscount;
+            $updateFields['promotional_amount'] = $promoDiscount;
+        }
         if (\Illuminate\Support\Facades\Schema::hasColumn('tj_requete', 'tax_amount')) {
             $updateFields['tax_amount'] = $totalTaxAmount;
         }

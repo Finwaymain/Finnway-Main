@@ -1457,6 +1457,293 @@ class UserController extends Controller
             $u->referred_by_type = $referredByType;
         }
 
+        // -------------------------------------------------------------
+        // BATCH RESOLVE ADVANCED METRICS FOR ALL USERS ON THIS PAGE
+        // (Total/Today Earning, Total Booking, Promo, Withdrawals, Rating, Zone, Max Svc)
+        // -------------------------------------------------------------
+        $consumerIds = collect($users)->where('user_type', 'consumer')->pluck('id')->filter()->unique()->toArray();
+        $driverIds   = collect($users)->where('user_type', 'driver')->pluck('id')->filter()->unique()->toArray();
+        $allIds      = collect($users)->pluck('id')->filter()->unique()->toArray();
+
+        $today = Carbon::today()->toDateString();
+
+        // 1. Withdrawals
+        $withdrawalsGrouped = collect();
+        if (!empty($allIds) && \Illuminate\Support\Facades\Schema::hasTable('withdrawals')) {
+            $withdrawalsGrouped = DB::table('withdrawals')
+                ->whereIn('id_conducteur', $allIds)
+                ->orderBy('id', 'desc')
+                ->get()
+                ->groupBy('id_conducteur');
+        }
+
+        // 2. Promotions
+        $promotionsKeyed = collect();
+        if (!empty($allIds) && \Illuminate\Support\Facades\Schema::hasTable('user_promotions')) {
+            $promotionsKeyed = DB::table('user_promotions')
+                ->whereIn('user_id', $allIds)
+                ->get()
+                ->keyBy(function($item) {
+                    $t = ($item->user_type === 'driver') ? 'driver' : 'consumer';
+                    return $item->user_id . '_' . $t;
+                });
+        }
+
+        // 3. Zones Map
+        $allZones = \Illuminate\Support\Facades\Schema::hasTable('zones') ? DB::table('zones')->pluck('name', 'id')->toArray() : [];
+        $defaultZone = !empty($allZones) ? reset($allZones) : 'All';
+
+        // 4. Ratings
+        $driverRatingsKeyed = collect();
+        if (!empty($driverIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_note')) {
+            $driverRatingsKeyed = DB::table('tj_note')
+                ->whereIn('id_conducteur', $driverIds)
+                ->select('id_conducteur', DB::raw('AVG(niveau) as avg_rating'), DB::raw('COUNT(*) as total_reviews'))
+                ->groupBy('id_conducteur')
+                ->get()
+                ->keyBy('id_conducteur');
+        }
+
+        $consumerRatingsKeyed = collect();
+        if (!empty($consumerIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_user_note')) {
+            $consumerRatingsKeyed = DB::table('tj_user_note')
+                ->whereIn('id_user_app', $consumerIds)
+                ->select('id_user_app', DB::raw('AVG(niveau_driver) as avg_rating'), DB::raw('COUNT(*) as total_reviews'))
+                ->groupBy('id_user_app')
+                ->get()
+                ->keyBy('id_user_app');
+        }
+
+        // 5. Bookings & Services counts & earnings
+        // A. Rides (tj_requete)
+        $consumerRidesKeyed = collect();
+        if (!empty($consumerIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_requete')) {
+            $consumerRidesKeyed = DB::table('tj_requete')
+                ->whereIn('id_user_app', $consumerIds)
+                ->select('id_user_app', DB::raw('COUNT(*) as total_rides'))
+                ->groupBy('id_user_app')
+                ->get()
+                ->keyBy('id_user_app');
+        }
+
+        $driverRidesKeyed = collect();
+        if (!empty($driverIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_requete')) {
+            $driverRidesKeyed = DB::table('tj_requete')
+                ->whereIn('id_conducteur', $driverIds)
+                ->select(
+                    'id_conducteur',
+                    DB::raw('COUNT(*) as total_rides'),
+                    DB::raw("SUM(CASE WHEN statut = 'completed' THEN CAST(montant AS DECIMAL(10,2)) ELSE 0 END) as total_earn"),
+                    DB::raw("SUM(CASE WHEN statut = 'completed' AND DATE(creer) = '{$today}' THEN CAST(montant AS DECIMAL(10,2)) ELSE 0 END) as today_earn")
+                )
+                ->groupBy('id_conducteur')
+                ->get()
+                ->keyBy('id_conducteur');
+        }
+
+        // B. Services (service_requests)
+        $consumerServicesGrouped = collect();
+        $driverServicesGrouped = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('service_requests')) {
+            if (!empty($consumerIds)) {
+                $consumerServicesGrouped = DB::table('service_requests')
+                    ->whereIn('user_id', $consumerIds)
+                    ->select('user_id', 'service_name', DB::raw('COUNT(*) as count'))
+                    ->groupBy('user_id', 'service_name')
+                    ->get()
+                    ->groupBy('user_id');
+            }
+
+            if (!empty($driverIds)) {
+                $driverServicesGrouped = DB::table('service_requests')
+                    ->whereIn('driver_id', $driverIds)
+                    ->select(
+                        'driver_id',
+                        'service_name',
+                        DB::raw('COUNT(*) as count'),
+                        DB::raw("SUM(CASE WHEN status IN ('Completed','completed') THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as total_earn"),
+                        DB::raw("SUM(CASE WHEN status IN ('Completed','completed') AND (DATE(created_at) = '{$today}' OR DATE(updated_at) = '{$today}') THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as today_earn")
+                    )
+                    ->groupBy('driver_id', 'service_name')
+                    ->get()
+                    ->groupBy('driver_id');
+            }
+        }
+
+        // C. Parcels (parcel_orders)
+        $consumerParcelsKeyed = collect();
+        $driverParcelsKeyed = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('parcel_orders')) {
+            if (!empty($consumerIds)) {
+                $consumerParcelsKeyed = DB::table('parcel_orders')
+                    ->whereIn('id_user_app', $consumerIds)
+                    ->select('id_user_app', DB::raw('COUNT(*) as total_parcels'))
+                    ->groupBy('id_user_app')
+                    ->get()
+                    ->keyBy('id_user_app');
+            }
+            if (!empty($driverIds)) {
+                $driverParcelsKeyed = DB::table('parcel_orders')
+                    ->whereIn('id_conducteur', $driverIds)
+                    ->select(
+                        'id_conducteur',
+                        DB::raw('COUNT(*) as total_parcels'),
+                        DB::raw("SUM(CASE WHEN status = 'completed' THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as total_earn"),
+                        DB::raw("SUM(CASE WHEN status = 'completed' AND DATE(created_at) = '{$today}' THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as today_earn")
+                    )
+                    ->groupBy('id_conducteur')
+                    ->get()
+                    ->keyBy('id_conducteur');
+            }
+        }
+
+        // D. Food (food_orders)
+        $consumerFoodsKeyed = collect();
+        $driverFoodsKeyed = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('food_orders')) {
+            if (!empty($consumerIds)) {
+                $consumerFoodsKeyed = DB::table('food_orders')
+                    ->whereIn('customer_id', $consumerIds)
+                    ->select('customer_id', DB::raw('COUNT(*) as total_food'))
+                    ->groupBy('customer_id')
+                    ->get()
+                    ->keyBy('customer_id');
+            }
+            if (!empty($driverIds)) {
+                $driverFoodsKeyed = DB::table('food_orders')
+                    ->whereIn('rider_id', $driverIds)
+                    ->select('rider_id', DB::raw('COUNT(*) as total_food'))
+                    ->groupBy('rider_id')
+                    ->get()
+                    ->keyBy('rider_id');
+            }
+        }
+
+        // E. Marketplace (marketplace_orders)
+        $consumerMarketsKeyed = collect();
+        if (!empty($consumerIds) && \Illuminate\Support\Facades\Schema::hasTable('marketplace_orders')) {
+            $consumerMarketsKeyed = DB::table('marketplace_orders')
+                ->whereIn('user_id', $consumerIds)
+                ->select('user_id', DB::raw('COUNT(*) as total_markets'))
+                ->groupBy('user_id')
+                ->get()
+                ->keyBy('user_id');
+        }
+
+        // Attach all computed metrics to each user object
+        foreach ($users as $u) {
+            $uid = (int) $u->id;
+            $isDriver = ($u->user_type === 'driver');
+            $uTypeKey = $isDriver ? 'driver' : 'consumer';
+
+            // 1. Total & Today Earning
+            if ($isDriver) {
+                $rEarn = (float)($driverRidesKeyed[$uid]->total_earn ?? 0);
+                $sEarn = (float)($driverServicesGrouped->has($uid) ? $driverServicesGrouped[$uid]->sum('total_earn') : 0);
+                $pEarn = (float)($driverParcelsKeyed[$uid]->total_earn ?? 0);
+                $walletEarn = (float)($u->earn_amount ?? 0);
+                $totEarn = $rEarn + $sEarn + $pEarn + $walletEarn;
+
+                $rTod = (float)($driverRidesKeyed[$uid]->today_earn ?? 0);
+                $sTod = (float)($driverServicesGrouped->has($uid) ? $driverServicesGrouped[$uid]->sum('today_earn') : 0);
+                $pTod = (float)($driverParcelsKeyed[$uid]->today_earn ?? 0);
+                $todEarn = $rTod + $sTod + $pTod;
+            } else {
+                $totEarn = (float)($u->earn_amount ?? 0);
+                $todEarn = 0.0;
+            }
+            $u->tot_earn = $totEarn;
+            $u->tod_earn = $todEarn;
+
+            // 2. Total Booking Count
+            if ($isDriver) {
+                $rCount = (int)($driverRidesKeyed[$uid]->total_rides ?? 0);
+                $sCount = (int)($driverServicesGrouped->has($uid) ? $driverServicesGrouped[$uid]->sum('count') : 0);
+                $pCount = (int)($driverParcelsKeyed[$uid]->total_parcels ?? 0);
+                $fCount = (int)($driverFoodsKeyed[$uid]->total_food ?? 0);
+                $mCount = 0;
+            } else {
+                $rCount = (int)($consumerRidesKeyed[$uid]->total_rides ?? 0);
+                $sCount = (int)($consumerServicesGrouped->has($uid) ? $consumerServicesGrouped[$uid]->sum('count') : 0);
+                $pCount = (int)($consumerParcelsKeyed[$uid]->total_parcels ?? 0);
+                $fCount = (int)($consumerFoodsKeyed[$uid]->total_food ?? 0);
+                $mCount = (int)($consumerMarketsKeyed[$uid]->total_markets ?? 0);
+            }
+            $u->tot_book = $rCount + $sCount + $pCount + $fCount + $mCount;
+
+            // 3. Promotional Value
+            $promoRecord = $promotionsKeyed->get($uid . '_' . $uTypeKey);
+            $u->promo_val = $promoRecord ? max(0, (float)$promoRecord->remaining_bonus) : 0.0;
+
+            // 4. Withdrawals
+            $userWiths = $withdrawalsGrouped->get($uid, collect());
+            $pendingWithAmt = 0.0;
+            $settledWithAmt = 0.0;
+            $withStage = 'None';
+
+            if ($userWiths->isNotEmpty()) {
+                $latestWith = $userWiths->first();
+                $st = strtolower(trim((string)$latestWith->statut));
+                if ($st === 'pending' || $st === '0') {
+                    $withStage = 'Pend';
+                } elseif ($st === 'success' || $st === '1' || $st === 'approved' || $st === 'completed') {
+                    $withStage = 'Paid';
+                } elseif ($st === 'rejected' || $st === 'failed') {
+                    $withStage = 'Rej';
+                } else {
+                    $withStage = ucfirst($st);
+                }
+
+                foreach ($userWiths as $w) {
+                    $wSt = strtolower(trim((string)$w->statut));
+                    $amt = (float)$w->amount;
+                    if ($wSt === 'pending' || $wSt === '0') {
+                        $pendingWithAmt += $amt;
+                    } elseif ($wSt === 'success' || $wSt === '1' || $wSt === 'approved' || $wSt === 'completed') {
+                        $settledWithAmt += $amt;
+                    }
+                }
+            }
+            $u->with_req = $pendingWithAmt;
+            $u->with_settled = $settledWithAmt;
+            $u->with_stage = $withStage;
+
+            // 5. Ratings
+            $rateObj = $isDriver ? ($driverRatingsKeyed[$uid] ?? null) : ($consumerRatingsKeyed[$uid] ?? null);
+            $u->rating = $rateObj ? round((float)$rateObj->avg_rating, 1) : 5.0;
+
+            // 6. Zone
+            $zoneName = $defaultZone;
+            if ($isDriver && !empty($u->zone_id) && isset($allZones[$u->zone_id])) {
+                $zoneName = $allZones[$u->zone_id];
+            }
+            $u->zone_name = $zoneName;
+
+            // 7. Max Service Booked Name
+            $serviceCounts = [];
+            if ($rCount > 0) $serviceCounts['Cab'] = $rCount;
+            if ($pCount > 0) $serviceCounts['Parcel'] = $pCount;
+            if ($fCount > 0) $serviceCounts['Food'] = $fCount;
+            if (!$isDriver && $mCount > 0) $serviceCounts['Market'] = $mCount;
+
+            $userSvcGroup = $isDriver ? ($driverServicesGrouped[$uid] ?? collect()) : ($consumerServicesGrouped[$uid] ?? collect());
+            foreach ($userSvcGroup as $sItem) {
+                $sName = $sItem->service_name;
+                $cleanSvc = preg_replace('/\s+Service$/i', '', $sName);
+                if (strlen($cleanSvc) > 13) {
+                    $cleanSvc = substr($cleanSvc, 0, 11) . '..';
+                }
+                $serviceCounts[$cleanSvc] = ($serviceCounts[$cleanSvc] ?? 0) + (int)$sItem->count;
+            }
+
+            $topSvc = '—';
+            if (!empty($serviceCounts)) {
+                arsort($serviceCounts);
+                $topSvc = array_key_first($serviceCounts);
+            }
+            $u->top_svc = $topSvc;
+        }
+
         return view('settings.users.all_users', compact('users'));
     }
 

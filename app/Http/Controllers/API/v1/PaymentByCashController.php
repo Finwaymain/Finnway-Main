@@ -355,6 +355,21 @@ class PaymentByCashController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasColumn('tj_requete', 'tax_amount')) {
             $updateFields['tax_amount'] = $totalTaxAmount;
         }
+
+        // Promotional bonus ONLY applies on Wallet payment. If paid by Cash, revert promo usage so user retains their bonus for wallet.
+        if (strtolower($paymethod) !== 'wallet') {
+            if ($rideRecord && !empty($rideRecord->is_promotional_applied) && (float)($rideRecord->promotional_discount ?? 0) > 0) {
+                try {
+                    \App\Services\PromotionalService::revertPromoUsage((int)$id_user_app, 'customer', 'cab', $id_requete);
+                } catch (\Throwable $revEx) {
+                    \Log::error('Revert promo on cash payment error: ' . $revEx->getMessage());
+                }
+                $updateFields['is_promotional_applied'] = 0;
+                $updateFields['promotional_amount'] = 0.00;
+                $updateFields['promotional_discount'] = 0.00;
+            }
+        }
+
         $updatedata = DB::table('tj_requete')->where('id', $id_requete)->update($updateFields);
 
 

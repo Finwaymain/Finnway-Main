@@ -241,6 +241,22 @@ class PayRequeteController extends Controller
 
 
 
+        $rideRecord = DB::table('tj_requete')->where('id', $id_requete)->first();
+        if (strtolower($paymethod) !== 'wallet') {
+            if ($rideRecord && !empty($rideRecord->is_promotional_applied) && (float)($rideRecord->promotional_discount ?? 0) > 0) {
+                try {
+                    \App\Services\PromotionalService::revertPromoUsage((int)$id_user_app, 'customer', 'cab', $id_requete);
+                } catch (\Throwable $revEx) {
+                    \Log::error('Revert promo on online/UPI payment error: ' . $revEx->getMessage());
+                }
+                DB::table('tj_requete')->where('id', $id_requete)->update([
+                    'is_promotional_applied' => 0,
+                    'promotional_amount'     => 0.00,
+                    'promotional_discount'   => 0.00,
+                ]);
+            }
+        }
+
         $updatedata = DB::update('update tj_requete set statut_paiement = ?,id_payment_method = ?,tip_amount = ?,tax = ?,discount = ?,transaction_id = ?,admin_commission = ? where id = ?', ['yes', $id_payment, $tip, $tax_json, $discount, $transaction_id,$commission_amount, $id_requete]);
 
 
