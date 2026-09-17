@@ -388,6 +388,31 @@ function applyPreset(provider) {
     }
 }
 
+// Auto-detect Gmail & Auto-strip spaces from App Passwords
+document.addEventListener('DOMContentLoaded', function() {
+    const userEl = document.getElementById('mail_username');
+    const hostEl = document.getElementById('mail_host');
+    const passEl = document.getElementById('mail_password');
+
+    if (userEl) {
+        userEl.addEventListener('input', function() {
+            const val = this.value.trim().toLowerCase();
+            if (val.endsWith('@gmail.com') && hostEl.value.includes('hostinger')) {
+                applyPreset('gmail');
+            }
+        });
+    }
+
+    if (passEl) {
+        passEl.addEventListener('blur', function() {
+            // If 16 chars with spaces (e.g. "waqy mibu afsc wern")
+            if (this.value.includes(' ') && this.value.replace(/\s+/g, '').length === 16) {
+                this.value = this.value.replace(/\s+/g, '');
+            }
+        });
+    }
+});
+
 function sendTestEmail() {
     const emailInput = document.getElementById('test_email');
     const testEmail = emailInput.value.trim();

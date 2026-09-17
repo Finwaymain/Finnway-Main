@@ -62,6 +62,11 @@ class SmtpSetting extends Model
             $encryption = null;
         }
 
+        $password = trim((string)$setting->mail_password);
+        if (str_contains($setting->mail_host ?? '', 'gmail') || preg_match('/^[a-zA-Z]{4}\s+[a-zA-Z]{4}\s+[a-zA-Z]{4}\s+[a-zA-Z]{4}$/', $password)) {
+            $password = str_replace(' ', '', $password);
+        }
+
         config([
             'mail.default' => $setting->mail_mailer ?: 'smtp',
             'mail.mailers.smtp.transport' => 'smtp',
@@ -69,7 +74,7 @@ class SmtpSetting extends Model
             'mail.mailers.smtp.port' => (int)($setting->mail_port ?: 465),
             'mail.mailers.smtp.encryption' => $encryption,
             'mail.mailers.smtp.username' => $setting->mail_username,
-            'mail.mailers.smtp.password' => $setting->mail_password,
+            'mail.mailers.smtp.password' => $password,
             'mail.from.address' => $setting->mail_from_address ?: $setting->mail_username,
             'mail.from.name' => $setting->mail_from_name ?: config('app.name', 'Fiinway'),
         ]);

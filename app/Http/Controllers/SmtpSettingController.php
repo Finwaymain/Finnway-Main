@@ -57,17 +57,33 @@ class SmtpSettingController extends Controller
             $setting = new SmtpSetting();
         }
 
-        $setting->mail_mailer       = $request->input('mail_mailer', 'smtp');
-        $setting->mail_host         = trim($request->mail_host);
-        $setting->mail_port         = (int)$request->mail_port;
-        $setting->mail_username     = trim($request->mail_username);
+        $username = trim($request->mail_username);
+        $host = trim($request->mail_host);
+        $port = (int)$request->mail_port;
+        $encryption = $request->mail_encryption === 'none' ? null : $request->mail_encryption;
 
-        // Only update password if provided
-        if ($request->filled('mail_password')) {
-            $setting->mail_password = $request->mail_password;
+        // Smart auto-detection: If username is Gmail but host was set to Hostinger, switch to smtp.gmail.com
+        if (str_ends_with(strtolower($username), '@gmail.com') && str_contains($host, 'hostinger')) {
+            $host = 'smtp.gmail.com';
+            $port = 587;
+            $encryption = 'tls';
         }
 
-        $setting->mail_encryption   = $request->mail_encryption === 'none' ? null : $request->mail_encryption;
+        $setting->mail_mailer       = $request->input('mail_mailer', 'smtp');
+        $setting->mail_host         = $host;
+        $setting->mail_port         = $port;
+        $setting->mail_username     = $username;
+
+        // Only update password if provided, and strip spaces from App Passwords
+        if ($request->filled('mail_password')) {
+            $rawPass = trim($request->mail_password);
+            if (str_contains($host, 'gmail') || preg_match('/^[a-zA-Z]{4}\s+[a-zA-Z]{4}\s+[a-zA-Z]{4}\s+[a-zA-Z]{4}$/', $rawPass)) {
+                $rawPass = str_replace(' ', '', $rawPass);
+            }
+            $setting->mail_password = $rawPass;
+        }
+
+        $setting->mail_encryption   = $encryption;
         $setting->mail_from_address = trim($request->mail_from_address);
         $setting->mail_from_name    = trim($request->mail_from_name);
         $setting->is_active         = $request->has('is_active');
