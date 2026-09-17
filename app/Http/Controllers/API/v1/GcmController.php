@@ -116,7 +116,6 @@ class GcmController extends Controller
                             'body' => $body,
                         ];
                         $messageBlock['android']['notification'] = [
-                            'sound' => $soundName,
                             'channel_id' => $channelId,
                             'notification_priority' => 'PRIORITY_HIGH',
                             'default_sound' => true,

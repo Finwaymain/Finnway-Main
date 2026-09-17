@@ -66,13 +66,19 @@ class SupportChatController extends Controller
         $customerUnread = SupportTicket::where('user_type', 'customer')->sum('unread_admin_count');
         $businessUnread = SupportTicket::where('user_type', 'business')->sum('unread_admin_count');
 
+        $latestIncoming = SupportTicket::where('unread_admin_count', '>', 0)
+            ->where('last_sender', '!=', 'admin')
+            ->orderBy('updated_at', 'desc')
+            ->first(['id', 'ticket_number', 'user_name', 'user_type', 'last_message', 'updated_at']);
+
         return response()->json([
             'success' => true,
             'tickets' => $tickets,
             'counts' => [
-                'customer_unread' => $customerUnread,
-                'business_unread' => $businessUnread,
-            ]
+                'customer_unread' => (int)$customerUnread,
+                'business_unread' => (int)$businessUnread,
+            ],
+            'latest_incoming' => $latestIncoming,
         ]);
     }
 
