@@ -720,6 +720,10 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
     Route::get('v1/get-consumer-plans/', [SubscriptionPlanController::class, 'getConsumerPlans']);
     Route::post('v1/set-consumer-subscription/', [SubscriptionPlanController::class, 'setConsumerSubscription']);
 
+    // Plan Email Verification OTP (Driver & Consumer)
+    Route::post('v1/plan/send-email-otp', [SubscriptionPlanController::class, 'sendPlanEmailOtp']);
+    Route::post('v1/plan/verify-email-otp', [SubscriptionPlanController::class, 'verifyPlanEmailOtp']);
+
 });
 
 
@@ -981,6 +985,8 @@ Route::get('v1/app-version/check', [\App\Http\Controllers\API\AppVersionApiContr
 
 // ── Driver & Partner Welcome Kit API ────────────────────────────────────────
 Route::get('v1/driver/kit-status', [\App\Http\Controllers\API\DriverKitApiController::class, 'getKitStatus']);
+Route::get('v1/driver/kit-catalog', [\App\Http\Controllers\API\DriverKitApiController::class, 'getKitCatalog']);
+Route::get('v1/driver/kit-order/track', [\App\Http\Controllers\API\DriverKitApiController::class, 'getOrderTracking']);
 Route::post('v1/driver/kit-purchase/record', [\App\Http\Controllers\API\DriverKitApiController::class, 'recordPurchase']);
 
 // ── Fiinway Food Delivery APIs ──────────────────────────────────────────────

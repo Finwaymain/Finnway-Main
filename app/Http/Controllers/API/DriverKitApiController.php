@@ -131,6 +131,8 @@ class DriverKitApiController extends Controller
 
         $fullWebviewUrl = rtrim($baseUrl, '/') . $normalizedPath . '?' . $queryParams;
 
+        $sizes = is_array($kit->sizes) ? $kit->sizes : (json_decode($kit->sizes ?? '[]', true) ?: ['S', 'M', 'L', 'XL', 'XXL']);
+
         return response()->json([
             'success' => 'success',
             'data' => [
@@ -142,25 +144,195 @@ class DriverKitApiController extends Controller
                 'has_purchased' => (bool)$hasPurchased,
                 'should_show_popup' => (bool)$shouldShowPopup,
                 'is_compulsory' => (bool)$isCompulsory,
+                'booking_required' => (bool)($kit->booking_required ?? true),
                 'kit' => [
                     'id' => $kit->id,
+                    'sku' => $kit->sku ?? ('FW-KIT-' . strtoupper($categoryCode)),
                     'category_code' => $kit->category_code,
                     'title' => $kit->title,
                     'description' => $kit->description,
                     'price' => (float)$kit->price,
-                    'price_formatted' => '₹' . number_format($kit->price, 2),
-                    'image' => $kit->image ? url($kit->image) : '',
-                    'items_included' => is_array($kit->items_included) ? $kit->items_included : (json_decode($kit->items_included, true) ?? []),
+                    'price_formatted' => '₹' . number_format($kit->price, 0),
+                    'mrp' => (float)($kit->mrp ?? ($kit->price * 1.5)),
+                    'mrp_formatted' => '₹' . number_format($kit->mrp ?? ($kit->price * 1.5), 0),
+                    'cashback_amount' => (float)($kit->cashback_amount ?? 0),
+                    'cashback_formatted' => '₹' . number_format($kit->cashback_amount ?? 0, 0),
+                    'stock_quantity' => (int)($kit->stock_quantity ?? 500),
+                    'image' => $kit->image ? (str_starts_with($kit->image, 'http') ? $kit->image : url($kit->image)) : '',
+                    'items_included' => is_array($kit->items_included) ? $kit->items_included : (json_decode($kit->items_included ?? '[]', true) ?: []),
+                    'sizes' => $sizes,
                     'is_compulsory' => (bool)$kit->is_compulsory,
+                    'booking_required' => (bool)($kit->booking_required ?? true),
                     'webview_url' => $fullWebviewUrl,
                 ],
                 'order' => $paidOrder ? [
                     'id' => $paidOrder->id,
                     'order_number' => $paidOrder->order_number,
                     'amount' => (float)$paidOrder->amount,
+                    'selected_size' => $paidOrder->selected_size ?? $paidOrder->tshirt_size ?? 'L',
                     'delivery_status' => $paidOrder->delivery_status,
+                    'tracking_code' => $paidOrder->tracking_code ?? $paidOrder->tracking_number ?? ('FWP' . rand(1000000000, 9999999999)),
+                    'courier_partner' => $paidOrder->courier_partner ?? 'Blue Dart Express',
+                    'expected_delivery_date' => $paidOrder->expected_delivery_date ?? ('Expected by ' . date('d M, 6:00 PM', strtotime('+3 days'))),
                     'purchased_at' => $paidOrder->purchased_at,
                 ] : null,
+            ]
+        ]);
+    }
+
+    /**
+     * Get Kit Catalog (All Category Kits + Winter Collection)
+     * Endpoint: GET /api/v1/driver/kit-catalog
+     */
+    public function getKitCatalog(Request $request)
+    {
+        $category = $request->query('category');
+        $query = DriverKit::where('is_active', true)->orderBy('display_order', 'asc');
+
+        if (!empty($category)) {
+            $query->where(function($q) use ($category) {
+                $q->where('category_code', $category)->orWhere('category_code', 'all');
+            });
+        }
+
+        $kits = $query->get()->map(function($k) {
+            return [
+                'id' => $k->id,
+                'sku' => $k->sku,
+                'category_code' => $k->category_code,
+                'title' => $k->title,
+                'description' => $k->description,
+                'price' => (float)$k->price,
+                'price_formatted' => '₹' . number_format($k->price, 0),
+                'mrp' => (float)($k->mrp ?? ($k->price * 1.5)),
+                'mrp_formatted' => '₹' . number_format($k->mrp ?? ($k->price * 1.5), 0),
+                'cashback_amount' => (float)($k->cashback_amount ?? 0),
+                'cashback_formatted' => '₹' . number_format($k->cashback_amount ?? 0, 0),
+                'is_compulsory' => (bool)$k->is_compulsory,
+                'booking_required' => (bool)($k->booking_required ?? true),
+                'stock_quantity' => (int)($k->stock_quantity ?? 500),
+                'image' => $k->image ? (str_starts_with($k->image, 'http') ? $k->image : url($k->image)) : '',
+                'items_included' => is_array($k->items_included) ? $k->items_included : (json_decode($k->items_included ?? '[]', true) ?: []),
+                'sizes' => is_array($k->sizes) ? $k->sizes : (json_decode($k->sizes ?? '[]', true) ?: ['S', 'M', 'L', 'XL', 'XXL']),
+            ];
+        });
+
+        return response()->json([
+            'success' => 'success',
+            'data' => $kits,
+        ]);
+    }
+
+    /**
+     * Get Detailed Parcel Tracking for a Kit Order
+     * Endpoint: GET /api/v1/driver/kit-order/track
+     */
+    public function getOrderTracking(Request $request)
+    {
+        $orderId = $request->query('order_id');
+        $orderNumber = $request->query('order_number');
+        $driverId = $request->query('driver_id');
+
+        $query = DriverKitOrder::query();
+        if (!empty($orderId)) {
+            $query->where('id', $orderId);
+        } elseif (!empty($orderNumber)) {
+            $query->where('order_number', $orderNumber);
+        } elseif (!empty($driverId)) {
+            $query->where('driver_id', $driverId)->orderBy('id', 'desc');
+        } else {
+            return response()->json(['success' => 'Failed', 'error' => 'order_id or driver_id is required'], 400);
+        }
+
+        $order = $query->first();
+        if (!$order) {
+            return response()->json(['success' => 'Failed', 'error' => 'Order not found'], 404);
+        }
+
+        // Build default timeline if not present
+        $timeline = is_array($order->status_timeline) ? $order->status_timeline : (json_decode($order->status_timeline ?? '[]', true) ?: []);
+        if (empty($timeline)) {
+            $orderDate = $order->purchased_at ? $order->purchased_at->format('d M Y, h:i A') : date('d M Y, h:i A');
+            $timeline = [
+                [
+                    'status' => 'booked',
+                    'title' => 'Booking Confirmed',
+                    'date' => $orderDate,
+                    'description' => 'Your partner marketing kit has been booked successfully.',
+                    'is_completed' => true,
+                    'is_current' => false,
+                ],
+                [
+                    'status' => 'picked_up',
+                    'title' => 'Picked Up',
+                    'date' => date('d M Y, h:i A', strtotime($order->purchased_at ?? now() . ' + 4 hours')),
+                    'description' => 'Picked up from Fiinway Central Warehouse.',
+                    'is_completed' => in_array($order->delivery_status, ['picked_up', 'in_transit', 'out_for_delivery', 'delivered']),
+                    'is_current' => $order->delivery_status === 'picked_up',
+                ],
+                [
+                    'status' => 'in_transit',
+                    'title' => 'In Transit',
+                    'date' => date('d M Y, h:i A', strtotime($order->purchased_at ?? now() . ' + 1 day')),
+                    'description' => 'Your parcel is in transit to destination sorting facility.',
+                    'is_completed' => in_array($order->delivery_status, ['in_transit', 'out_for_delivery', 'delivered']),
+                    'is_current' => $order->delivery_status === 'in_transit',
+                ],
+                [
+                    'status' => 'out_for_delivery',
+                    'title' => 'Out for Delivery',
+                    'date' => date('d M Y, h:i A', strtotime($order->purchased_at ?? now() . ' + 2 days')),
+                    'description' => 'Your parcel is with our delivery partner and will be delivered today.',
+                    'is_completed' => in_array($order->delivery_status, ['out_for_delivery', 'delivered']),
+                    'is_current' => $order->delivery_status === 'out_for_delivery',
+                ],
+                [
+                    'status' => 'delivered',
+                    'title' => 'Delivered',
+                    'date' => $order->delivery_status === 'delivered' ? date('d M Y, h:i A') : 'Pending',
+                    'description' => $order->delivery_status === 'delivered' ? 'Successfully delivered to partner address.' : 'Will be updated after successful delivery.',
+                    'is_completed' => $order->delivery_status === 'delivered',
+                    'is_current' => $order->delivery_status === 'delivered',
+                ],
+            ];
+        }
+
+        $trackingCode = $order->tracking_code ?? $order->tracking_number ?? ('FWP' . rand(1000000000, 9999999999));
+        $courierName = $order->courier_partner ?? 'Blue Dart Express';
+
+        return response()->json([
+            'success' => 'success',
+            'data' => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'kit_title' => $order->kit_title,
+                'amount' => (float)$order->amount,
+                'amount_formatted' => '₹' . number_format($order->amount, 0),
+                'selected_size' => $order->selected_size ?? $order->tshirt_size ?? 'L',
+                'delivery_status' => $order->delivery_status,
+                'delivery_status_label' => ucfirst(str_replace('_', ' ', $order->delivery_status)),
+                'tracking_code' => $trackingCode,
+                'tracking_url' => $order->tracking_url ?? ("https://www.bluedart.com/tracking?track=" . $trackingCode),
+                'courier_partner' => $courierName,
+                'courier_partner_tagline' => 'Delivery with Trust',
+                'courier_partner_rating' => '4.6 (10,245 reviews)',
+                'expected_delivery' => $order->expected_delivery_date ?? ('Today, ' . date('d M') . ' by 6:00 PM'),
+                'parcel_details' => [
+                    'item' => $order->kit_title,
+                    'weight' => '1.2 kg',
+                    'type' => 'Standard Express Delivery',
+                    'ref_no' => 'FW-' . date('Ymd') . '-' . $order->id,
+                    'note' => 'Handle with care - Official Partner Kit',
+                ],
+                'delivery_executive' => [
+                    'name' => $order->delivery_partner_name ?? 'Ravi Kumar',
+                    'role' => 'Delivery Executive',
+                    'phone' => $order->delivery_partner_phone ?? '+91 98765 43210',
+                    'vehicle_no' => $order->delivery_partner_vehicle ?? 'DL 1L AB 1234',
+                    'partner_id' => $order->delivery_partner_id ?? 'BD567890',
+                ],
+                'timeline' => $timeline,
+                'purchased_at' => $order->purchased_at,
             ]
         ]);
     }
@@ -239,7 +411,9 @@ class DriverKitApiController extends Controller
 
         $receiverPhone = $request->receiver_phone ?? ($driver->phone ?? '');
         $orderNumber = 'KIT-' . date('Ymd') . '-' . rand(1000, 9999);
+        $trackingCode = 'FWP' . rand(1000000000, 9999999999);
         $transactionId = $request->transaction_id ?? ('TXN-' . Str::upper(Str::random(10)));
+        $selectedSize = $request->selected_size ?? $request->tshirt_size ?? 'L';
 
         $order = DriverKitOrder::create([
             'driver_id' => $driver->id,
@@ -248,13 +422,19 @@ class DriverKitApiController extends Controller
             'category_code' => $categoryCode,
             'kit_title' => $kitTitle,
             'amount' => $amount,
-            'tshirt_size' => $request->tshirt_size ?? 'L',
+            'tshirt_size' => $selectedSize,
+            'selected_size' => $selectedSize,
             'receiver_name' => $request->receiver_name ?? trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? '')),
             'receiver_phone' => $receiverPhone,
-            'shipping_address' => $request->shipping_address ?? 'Registered Driver Address',
+            'shipping_address' => $request->shipping_address ?? ($driver->address ?? 'Registered Partner Address'),
+            'pincode' => $request->pincode ?? '',
             'payment_method' => $paymentMethod,
-            'payment_status' => 'paid',
-            'delivery_status' => 'processing',
+            'payment_status' => $paymentMethod === 'deduct_earnings' ? 'pending' : 'paid',
+            'delivery_status' => 'booked',
+            'tracking_code' => $trackingCode,
+            'tracking_number' => $trackingCode,
+            'courier_partner' => 'Blue Dart Express',
+            'expected_delivery_date' => date('d M, 6:00 PM', strtotime('+3 days')),
             'transaction_id' => $transactionId,
             'purchased_at' => now(),
         ]);

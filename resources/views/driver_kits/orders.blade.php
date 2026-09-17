@@ -112,23 +112,34 @@
                                     <td>
                                         @if($order->delivery_status === 'delivered')
                                             <span class="badge badge-success px-3 py-1 font-12">Delivered</span>
-                                        @elseif($order->delivery_status === 'dispatched')
-                                            <span class="badge badge-warning px-3 py-1 font-12">Dispatched</span>
-                                            @if($order->tracking_number)
-                                                <div class="small text-muted mt-1 font-11">{{ $order->courier_partner }}: {{ $order->tracking_number }}</div>
-                                            @endif
+                                        @elseif($order->delivery_status === 'out_for_delivery')
+                                            <span class="badge badge-warning px-3 py-1 font-12">Out for Delivery</span>
+                                        @elseif($order->delivery_status === 'in_transit' || $order->delivery_status === 'dispatched')
+                                            <span class="badge badge-primary px-3 py-1 font-12">In Transit</span>
+                                        @elseif($order->delivery_status === 'picked_up')
+                                            <span class="badge badge-info px-3 py-1 font-12">Picked Up</span>
                                         @else
-                                            <span class="badge badge-secondary px-3 py-1 font-12">Processing</span>
+                                            <span class="badge badge-secondary px-3 py-1 font-12">Booked</span>
+                                        @endif
+                                        @if($order->tracking_code || $order->tracking_number)
+                                            <div class="small text-muted mt-1 font-11">
+                                                <strong>{{ $order->courier_partner ?? 'Courier' }}:</strong> {{ $order->tracking_code ?? $order->tracking_number }}
+                                            </div>
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 font-weight-bold" data-toggle="modal" data-target="#updateOrderModal_{{ $order->id }}">
-                                            Update
-                                        </button>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 font-weight-bold" data-toggle="modal" data-target="#updateOrderModal_{{ $order->id }}">
+                                                Manage
+                                            </button>
+                                            <a href="{{ route('driver-kits.invoice', $order->id) }}" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-2 ml-1" title="Print Invoice">
+                                                <i class="mdi mdi-printer font-14"></i>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
 
-                                <!-- Status Modal -->
+                                <!-- Status & Courier Modal -->
                                 <div class="modal fade" id="updateOrderModal_{{ $order->id }}" tabindex="-1" role="dialog" aria-hidden="true">
                                     <div class="modal-dialog modal-dialog-centered" role="document">
                                         <div class="modal-content" style="border-radius: 16px;">
@@ -136,7 +147,7 @@
                                                 @csrf
                                                 <div class="modal-header bg-light py-3">
                                                     <h5 class="modal-title font-weight-bold text-dark">
-                                                        Update Order #{{ $order->order_number }}
+                                                        Dispatch & Tracking #{{ $order->order_number }}
                                                     </h5>
                                                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                                         <span aria-hidden="true">&times;</span>
@@ -146,20 +157,63 @@
                                                     <div class="form-group mb-3">
                                                         <label class="font-weight-bold text-dark">Delivery Status <span class="text-danger">*</span></label>
                                                         <select name="delivery_status" class="form-control font-weight-bold" required>
-                                                            <option value="processing" {{ $order->delivery_status === 'processing' ? 'selected' : '' }}>⏳ Processing (Packaging)</option>
-                                                            <option value="dispatched" {{ $order->delivery_status === 'dispatched' ? 'selected' : '' }}>🚚 Dispatched (In Transit)</option>
+                                                            <option value="booked" {{ in_array($order->delivery_status, ['booked', 'processing']) ? 'selected' : '' }}>📦 Booked (Order Placed)</option>
+                                                            <option value="picked_up" {{ $order->delivery_status === 'picked_up' ? 'selected' : '' }}>🏭 Picked Up (From Warehouse)</option>
+                                                            <option value="in_transit" {{ in_array($order->delivery_status, ['in_transit', 'dispatched']) ? 'selected' : '' }}>🚚 In Transit (Hub to Hub)</option>
+                                                            <option value="out_for_delivery" {{ $order->delivery_status === 'out_for_delivery' ? 'selected' : '' }}>🛵 Out for Delivery (Almost there)</option>
                                                             <option value="delivered" {{ $order->delivery_status === 'delivered' ? 'selected' : '' }}>✅ Delivered (Handed to Partner)</option>
+                                                            <option value="cancelled" {{ $order->delivery_status === 'cancelled' ? 'selected' : '' }}>❌ Cancelled</option>
                                                         </select>
                                                     </div>
 
                                                     <div class="form-group mb-3">
                                                         <label class="font-weight-bold text-dark">Courier Partner</label>
-                                                        <input type="text" name="courier_partner" class="form-control" value="{{ $order->courier_partner }}" placeholder="e.g. Delhivery, BlueDart, DTDC">
+                                                        <input type="text" list="courierList" name="courier_partner" class="form-control" value="{{ $order->courier_partner ?? 'Blue Dart Express' }}" placeholder="e.g. Blue Dart, Delhivery, DTDC, Ekart">
+                                                        <datalist id="courierList">
+                                                            <option value="Blue Dart Express">
+                                                            <option value="Delhivery Logistics">
+                                                            <option value="DTDC Express">
+                                                            <option value="Ekart Logistics">
+                                                            <option value="Shadowfax">
+                                                            <option value="In-House Delivery">
+                                                        </datalist>
                                                     </div>
 
-                                                    <div class="form-group mb-0">
-                                                        <label class="font-weight-bold text-dark">Tracking Number / AWB</label>
-                                                        <input type="text" name="tracking_number" class="form-control font-weight-bold" value="{{ $order->tracking_number }}" placeholder="e.g. DEL982183921">
+                                                    <div class="form-group mb-3">
+                                                        <label class="font-weight-bold text-dark">Tracking Code / AWB Number</label>
+                                                        <input type="text" name="tracking_code" class="form-control font-weight-bold" value="{{ $order->tracking_code ?? $order->tracking_number }}" placeholder="e.g. FWP7823456789">
+                                                    </div>
+
+                                                    <div class="form-group mb-3">
+                                                        <label class="font-weight-bold text-dark">Expected Delivery (Date & Time)</label>
+                                                        <input type="text" name="expected_delivery_date" class="form-control" value="{{ $order->expected_delivery_date }}" placeholder="e.g. Today, 18 Sep by 6:00 PM">
+                                                    </div>
+
+                                                    <div class="form-group mb-3">
+                                                        <label class="font-weight-bold text-dark">Tracking Link / URL</label>
+                                                        <input type="url" name="tracking_url" class="form-control" value="{{ $order->tracking_url }}" placeholder="https://www.bluedart.com/tracking?track=...">
+                                                    </div>
+
+                                                    <div class="row">
+                                                        <div class="col-md-6 form-group mb-3">
+                                                            <label class="font-weight-bold text-dark font-12">Delivery Boy Name</label>
+                                                            <input type="text" name="delivery_partner_name" class="form-control form-control-sm" value="{{ $order->delivery_partner_name }}" placeholder="e.g. Ravi Kumar">
+                                                        </div>
+                                                        <div class="col-md-6 form-group mb-3">
+                                                            <label class="font-weight-bold text-dark font-12">Delivery Boy Phone</label>
+                                                            <input type="text" name="delivery_partner_phone" class="form-control form-control-sm" value="{{ $order->delivery_partner_phone }}" placeholder="e.g. +91 98765 43210">
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="row">
+                                                        <div class="col-md-6 form-group mb-0">
+                                                            <label class="font-weight-bold text-dark font-12">Vehicle Number</label>
+                                                            <input type="text" name="delivery_partner_vehicle" class="form-control form-control-sm" value="{{ $order->delivery_partner_vehicle }}" placeholder="e.g. DL 1L AB 1234">
+                                                        </div>
+                                                        <div class="col-md-6 form-group mb-0">
+                                                            <label class="font-weight-bold text-dark font-12">Executive ID</label>
+                                                            <input type="text" name="delivery_partner_id" class="form-control form-control-sm" value="{{ $order->delivery_partner_id }}" placeholder="e.g. BD567890">
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div class="modal-footer bg-light py-2">

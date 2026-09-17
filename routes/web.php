@@ -1217,6 +1217,7 @@ Route::post('/driver-kits/toggle-compulsory/{id}', [App\Http\Controllers\DriverK
 Route::post('/driver-kits/toggle-active/{id}', [App\Http\Controllers\DriverKitController::class, 'toggleActive'])->name('driver-kits.toggleActive');
 Route::get('/driver-kits/orders', [App\Http\Controllers\DriverKitController::class, 'orders'])->name('driver-kits.orders');
 Route::post('/driver-kits/orders/update-status/{id}', [App\Http\Controllers\DriverKitController::class, 'updateOrderStatus'])->name('driver-kits.orders.updateStatus');
+Route::get('/driver-kits/invoice/{id}', [App\Http\Controllers\DriverKitController::class, 'invoice'])->name('driver-kits.invoice');
 
 // ── Web Onboarding Kit Purchase Page (WebView) ──────────────────────────────
 Route::get('/onboarding/kit-purchase', [App\Http\Controllers\DriverKitWebController::class, 'showCheckout'])->name('driver-kits.webCheckout');

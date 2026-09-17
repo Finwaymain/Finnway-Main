@@ -45,68 +45,88 @@ class SubscriptionPlanController extends Controller
      */
 
     public function getPlanList(Request $request)
-
     {
-
         $output = [];
+        $subscriptionPlan = SubscriptionPlan::where('isEnable', '=', 'true')->orderBy('tier_level', 'asc')->get();
 
-        $subscriptionPlan = SubscriptionPlan::where('isEnable', '=', 'true')->get();
-
-
+        $default26Benefits = [
+            "Instant Payout / Daily Withdrawal",
+            "Zero Commission on Rides / Orders",
+            "Priority Booking Dispatch",
+            "Premium Customer Support",
+            "Dedicated Relationship Manager",
+            "Free Marketing & Profile Promotion",
+            "Verified Partner Badge",
+            "Access to High-Value Bookings",
+            "Advanced Analytics & Earnings Report",
+            "Custom Service Area Selection",
+            "Fuel / Vehicle Maintenance Discounts",
+            "Free Health & Accidental Insurance Cover",
+            "Priority Customer Care (No Waiting)",
+            "Free Replacement of Damaged QR / Standee",
+            "Multi-City Booking Access",
+            "Festival Bonus & Incentive Eligibility",
+            "Customer Review Removal Request (Unfair reviews)",
+            "Free Uniform / Merchandising Top-Up",
+            "Direct Customer Chat Feature",
+            "Flexible Working Hours Toggle",
+            "Peak Hour Surcharge Earnings (100% to partner)",
+            "Weekly Training & Skill Upgradation",
+            "Referral Bonus Booster (2x Earnings)",
+            "Zero Cancellation Penalty (up to 3/month)",
+            "Tax & GST Invoicing Assistance",
+            "VIP Partner Club Membership"
+        ];
 
         if (count($subscriptionPlan) > 0) {
-
             foreach ($subscriptionPlan as $row) {
-
                 $row->id = (string)$row->id;
+                $row->tier_level = intval($row->tier_level ?? 1);
+                $row->commission_rate = floatval($row->commission_rate ?? ($row->tier_level === 1 ? 10.00 : 0.00));
+                $row->badge = $row->badge ?? ($row->tier_level >= 2 ? 'Most Popular' : '');
 
                 if ($row->image != '') {
-
                     if (file_exists(public_path('assets/images/subscription' . '/' . $row->image))) {
-
                         $row->image = asset('assets/images/subscription') . '/' . $row->image;
                     } else {
-
                         $row->image = asset('assets/images/placeholder_image.jpg');
                     }
                 }
 
                 $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: []);
+                if (empty($planPoints)) {
+                    $planPoints = $default26Benefits;
+                }
                 if (Schema::hasColumn('subscription_plans', 'cashback_on_purchase') && floatval($row->cashback_on_purchase ?? 0) > 0) {
                     $planPoints[] = "₹{$row->cashback_on_purchase} instant cashback on plan purchase";
                 }
                 $row->plan_points = $planPoints;
+                $row->benefits_list = is_array($row->benefits_list) ? $row->benefits_list : (json_decode($row->benefits_list ?? '[]', true) ?: $default26Benefits);
 
                 $output[] = $row;
             }
 
-            if (!empty($output)) {
-
-                $response['success'] = 'success';
-
-                $response['error'] = null;
-
-                $response['message'] = 'Subscription plans fetched successfully';
-
-                $response['data'] = $output;
-            } else {
-
-                $response['success'] = 'Failed';
-
-                $response['error'] = 'Error while fetch data';
-            }
+            return response()->json([
+                'success' => 'success',
+                'error' => null,
+                'message' => 'Subscription plans fetched successfully',
+                'data' => $output,
+                'commission_loss_calculator' => [
+                    'standard_commission_pct' => 10,
+                    'example_monthly_earnings' => 50000,
+                    'example_monthly_loss' => 5000,
+                    'example_yearly_loss' => 60000,
+                    'cta_text' => 'Switch to a Subscription Plan & Save Up to ₹60,000/Year!',
+                    'all_26_locked_benefits' => $default26Benefits,
+                ],
+            ]);
         } else {
-
-            $response['success'] = 'Failed';
-
-            $response['error'] = 'No Data Found';
-
-            $response['message'] = null;
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'No Data Found',
+                'message' => null,
+            ]);
         }
-
-
-
-        return response()->json($response);
     }
 
     public function getConsumerPlans(Request $request)
@@ -114,12 +134,40 @@ class SubscriptionPlanController extends Controller
         $output = [];
         $consumerPlans = ConsumerPremiumPlan::where('status', 'active')->orderBy('display_order')->get();
 
+        $defaultChargeableItems = [
+            ['name' => 'Platform Fee', 'charge' => '₹5 - ₹15 per booking', 'status' => 'Paid'],
+            ['name' => 'Surge / Peak Hour Pricing', 'charge' => 'Applicable', 'status' => 'Paid'],
+            ['name' => 'Delivery / Shipping Fee', 'charge' => 'Full standard charge', 'status' => 'Paid'],
+            ['name' => 'Cancellation Charges', 'charge' => 'Standard cancellation fee', 'status' => 'Paid'],
+            ['name' => 'Night Surcharge', 'charge' => 'Applicable on night bookings', 'status' => 'Paid'],
+            ['name' => 'Priority Dispatch Fee', 'charge' => 'Extra for urgent bookings', 'status' => 'Paid'],
+            ['name' => 'Customer Support', 'charge' => 'Standard queue (Waiting time)', 'status' => 'Standard'],
+            ['name' => 'Cashback & Offers', 'charge' => 'Basic public offers only', 'status' => 'Limited'],
+            ['name' => 'Free Ride Cancellation Window', 'charge' => 'Only 2 minutes', 'status' => 'Limited'],
+            ['name' => 'Payment Convenience Fee', 'charge' => 'Applicable on certain modes', 'status' => 'Paid'],
+        ];
+
+        $defaultUnlockedBenefits = [
+            "Zero Platform Fee on all bookings",
+            "Zero Surge Pricing (No peak-hour hikes)",
+            "Free Delivery on Parcel & Food (up to 5 km)",
+            "Free Cancellation (up to 3 per month)",
+            "Priority Booking - Nearest driver/partner assigned first",
+            "24/7 Dedicated VIP Support (No waiting)",
+            "Exclusive Member Discounts & Higher Cashback (Up to 20%)",
+            "Free Ride Upgrades (Subject to availability)",
+            "Extended Free Waiting Time (up to 10 mins)",
+            "Family Sharing (Share benefits with 1 member)"
+        ];
+
         if (count($consumerPlans) > 0) {
             foreach ($consumerPlans as $row) {
                 $item = new \stdClass();
                 $item->id = (string)$row->id;
+                $item->tier_level = intval($row->tier_level ?? 1);
                 $item->name = (string)$row->name;
                 $item->price = (string)$row->price;
+                $item->badge = $row->badge ?? (floatval($row->price) == 500 ? 'Most Popular' : (floatval($row->price) >= 1100 ? 'Best Value' : ''));
                 $item->expiryDay = (string)$row->validity_days;
                 $item->description = $row->description ?? '';
                 $item->type = floatval($row->price) > 0 ? 'paid' : 'free';
@@ -128,6 +176,12 @@ class SubscriptionPlanController extends Controller
                 $item->image = asset('assets/images/placeholder_image.jpg');
                 $item->cashback_on_purchase = (string)($row->cashback_on_purchase ?? '0');
                 
+                $chargeables = is_array($row->chargeable_items) ? $row->chargeable_items : (json_decode($row->chargeable_items ?? '[]', true) ?: $defaultChargeableItems);
+                $item->chargeable_items = $chargeables;
+
+                $benefits = is_array($row->benefits_list) ? $row->benefits_list : (json_decode($row->benefits_list ?? '[]', true) ?: $defaultUnlockedBenefits);
+                $item->benefits_list = $benefits;
+
                 // Build plan points from consumer plan features
                 $planPoints = [];
                 if ($row->discount_cab > 0) $planPoints[] = "{$row->discount_cab}% discount on Cab rides";
@@ -143,7 +197,7 @@ class SubscriptionPlanController extends Controller
                 if ($row->loan_virtual) $planPoints[] = "Virtual credit limit: ₹{$row->virtual_credit_limit}";
                 
                 if (empty($planPoints)) {
-                    $planPoints[] = "Premium member benefits";
+                    $planPoints = $benefits;
                 }
                 
                 $item->plan_points = $planPoints;
@@ -155,8 +209,10 @@ class SubscriptionPlanController extends Controller
             foreach ($subPlans as $row) {
                 $item = new \stdClass();
                 $item->id = (string)$row->id;
+                $item->tier_level = intval($row->tier_level ?? 1);
                 $item->name = (string)$row->name;
                 $item->price = (string)$row->price;
+                $item->badge = $row->badge ?? '';
                 $item->expiryDay = (string)$row->expiryDay;
                 $item->description = $row->description ?? '';
                 $item->type = (string)$row->type;
@@ -164,8 +220,10 @@ class SubscriptionPlanController extends Controller
                 $item->place = (string)$row->place;
                 $item->image = asset('assets/images/placeholder_image.jpg');
                 $item->cashback_on_purchase = (string)($row->cashback_on_purchase ?? '0');
-                $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: []);
+                $planPoints = is_array($row->plan_points) ? $row->plan_points : (json_decode($row->plan_points ?? '[]', true) ?: $defaultUnlockedBenefits);
                 $item->plan_points = $planPoints;
+                $item->chargeable_items = $defaultChargeableItems;
+                $item->benefits_list = $defaultUnlockedBenefits;
                 $output[] = $item;
             }
         }
@@ -174,6 +232,11 @@ class SubscriptionPlanController extends Controller
             $response['success'] = 'success';
             $response['error'] = null;
             $response['message'] = 'Consumer plans fetched successfully';
+            $response['chargeable_items_warning'] = [
+                'banner' => 'You are currently paying extra fees on every booking!',
+                'savings_callout' => 'Consumers on Standard Plan save an average of ₹850/month!',
+                'items' => $defaultChargeableItems,
+            ];
             $response['data'] = $output;
         } else {
             $response['success'] = 'Failed';
@@ -229,6 +292,22 @@ class SubscriptionPlanController extends Controller
                     'error' => 'User not found',
                     'message' => 'Invalid user ID',
                 ], 404);
+            }
+
+            // Enforce No-Downgrade rule
+            if (!empty($user->consumer_plan_id)) {
+                $currentPlan = ConsumerPremiumPlan::where('id', $user->consumer_plan_id)->first();
+                if ($currentPlan && isset($currentPlan->tier_level)) {
+                    $newTier = intval($planData->tier_level ?? 1);
+                    $currTier = intval($currentPlan->tier_level ?? 1);
+                    if ($newTier < $currTier) {
+                        return response()->json([
+                            'success' => 'Failed',
+                            'error' => 'Downgrade is not permitted. You can only upgrade to a higher-tier plan.',
+                            'message' => 'Downgrade not allowed',
+                        ], 422);
+                    }
+                }
             }
 
             // Verify MPIN when paying with wallet
@@ -289,6 +368,29 @@ class SubscriptionPlanController extends Controller
             DB::commit();
 
             $user = UserApp::where('id', $userId)->first();
+
+            // Send Confirmation Email with invoice & unlocked benefits
+            try {
+                $userEmail = $user->email ?? '';
+                if (!empty($userEmail) && filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+                    $userName = trim(($user->prenom ?? '') . ' ' . ($user->nom ?? ''));
+                    $benefits = json_decode($planData->benefits_list ?? '[]', true) ?: (is_array($planData->plan_points) ? $planData->plan_points : (json_decode($planData->plan_points ?? '[]', true) ?: []));
+                    \App\Services\PlanEmailService::sendPlanActivationEmail([
+                        'email' => $userEmail,
+                        'user_name' => !empty($userName) ? $userName : 'Valued Customer',
+                        'user_id' => $user->id,
+                        'user_type' => 'customer',
+                        'plan_name' => $planData->name,
+                        'amount' => $planData->price,
+                        'validity' => ($planData->validity_days ?? '30') . ' Days',
+                        'expiry_date' => $expiryDate ? $expiryDate->format('d M Y') : 'Active',
+                        'txn_id' => 'FWC-' . strtoupper(uniqid()),
+                        'benefits' => $benefits,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \Log::error("Failed to send consumer plan activation email: " . $e->getMessage());
+            }
 
             return response()->json([
                 'success' => 'success',
@@ -364,6 +466,22 @@ class SubscriptionPlanController extends Controller
             return response()->json($response);
         }
 
+        // Enforce No-Downgrade rule for Driver
+        if (!empty($driver->subscriptionPlanId)) {
+            $currentPlan = SubscriptionPlan::where('id', $driver->subscriptionPlanId)->first();
+            if ($currentPlan && isset($currentPlan->tier_level)) {
+                $newTier = intval($subscriptionData->tier_level ?? 1);
+                $currTier = intval($currentPlan->tier_level ?? 1);
+                if ($newTier < $currTier) {
+                    return response()->json([
+                        'success' => 'Failed',
+                        'error' => 'Downgrade is not permitted. You can only upgrade to a higher-tier plan.',
+                        'message' => 'Downgrade not allowed',
+                    ], 422);
+                }
+            }
+        }
+
         if(strtolower($paymentType)=='wallet'){
             $mpin = trim((string) $request->get('mpin'));
             if (empty($mpin)) {
@@ -432,6 +550,29 @@ class SubscriptionPlanController extends Controller
             \App\Services\ReferralRewardService::processReward((int)$driverId, 'business_subscription', floatval($subscriptionData->price ?? 0), 'Driver Plan Purchase');
         } catch (\Throwable $th) {
             \Log::error("Referral reward error for driver subscription: " . $th->getMessage());
+        }
+
+        // Send Confirmation Email with invoice & all 26 unlocked benefits
+        try {
+            $driverEmail = $driver->email ?? '';
+            if (!empty($driverEmail) && filter_var($driverEmail, FILTER_VALIDATE_EMAIL)) {
+                $driverName = trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? ''));
+                $benefits = json_decode($subscriptionData->benefits_list ?? '[]', true) ?: (is_array($subscriptionData->plan_points) ? $subscriptionData->plan_points : (json_decode($subscriptionData->plan_points ?? '[]', true) ?: []));
+                \App\Services\PlanEmailService::sendPlanActivationEmail([
+                    'email' => $driverEmail,
+                    'user_name' => !empty($driverName) ? $driverName : 'Partner',
+                    'user_id' => $driver->id,
+                    'user_type' => 'partner',
+                    'plan_name' => $subscriptionData->name,
+                    'amount' => $subscriptionData->price,
+                    'validity' => ($subscriptionData->expiryDay ?? '365') . ' Days',
+                    'expiry_date' => $expiryDate ? $expiryDate->format('d M Y') : 'Lifetime',
+                    'txn_id' => 'FWP-' . strtoupper(uniqid()),
+                    'benefits' => $benefits,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::error("Failed to send driver plan activation email: " . $e->getMessage());
         }
 
         $response['success'] = 'success';
@@ -640,6 +781,119 @@ class SubscriptionPlanController extends Controller
             }
             DB::table('tj_transaction')->insert($payload);
         }
+    }
+
+    /**
+     * Send OTP for Email Verification before Plan Activation
+     * Endpoint: POST /api/v1/plan/send-email-otp
+     */
+    public function sendPlanEmailOtp(Request $request)
+    {
+        $email = strtolower(trim($request->input('email', '')));
+        $userId = $request->input('user_id', $request->input('userId'));
+        $userType = strtolower($request->input('user_type', $request->input('user_cat', 'driver')));
+
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Please enter a valid email address.'
+            ], 422);
+        }
+
+        $name = 'Member';
+        if ($userType === 'driver') {
+            $driver = Driver::find($userId);
+            if ($driver) $name = trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? ''));
+        } else {
+            $user = UserApp::find($userId);
+            if ($user) $name = trim(($user->prenom ?? '') . ' ' . ($user->nom ?? ''));
+        }
+
+        $otp = strval(random_int(100000, 999999));
+
+        DB::table('auth_otp_temp')
+            ->where('email', $email)
+            ->where('type', 'plan_email_otp')
+            ->delete();
+
+        DB::table('auth_otp_temp')->insert([
+            'phone'      => (string)($userId ?? ''),
+            'email'      => $email,
+            'otp'        => $otp,
+            'type'       => 'plan_email_otp',
+            'user_cat'   => $userType,
+            'verified'   => 0,
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes')),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $sent = \App\Services\PlanEmailService::sendPlanOtpEmail($email, $otp, $name, $userType);
+        if (!$sent) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Failed to send OTP email. Please verify your email configuration.'
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => 'success',
+            'message' => 'A 6-digit OTP has been sent to ' . $email . '. Valid for 10 minutes.',
+            'email' => $email,
+        ]);
+    }
+
+    /**
+     * Verify OTP and link verified email to profile
+     * Endpoint: POST /api/v1/plan/verify-email-otp
+     */
+    public function verifyPlanEmailOtp(Request $request)
+    {
+        $email = strtolower(trim($request->input('email', '')));
+        $otp = trim($request->input('otp', ''));
+        $userId = $request->input('user_id', $request->input('userId'));
+        $userType = strtolower($request->input('user_type', $request->input('user_cat', 'driver')));
+
+        if (empty($email) || empty($otp)) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Email and OTP are required.'
+            ], 422);
+        }
+
+        $record = DB::table('auth_otp_temp')
+            ->where('email', $email)
+            ->where('type', 'plan_email_otp')
+            ->where('verified', 0)
+            ->where('expires_at', '>', now())
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if (!$record || $record->otp !== $otp) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Invalid or expired OTP. Please enter the correct 6-digit code.'
+            ], 422);
+        }
+
+        DB::table('auth_otp_temp')->where('id', $record->id)->update(['verified' => 1]);
+
+        if ($userType === 'driver') {
+            Driver::where('id', $userId)->update([
+                'email' => $email,
+                'email_verified_at' => now(),
+            ]);
+        } else {
+            UserApp::where('id', $userId)->update([
+                'email' => $email,
+                'email_verified_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => 'success',
+            'message' => 'Email verified successfully!',
+            'email' => $email,
+        ]);
     }
 
 }
