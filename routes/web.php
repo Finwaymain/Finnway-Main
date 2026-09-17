@@ -941,6 +941,12 @@ Route::prefix('administration_tools')->group(function () {
 
     Route::put('email_template/update/{id}', [App\Http\Controllers\EmailTemplateController::class, 'update'])->name('email_template.update');
 
+    // Email SMTP Configuration & Live Verification
+    Route::get('smtp_settings', [App\Http\Controllers\SmtpSettingController::class, 'index'])->name('smtp-settings.index');
+    Route::post('smtp_settings/save', [App\Http\Controllers\SmtpSettingController::class, 'save'])->name('smtp-settings.save');
+    Route::post('smtp_settings/test', [App\Http\Controllers\SmtpSettingController::class, 'testConnection'])->name('smtp-settings.test');
+
+
 
 
 });

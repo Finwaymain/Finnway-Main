@@ -14,8 +14,9 @@ class PlanEmailService
     public static function sendPlanOtpEmail(string $toEmail, string $otp, string $name = 'User', string $userType = 'driver'): bool
     {
         try {
-            $appName = env('APP_NAME', 'Fiinway');
-            $fromAddr = env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
+            $smtp = \App\Models\SmtpSetting::applyConfig();
+            $appName = $smtp ? ($smtp->mail_from_name ?: config('app.name', 'Fiinway')) : config('app.name', 'Fiinway');
+            $fromAddr = $smtp ? ($smtp->mail_from_address ?: $smtp->mail_username) : env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
             $subject = "$appName — Verify Your Email for Plan Activation";
 
             $html = "
@@ -85,8 +86,9 @@ class PlanEmailService
                 return false;
             }
 
-            $appName = env('APP_NAME', 'Fiinway');
-            $fromAddr = env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
+            $smtp = \App\Models\SmtpSetting::applyConfig();
+            $appName = $smtp ? ($smtp->mail_from_name ?: config('app.name', 'Fiinway')) : config('app.name', 'Fiinway');
+            $fromAddr = $smtp ? ($smtp->mail_from_address ?: $smtp->mail_username) : env('OTP_MAIL_FROM_ADDRESS', env('MAIL_FROM_ADDRESS', 'git@openscore.msmeloan.sbs'));
             $planName = $data['plan_name'] ?? 'Fiinway Membership';
             $subject = "$appName — Plan Activated: $planName";
 

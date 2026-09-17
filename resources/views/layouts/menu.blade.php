@@ -313,6 +313,7 @@
                 <li><a href="{!! url('language') !!}">Languages</a></li>
                 <li><a href="{!! url('administration_tools/currency') !!}">Currencies</a></li>
                 <li><a href="{!! url('administration_tools/email_template') !!}">Email Templates</a></li>
+                <li><a href="{!! route('smtp-settings.index') !!}">Email & SMTP Settings</a></li>
                 <li><a href="{!! route('database-backup.index') !!}">Database Backup & Restore</a></li>
                 <li><a href="{!! url('administration_tools/terms_condition') !!}">Terms & Conditions</a></li>
                 <li><a href="{!! url('administration_tools/privacy_policy') !!}">Privacy Policy</a></li>
