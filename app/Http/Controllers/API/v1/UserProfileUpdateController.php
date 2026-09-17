@@ -588,15 +588,47 @@ class UserProfileUpdateController extends Controller
             ];
         }
 
-        // STEP 3: CHECK IF SENDER HAS ENOUGH WITHDRAWABLE BALANCE (EARNINGS ONLY)
+        // STEP 3: CHECK IF SENDER HAS ENOUGH WITHDRAWABLE BALANCE (DIGITAL EARNINGS ONLY)
         $currentBalance = floatval($sender->amount ?? 0);
         $earnBalance = floatval($sender->earn_amount ?? 0);
-        $withdrawableBalance = min($currentBalance, $earnBalance);
+        $isDriverSender = ($user_type === 'driver' || isset($sender->statut_vehicule));
+
+        if ($isDriverSender) {
+            // Recalculate digital-only earnings (UPI / Wallet / Online, excluding cash)
+            $digitalRideEarn = DB::table('tj_requete')
+                ->where('id_conducteur', $sender->id)
+                ->where('statut', 'completed')
+                ->where('statut_paiement', 'yes')
+                ->where(function($q) {
+                    $q->whereNotIn('id_payment_method', [1, 5])
+                      ->where('statut_paiement', '!=', 'cash')
+                      ->where('statut_paiement', '!=', 'Cash');
+                })
+                ->sum('montant');
+            $digitalParcelEarn = DB::table('parcel_orders')
+                ->where('id_conducteur', $sender->id)
+                ->where('status', 'completed')
+                ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                ->sum('amount');
+            $digitalSrvEarn = 0;
+            if (Schema::hasTable('service_requests')) {
+                $digitalSrvEarn = DB::table('service_requests')
+                    ->where('driver_id', $sender->id)
+                    ->whereIn('status', ['Completed', 'completed'])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                    ->sum('amount');
+            }
+            $earnBalance = round(floatval($digitalRideEarn) + floatval($digitalParcelEarn) + floatval($digitalSrvEarn), 2);
+        }
+
+        $withdrawableBalance = max(0, min($currentBalance, $earnBalance));
 
         if ($amount > $withdrawableBalance) {
             $topupBalance = max(0, $currentBalance - $withdrawableBalance);
-            $errText = 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableBalance, 2) . '.';
-            if ($topupBalance > 0) {
+            $errText = 'Withdrawal amount (₹' . number_format($amount, 2) . ') exceeds your withdrawable digital earnings balance of ₹' . number_format($withdrawableBalance, 2) . '.';
+            if ($isDriverSender) {
+                $errText .= ' Cash collected directly from riders is already in your hand and cannot be withdrawn via payout. Only earnings collected through UPI or User Wallet are eligible for payout.';
+            } elseif ($topupBalance > 0) {
                 $errText .= ' Self top-up funds (₹' . number_format($topupBalance, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
             }
             return response()->json([
@@ -1433,21 +1465,63 @@ class UserProfileUpdateController extends Controller
         }
 
         $serviceEarnings = 0;
+        $totalGrossEarnings = 0;
         if ($userType === 'driver' || isset($user->statut_vehicule)) {
-            $rideEarn   = DB::table('tj_requete')->where('id_conducteur', $user->id)->where('statut', 'completed')->sum('montant');
-            $parcelEarn = DB::table('parcel_orders')->where('id_conducteur', $user->id)->where('status', 'completed')->sum('amount');
-            $srvEarn    = 0;
+            // 1. Digital/Online earnings (Wallet + UPI + Online) - ELIGIBLE FOR PAYOUT WITHDRAWAL
+            $digitalRideEarn = DB::table('tj_requete')
+                ->where('id_conducteur', $user->id)
+                ->where('statut', 'completed')
+                ->where('statut_paiement', 'yes')
+                ->where(function($q) {
+                    $q->whereNotIn('id_payment_method', [1, 5])
+                      ->where('statut_paiement', '!=', 'cash')
+                      ->where('statut_paiement', '!=', 'Cash');
+                })
+                ->sum('montant');
+
+            $digitalParcelEarn = DB::table('parcel_orders')
+                ->where('id_conducteur', $user->id)
+                ->where('status', 'completed')
+                ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                ->sum('amount');
+
+            $digitalSrvEarn = 0;
             if (Schema::hasTable('service_requests')) {
-                $srvEarn = DB::table('service_requests')->where('driver_id', $user->id)->whereIn('status', ['Completed', 'completed'])->sum('amount');
+                $digitalSrvEarn = DB::table('service_requests')
+                    ->where('driver_id', $user->id)
+                    ->whereIn('status', ['Completed', 'completed'])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                    ->sum('amount');
             }
-            $serviceEarnings = floatval($rideEarn) + floatval($parcelEarn) + floatval($srvEarn);
+            $serviceEarnings = floatval($digitalRideEarn) + floatval($digitalParcelEarn) + floatval($digitalSrvEarn);
+
+            // 2. Gross Total Lifetime Earnings (Cash + Online + UPI) - Driver's full ride earnings
+            $allRideEarn = DB::table('tj_requete')->where('id_conducteur', $user->id)->where('statut', 'completed')->sum('montant');
+            $allParcelEarn = DB::table('parcel_orders')->where('id_conducteur', $user->id)->where('status', 'completed')->sum('amount');
+            $allSrvEarn = 0;
+            if (Schema::hasTable('service_requests')) {
+                $allSrvEarn = DB::table('service_requests')->where('driver_id', $user->id)->whereIn('status', ['Completed', 'completed'])->sum('amount');
+            }
+            $totalGrossEarnings = floatval($allRideEarn) + floatval($allParcelEarn) + floatval($allSrvEarn);
+
+            $calcEarn = round(floatval($earningWalletSum) + floatval($serviceEarnings), 2);
+            $finalEarn = $calcEarn;
+
+            $driverWalletBal = floatval($user->amount ?? 0);
+            $withdrawableBal = max(0, min($driverWalletBal, $finalEarn));
+
+            $userArray['earn_amount'] = (string) number_format($finalEarn, 2, '.', '');
+            $userArray['digital_earnings'] = (string) number_format($finalEarn, 2, '.', '');
+            $userArray['total_earnings'] = (string) number_format($totalGrossEarnings, 2, '.', '');
+            $userArray['cash_earnings'] = (string) number_format(max(0, $totalGrossEarnings - $serviceEarnings), 2, '.', '');
+            $userArray['withdrawable_balance'] = (string) number_format($withdrawableBal, 2, '.', '');
+        } else {
+            $calcEarn   = round(floatval($earningWalletSum) + floatval($serviceEarnings), 2);
+            $storedEarn = floatval($user->earn_amount ?? 0);
+            $finalEarn  = max($storedEarn, $calcEarn);
+            $userArray['earn_amount'] = (string) number_format($finalEarn, 2, '.', '');
         }
 
-        $calcEarn   = round(floatval($earningWalletSum) + floatval($serviceEarnings), 2);
-        $storedEarn = floatval($user->earn_amount ?? 0);
-        $finalEarn  = max($storedEarn, $calcEarn);
-
-        $userArray['earn_amount'] = (string) number_format($finalEarn, 2, '.', '');
         $userArray['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$userId, $userType);
 
         return response()->json([

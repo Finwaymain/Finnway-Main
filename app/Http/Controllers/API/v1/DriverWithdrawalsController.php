@@ -96,13 +96,44 @@ class DriverWithdrawalsController extends Controller
 
         $userAmount = floatval($chkid->amount ?? 0);
         $userEarn = floatval($chkid->earn_amount ?? 0);
-        $withdrawableAmount = min($userAmount, $userEarn);
+
+        if ($isDriver) {
+            // Recalculate digital-only earnings (UPI / Wallet / Online, excluding cash)
+            $digitalRideEarn = DB::table('tj_requete')
+                ->where('id_conducteur', $chkid->id)
+                ->where('statut', 'completed')
+                ->where('statut_paiement', 'yes')
+                ->where(function($q) {
+                    $q->whereNotIn('id_payment_method', [1, 5])
+                      ->where('statut_paiement', '!=', 'cash')
+                      ->where('statut_paiement', '!=', 'Cash');
+                })
+                ->sum('montant');
+            $digitalParcelEarn = DB::table('parcel_orders')
+                ->where('id_conducteur', $chkid->id)
+                ->where('status', 'completed')
+                ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                ->sum('amount');
+            $digitalSrvEarn = 0;
+            if (\Illuminate\Support\Facades\Schema::hasTable('service_requests')) {
+                $digitalSrvEarn = DB::table('service_requests')
+                    ->where('driver_id', $chkid->id)
+                    ->whereIn('status', ['Completed', 'completed'])
+                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
+                    ->sum('amount');
+            }
+            $userEarn = round(floatval($digitalRideEarn) + floatval($digitalParcelEarn) + floatval($digitalSrvEarn), 2);
+        }
+
+        $withdrawableAmount = max(0, min($userAmount, $userEarn));
         $reqAmount = floatval($amount);
 
         if ($reqAmount > $withdrawableAmount) {
             $topupAmount = max(0, $userAmount - $withdrawableAmount);
-            $msg = 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your withdrawable earnings balance of ₹' . number_format($withdrawableAmount, 2) . '.';
-            if ($topupAmount > 0) {
+            $msg = 'Withdrawal amount (₹' . number_format($reqAmount, 2) . ') exceeds your withdrawable digital earnings balance of ₹' . number_format($withdrawableAmount, 2) . '.';
+            if ($isDriver) {
+                $msg .= ' Cash collected directly from riders is already in your hand and cannot be withdrawn via payout. Only earnings collected through UPI or User Wallet are eligible for payout.';
+            } elseif ($topupAmount > 0) {
                 $msg .= ' Self top-up funds (₹' . number_format($topupAmount, 2) . ') cannot be withdrawn via payout and can only be used for platform services.';
             }
             return response()->json([
