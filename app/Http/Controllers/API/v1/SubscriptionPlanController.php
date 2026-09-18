@@ -103,7 +103,6 @@ class SubscriptionPlanController extends Controller
                     'example_yearly_loss' => 60000,
                     'cta_text' => 'Switch to a Subscription Plan & Save Up to ₹60,000/Year!',
                     'locked_benefits' => $uniqueUpgradePerks,
-                    'all_26_locked_benefits' => $uniqueUpgradePerks,
                 ],
             ]);
         } else {
