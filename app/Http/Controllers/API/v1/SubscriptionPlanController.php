@@ -75,6 +75,11 @@ class SubscriptionPlanController extends Controller
                     return !empty(trim((string)$pt));
                 }));
 
+                // Purge legacy 26 fake bulk items if present
+                if (count($points) >= 20 && in_array('Instant Payout / Daily Withdrawal', $points)) {
+                    $points = [];
+                }
+
                 if (Schema::hasColumn('subscription_plans', 'cashback_on_purchase') && floatval($row->cashback_on_purchase ?? 0) > 0) {
                     $points[] = "₹" . number_format(floatval($row->cashback_on_purchase), 0) . " instant cashback on plan purchase";
                 }

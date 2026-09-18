@@ -413,17 +413,40 @@ class GetProfileByPhoneController extends Controller
                             $row['photo_path'] = $image_user;
 
                         }
-                        if ($row['subscription_plan']!=null && $row['subscription_plan']!='' && $row['subscription_plan']['image'] != '') {
-
-                            if (file_exists(public_path('assets/images/subscription' . '/' . $row['subscription_plan']['image']))) {
-
-                                $subscriptionPlanImg = asset('assets/images/subscription') . '/' . $row['subscription_plan']['image'];
-                            } else {
-
-                                $subscriptionPlanImg = asset('assets/images/placeholder_image.jpg');
+                        if ($row['subscription_plan'] != null && $row['subscription_plan'] != '') {
+                            if (is_string($row['subscription_plan'])) {
+                                $row['subscription_plan'] = json_decode($row['subscription_plan'], true);
                             }
+                            if (is_array($row['subscription_plan'])) {
+                                // Resync with active plan from subscription_plans table if available
+                                if (!empty($row['subscriptionPlanId'])) {
+                                    $livePlan = DB::table('subscription_plans')->where('id', $row['subscriptionPlanId'])->first();
+                                    if ($livePlan) {
+                                        $livePoints = is_array($livePlan->plan_points) ? $livePlan->plan_points : (json_decode($livePlan->plan_points ?? '[]', true) ?: []);
+                                        $row['subscription_plan']['plan_points'] = $livePoints;
+                                        $row['subscription_plan']['benefits_list'] = $livePoints;
+                                        if (!empty($livePlan->name)) {
+                                            $row['subscription_plan']['name'] = $livePlan->name;
+                                        }
+                                    }
+                                }
 
-                            $row['subscription_plan']['image'] = $subscriptionPlanImg;
+                                // Purge legacy 26 fake bulk items if present
+                                $pts = $row['subscription_plan']['plan_points'] ?? $row['subscription_plan']['benefits_list'] ?? [];
+                                if (is_array($pts) && count($pts) >= 20 && in_array('Instant Payout / Daily Withdrawal', $pts)) {
+                                    $row['subscription_plan']['plan_points'] = [];
+                                    $row['subscription_plan']['benefits_list'] = [];
+                                }
+
+                                if (!empty($row['subscription_plan']['image'])) {
+                                    if (file_exists(public_path('assets/images/subscription' . '/' . $row['subscription_plan']['image']))) {
+                                        $subscriptionPlanImg = asset('assets/images/subscription') . '/' . $row['subscription_plan']['image'];
+                                    } else {
+                                        $subscriptionPlanImg = asset('assets/images/placeholder_image.jpg');
+                                    }
+                                    $row['subscription_plan']['image'] = $subscriptionPlanImg;
+                                }
+                            }
                         }
 
 
