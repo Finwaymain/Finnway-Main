@@ -157,9 +157,13 @@ class DriverKitApiController extends Controller
                     'mrp_formatted' => '₹' . number_format($kit->mrp ?? ($kit->price * 1.5), 0),
                     'cashback_amount' => (float)($kit->cashback_amount ?? 0),
                     'cashback_formatted' => '₹' . number_format($kit->cashback_amount ?? 0, 0),
+                    'cost_price' => (float)($kit->cost_price ?? 0),
+                    'cost_price_formatted' => '₹' . number_format($kit->cost_price ?? 0, 0),
                     'stock_quantity' => (int)($kit->stock_quantity ?? 500),
                     'image' => $kit->image ? (str_starts_with($kit->image, 'http') ? $kit->image : url($kit->image)) : '',
                     'items_included' => is_array($kit->items_included) ? $kit->items_included : (json_decode($kit->items_included ?? '[]', true) ?: []),
+                    'products' => $this->formatKitProducts($kit->products ?? []),
+                    'status' => $kit->status ?? 'published',
                     'sizes' => $sizes,
                     'is_compulsory' => (bool)$kit->is_compulsory,
                     'booking_required' => (bool)($kit->booking_required ?? true),
@@ -208,11 +212,15 @@ class DriverKitApiController extends Controller
                 'mrp_formatted' => '₹' . number_format($k->mrp ?? ($k->price * 1.5), 0),
                 'cashback_amount' => (float)($k->cashback_amount ?? 0),
                 'cashback_formatted' => '₹' . number_format($k->cashback_amount ?? 0, 0),
+                'cost_price' => (float)($k->cost_price ?? 0),
+                'cost_price_formatted' => '₹' . number_format($k->cost_price ?? 0, 0),
                 'is_compulsory' => (bool)$k->is_compulsory,
                 'booking_required' => (bool)($k->booking_required ?? true),
                 'stock_quantity' => (int)($k->stock_quantity ?? 500),
                 'image' => $k->image ? (str_starts_with($k->image, 'http') ? $k->image : url($k->image)) : '',
                 'items_included' => is_array($k->items_included) ? $k->items_included : (json_decode($k->items_included ?? '[]', true) ?: []),
+                'products' => $this->formatKitProducts($k->products ?? []),
+                'status' => $k->status ?? 'published',
                 'sizes' => is_array($k->sizes) ? $k->sizes : (json_decode($k->sizes ?? '[]', true) ?: ['S', 'M', 'L', 'XL', 'XXL']),
             ];
         });
@@ -598,6 +606,27 @@ class DriverKitApiController extends Controller
         }
 
         return null;
+    }
+
+    private function formatKitProducts($products): array
+    {
+        $raw = is_array($products) ? $products : (json_decode($products ?? '[]', true) ?: []);
+        return array_map(function ($p) {
+            $img = $p['image'] ?? '';
+            if (!empty($img) && !str_starts_with($img, 'http://') && !str_starts_with($img, 'https://')) {
+                $img = url($img);
+            }
+            return [
+                'id' => $p['id'] ?? null,
+                'name' => $p['name'] ?? '',
+                'image' => $img,
+                'variant' => $p['variant'] ?? '',
+                'quantity' => intval($p['quantity'] ?? 1),
+                'is_free' => (bool)($p['is_free'] ?? true),
+                'price' => floatval($p['price'] ?? 0),
+                'is_mandatory' => (bool)($p['is_mandatory'] ?? true),
+            ];
+        }, $raw);
     }
 
     private function getCategoryLabel(string $code): string

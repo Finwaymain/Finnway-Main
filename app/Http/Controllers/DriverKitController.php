@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\DriverKit;
 use App\Models\DriverKitOrder;
 use App\Models\Driver;
+use App\Models\MarketplaceProduct;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\File;
 
 class DriverKitController extends Controller
 {
@@ -14,13 +17,81 @@ class DriverKitController extends Controller
         $this->middleware('auth');
     }
 
+    private function getPartnerTypes(): array
+    {
+        return [
+            'bike' => 'Bike Taxi / Rider Partner',
+            'auto' => 'Auto Rickshaw Partner',
+            'car' => 'Cab / Car Taxi Partner',
+            'delivery' => 'Delivery Partner',
+            'male_salon' => 'Male Salon / Grooming Partner',
+            'female_salon' => 'Female Salon / Beauty Partner',
+            'cook_made' => 'Cook / Maid Home Partner',
+            'tutor' => 'Tutor / Education Partner',
+            'cleaner' => 'House Cleaner / Deep Cleaning Partner',
+            'technician' => 'Electrician / Plumber / Technician Partner',
+            'home_service' => 'General Home Service Partner',
+        ];
+    }
+
+    private function processProducts(Request $request): array
+    {
+        $raw = $request->input('products', []);
+        $processed = [];
+        $itemsIncluded = [];
+
+        $kitDir = public_path('assets/images/kits');
+        if (!File::isDirectory($kitDir)) {
+            File::makeDirectory($kitDir, 0777, true, true);
+        }
+
+        if (is_array($raw)) {
+            foreach ($raw as $idx => $p) {
+                if (empty($p['name'])) continue;
+
+                $name = trim($p['name']);
+                $variant = !empty($p['variant']) ? trim($p['variant']) : '';
+                $qty = max(1, intval($p['quantity'] ?? 1));
+                $isFree = isset($p['is_free']) && ($p['is_free'] == '1' || $p['is_free'] === true || $p['is_free'] === 'true' || $p['is_free'] === 'free');
+                $price = $isFree ? 0.0 : floatval($p['price'] ?? 0);
+                $isMandatory = isset($p['is_mandatory']) && ($p['is_mandatory'] == '1' || $p['is_mandatory'] === true || $p['is_mandatory'] === 'true' || $p['is_mandatory'] === 'mandatory');
+                $imageUrl = $p['image'] ?? '';
+
+                if ($request->hasFile("products.{$idx}.image_file")) {
+                    $file = $request->file("products.{$idx}.image_file");
+                    $imgName = 'prod_' . time() . "_{$idx}." . $file->extension();
+                    $file->move($kitDir, $imgName);
+                    $imageUrl = 'assets/images/kits/' . $imgName;
+                }
+
+                $processed[] = [
+                    'id' => !empty($p['id']) ? intval($p['id']) : null,
+                    'name' => $name,
+                    'image' => $imageUrl,
+                    'variant' => $variant,
+                    'quantity' => $qty,
+                    'is_free' => $isFree,
+                    'price' => $price,
+                    'is_mandatory' => $isMandatory,
+                ];
+
+                $label = $name;
+                if ($variant) $label .= " ({$variant})";
+                if ($qty > 1) $label .= " x {$qty}";
+                $itemsIncluded[] = $label;
+            }
+        }
+
+        return [$processed, $itemsIncluded];
+    }
+
     /**
      * List all partner kits categorized by role
      */
     public function index(Request $request)
     {
         $tab = $request->query('tab', 'all');
-        $validTabs = ['all', 'bike', 'auto', 'car', 'male_salon', 'female_salon', 'cook_made', 'tutor', 'cleaner', 'technician', 'home_service'];
+        $validTabs = ['all', 'bike', 'auto', 'car', 'delivery', 'male_salon', 'female_salon', 'cook_made', 'tutor', 'cleaner', 'technician', 'home_service'];
         if (!in_array($tab, $validTabs)) {
             $tab = 'all';
         }
@@ -49,6 +120,92 @@ class DriverKitController extends Controller
     }
 
     /**
+     * Show Create Kit Form
+     */
+    public function create()
+    {
+        $partnerTypes = $this->getPartnerTypes();
+        $availableProducts = MarketplaceProduct::with('primaryImage', 'images')
+            ->where('status', 'active')
+            ->orderBy('id', 'desc')
+            ->take(50)
+            ->get();
+
+        return view('driver_kits.create', compact('partnerTypes', 'availableProducts'));
+    }
+
+    /**
+     * Store Newly Created Kit
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:150',
+            'category_code' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'mrp' => 'nullable|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
+            'cashback_amount' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'nullable|integer|min:0',
+            'description' => 'nullable|string',
+            'image' => 'nullable|image|max:5120',
+        ]);
+
+        $kit = new DriverKit();
+        $kit->title = $request->title;
+        $kit->category_code = $request->category_code;
+        $kit->sku = $request->filled('sku') ? $request->sku : ('KIT-' . strtoupper($request->category_code) . '-' . strtoupper(Str::random(6)));
+        $kit->description = $request->description;
+        $kit->price = $request->price;
+        $kit->mrp = $request->filled('mrp') ? $request->mrp : $request->price;
+        $kit->cost_price = $request->filled('cost_price') ? $request->cost_price : 0;
+        $kit->cashback_amount = $request->filled('cashback_amount') ? $request->cashback_amount : 0;
+        $kit->stock_quantity = $request->filled('stock_quantity') ? $request->stock_quantity : 100;
+        
+        list($processedProducts, $itemsIncluded) = $this->processProducts($request);
+        $kit->products = $processedProducts;
+        $kit->items_included = $itemsIncluded;
+
+        $kit->is_compulsory = $request->has('is_compulsory') ? true : false;
+        $kit->booking_required = $request->has('booking_required') ? true : false;
+        $kit->is_active = $request->has('is_active') ? true : true;
+        
+        $status = $request->input('status', 'published');
+        $kit->status = in_array($status, ['published', 'draft']) ? $status : 'published';
+
+        if ($request->hasFile('image')) {
+            $kitDir = public_path('assets/images/kits');
+            if (!File::isDirectory($kitDir)) {
+                File::makeDirectory($kitDir, 0777, true, true);
+            }
+            $imageName = 'kit_' . time() . '_' . uniqid() . '.' . $request->image->extension();
+            $request->image->move($kitDir, $imageName);
+            $kit->image = 'assets/images/kits/' . $imageName;
+        }
+
+        $kit->save();
+
+        return redirect()->route('driver-kits.index', ['tab' => $kit->category_code])
+            ->with('success', "Driver Kit '{$kit->title}' created successfully!");
+    }
+
+    /**
+     * Show Edit Kit Form
+     */
+    public function edit($id)
+    {
+        $kit = DriverKit::findOrFail($id);
+        $partnerTypes = $this->getPartnerTypes();
+        $availableProducts = MarketplaceProduct::with('primaryImage', 'images')
+            ->where('status', 'active')
+            ->orderBy('id', 'desc')
+            ->take(50)
+            ->get();
+
+        return view('driver_kits.edit', compact('kit', 'partnerTypes', 'availableProducts'));
+    }
+
+    /**
      * Update Kit Details
      */
     public function update(Request $request, $id)
@@ -57,40 +214,116 @@ class DriverKitController extends Controller
 
         $request->validate([
             'title' => 'required|string|max:150',
+            'category_code' => 'nullable|string',
             'price' => 'required|numeric|min:0',
+            'mrp' => 'nullable|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
+            'cashback_amount' => 'nullable|numeric|min:0',
+            'stock_quantity' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'items_included' => 'nullable|array',
+            'image' => 'nullable|image|max:5120',
         ]);
 
-        // Process custom items or selected items
-        $items = $request->input('items_included', []);
-        if ($request->filled('custom_item')) {
-            $items[] = trim($request->custom_item);
-        }
-
         $kit->title = $request->title;
+        if ($request->filled('category_code')) {
+            $kit->category_code = $request->category_code;
+        }
         $kit->price = $request->price;
         if ($request->filled('mrp')) $kit->mrp = $request->mrp;
+        if ($request->filled('cost_price')) $kit->cost_price = $request->cost_price;
         if ($request->filled('cashback_amount')) $kit->cashback_amount = $request->cashback_amount;
         if ($request->filled('stock_quantity')) $kit->stock_quantity = $request->stock_quantity;
         if ($request->filled('sku')) $kit->sku = $request->sku;
         $kit->description = $request->description;
-        $kit->items_included = array_values(array_unique(array_filter($items)));
+
+        if ($request->has('products')) {
+            list($processedProducts, $itemsIncluded) = $this->processProducts($request);
+            $kit->products = $processedProducts;
+            $kit->items_included = $itemsIncluded;
+        } elseif ($request->has('items_included')) {
+            $items = $request->input('items_included', []);
+            if ($request->filled('custom_item')) {
+                $items[] = trim($request->custom_item);
+            }
+            $kit->items_included = array_values(array_unique(array_filter($items)));
+        }
+
         $kit->is_compulsory = $request->has('is_compulsory') ? true : false;
         $kit->booking_required = $request->has('booking_required') ? true : false;
         $kit->is_active = $request->has('is_active') ? true : false;
 
+        if ($request->filled('status')) {
+            $kit->status = in_array($request->status, ['published', 'draft']) ? $request->status : 'published';
+        }
+
         if ($request->hasFile('image')) {
-            $imageName = 'kit_' . time() . '.' . $request->image->extension();
-            $request->image->move(public_path('assets/images/kits'), $imageName);
+            $kitDir = public_path('assets/images/kits');
+            if (!File::isDirectory($kitDir)) {
+                File::makeDirectory($kitDir, 0777, true, true);
+            }
+            $imageName = 'kit_' . time() . '_' . uniqid() . '.' . $request->image->extension();
+            $request->image->move($kitDir, $imageName);
             $kit->image = 'assets/images/kits/' . $imageName;
         }
 
         $kit->save();
 
         return redirect()->route('driver-kits.index', ['tab' => $kit->category_code])
-            ->with('success', "{$kit->title} updated successfully.");
+            ->with('success', "Driver Kit '{$kit->title}' updated successfully.");
     }
+
+    /**
+     * Delete Kit
+     */
+    public function destroy($id)
+    {
+        $kit = DriverKit::findOrFail($id);
+        $tab = $kit->category_code;
+        $title = $kit->title;
+        $kit->delete();
+
+        return redirect()->route('driver-kits.index', ['tab' => $tab])
+            ->with('success', "Kit '{$title}' deleted successfully.");
+    }
+
+    /**
+     * AJAX Product Search for Kit Builder
+     */
+    public function searchProducts(Request $request)
+    {
+        $q = trim($request->query('q', ''));
+        $query = MarketplaceProduct::with('primaryImage', 'images')->where('status', 'active');
+
+        if (!empty($q)) {
+            $query->where(function ($b) use ($q) {
+                $b->where('title', 'like', "%{$q}%")
+                  ->orWhere('brand_name', 'like', "%{$q}%")
+                  ->orWhere('description', 'like', "%{$q}%");
+            });
+        }
+
+        $products = $query->orderBy('id', 'desc')->take(30)->get()->map(function ($prod) {
+            $img = '';
+            if ($prod->primaryImage && !empty($prod->primaryImage->image_path)) {
+                $img = $prod->primaryImage->image_path;
+            } elseif ($prod->images->isNotEmpty() && !empty($prod->images->first()->image_path)) {
+                $img = $prod->images->first()->image_path;
+            }
+            return [
+                'id' => $prod->id,
+                'title' => $prod->title,
+                'price' => floatval($prod->price),
+                'image' => $img,
+                'stock' => intval($prod->stock_quantity ?? 0),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'products' => $products,
+        ]);
+    }
+
 
     /**
      * Toggle Category-Level Compulsory Setting via AJAX

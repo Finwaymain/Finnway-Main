@@ -1255,12 +1255,19 @@
                 <!-- 2. Product Summary Card -->
                 <div class="card">
                     <div class="product-card">
-                        <div class="product-img-box">
-                            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                            </svg>
+                        <div class="product-img-box" id="kitImgBox" style="position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                            @php
+                                $kitImg = !empty($kit->image) ? (str_starts_with($kit->image, 'http') ? $kit->image : asset($kit->image)) : '';
+                            @endphp
+                            @if($kitImg)
+                                <img id="kitImgElement" src="{{ $kitImg }}" alt="{{ $kit->title }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">
+                            @else
+                                <svg id="kitSvgElement" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px; stroke: #15803d;">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                </svg>
+                            @endif
                         </div>
                         <div class="product-info">
                             <span class="product-category-tag" id="kitCategoryTag">
@@ -1269,8 +1276,8 @@
                             <h1 class="product-title" id="kitTitle">{{ $kit ? $kit->title : 'Partner Starter Kit' }}</h1>
                             <div class="price-row">
                                 <span class="price-final" id="priceFinal">₹{{ number_format($kit->price ?? 499, 2) }}</span>
-                                <span class="price-mrp" id="priceMrp">₹{{ number_format(($kit->price ?? 499) * 2, 0) }}</span>
-                                <span class="price-save">50% OFF</span>
+                                <span class="price-mrp" id="priceMrp">₹{{ number_format(($kit->mrp ?? (($kit->price ?? 499) * 2)), 0) }}</span>
+                                <span class="price-save">SAVE</span>
                             </div>
                         </div>
                     </div>
@@ -1280,17 +1287,47 @@
                         <div class="inclusions-title">Package Inclusions</div>
                         <div id="kitInclusionsList">
                             @php
+                                $prods = is_array($kit->products) ? $kit->products : (json_decode($kit->products ?? '[]', true) ?: []);
                                 $items = is_array($kit->items_included) ? $kit->items_included : (json_decode($kit->items_included, true) ?? ['Fiinway Branded T-Shirt', 'Official ID Card & Lanyard']);
                             @endphp
-                            @foreach($items as $item)
-                                <div class="inclusion-item">
-                                    <span class="check-icon">✓</span>
-                                    <span>{{ $item }}</span>
-                                </div>
-                            @endforeach
+                            @if(!empty($prods))
+                                @foreach($prods as $p)
+                                    <div class="inclusion-item" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            @if(!empty($p['image']))
+                                                <img src="{{ str_starts_with($p['image'], 'http') ? $p['image'] : asset($p['image']) }}" style="width: 32px; height: 32px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                            @else
+                                                <span class="check-icon">✓</span>
+                                            @endif
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 13px; color: var(--text-main);">{{ $p['name'] ?? 'Item' }}</div>
+                                                <div style="font-size: 11px; color: var(--text-muted);">
+                                                    @if(!empty($p['variant'])) <span style="background: #e5e7eb; padding: 1px 5px; border-radius: 3px; font-size: 10px; color: #374151;">{{ $p['variant'] }}</span> @endif
+                                                    <span>Qty: {{ $p['quantity'] ?? 1 }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            @if(empty($p['is_free']) && floatval($p['price'] ?? 0) > 0)
+                                                <span style="font-size: 11px; font-weight: 700; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px;">₹{{ number_format($p['price'], 0) }}</span>
+                                            @else
+                                                <span style="font-size: 11px; font-weight: 700; color: #16a34a; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">FREE</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @else
+                                @foreach($items as $item)
+                                    <div class="inclusion-item">
+                                        <span class="check-icon">✓</span>
+                                        <span>{{ $item }}</span>
+                                    </div>
+                                @endforeach
+                            @endif
                         </div>
                     </div>
                 </div>
+
 
                 <!-- 3. T-Shirt Size Selector -->
                 <div class="card">
@@ -1441,24 +1478,70 @@
             document.getElementById('priceSummaryVal').textContent = '₹' + kitAmount.toFixed(2);
             document.getElementById('btnSubmitOrder').textContent = 'Pay ₹' + kitAmount.toFixed(2);
 
-            // Update inclusions
-            let items = [];
-            if (Array.isArray(found.items_included)) {
-                items = found.items_included;
-            } else if (typeof found.items_included === 'string') {
-                try { items = JSON.parse(found.items_included); } catch(e) { items = [found.items_included]; }
+            // Update Kit Image
+            const imgBox = document.getElementById('kitImgBox');
+            if (imgBox) {
+                if (found.image && found.image !== '') {
+                    const imgUrl = (found.image.startsWith('http')) ? found.image : ('/' + found.image.replace(/^\//, ''));
+                    imgBox.innerHTML = `<img id="kitImgElement" src="${imgUrl}" alt="${found.title}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">`;
+                } else {
+                    imgBox.innerHTML = `
+                        <svg id="kitSvgElement" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px; stroke: #15803d;">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    `;
+                }
             }
-            if (!items || items.length === 0) {
-                items = ['Fiinway Branded T-Shirt', 'Official ID Card & Lanyard'];
+
+            // Update inclusions / products
+            let prods = [];
+            if (Array.isArray(found.products) && found.products.length > 0) {
+                prods = found.products;
+            } else if (typeof found.products === 'string') {
+                try { prods = JSON.parse(found.products); } catch(e) {}
             }
 
             const inclusionsContainer = document.getElementById('kitInclusionsList');
-            inclusionsContainer.innerHTML = items.map(item => `
-                <div class="inclusion-item">
-                    <span class="check-icon">✓</span>
-                    <span>${item}</span>
-                </div>
-            `).join('');
+            if (inclusionsContainer) {
+                if (prods && prods.length > 0) {
+                    inclusionsContainer.innerHTML = prods.map(p => {
+                        const imgTag = p.image ? `<img src="${p.image.startsWith('http') ? p.image : ('/' + p.image.replace(/^\//, ''))}" style="width: 32px; height: 32px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb;">` : `<span class="check-icon">✓</span>`;
+                        const isFree = (p.is_free == 1 || p.is_free === true || p.is_free === '1');
+                        const priceBadge = (!isFree && parseFloat(p.price) > 0) ? `<span style="font-size: 11px; font-weight: 700; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px;">₹${parseFloat(p.price).toFixed(0)}</span>` : `<span style="font-size: 11px; font-weight: 700; color: #16a34a; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">FREE</span>`;
+                        const variantTag = p.variant ? `<span style="background: #e5e7eb; padding: 1px 5px; border-radius: 3px; font-size: 10px; color: #374151;">${p.variant}</span>` : '';
+                        return `
+                            <div class="inclusion-item" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f3f4f6;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    ${imgTag}
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px; color: var(--text-main);">${p.name || 'Item'}</div>
+                                        <div style="font-size: 11px; color: var(--text-muted);">${variantTag} <span>Qty: ${p.quantity || 1}</span></div>
+                                    </div>
+                                </div>
+                                <div>${priceBadge}</div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    let items = [];
+                    if (Array.isArray(found.items_included)) {
+                        items = found.items_included;
+                    } else if (typeof found.items_included === 'string') {
+                        try { items = JSON.parse(found.items_included); } catch(e) { items = [found.items_included]; }
+                    }
+                    if (!items || items.length === 0) {
+                        items = ['Fiinway Branded T-Shirt', 'Official ID Card & Lanyard'];
+                    }
+                    inclusionsContainer.innerHTML = items.map(item => `
+                        <div class="inclusion-item">
+                            <span class="check-icon">✓</span>
+                            <span>${item}</span>
+                        </div>
+                    `).join('');
+                }
+            }
 
             // Update wallet balance indicator
             const tag = document.getElementById('walletInsufficientTag');

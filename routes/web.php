@@ -1218,7 +1218,12 @@ Route::post('/app-version-control/toggle-maintenance/{id}', [App\Http\Controller
 
 // ── Driver & Partner Kit Management ─────────────────────────────────────────
 Route::get('/driver-kits', [App\Http\Controllers\DriverKitController::class, 'index'])->name('driver-kits.index');
+Route::get('/driver-kits/create', [App\Http\Controllers\DriverKitController::class, 'create'])->name('driver-kits.create');
+Route::post('/driver-kits/store', [App\Http\Controllers\DriverKitController::class, 'store'])->name('driver-kits.store');
+Route::get('/driver-kits/edit/{id}', [App\Http\Controllers\DriverKitController::class, 'edit'])->name('driver-kits.edit');
 Route::post('/driver-kits/update/{id}', [App\Http\Controllers\DriverKitController::class, 'update'])->name('driver-kits.update');
+Route::post('/driver-kits/delete/{id}', [App\Http\Controllers\DriverKitController::class, 'destroy'])->name('driver-kits.destroy');
+Route::get('/driver-kits/search-products', [App\Http\Controllers\DriverKitController::class, 'searchProducts'])->name('driver-kits.searchProducts');
 Route::post('/driver-kits/toggle-compulsory/{id}', [App\Http\Controllers\DriverKitController::class, 'toggleCompulsory'])->name('driver-kits.toggleCompulsory');
 Route::post('/driver-kits/toggle-active/{id}', [App\Http\Controllers\DriverKitController::class, 'toggleActive'])->name('driver-kits.toggleActive');
 Route::get('/driver-kits/orders', [App\Http\Controllers\DriverKitController::class, 'orders'])->name('driver-kits.orders');
