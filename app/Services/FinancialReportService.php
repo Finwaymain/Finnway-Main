@@ -147,10 +147,38 @@ class FinancialReportService
                 if (is_array($decoded)) {
                     $sum = 0.0;
                     foreach ($decoded as $item) {
-                        $sum += (float)($item['amount'] ?? $item['value'] ?? 0);
+                        if (!str_contains(strtolower((string)($item['libelle'] ?? '')), 'platform')) {
+                            $sum += (float)($item['amount'] ?? $item['value'] ?? 0);
+                        }
                     }
                     return $sum;
                 }
+            }
+            return 0.0;
+        };
+
+        // Helper to calculate platform fee: check tip_amount, tax JSON for platform fee, or fallback to defaultPlatformFeeRate
+        $parsePlatformFee = function($fare, $taxField = null, $tipAmount = null) use ($defaultPlatformFeeRate): float {
+            if (!empty($tipAmount) && is_numeric($tipAmount) && (float)$tipAmount > 0) {
+                return round((float)$tipAmount, 2);
+            }
+            if (!empty($taxField) && is_string($taxField)) {
+                $tArr = json_decode($taxField, true);
+                if (is_array($tArr)) {
+                    foreach ($tArr as $item) {
+                        if (str_contains(strtolower((string)($item['libelle'] ?? '')), 'platform')) {
+                            $rateOrAmt = (float)($item['amount'] ?? $item['value'] ?? 0);
+                            $type = strtolower((string)($item['type'] ?? ''));
+                            if ($type === 'percentage' || !isset($item['amount'])) {
+                                return round($fare * ($rateOrAmt / 100), 2);
+                            }
+                            return round($rateOrAmt, 2);
+                        }
+                    }
+                }
+            }
+            if ($fare > 0 && $defaultPlatformFeeRate > 0) {
+                return round($fare * ($defaultPlatformFeeRate / 100), 2);
             }
             return 0.0;
         };
@@ -255,7 +283,7 @@ class FinancialReportService
                 });
             }
             $cabBookings = $cabQuery->count();
-            $cabRows = $cabQuery->select('id', 'montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
+            $cabRows = $cabQuery->select('id', 'montant', 'admin_commission', 'tax', 'tip_amount', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
 
             foreach ($cabRows as $cr) {
                 $fare = (float)($cr->montant ?? 0);
@@ -266,20 +294,12 @@ class FinancialReportService
                 $cComm = (!empty($cr->admin_commission) && (float)$cr->admin_commission > 0) ? (float)$cr->admin_commission : round($fare * ($defaultCommRate / 100), 2);
                 $cabComm += $cComm;
 
+                // Platform Fee: from recorded tip/fee, or parsed from tax JSON, or calculated from configured platform fee rate (10%)
+                $cPFee = $parsePlatformFee($fare, $cr->tax ?? null, $cr->tip_amount ?? null);
+                $cabPFee += $cPFee;
+
                 // Pure GST: use recorded tax if present (JSON or numeric). Never inflate with phantom fallback.
-                $tAmt = 0.0;
-                if (!empty($cr->tax)) {
-                    if (is_numeric($cr->tax)) {
-                        $tAmt = (float)$cr->tax;
-                    } else {
-                        $tArr = json_decode($cr->tax, true);
-                        if (is_array($tArr)) {
-                            foreach ($tArr as $item) {
-                                $tAmt += (float)($item['amount'] ?? $item['value'] ?? 0);
-                            }
-                        }
-                    }
-                }
+                $tAmt = $parsePureRecordedTax($cr->tax ?? null);
                 $cabGst += $tAmt;
 
                 // Check cash vs online
@@ -287,16 +307,20 @@ class FinancialReportService
                 if ($isCash) {
                     $cabCashGross += $fare;
                     $cabCommCash  += $cComm;
+                    $cabPFeeCash  += $cPFee;
                     $cabGstCash   += $tAmt;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $cComm + $tAmt);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $cComm + $cPFee + $tAmt);
                     $cabCommRealized += round($cComm * $ratio, 2);
+                    $cabPFeeRealized += round($cPFee * $ratio, 2);
                     $cabGstRealized  += round($tAmt * $ratio, 2);
                 } else {
                     $cabOnlineGross  += $fare;
                     $cabCommOnline   += $cComm;
+                    $cabPFeeOnline   += $cPFee;
                     $cabGstOnline    += $tAmt;
                     $cabCommRealized += $cComm;
+                    $cabPFeeRealized += $cPFee;
                     $cabGstRealized  += $tAmt;
                 }
             }
@@ -331,8 +355,11 @@ class FinancialReportService
                 $driverId = $hr->driver_id ?? null;
 
                 $pb = !empty($hr->price_breakdown) ? (is_string($hr->price_breakdown) ? json_decode($hr->price_breakdown, true) : (array)$hr->price_breakdown) : [];
-                // Only count platform_fee if explicitly stored in price_breakdown (no arbitrary fallback)
+                // Count platform_fee from breakdown or calculate from defaultPlatformFeeRate
                 $pF = (float)($pb['platform_fee'] ?? 0);
+                if ($pF <= 0 && $bAmt > 0 && $defaultPlatformFeeRate > 0) {
+                    $pF = round($bAmt * ($defaultPlatformFeeRate / 100), 2);
+                }
                 $homePFee += $pF;
 
                 // Commission: only use stored value, fallback to default rate on confirmed completed booking
@@ -395,13 +422,15 @@ class FinancialReportService
         if ($hasRideTypeCol) {
             $foodQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food');
             $foodBookings = $foodQuery->count();
-            $foodRows = $foodQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
+            $foodRows = $foodQuery->select('montant', 'admin_commission', 'tax', 'tip_amount', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($foodRows as $fr) {
                 $fFare = (float)($fr->montant ?? 0);
                 $foodGross += $fFare;
                 $driverId = $fr->id_conducteur ?? null;
                 $fComm = (!empty($fr->admin_commission) && (float)$fr->admin_commission > 0) ? (float)$fr->admin_commission : round($fFare * 0.18, 2);
                 $foodComm += $fComm;
+                $fPFee = $parsePlatformFee($fFare, $fr->tax ?? null, $fr->tip_amount ?? null);
+                $foodPFee += $fPFee;
                 $fGst = $parsePureRecordedTax($fr->tax ?? null);
                 $foodGst += $fGst;
 
@@ -409,16 +438,20 @@ class FinancialReportService
                 if ($isCash) {
                     $foodCashGross += $fFare;
                     $foodCommCash  += $fComm;
+                    $foodPFeeCash  += $fPFee;
                     $foodGstCash   += $fGst;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $fComm + $fGst);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $fComm + $fPFee + $fGst);
                     $foodCommRealized += round($fComm * $ratio, 2);
+                    $foodPFeeRealized += round($fPFee * $ratio, 2);
                     $foodGstRealized  += round($fGst * $ratio, 2);
                 } else {
                     $foodOnlineGross  += $fFare;
                     $foodCommOnline   += $fComm;
+                    $foodPFeeOnline   += $fPFee;
                     $foodGstOnline    += $fGst;
                     $foodCommRealized += $fComm;
+                    $foodPFeeRealized += $fPFee;
                     $foodGstRealized  += $fGst;
                 }
             }
@@ -451,6 +484,8 @@ class FinancialReportService
                 $driverId = $pr->id_conducteur ?? null;
                 $pComm = (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
                 $parcelComm += $pComm;
+                $pPFee = $parsePlatformFee($pFare, $pr->tax ?? null);
+                $parcelPFee += $pPFee;
                 $pGst = $parsePureRecordedTax($pr->tax ?? null);
                 $parcelGst += $pGst;
 
@@ -458,16 +493,20 @@ class FinancialReportService
                 if ($isCash) {
                     $parcelCashGross += $pFare;
                     $parcelCommCash  += $pComm;
+                    $parcelPFeeCash  += $pPFee;
                     $parcelGstCash   += $pGst;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pGst);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pPFee + $pGst);
                     $parcelCommRealized += round($pComm * $ratio, 2);
+                    $parcelPFeeRealized += round($pPFee * $ratio, 2);
                     $parcelGstRealized  += round($pGst * $ratio, 2);
                 } else {
                     $parcelOnlineGross  += $pFare;
                     $parcelCommOnline   += $pComm;
+                    $parcelPFeeOnline   += $pPFee;
                     $parcelGstOnline    += $pGst;
                     $parcelCommRealized += $pComm;
+                    $parcelPFeeRealized += $pPFee;
                     $parcelGstRealized  += $pGst;
                 }
             }
@@ -482,6 +521,8 @@ class FinancialReportService
                 $driverId = $pr->id_conducteur ?? null;
                 $pComm = (!empty($pr->admin_commission) && (float)$pr->admin_commission > 0) ? (float)$pr->admin_commission : round($pFare * 0.10, 2);
                 $parcelComm += $pComm;
+                $pPFee = $parsePlatformFee($pFare, $pr->tax ?? null, $pr->tip_amount ?? null);
+                $parcelPFee += $pPFee;
                 $pGst = $parsePureRecordedTax($pr->tax ?? null);
                 $parcelGst += $pGst;
 
@@ -489,16 +530,20 @@ class FinancialReportService
                 if ($isCash) {
                     $parcelCashGross += $pFare;
                     $parcelCommCash  += $pComm;
+                    $parcelPFeeCash  += $pPFee;
                     $parcelGstCash   += $pGst;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pGst);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $pComm + $pPFee + $pGst);
                     $parcelCommRealized += round($pComm * $ratio, 2);
+                    $parcelPFeeRealized += round($pPFee * $ratio, 2);
                     $parcelGstRealized  += round($pGst * $ratio, 2);
                 } else {
                     $parcelOnlineGross  += $pFare;
                     $parcelCommOnline   += $pComm;
+                    $parcelPFeeOnline   += $pPFee;
                     $parcelGstOnline    += $pGst;
                     $parcelCommRealized += $pComm;
+                    $parcelPFeeRealized += $pPFee;
                     $parcelGstRealized  += $pGst;
                 }
             }
@@ -524,13 +569,15 @@ class FinancialReportService
         if ($hasRideTypeCol) {
             $travelQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel');
             $travelBookings = $travelQuery->count();
-            $travelRows = $travelQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
+            $travelRows = $travelQuery->select('montant', 'admin_commission', 'tax', 'tip_amount', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($travelRows as $tr) {
                 $tFare = (float)($tr->montant ?? 0);
                 $travelGross += $tFare;
                 $driverId = $tr->id_conducteur ?? null;
                 $tComm = (!empty($tr->admin_commission) && (float)$tr->admin_commission > 0) ? (float)$tr->admin_commission : round($tFare * 0.10, 2);
                 $travelComm += $tComm;
+                $tPFee = $parsePlatformFee($tFare, $tr->tax ?? null, $tr->tip_amount ?? null);
+                $travelPFee += $tPFee;
                 $tGst = $parsePureRecordedTax($tr->tax ?? null);
                 $travelGst += $tGst;
 
@@ -538,16 +585,20 @@ class FinancialReportService
                 if ($isCash) {
                     $travelCashGross += $tFare;
                     $travelCommCash  += $tComm;
+                    $travelPFeeCash  += $tPFee;
                     $travelGstCash   += $tGst;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $tComm + $tGst);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $tComm + $tPFee + $tGst);
                     $travelCommRealized += round($tComm * $ratio, 2);
+                    $travelPFeeRealized += round($tPFee * $ratio, 2);
                     $travelGstRealized  += round($tGst * $ratio, 2);
                 } else {
                     $travelOnlineGross  += $tFare;
                     $travelCommOnline   += $tComm;
+                    $travelPFeeOnline   += $tPFee;
                     $travelGstOnline    += $tGst;
                     $travelCommRealized += $tComm;
+                    $travelPFeeRealized += $tPFee;
                     $travelGstRealized  += $tGst;
                 }
             }
@@ -575,13 +626,15 @@ class FinancialReportService
                 ->whereNotIn('ride_type', ['cab', 'city', 'transport', 'taxi', 'food', 'parcel', 'travel'])
                 ->whereNotNull('ride_type')->where('ride_type', '!=', '');
             $otherBookings = $otherQuery->count();
-            $otherRows = $otherQuery->select('montant', 'admin_commission', 'tax', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
+            $otherRows = $otherQuery->select('montant', 'admin_commission', 'tax', 'tip_amount', 'statut_paiement', 'id_payment_method', 'id_conducteur')->get();
             foreach ($otherRows as $or) {
                 $oFare = (float)($or->montant ?? 0);
                 $otherGross += $oFare;
                 $driverId = $or->id_conducteur ?? null;
                 $oComm = (!empty($or->admin_commission) && (float)$or->admin_commission > 0) ? (float)$or->admin_commission : round($oFare * 0.10, 2);
                 $otherComm += $oComm;
+                $oPFee = $parsePlatformFee($oFare, $or->tax ?? null, $or->tip_amount ?? null);
+                $otherPFee += $oPFee;
                 $oGst = $parsePureRecordedTax($or->tax ?? null);
                 $otherGst += $oGst;
 
@@ -589,16 +642,20 @@ class FinancialReportService
                 if ($isCash) {
                     $otherCashGross += $oFare;
                     $otherCommCash  += $oComm;
+                    $otherPFeeCash  += $oPFee;
                     $otherGstCash   += $oGst;
 
-                    $ratio = $getDriverCashRecoveryRatio($driverId, $oComm + $oGst);
+                    $ratio = $getDriverCashRecoveryRatio($driverId, $oComm + $oPFee + $oGst);
                     $otherCommRealized += round($oComm * $ratio, 2);
+                    $otherPFeeRealized += round($oPFee * $ratio, 2);
                     $otherGstRealized  += round($oGst * $ratio, 2);
                 } else {
                     $otherOnlineGross  += $oFare;
                     $otherCommOnline   += $oComm;
+                    $otherPFeeOnline   += $oPFee;
                     $otherGstOnline    += $oGst;
                     $otherCommRealized += $oComm;
+                    $otherPFeeRealized += $oPFee;
                     $otherGstRealized  += $oGst;
                 }
             }

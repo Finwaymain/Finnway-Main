@@ -103,6 +103,11 @@
         color: #15803D;
     }
     
+    .trend-down {
+        background-color: #FEE2E2;
+        color: #DC2626;
+    }
+    
     /* Typography */
     .section-title {
         font-size: 16px;
@@ -258,8 +263,9 @@ $suspendedBusiness = DB::table('tj_conducteur')->where('statut', 'no')->count();
 $rejectedBusiness = DB::table('tj_conducteur')->where('is_verified', 0)->count();
 
 // Real Financial Stats from Shared Engine
-$financialStats = \App\Services\FinancialReportService::computeStats();
-$adminNetProfit = $financialStats['netProfitPnl'];
+$financialStats = $financialStats ?? \App\Services\FinancialReportService::computeStats();
+$adminNetProfit = $adminNetProfit ?? $financialStats['netProfitPnl'];
+$currencySymbol = $currency_symbol ?? ($currency->symbole ?? \App\Helpers\Helper::getCurrencySymbol());
 $userWalletTotal = DB::table('tj_user_app')->sum('amount');
 $driverWalletTotal = DB::table('tj_conducteur')->sum('amount');
 $totalWalletBalance = floatval($userWalletTotal) + floatval($driverWalletTotal);
@@ -302,11 +308,17 @@ $recentBookings = DB::table('tj_requete')
         </div>
         <div class="d-flex gap-2 align-items-center">
             <div class="position-relative">
-                <select class="form-control" style="border-radius: 10px; border: 1px solid #E2E8F0; font-size: 13px; font-weight: 600; padding: 8px 16px; background-color: #fff; height: 38px;">
-                    <option>01 May 2025 - 31 May 2025</option>
-                </select>
+                <form id="dashboardPeriodForm" action="{{ url('dashboard') }}" method="GET" class="d-inline-block m-0">
+                    <select name="period" class="form-control" style="border-radius: 10px; border: 1.5px solid #CBD5E1; font-size: 13px; font-weight: 700; padding: 6px 14px; background-color: #fff; height: 38px; cursor: pointer; color: #1E293B;" onchange="this.form.submit()">
+                        <option value="today" {{ ($periodKey ?? request('period', 'this_month')) == 'today' ? 'selected' : '' }}>Today ({{ date('d M Y') }})</option>
+                        <option value="this_week" {{ ($periodKey ?? request('period', 'this_month')) == 'this_week' ? 'selected' : '' }}>This Week</option>
+                        <option value="this_month" {{ ($periodKey ?? request('period', 'this_month')) == 'this_month' ? 'selected' : '' }}>This Month ({{ date('01 M Y') }} - {{ date('t M Y') }})</option>
+                        <option value="this_year" {{ ($periodKey ?? request('period', 'this_month')) == 'this_year' ? 'selected' : '' }}>This Year ({{ date('Y') }})</option>
+                        <option value="all" {{ ($periodKey ?? request('period', 'this_month')) == 'all' ? 'selected' : '' }}>All Time</option>
+                    </select>
+                </form>
             </div>
-            <button onclick="location.reload()" class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="border-radius: 10px; border: 1px solid #E2E8F0; width: 38px; height: 38px; background: #fff;">
+            <button onclick="location.reload()" class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="border-radius: 10px; border: 1px solid #E2E8F0; width: 38px; height: 38px; background: #fff;" title="Refresh">
                 <i class="mdi mdi-refresh" style="font-size: 18px; color: #475569;"></i>
             </button>
         </div>
@@ -320,9 +332,9 @@ $recentBookings = DB::table('tj_requete')
                     <span class="stat-title">Total Revenue</span>
                     <div class="stat-icon" style="background: rgba(91, 79, 233, 0.1); color: #5B4FE9;"><i class="mdi mdi-currency-usd"></i></div>
                 </div>
-                <div class="stat-value">{{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }}{{ number_format($total_earnings, 0) }}</div>
+                <div class="stat-value">{{ $currencySymbol }}{{ number_format($financialStats['grossRevenue'] ?? $total_earnings, 2) }}</div>
                 <div>
-                    <span class="trend-badge trend-up"><i class="mdi mdi-trending-up"></i> +18.6%</span>
+                    <span class="trend-badge {{ str_contains($revGrowth ?? '+', '-') ? 'trend-down' : 'trend-up' }}"><i class="mdi {{ str_contains($revGrowth ?? '+', '-') ? 'mdi-trending-down' : 'mdi-trending-up' }}"></i> {{ $revGrowth ?? '+0.0%' }}</span>
                 </div>
             </div>
         </div>
@@ -332,9 +344,9 @@ $recentBookings = DB::table('tj_requete')
                     <span class="stat-title">Total Profit</span>
                     <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: #10B981;"><i class="mdi mdi-cash-multiple"></i></div>
                 </div>
-                <div class="stat-value">{{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }}{{ number_format($total_admin_commission, 0) }}</div>
+                <div class="stat-value">{{ $currencySymbol }}{{ number_format($financialStats['netRevenue'] ?? $total_admin_commission, 2) }}</div>
                 <div>
-                    <span class="trend-badge trend-up"><i class="mdi mdi-trending-up"></i> +21.1%</span>
+                    <span class="trend-badge {{ str_contains($profitGrowth ?? '+', '-') ? 'trend-down' : 'trend-up' }}"><i class="mdi {{ str_contains($profitGrowth ?? '+', '-') ? 'mdi-trending-down' : 'mdi-trending-up' }}"></i> {{ $profitGrowth ?? '+0.0%' }}</span>
                 </div>
             </div>
         </div>
@@ -346,7 +358,7 @@ $recentBookings = DB::table('tj_requete')
                 </div>
                 <div class="stat-value">{{ number_format($total_users) }}</div>
                 <div>
-                    <span class="trend-badge trend-up"><i class="mdi mdi-trending-up"></i> +15.6%</span>
+                    <span class="trend-badge {{ str_contains($userGrowth ?? '+', '-') ? 'trend-down' : 'trend-up' }}"><i class="mdi {{ str_contains($userGrowth ?? '+', '-') ? 'mdi-trending-down' : 'mdi-trending-up' }}"></i> {{ $userGrowth ?? '+0.0%' }}</span>
                 </div>
             </div>
         </div>
@@ -358,7 +370,7 @@ $recentBookings = DB::table('tj_requete')
                 </div>
                 <div class="stat-value">{{ number_format($total_drivers) }}</div>
                 <div>
-                    <span class="trend-badge trend-up"><i class="mdi mdi-trending-up"></i> +17.5%</span>
+                    <span class="trend-badge {{ str_contains($driverGrowth ?? '+', '-') ? 'trend-down' : 'trend-up' }}"><i class="mdi {{ str_contains($driverGrowth ?? '+', '-') ? 'mdi-trending-down' : 'mdi-trending-up' }}"></i> {{ $driverGrowth ?? '+0.0%' }}</span>
                 </div>
             </div>
         </div>
@@ -368,9 +380,9 @@ $recentBookings = DB::table('tj_requete')
                     <span class="stat-title">Transactions</span>
                     <div class="stat-icon" style="background: rgba(236, 72, 153, 0.1); color: #EC4899;"><i class="mdi mdi-receipt"></i></div>
                 </div>
-                <div class="stat-value">{{ number_format($completed_rides + $canceled_rides + $on_rides) }}</div>
+                <div class="stat-value">{{ number_format($financialStats['totalTransactions'] ?? ($completed_rides + $canceled_rides + $on_rides)) }}</div>
                 <div>
-                    <span class="trend-badge trend-up"><i class="mdi mdi-trending-up"></i> +20.0%</span>
+                    <span class="trend-badge {{ str_contains($txnsGrowth ?? '+', '-') ? 'trend-down' : 'trend-up' }}"><i class="mdi {{ str_contains($txnsGrowth ?? '+', '-') ? 'mdi-trending-down' : 'mdi-trending-up' }}"></i> {{ $txnsGrowth ?? '+0.0%' }}</span>
                 </div>
             </div>
         </div>
@@ -380,7 +392,7 @@ $recentBookings = DB::table('tj_requete')
                     <span class="stat-title">Net Profit</span>
                     <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: #10B981;"><i class="mdi mdi-cash-multiple"></i></div>
                 </div>
-                <div class="stat-value">{{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }}{{ number_format($adminNetProfit, 2) }}</div>
+                <div class="stat-value">{{ $currencySymbol }}{{ number_format($financialStats['netProfitPnl'] ?? $adminNetProfit, 2) }}</div>
                 <a href="{!! url('earnings') !!}" style="font-size: 11px; font-weight: 700; color: #5B4FE9; text-decoration: none;">View Details <i class="mdi mdi-arrow-right"></i></a>
             </div>
         </div>
@@ -570,25 +582,25 @@ $recentBookings = DB::table('tj_requete')
                                 <thead>
                                     <tr>
                                         <th>Metrics</th>
-                                        <th>Current Month</th>
+                                        <th>{{ $periodLabel ?? 'Current Period' }}</th>
                                         <th>Growth</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
                                         <td>New Users</td>
-                                        <td><strong>{{ number_format($total_users) }}</strong></td>
-                                        <td><span class="text-success font-weight-bold">+15.6% <i class="fa fa-arrow-up"></i></span></td>
+                                        <td><strong>{{ number_format($period_users ?? $today_users ?? $total_users) }}</strong></td>
+                                        <td><span class="{{ str_contains($userGrowth ?? '+', '-') ? 'text-danger' : 'text-success' }} font-weight-bold">{{ $userGrowth ?? '+0.0%' }} <i class="fa {{ str_contains($userGrowth ?? '+', '-') ? 'fa-arrow-down' : 'fa-arrow-up' }}"></i></span></td>
                                     </tr>
                                     <tr>
                                         <td>New Businesses</td>
-                                        <td><strong>{{ number_format($total_drivers) }}</strong></td>
-                                        <td><span class="text-success font-weight-bold">+18.4% <i class="fa fa-arrow-up"></i></span></td>
+                                        <td><strong>{{ number_format($period_drivers ?? $today_drivers ?? $total_drivers) }}</strong></td>
+                                        <td><span class="{{ str_contains($driverGrowth ?? '+', '-') ? 'text-danger' : 'text-success' }} font-weight-bold">{{ $driverGrowth ?? '+0.0%' }} <i class="fa {{ str_contains($driverGrowth ?? '+', '-') ? 'fa-arrow-down' : 'fa-arrow-up' }}"></i></span></td>
                                     </tr>
                                     <tr>
-                                        <td>Total Bookings</td>
-                                        <td><strong>{{ number_format($completed_rides) }}</strong></td>
-                                        <td><span class="text-success font-weight-bold">+21.2% <i class="fa fa-arrow-up"></i></span></td>
+                                        <td>Total Transactions</td>
+                                        <td><strong>{{ number_format($financialStats['totalTransactions'] ?? $completed_rides) }}</strong></td>
+                                        <td><span class="{{ str_contains($txnsGrowth ?? '+', '-') ? 'text-danger' : 'text-success' }} font-weight-bold">{{ $txnsGrowth ?? '+0.0%' }} <i class="fa {{ str_contains($txnsGrowth ?? '+', '-') ? 'fa-arrow-down' : 'fa-arrow-up' }}"></i></span></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -705,28 +717,49 @@ $recentBookings = DB::table('tj_requete')
         var revenueGradient = ctxLine.createLinearGradient(0, 0, 0, 200);
         revenueGradient.addColorStop(0, 'rgba(91, 79, 233, 0.4)');
         revenueGradient.addColorStop(1, 'rgba(91, 79, 233, 0.0)');
+
+        var revLabels = {!! json_encode(!empty($financialStats['chartLabels']) ? $financialStats['chartLabels'] : ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep']) !!};
+        var revGross = {!! json_encode(!empty($financialStats['chartGrossData']) ? $financialStats['chartGrossData'] : [0, 0, 0, 0, 0, 0]) !!};
+        var revNet = {!! json_encode(!empty($financialStats['chartNetData']) ? $financialStats['chartNetData'] : [0, 0, 0, 0, 0, 0]) !!};
         
         new Chart(ctxLine, {
             type: 'line',
             data: {
-                labels: ['01 May', '06 May', '11 May', '16 May', '21 May', '26 May', '31 May'],
-                datasets: [{
-                    label: 'Revenue ({{ $currency_symbol ?? \App\Helpers\Helper::getCurrencySymbol() }})',
-                    data: [1200000, 1800000, 1500000, 2800000, 3200000, 2500000, 3800000],
-                    borderColor: '#5B4FE9',
-                    borderWidth: 3,
-                    fill: true,
-                    backgroundColor: revenueGradient,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#5B4FE9'
-                }]
+                labels: revLabels,
+                datasets: [
+                    {
+                        label: 'Gross Volume ({{ $currencySymbol }})',
+                        data: revGross,
+                        borderColor: '#5B4FE9',
+                        borderWidth: 3,
+                        fill: true,
+                        backgroundColor: revenueGradient,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#5B4FE9'
+                    },
+                    {
+                        label: 'Net Revenue ({{ $currencySymbol }})',
+                        data: revNet,
+                        borderColor: '#10B981',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#10B981'
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { boxWidth: 8, font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' } }
+                    }
                 },
                 scales: {
                     y: {
@@ -743,12 +776,34 @@ $recentBookings = DB::table('tj_requete')
 
         // 2. Service Wise Donut Chart
         var ctxPie = document.getElementById('serviceWiseChart').getContext('2d');
+        @php
+            $sbLabels = [];
+            $sbData = [];
+            foreach (($financialStats['servicesBreakdown'] ?? []) as $sb) {
+                $sbLabels[] = $sb['service'];
+                $sbData[] = (float)$sb['gross'];
+            }
+            if (empty($sbData) || array_sum($sbData) == 0) {
+                $sbLabels = ['Cab & Transport', 'Home Services', 'Food Delivery', 'Parcel & Courier', 'Marketplace', 'Subscriptions'];
+                $sbData = [
+                    (float)($financialStats['servicesBreakdown'][0]['gross'] ?? 0),
+                    (float)($financialStats['servicesBreakdown'][1]['gross'] ?? 0),
+                    (float)($financialStats['servicesBreakdown'][2]['gross'] ?? 0),
+                    (float)($financialStats['servicesBreakdown'][3]['gross'] ?? 0),
+                    (float)($financialStats['marketplaceProductSales'] ?? 0),
+                    (float)($financialStats['totalSubscriptionRevenue'] ?? 0)
+                ];
+                if (array_sum($sbData) == 0) {
+                    $sbData = [1, 0, 0, 0, 0, 0];
+                }
+            }
+        @endphp
         new Chart(ctxPie, {
             type: 'doughnut',
             data: {
-                labels: ['Transport', 'Home Services', 'Marketplace', 'Delivery', 'Healthcare', 'Others'],
+                labels: {!! json_encode($sbLabels) !!},
                 datasets: [{
-                    data: [35, 20, 15, 12, 10, 8],
+                    data: {!! json_encode($sbData) !!},
                     backgroundColor: ['#5B4FE9', '#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#94A3B8'],
                     borderWidth: 0
                 }]
@@ -770,15 +825,15 @@ $recentBookings = DB::table('tj_requete')
             }
         });
 
-        // 3. App Downloads Bar Chart
+        // 3. Platform Activity Bar Chart (Revenue by Period)
         var ctxBar = document.getElementById('appDownloadsChart').getContext('2d');
         new Chart(ctxBar, {
             type: 'bar',
             data: {
-                labels: ['01 May', '08 May', '15 May', '22 May', '29 May'],
+                labels: revLabels,
                 datasets: [{
-                    label: 'Downloads',
-                    data: [3200, 4800, 3900, 6100, 5200],
+                    label: 'Volume ({{ $currencySymbol }})',
+                    data: revGross,
                     backgroundColor: '#5B4FE9',
                     borderRadius: 6
                 }]
