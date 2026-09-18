@@ -618,9 +618,9 @@ class OnboardingController extends Controller
         $label = is_array($category) ? ($category['libelle'] ?? '') : ($category->libelle ?? '');
         $normalized = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $label)));
 
-        // Pure transport and commercial vehicle categories require manual vehicle verification
-        $isTransport = str_contains($normalized, 'transport') || 
-                       str_contains($normalized, 'cab') || 
+        // Pure transport and commercial vehicle categories — not home service
+        $isTransport = str_contains($normalized, 'transport') ||
+                       str_contains($normalized, 'cab') ||
                        str_contains($normalized, 'taxi') ||
                        str_contains($normalized, 'mobility') ||
                        str_contains($normalized, 'auto driver') ||
@@ -628,7 +628,19 @@ class OnboardingController extends Controller
                        str_contains($normalized, 'bike rider') ||
                        str_contains($normalized, 'truck');
 
-        if ($isTransport) {
+        // Delivery & Logistics categories — not home service
+        $isDelivery = str_contains($normalized, 'delivery') ||
+                      str_contains($normalized, 'logistics') ||
+                      str_contains($normalized, 'parcel') ||
+                      str_contains($normalized, 'pickup') ||
+                      str_contains($normalized, 'food delivery') ||
+                      str_contains($normalized, 'packers') ||
+                      str_contains($normalized, 'movers') ||
+                      str_contains($normalized, 'personal runner') ||
+                      str_contains($normalized, 'fleet owner') ||
+                      str_contains($normalized, 'dispatch');
+
+        if ($isTransport || $isDelivery) {
             return false;
         }
 
