@@ -106,10 +106,21 @@ class ParcelRegisterController extends Controller
 
         $id = DB::getPdo()->lastInsertId();
         if ($id > 0) {
-            $get_user = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
-                ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
-                ->select('parcel_orders.*', DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"), 'parcel_category.title as parcel_type')
-                ->where('parcel_orders.id', $id)->first();
+            try {
+                // BUG FIX: alias 'parcel_type' conflicted with parcel_orders.parcel_type column.
+                // Renamed to 'parcel_category_title' to avoid ambiguity in toArray().
+                $get_user = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+                    ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
+                    ->select(
+                        'parcel_orders.*',
+                        DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"),
+                        DB::raw("parcel_category.title as parcel_category_title")
+                    )
+                    ->where('parcel_orders.id', $id)->first();
+            } catch (\Exception $e) {
+                \Log::warning('ParcelRegister join query failed, falling back: ' . $e->getMessage());
+                $get_user = null;
+            }
 
             if (!$get_user) {
                 // Fallback: fetch without joins
@@ -120,80 +131,109 @@ class ParcelRegisterController extends Controller
             $row['id'] = (string)$id;
             $row['user_name'] = $sender_name;
             $row['id_user_app'] = (string)$user_id;
-            $row['created_at'] = date("d", strtotime($row['created_at'])) . " " . $months[date("F", strtotime($row['created_at']))] . ". " . date("Y", strtotime($row['created_at']));
-            $row['updated_at'] = date("d", strtotime($row['updated_at'])) . " " . $months[date("F", strtotime($row['updated_at']))] . ". " . date("Y", strtotime($row['updated_at']));
 
-            if ($row['parcel_image'] != '') {
-                $parcelImage = json_decode($row['parcel_image'], true);
+            // BUG FIX: null-safe date formatting — PHP 8 throws TypeError on strtotime(null)
+            $createdAt = !empty($row['created_at']) ? $row['created_at'] : date('Y-m-d H:i:s');
+            $updatedAt = !empty($row['updated_at']) ? $row['updated_at'] : date('Y-m-d H:i:s');
+            $row['created_at'] = date("d", strtotime($createdAt)) . " " . ($months[date("F", strtotime($createdAt))] ?? date("M", strtotime($createdAt))) . ". " . date("Y", strtotime($createdAt));
+            $row['updated_at'] = date("d", strtotime($updatedAt)) . " " . ($months[date("F", strtotime($updatedAt))] ?? date("M", strtotime($updatedAt))) . ". " . date("Y", strtotime($updatedAt));
+
+            // BUG FIX: $image was used before assignment (if file_exists was false, push was undefined)
+            if (!empty($row['parcel_image']) && $row['parcel_image'] !== '[]') {
+                $parcelImage = json_decode($row['parcel_image'], true) ?? [];
                 $image_user = [];
                 foreach ($parcelImage as $value) {
-                    if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-                        $image = asset('images/parcel_order/') . '/' . $value;
+                    $resolvedImage = null;
+                    if (file_exists(public_path('images/parcel_order/' . $value))) {
+                        $resolvedImage = asset('images/parcel_order/') . '/' . $value;
+                    } elseif (filter_var($value, FILTER_VALIDATE_URL)) {
+                        // ImageKit / CDN URL — use as-is
+                        $resolvedImage = $value;
                     }
-                    array_push($image_user, $image);
+                    if ($resolvedImage) {
+                        $image_user[] = $resolvedImage;
+                    }
                 }
                 if (!empty($image_user)) {
                     $row['parcel_image'] = $image_user;
-                } else {
-                    $image_user = asset('assets/images/placeholder_image.jpg');
                 }
             }
 
             // Find nearby parcel drivers and notify them
-            $settings = DB::table('tj_settings')->select('driver_radios')->first();
-            $radius = floatval($settings->driver_radios ?? 15);
-            if ($radius <= 0) $radius = 15;
+            try {
+                $settings = DB::table('tj_settings')->select('driver_radios')->first();
+                $radius = floatval($settings->driver_radios ?? 15);
+                if ($radius <= 0) $radius = 15;
 
-            $drivers = DB::table("tj_conducteur")
-                ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
-                ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
-                ->select(
-                    "tj_conducteur.id",
-                    "tj_conducteur.fcm_id",
-                    DB::raw("6371 * acos(cos(radians(" . floatval($lat1) . "))
-                            * cos(radians(tj_conducteur.latitude))
-                            * cos(radians(tj_conducteur.longitude) - radians(" . floatval($lng1) . "))
-                            + sin(radians(" . floatval($lat1) . "))
-                            * sin(radians(tj_conducteur.latitude))) AS distance")
-                )
-                ->having('distance', '<=', $radius)
-                ->where('tj_conducteur.statut', 'yes')
-                ->where('tj_conducteur.online', '!=', 'no')
-                ->where('tj_conducteur.is_verified', '=', '1')
-                ->where(function ($query) {
-                    $query->whereIn('tj_categorie_user.libelle', [
-                        'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)', 
-                        'Logistics Partner', 'Bike Rider', 'Pickup'
-                    ])
-                    ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
-                    ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
-                })
-                ->distinct()
-                ->get();
+                // BUG FIX: acos() throws a MySQL error when driver latitude/longitude is NULL.
+                // Added NULLIF guards so drivers with missing coordinates are excluded safely.
+                $drivers = DB::table("tj_conducteur")
+                    ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
+                    ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
+                    ->select(
+                        "tj_conducteur.id",
+                        "tj_conducteur.fcm_id",
+                        DB::raw("6371 * acos(
+                            LEAST(1, GREATEST(-1,
+                                cos(radians(" . floatval($lat1) . "))
+                                * cos(radians(COALESCE(tj_conducteur.latitude, 0)))
+                                * cos(radians(COALESCE(tj_conducteur.longitude, 0)) - radians(" . floatval($lng1) . "))
+                                + sin(radians(" . floatval($lat1) . "))
+                                * sin(radians(COALESCE(tj_conducteur.latitude, 0)))
+                            )
+                        ) AS distance")
+                    )
+                    ->whereNotNull('tj_conducteur.latitude')
+                    ->whereNotNull('tj_conducteur.longitude')
+                    ->where('tj_conducteur.latitude', '!=', '')
+                    ->where('tj_conducteur.longitude', '!=', '')
+                    ->having('distance', '<=', $radius)
+                    ->where('tj_conducteur.statut', 'yes')
+                    ->where('tj_conducteur.online', '!=', 'no')
+                    ->where('tj_conducteur.is_verified', '=', '1')
+                    ->where(function ($query) {
+                        $query->whereIn('tj_categorie_user.libelle', [
+                            'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)',
+                            'Logistics Partner', 'Bike Rider', 'Pickup'
+                        ])
+                        ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
+                        ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
+                    })
+                    ->distinct()
+                    ->get();
 
-            if ($drivers->isNotEmpty()) {
-                $fcmMsg = array(
-                    "body" => "New Parcel: {$source_adrs} to {$destination_adrs} (₹{$amount})",
-                    "title" => "New Parcel Request",
-                    "sound" => "ride_request_sound",
-                    "tag" => "parcelnew",
-                    "statut" => "new",
-                    "order_type" => "parcel",
-                    "depart_name" => $source_adrs,
-                    "destination_name" => $destination_adrs,
-                    "montant" => (string)$amount
-                );
+                if ($drivers->isNotEmpty()) {
+                    $fcmMsg = [
+                        "body"             => "New Parcel: {$source_adrs} to {$destination_adrs} (₹{$amount})",
+                        "title"            => "New Parcel Request",
+                        "sound"            => "ride_request_sound",
+                        "tag"              => "parcelnew",
+                        "statut"           => "new",
+                        "order_type"       => "parcel",
+                        "depart_name"      => $source_adrs,
+                        "destination_name" => $destination_adrs,
+                        "montant"          => (string)$amount,
+                    ];
 
-                $notificationPayload = array_merge($row, $fcmMsg);
-                if (isset($notificationPayload['parcel_image']) && is_array($notificationPayload['parcel_image'])) {
-                    $notificationPayload['parcel_image'] = json_encode($notificationPayload['parcel_image']);
-                }
+                    $notificationPayload = array_merge($row, $fcmMsg);
+                    if (isset($notificationPayload['parcel_image']) && is_array($notificationPayload['parcel_image'])) {
+                        $notificationPayload['parcel_image'] = json_encode($notificationPayload['parcel_image']);
+                    }
 
-                foreach ($drivers as $driver) {
-                    if (!empty($driver->fcm_id)) {
-                        \App\Http\Controllers\API\v1\GcmController::sendNotification($driver->fcm_id, $notificationPayload);
+                    // BUG FIX: sendNotification was uncaught — any FCM failure would 500 the whole request
+                    foreach ($drivers as $driver) {
+                        if (!empty($driver->fcm_id)) {
+                            try {
+                                \App\Http\Controllers\API\v1\GcmController::sendNotification($driver->fcm_id, $notificationPayload);
+                            } catch (\Exception $notifEx) {
+                                \Log::warning('Parcel FCM notification failed for driver ' . $driver->id . ': ' . $notifEx->getMessage());
+                            }
+                        }
                     }
                 }
+            } catch (\Exception $driverEx) {
+                // Driver search/notify failed — log it but still return success to the user
+                \Log::error('ParcelRegister driver search failed: ' . $driverEx->getMessage());
             }
 
             $output[] = $row;
