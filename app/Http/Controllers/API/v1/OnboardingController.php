@@ -378,6 +378,7 @@ class OnboardingController extends Controller
                     'bank_name' => trim((string)$bankName),
                     'account_no' => trim((string)$accountNo),
                     'ifsc_code' => strtoupper(trim((string)$ifscCode)),
+                    'category_id' => $primaryCategoryId,
                     'zone_id' => $request->input('zone_id')
                 ];
 

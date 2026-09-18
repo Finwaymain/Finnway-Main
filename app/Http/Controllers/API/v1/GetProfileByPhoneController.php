@@ -569,6 +569,9 @@ class GetProfileByPhoneController extends Controller
                             $row['statut_vehicule'] = 'no';
                             $row['is_home_service_provider'] = false;
                             $row['is_transport_category'] = false;
+                            $row['is_delivery_partner'] = false;
+                            $row['is_bike_rider'] = false;
+                            $row['primary_console'] = 'taxi';
                             $row['selected_categories'] = [];
                             DB::table('tj_conducteur')->where('id', $id_user)->update([
                                 'is_verified' => 0,
@@ -591,84 +594,105 @@ class GetProfileByPhoneController extends Controller
                                 ->get()
                                 ->keyBy('id');
 
-                            $nativeDashboardRoots = [
-                                'Transport & Mobility',
-                                'Delivery & Logistics',
-                            ];
+                            // Helper function to resolve root category
+                            $getRootCategory = function($catId) use ($allCategoriesById) {
+                                $current = $allCategoriesById->get((int)$catId);
+                                $depth = 0;
+                                while ($current && $current->parent_id && $depth < 8) {
+                                    $parent = $allCategoriesById->get($current->parent_id);
+                                    if (!$parent) break;
+                                    $current = $parent;
+                                    $depth++;
+                                }
+                                return $current;
+                            };
 
                             $isTransportCategory = false;
+                            $isDeliveryCategory = false;
                             $isHomeServiceProvider = false;
+                            $isBikeRider = false;
+
                             $homeServiceProfessions = [
                                 'electrician', 'plumber', 'cleaner', 'carpenter', 'painter',
                                 'pest control', 'ac repair', 'appliance repair', 'home tutor',
                                 'maid', 'cook', 'babysitter', 'physiotherapist', 'nurse',
                             ];
 
-                            $isDeliveryPartner = false;
-                            $isBikeRider = false;
-                            $isPickupCategory = false;
+                            // Check driver's primary category from tj_conducteur if present
+                            $primaryCatId = !empty($row['category_id']) ? (int)$row['category_id'] : null;
+
+                            // Check if driver has a vehicle registered in tj_vehicule
+                            $hasVehicle = !empty($row['numberplate']) || DB::table('tj_vehicule')->where('id_conducteur', $id_user)->where('statut', 'yes')->exists();
 
                             foreach ($row['selected_categories'] as $catId) {
-                                $current = $allCategoriesById->get((int) $catId);
-                                $depth = 0;
-                                while ($current && $depth < 8) {
-                                    $normalized = preg_replace(
-                                        '/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u',
-                                        '',
-                                        $current->libelle ?? ''
-                                    );
-                                    $normalized = trim($normalized);
-                                    $normalizedLower = strtolower($normalized);
+                                $root = $getRootCategory($catId);
+                                $rootLabel = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $root ? $root->libelle : '')));
 
-                                    if (str_contains($normalizedLower, 'delivery & logistics') || 
-                                        str_contains($normalizedLower, 'parcel delivery') || 
-                                        str_contains($normalizedLower, 'food delivery') ||
-                                        str_contains($normalizedLower, 'logistics partner')) {
-                                        $isDeliveryPartner = true;
-                                    }
+                                $cur = $allCategoriesById->get((int)$catId);
+                                $curLabel = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $cur ? $cur->libelle : '')));
 
-                                    if ($normalizedLower === 'pickup' || str_contains($normalizedLower, 'pickup & drop')) {
-                                        $isPickupCategory = true;
-                                        $isDeliveryPartner = true;
-                                    }
+                                if (str_contains($rootLabel, 'transport') || str_contains($curLabel, 'cab') || str_contains($curLabel, 'taxi') || str_contains($curLabel, 'auto driver') || str_contains($curLabel, 'e-rickshaw')) {
+                                    $isTransportCategory = true;
+                                } elseif (str_contains($rootLabel, 'delivery') || str_contains($curLabel, 'delivery & logistics') || str_contains($curLabel, 'parcel delivery') || str_contains($curLabel, 'food delivery') || str_contains($curLabel, 'logistics partner')) {
+                                    $isDeliveryCategory = true;
+                                }
 
-                                    if ($normalizedLower === 'bike rider' || str_contains($normalizedLower, 'bike rider') || str_contains($normalizedLower, 'motorcycle')) {
-                                        $isBikeRider = true;
-                                        $isDeliveryPartner = true; // Bike riders deliver parcels and food!
-                                    }
+                                if (str_contains($curLabel, 'bike rider') || str_contains($curLabel, 'motorcycle')) {
+                                    $isBikeRider = true;
+                                }
 
-                                    if (str_contains($normalizedLower, 'home services')) {
+                                if (str_contains($rootLabel, 'home services') || str_contains($curLabel, 'home services')) {
+                                    $isHomeServiceProvider = true;
+                                }
+                                foreach ($homeServiceProfessions as $profession) {
+                                    if ($curLabel === $profession || str_contains($curLabel, $profession)) {
                                         $isHomeServiceProvider = true;
+                                        break;
                                     }
-                                    foreach ($homeServiceProfessions as $profession) {
-                                        if ($normalizedLower === $profession || str_contains($normalizedLower, $profession)) {
-                                            $isHomeServiceProvider = true;
-                                            break;
-                                        }
-                                    }
-
-                                    foreach ($nativeDashboardRoots as $root) {
-                                        if ($normalized === $root || str_contains($normalized, $root)) {
-                                            $isTransportCategory = true;
-                                            break 2;
-                                        }
-                                    }
-                                    $current = $current->parent_id ? $allCategoriesById->get($current->parent_id) : null;
-                                    $depth++;
                                 }
                             }
 
-                            if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
-                                $isTransportCategory = true;
-                                $isDeliveryPartner = true;
+                            // If driver has a primary category id, its root determines primary role
+                            if ($primaryCatId) {
+                                $primaryRoot = $getRootCategory($primaryCatId);
+                                $primaryRootLabel = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $primaryRoot ? $primaryRoot->libelle : '')));
+                                if (str_contains($primaryRootLabel, 'transport')) {
+                                    $isTransportCategory = true;
+                                    $isDeliveryCategory = false;
+                                } elseif (str_contains($primaryRootLabel, 'delivery')) {
+                                    $isDeliveryCategory = true;
+                                }
                             }
 
-                            if (!$isTransportCategory) {
-                                $isHomeServiceProvider = true;
+                            // If driver has a transport vehicle, transport takes priority over secondary delivery add-ons
+                            if ($hasVehicle && $isTransportCategory) {
+                                $isDeliveryCategory = false;
                             }
 
-                            if ($isHomeServiceProvider) {
-                                $isTransportCategory = false;
+                            // Determine primary console and flags:
+                            if ($isTransportCategory) {
+                                // Transport & Mobility driver: Cab, Taxi, Auto, Bike Taxi
+                                $row['is_transport_category'] = true;
+                                $row['is_delivery_partner'] = false;
+                                $row['is_home_service_provider'] = false;
+                                $row['primary_console'] = 'taxi';
+                            } elseif ($isDeliveryCategory || $isBikeRider) {
+                                // Delivery & Logistics driver: Delivery Partner, Parcel Delivery, Food Delivery
+                                $row['is_transport_category'] = false;
+                                $row['is_delivery_partner'] = true;
+                                $row['is_home_service_provider'] = false;
+                                $row['primary_console'] = 'delivery';
+                            } else {
+                                // Home Services or Marketplace driver
+                                $row['is_transport_category'] = false;
+                                $row['is_delivery_partner'] = false;
+                                $row['is_home_service_provider'] = true;
+                                $row['primary_console'] = 'home_service';
+                            }
+
+                            $row['is_bike_rider'] = $isBikeRider;
+
+                            if ($row['is_home_service_provider']) {
                                 $row['is_verified'] = 'yes';
                                 $row['statut'] = 'yes';
                                 $row['statut_vehicule'] = 'yes';
@@ -678,17 +702,9 @@ class GetProfileByPhoneController extends Controller
                                     'statut_vehicule' => 'yes',
                                 ]);
                             } else {
-                                $row['is_home_service_provider'] = false;
-                                $row['is_transport_category'] = true;
                                 $dbVerified = DB::table('tj_conducteur')->where('id', $id_user)->value('is_verified');
                                 $row['is_verified'] = ($dbVerified == 1) ? 'yes' : 'no';
                             }
-
-                            $row['is_transport_category'] = $isTransportCategory;
-                            $row['is_home_service_provider'] = $isHomeServiceProvider;
-                            $row['is_delivery_partner'] = $isDeliveryPartner || ($row['parcel_delivery'] ?? '') === 'yes' || $isPickupCategory;
-                            $row['is_bike_rider'] = $isBikeRider;
-                            $row['primary_console'] = ($row['is_delivery_partner'] || $isBikeRider) ? 'delivery' : ($isTransportCategory ? 'taxi' : 'home_service');
                         }
 
                         $row['id']=(string)$id_user;

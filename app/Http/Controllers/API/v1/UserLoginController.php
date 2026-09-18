@@ -223,6 +223,17 @@ class UserLoginController extends Controller
                                     $dbVerified = DB::table('tj_conducteur')->where('id', $id_user)->value('is_verified');
                                     $row['is_verified'] = ($dbVerified == 1) ? 'yes' : 'no';
                                 }
+
+                                $row['is_bike_rider'] = false;
+                                foreach ($driverCats ?? [] as $cLib) {
+                                    $cLibNorm = strtolower(trim($cLib));
+                                    if (str_contains($cLibNorm, 'bike rider') || str_contains($cLibNorm, 'motorcycle')) {
+                                        $row['is_bike_rider'] = true;
+                                        break;
+                                    }
+                                }
+                                $row['is_delivery_partner'] = !$isTransportCategory && !$row['is_home_service_provider'];
+                                $row['primary_console'] = $row['is_transport_category'] ? 'taxi' : ($row['is_home_service_provider'] ? 'home_service' : 'delivery');
                             }
 
 	                     	if(!empty($row)){
