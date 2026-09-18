@@ -30,9 +30,9 @@ class GetParcelOrdersController extends Controller
         $id_driver = $request->get('id_driver');
 
         if (!empty($id_driver)) {
-            $sql = ParcelOrder::Join('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+            $sql = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
                 ->leftjoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
-                ->select('parcel_orders.*', 'tj_payment_method.libelle', 'tj_payment_method.image as payment_image', 'parcel_category.title')
+                ->select('parcel_orders.*', DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as libelle"), 'tj_payment_method.image as payment_image', 'parcel_category.title')
                 ->where('parcel_orders.id_conducteur', '=', $id_driver)
                 ->orderBy('parcel_orders.id', 'desc')
                 ->get();
@@ -200,12 +200,12 @@ class GetParcelOrdersController extends Controller
 
         $id_user_app = $request->get('id_user_app');
         if (!empty($id_user_app)) {
-            $sql = ParcelOrder::Join('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+            $sql = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
                 ->leftjoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
                 ->Join('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
                 ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'parcel_orders.id_conducteur')
                 ->select('parcel_orders.*',
-                    'tj_payment_method.libelle',
+                    DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as libelle"),
                     'tj_payment_method.image as payment_image',
                     'parcel_category.title',
                     'tj_user_app.phone',
@@ -378,7 +378,7 @@ class GetParcelOrdersController extends Controller
         if (!empty($parcel_id)) {
 
             $row = ParcelOrder::Join('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
-                ->Join('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+                ->leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
                 ->leftjoin('tj_conducteur', 'tj_conducteur.id', '=', 'parcel_orders.id_conducteur')
                 ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
                 ->select('parcel_orders.*',
@@ -393,7 +393,7 @@ class GetParcelOrdersController extends Controller
                     'tj_conducteur.latitude as driver_latitude',
                     'tj_conducteur.longitude as driver_longitude',
                     'parcel_category.title',
-                    'tj_payment_method.libelle',
+                    DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as libelle"),
                     'tj_payment_method.image as payment_image', )
                 ->where('parcel_orders.id', $parcel_id)->first();
 

@@ -25,19 +25,31 @@ class OtpVerificationController extends Controller
   
   public function VerifyOTP(Request $request)
   {
-    $id_user_app =  $request->get('id_user_app');
+    $id_user_app = $request->get('id_user_app');
     $ride_id = $request->get('ride_id');
-    $otp =  $request->get('otp');
+    $otp = $request->get('otp');
     $ride_type = $request->get('ride_type');
-    if(!empty($otp)){
-     if(!empty($ride_type) || $ride_type=='parcel'){
+
+    $response = [
+      'success' => 'Failed',
+      'error' => 'Invalid or missing OTP',
+      'message' => 'Invalid or missing OTP'
+    ];
+
+    if (!empty($otp)) {
+      if (!empty($ride_type) && $ride_type == 'parcel') {
         $otpsql = ParcelOrder::where('id', $ride_id)->where('id_user_app', $id_user_app)->get();
-      }else{
+      } else {
         $otpsql = Requests::where('id', $ride_id)->where('id_user_app', $id_user_app)->get();
       }
+
+      if ($otpsql->isEmpty()) {
+        $response['error'] = 'Ride or Parcel not found';
+        $response['message'] = 'Ride or Parcel not found';
+      } else {
         foreach ($otpsql as $row) {
           if (!empty($row->otp)) {
-            if ($row->otp == $otp) {
+            if ((string)$row->otp === (string)$otp) {
               $response['success'] = 'success';
               $response['error'] = null;
               $response['message'] = 'Successfully Verified OTP';
@@ -45,14 +57,13 @@ class OtpVerificationController extends Controller
               $response['success'] = 'Failed';
               $response['error'] = 'OTP is Incorrect';
               $response['message'] = 'OTP is Incorrect';
-
             }
           }
         }
       }
-        return response()->json($response);
-
     }
-        
+
+    return response()->json($response);
   }
+}
   

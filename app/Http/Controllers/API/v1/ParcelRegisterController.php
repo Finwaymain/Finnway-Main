@@ -69,7 +69,7 @@ class ParcelRegisterController extends Controller
 
         $amount = $request->get('amount');
         $created_at = date('Y-m-d H:i:s');
-        $otp = rand(1000, 9999);
+        $otp = (string) random_int(100000, 999999);
         ParcelOrder::create([
             'otp' => $otp,
             'id_user_app' => $user_id,
@@ -107,7 +107,7 @@ class ParcelRegisterController extends Controller
         if ($id > 0) {
             $get_user = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
                 ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
-                ->select('parcel_orders.*', 'tj_payment_method.libelle as payment_method', 'parcel_category.title as parcel_type')
+                ->select('parcel_orders.*', DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"), 'parcel_category.title as parcel_type')
                 ->where('parcel_orders.id', $id)->first();
 
             if (!$get_user) {
@@ -115,8 +115,10 @@ class ParcelRegisterController extends Controller
                 $get_user = ParcelOrder::where('id', $id)->first();
             }
 
-            $row = $get_user->toArray();
-            $row['id'] = (string) $row['id'];
+            $row = $get_user ? $get_user->toArray() : [];
+            $row['id'] = (string)$id;
+            $row['user_name'] = $sender_name;
+            $row['id_user_app'] = (string)$user_id;
             $row['created_at'] = date("d", strtotime($row['created_at'])) . " " . $months[date("F", strtotime($row['created_at']))] . ". " . date("Y", strtotime($row['created_at']));
             $row['updated_at'] = date("d", strtotime($row['updated_at'])) . " " . $months[date("F", strtotime($row['updated_at']))] . ". " . date("Y", strtotime($row['updated_at']));
 
@@ -138,7 +140,8 @@ class ParcelRegisterController extends Controller
 
             // Find nearby parcel drivers and notify them
             $settings = DB::table('tj_settings')->select('driver_radios')->first();
-            $radius = $settings->driver_radios ?? 10;
+            $radius = floatval($settings->driver_radios ?? 15);
+            if ($radius <= 0) $radius = 15;
 
             $drivers = DB::table("tj_conducteur")
                 ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
@@ -157,19 +160,27 @@ class ParcelRegisterController extends Controller
                 ->where('tj_conducteur.online', '!=', 'no')
                 ->where('tj_conducteur.is_verified', '=', '1')
                 ->where(function ($query) {
-                    $query->where('tj_categorie_user.libelle', '=', 'Parcel Delivery')
-                        ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
+                    $query->whereIn('tj_categorie_user.libelle', [
+                        'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)', 
+                        'Logistics Partner', 'Bike Rider', 'Pickup'
+                    ])
+                    ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
+                    ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
                 })
                 ->distinct()
                 ->get();
 
             if ($drivers->isNotEmpty()) {
                 $fcmMsg = array(
-                    "body" => "You have just received a request for a parcel delivery",
+                    "body" => "New Parcel: {$source_adrs} to {$destination_adrs} (₹{$amount})",
                     "title" => "New Parcel Request",
                     "sound" => "ride_request_sound",
                     "tag" => "parcelnew",
-                    "statut" => "new"
+                    "statut" => "new",
+                    "order_type" => "parcel",
+                    "depart_name" => $source_adrs,
+                    "destination_name" => $destination_adrs,
+                    "montant" => (string)$amount
                 );
 
                 $notificationPayload = array_merge($row, $fcmMsg);

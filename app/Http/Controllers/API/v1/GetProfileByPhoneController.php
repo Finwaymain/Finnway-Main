@@ -604,6 +604,10 @@ class GetProfileByPhoneController extends Controller
                                 'maid', 'cook', 'babysitter', 'physiotherapist', 'nurse',
                             ];
 
+                            $isDeliveryPartner = false;
+                            $isBikeRider = false;
+                            $isPickupCategory = false;
+
                             foreach ($row['selected_categories'] as $catId) {
                                 $current = $allCategoriesById->get((int) $catId);
                                 $depth = 0;
@@ -615,6 +619,23 @@ class GetProfileByPhoneController extends Controller
                                     );
                                     $normalized = trim($normalized);
                                     $normalizedLower = strtolower($normalized);
+
+                                    if (str_contains($normalizedLower, 'delivery & logistics') || 
+                                        str_contains($normalizedLower, 'parcel delivery') || 
+                                        str_contains($normalizedLower, 'food delivery') ||
+                                        str_contains($normalizedLower, 'logistics partner')) {
+                                        $isDeliveryPartner = true;
+                                    }
+
+                                    if ($normalizedLower === 'pickup' || str_contains($normalizedLower, 'pickup & drop')) {
+                                        $isPickupCategory = true;
+                                        $isDeliveryPartner = true;
+                                    }
+
+                                    if ($normalizedLower === 'bike rider' || str_contains($normalizedLower, 'bike rider') || str_contains($normalizedLower, 'motorcycle')) {
+                                        $isBikeRider = true;
+                                        $isDeliveryPartner = true; // Bike riders deliver parcels and food!
+                                    }
 
                                     if (str_contains($normalizedLower, 'home services')) {
                                         $isHomeServiceProvider = true;
@@ -639,6 +660,7 @@ class GetProfileByPhoneController extends Controller
 
                             if (!$isTransportCategory && ($row['parcel_delivery'] ?? '') === 'yes') {
                                 $isTransportCategory = true;
+                                $isDeliveryPartner = true;
                             }
 
                             if (!$isTransportCategory) {
@@ -664,6 +686,9 @@ class GetProfileByPhoneController extends Controller
 
                             $row['is_transport_category'] = $isTransportCategory;
                             $row['is_home_service_provider'] = $isHomeServiceProvider;
+                            $row['is_delivery_partner'] = $isDeliveryPartner || ($row['parcel_delivery'] ?? '') === 'yes' || $isPickupCategory;
+                            $row['is_bike_rider'] = $isBikeRider;
+                            $row['primary_console'] = ($row['is_delivery_partner'] || $isBikeRider) ? 'delivery' : ($isTransportCategory ? 'taxi' : 'home_service');
                         }
 
                         $row['id']=(string)$id_user;

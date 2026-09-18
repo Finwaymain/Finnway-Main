@@ -82,44 +82,56 @@ class SearchDriverParcelOrdersController extends Controller
 
             if ((!empty($date)) || (!empty($source_lat) && !empty($source_lng)) || (!empty($destination_lat) && !empty($destination_lng))) {
 
-                $ParcelOrder = ParcelOrder::join('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
-                    ->Join('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
-                    ->join('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
-                    ->select('parcel_orders.*',
-                        'tj_payment_method.libelle as payment_method',
+                $ParcelOrder = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+                    ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
+                    ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
+                    ->select(
+                        'parcel_orders.*',
+                        DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"),
                         'parcel_category.title as parcel_type',
                         'tj_user_app.nom',
                         'tj_user_app.prenom',
                         'tj_user_app.phone as user_phone',
                         'tj_user_app.photo_path as user_photo'
-                        );
+                    );
 
                 if (!empty($date)) {
                     $ParcelOrder = $ParcelOrder->where('parcel_date', '=', $date);
                 }
 
                 if (!empty($source_lat) && !empty($source_lng)) {
-                    $ParcelOrder = $ParcelOrder->where('lat_source', '=', $source_lat)->where('lng_source', '=', $source_lng);
+                    $driverRadius = floatval(DB::table('tj_settings')->value('driver_radios') ?? 15);
+                    if ($driverRadius <= 0) {
+                        $driverRadius = 15;
+                    }
+                    $haversine = "(6371 * acos(cos(radians(" . floatval($source_lat) . ")) * cos(radians(parcel_orders.lat_source)) * cos(radians(parcel_orders.lng_source) - radians(" . floatval($source_lng) . ")) + sin(radians(" . floatval($source_lat) . ")) * sin(radians(parcel_orders.lat_source))))";
+                    $ParcelOrder = $ParcelOrder->selectRaw("{$haversine} AS distance")
+                        ->whereRaw("{$haversine} <= ?", [$driverRadius]);
                 }
-                
+
                 if (!empty($destination_lat) && !empty($destination_lng)) {
-                    $ParcelOrder = $ParcelOrder->where('lat_destination', '=', $destination_lat)->where('lng_destination', '=', $destination_lng);
+                    $destHaversine = "(6371 * acos(cos(radians(" . floatval($destination_lat) . ")) * cos(radians(parcel_orders.lat_destination)) * cos(radians(parcel_orders.lng_destination) - radians(" . floatval($destination_lng) . ")) + sin(radians(" . floatval($destination_lat) . ")) * sin(radians(parcel_orders.lat_destination))))";
+                    $ParcelOrder = $ParcelOrder->whereRaw("{$destHaversine} <= 25");
                 }
-                
+
                 $ParcelOrder = $ParcelOrder->where('parcel_orders.status', '=', 'new')->get();
 
-                if ($ParcelOrder->isEmpty()) {
-
-                    $ParcelOrder = ParcelOrder::join('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
-                        ->join('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
-                        ->Join('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
-                        ->select('parcel_orders.*',
-                        'tj_payment_method.libelle as payment_method', 
-                        'parcel_category.title as parcel_type', 
-                        'tj_user_app.nom', 'tj_user_app.prenom', 
-                        'tj_user_app.phone as user_phone', 
-                        'tj_user_app.photo_path as user_photo')
-                        ->where('source_city', '=', $source_city)->where('parcel_orders.status', '=', 'new')->get();
+                if ($ParcelOrder->isEmpty() && !empty($source_city)) {
+                    $ParcelOrder = ParcelOrder::leftJoin('tj_payment_method', 'tj_payment_method.id', '=', 'parcel_orders.id_payment_method')
+                        ->leftJoin('parcel_category', 'parcel_category.id', '=', 'parcel_orders.parcel_type')
+                        ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'parcel_orders.id_user_app')
+                        ->select(
+                            'parcel_orders.*',
+                            DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"),
+                            'parcel_category.title as parcel_type',
+                            'tj_user_app.nom',
+                            'tj_user_app.prenom',
+                            'tj_user_app.phone as user_phone',
+                            'tj_user_app.photo_path as user_photo'
+                        )
+                        ->where('source_city', 'like', '%' . $source_city . '%')
+                        ->where('parcel_orders.status', '=', 'new')
+                        ->get();
                 }
 
                 if (!$ParcelOrder->isEmpty()) {

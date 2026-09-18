@@ -170,6 +170,65 @@ class RestaurantOrderController extends Controller
             $order->order_status = 'ready_for_pickup';
             $order->ready_at = now();
             $order->pickup_otp = $order->pickup_otp ?: (string) random_int(1000, 9999);
+
+            // Notify nearby bike riders & food delivery drivers
+            if ($restaurant->latitude && $restaurant->longitude) {
+                try {
+                    $rLat = floatval($restaurant->latitude);
+                    $rLng = floatval($restaurant->longitude);
+                    $settings = \Illuminate\Support\Facades\DB::table('tj_settings')->select('driver_radios')->first();
+                    $radius = floatval($settings->driver_radios ?? 15);
+                    if ($radius <= 0) $radius = 15;
+
+                    $drivers = \Illuminate\Support\Facades\DB::table("tj_conducteur")
+                        ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
+                        ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
+                        ->select(
+                            "tj_conducteur.id",
+                            "tj_conducteur.fcm_id",
+                            \Illuminate\Support\Facades\DB::raw("6371 * acos(cos(radians(" . $rLat . "))
+                                    * cos(radians(tj_conducteur.latitude))
+                                    * cos(radians(tj_conducteur.longitude) - radians(" . $rLng . "))
+                                    + sin(radians(" . $rLat . "))
+                                    * sin(radians(tj_conducteur.latitude))) AS distance")
+                        )
+                        ->having('distance', '<=', $radius)
+                        ->where('tj_conducteur.statut', 'yes')
+                        ->where('tj_conducteur.online', '!=', 'no')
+                        ->where('tj_conducteur.is_verified', '=', '1')
+                        ->where(function ($query) {
+                            $query->whereIn('tj_categorie_user.libelle', [
+                                'Bike Rider', 'Food Delivery', 'Pickup & Drop (Personal runner)', 
+                                'Parcel Delivery', 'Logistics Partner'
+                            ])
+                            ->orWhereIn('tj_conducteur_categories.subcategory_id', [12882, 12889, 12890, 12891, 12892])
+                            ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888]);
+                        })
+                        ->distinct()
+                        ->get();
+
+                    $fcmPayload = [
+                        'title' => 'New Food Delivery Order',
+                        'body' => "Order #{$order->order_number} ready at {$restaurant->name} (₹{$order->delivery_charge})",
+                        'sound' => 'ride_request_sound',
+                        'tag' => 'food_delivery',
+                        'order_type' => 'food',
+                        'statut' => 'ready_for_pickup',
+                        'order_id' => (string) $order->id,
+                        'order_number' => (string) $order->order_number,
+                        'restaurant_name' => (string) $restaurant->name,
+                        'montant' => (string) $order->delivery_charge,
+                    ];
+
+                    foreach ($drivers as $driver) {
+                        if (!empty($driver->fcm_id)) {
+                            \App\Http\Controllers\API\v1\GcmController::sendNotification($driver->fcm_id, $fcmPayload);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error("Food ready push notification error: " . $e->getMessage());
+                }
+            }
         } else {
             return response()->json(['success' => false, 'error' => 'Invalid status transition.']);
         }
