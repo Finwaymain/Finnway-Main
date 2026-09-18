@@ -137,7 +137,7 @@
                                 </div>
                             </div>
                             <div>
-                                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm font-weight-bold mr-2" data-toggle="modal" data-target="#selectProductModal">
+                                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm font-weight-bold mr-2" data-toggle="modal" data-target="#selectProductModal" data-bs-toggle="modal" data-bs-target="#selectProductModal" onclick="openProductSelectModal()">
                                     <i class="mdi mdi-plus-box mr-1"></i> Select from Products
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3 shadow-sm font-weight-bold" onclick="addCustomProductRow()">
@@ -376,7 +376,7 @@
                 <h5 class="modal-title font-weight-bold text-dark" id="selectProductModalTitle">
                     <i class="mdi mdi-package-variant text-primary mr-1"></i> Select Products for Kit
                 </h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" onclick="closeProductSelectModal()">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -424,13 +424,23 @@
                 </div>
             </div>
             <div class="modal-footer bg-light py-2">
-                <button type="button" class="btn btn-secondary rounded-pill px-4" data-dismiss="modal">Done</button>
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeProductSelectModal()">Done</button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
+/* Modal Stack Fix: Ensure backdrop doesn't cover modal */
+.modal-backdrop {
+    z-index: 1050 !important;
+}
+#selectProductModal {
+    z-index: 1060 !important;
+}
+#selectProductModal .modal-dialog {
+    z-index: 1065 !important;
+}
 .hover-shadow:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     border-color: #3b82f6 !important;
@@ -444,6 +454,30 @@
 let productIndex = 0;
 const existingProducts = @json($kit->products ?? []);
 const existingItemsIncluded = @json($kit->items_included ?? []);
+
+function openProductSelectModal() {
+    // Append to body if not already to prevent parent stacking-context traps
+    const modalEl = document.getElementById('selectProductModal');
+    if (modalEl && modalEl.parentNode !== document.body) {
+        document.body.appendChild(modalEl);
+    }
+    if (typeof $ !== 'undefined' && $.fn && $.fn.modal) {
+        $('#selectProductModal').modal('show');
+    } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+    }
+}
+
+function closeProductSelectModal() {
+    const modalEl = document.getElementById('selectProductModal');
+    if (typeof $ !== 'undefined' && $.fn && $.fn.modal) {
+        $('#selectProductModal').modal('hide');
+    } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+    }
+}
 
 function previewKitImage(input) {
     if (input.files && input.files[0]) {
@@ -481,7 +515,7 @@ function addCatalogProduct(id, title, img, price) {
         price: price || 0,
         is_mandatory: 1
     });
-    $('#selectProductModal').modal('hide');
+    closeProductSelectModal();
 }
 
 function addCustomProductRow() {
@@ -670,6 +704,12 @@ document.getElementById('kitDescInput').addEventListener('input', updatePreviewC
 document.getElementById('kitCategorySelect').addEventListener('change', updatePreviewCard);
 
 window.addEventListener('DOMContentLoaded', () => {
+    // Ensure modal element is placed at root of body to prevent backdrop stacking trap
+    const modalEl = document.getElementById('selectProductModal');
+    if (modalEl && modalEl.parentNode !== document.body) {
+        document.body.appendChild(modalEl);
+    }
+
     // Populate existing products
     if (Array.isArray(existingProducts) && existingProducts.length > 0) {
         existingProducts.forEach(p => appendProductRow(p));
