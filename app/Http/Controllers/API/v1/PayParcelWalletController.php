@@ -78,19 +78,26 @@ class PayParcelWalletController extends Controller
 
 
 
-        $admin_commisions = Commission::where('statut', 'yes')->first();
-
         $commission_amount = 0;
+        $driverData = Driver::where('id', $id_user)->first();
+        $adminCommission = !empty($driverData->adminCommission) ? $driverData->adminCommission : null;
+        $admin_commisions = Commission::where('statut', 'yes')->first() ?: Commission::first();
 
-        if (!empty($admin_commisions)) {
-            $driverData = Driver::where('id', $id_user)->first();
-            $adminCommission = $driverData->adminCommission;
-            if ($adminCommission['type'] == 'Percentage') {
-
-                $commission_amount = ((floatval($adminCommission['value']) * floatval($totalAmount)) / 100);
+        if ($adminCommission && isset($adminCommission['value'])) {
+            $commType = strtolower(trim((string) ($adminCommission['type'] ?? 'percentage')));
+            $commVal = floatval($adminCommission['value']);
+            if ($commType == 'percentage' || $commType == 'percent') {
+                $commission_amount = round(($commVal * floatval($totalAmount)) / 100, 2);
             } else {
-
-                $commission_amount = floatval($adminCommission['value']);
+                $commission_amount = round($commVal, 2);
+            }
+        } elseif (!empty($admin_commisions)) {
+            $commType = strtolower(trim((string) ($admin_commisions->type ?? 'percentage')));
+            $commVal = floatval($admin_commisions->value ?? 0);
+            if ($commType == 'percentage' || $commType == 'percent') {
+                $commission_amount = round(($commVal * floatval($totalAmount)) / 100, 2);
+            } else {
+                $commission_amount = round($commVal, 2);
             }
         }
 
@@ -155,14 +162,15 @@ class PayParcelWalletController extends Controller
         $totalDriverAmount = floatval($driverBaseAmount) - floatval($commission_amount);
 
         $row_amount = DB::table('tj_user_app')->select('amount')->where('id', '=', $id_user_app)->first();
-        $userWallet = 0;
-        if (!empty($row_amount)) {
-            if ($row_amount->amount != '' && $row_amount->amount != null) {
-                $userWallet = $row_amount->amount;
-            }
-            $userWallet = $userWallet - $totalUserAmount;
-            DB::update('update tj_user_app set amount = ? where id = ?', [$userWallet, $id_user_app]);
+        $userWallet = ($row_amount && $row_amount->amount !== null && $row_amount->amount !== '') ? floatval($row_amount->amount) : 0;
+        if ($userWallet < $totalUserAmount) {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Insufficient wallet balance';
+            return response()->json($response);
         }
+
+        $userWallet = $userWallet - $totalUserAmount;
+        DB::update('update tj_user_app set amount = ? where id = ?', [$userWallet, $id_user_app]);
 
         DB::insert("insert into tj_transaction(amount,deduction_type,ride_id,payment_method, payment_status,id_user_app, creer,modifier)
         values($totalUserAmount,0,'" . $id_requete . "','" . $paymethod . "','" . $payment_status . "','" . $id_user_app . "','" . $date_heure . "','" . $date_heure . "')");
@@ -198,37 +206,27 @@ class PayParcelWalletController extends Controller
             ]);
         }
 
+        $row_payment_method = DB::table('tj_payment_method')
+            ->select('id')
+            ->where(DB::raw('LOWER(libelle)'), '=', strtolower($paymethod ?: 'wallet'))
+            ->first();
 
-
-
-
-        $row_payment_method = DB::table('tj_payment_method')->select('id')->where('libelle', $paymethod)->first();
-
-        if ($row_payment_method) {
-
-            $id_payment = $row_payment_method->id;
-
-        } else {
-
-            $response['success'] = 'Failed';
-
-            $response['error'] = 'Payment method not found';
-
-            return response()->json($response);
-
+        if (!$row_payment_method) {
+            $row_payment_method = DB::table('tj_payment_method')->where('libelle', 'like', '%wallet%')->first();
         }
 
-
+        if ($row_payment_method) {
+            $id_payment = $row_payment_method->id;
+        } else {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Payment method not found';
+            return response()->json($response);
+        }
 
         $updatedata = DB::update('update parcel_orders set payment_status = ?,id_payment_method = ?,tax = ?,discount = ?,admin_commission = ?,tip= ? where id = ?', ['yes', $id_payment, $tax_json, $discount, $commission_amount,$tip, $id_requete]);
 
-
-
-        if ($updatedata > 0) {
-
-
-
-            $sql = ParcelOrder::where('id', $id_requete)->first();
+        $sql = ParcelOrder::where('id', $id_requete)->first();
+        if ($sql) {
 
             $row = $sql->toarray();
 
@@ -306,7 +304,7 @@ class PayParcelWalletController extends Controller
 
 
 
-            $response['success'] = 'Success';
+            $response['success'] = 'success';
 
             $response['error'] = null;
 

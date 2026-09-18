@@ -22,19 +22,19 @@ class ParcelRegisterController extends Controller
     {
         $months = array("January" => 'Jan', "February" => 'Fev', "March" => 'Mar', "April" => 'Avr', "May" => 'Mai', "June" => 'Jun', "July" => 'Jul', "August" => 'Aou', "September" => 'Sep', "October" => 'Oct', "November" => 'Nov', "December" => 'Dec');
 
-        $user_id = $request->get('user_id');
-        $lat1 = $request->get('lat1');
-        $lng1 = $request->get('lng1');
-        $lat2 = $request->get('lat2');
-        $lng2 = $request->get('lng2');
+        $user_id = $request->get('user_id') ?: $request->get('id_user_app');
+        $lat1 = $request->get('lat1') ?: $request->get('lat_source');
+        $lng1 = $request->get('lng1') ?: $request->get('lng_source');
+        $lat2 = $request->get('lat2') ?: $request->get('lat_destination');
+        $lng2 = $request->get('lng2') ?: $request->get('lng_destination');
         $sourceCity = $request->get('source_city');
         $destinationCity = $request->get('destination_city');
         $distance = $request->get('distance');
         $distance_unit = $request->get('distance_unit');
         $duration = $request->get('duration');
         $id_payment = $request->get('id_payment') ?? '';
-        $source_adrs = $request->get('source_adrs');
-        $destination_adrs = $request->get('destination_adrs');
+        $source_adrs = $request->get('source_adrs') ?: $request->get('source');
+        $destination_adrs = $request->get('destination_adrs') ?: $request->get('destination');
         $sender_name = $request->get('sender_name');
         $receiver_name = $request->get('receiver_name');
         $sender_phone = $request->get('sender_phone');
@@ -42,10 +42,10 @@ class ParcelRegisterController extends Controller
         $note = $request->get('note');
         $parcel_weight = $request->get('parcel_weight');
         $parcel_dimension = $request->get('parcel_dimension');
+        $parcel_type = $request->get('parcel_type') ?: ($request->get('parcel_category') ?: '1');
         $image = $request->file('parcel_image');
-        $parcel_type = $request->get('parcel_type');
         $filenames = [];
-        $filename = '';
+        $filename = json_encode([]);
         if ($request->hasfile('parcel_image')) {
             for ($i = 0; $i < sizeof($image); $i++) {
                 try {
@@ -73,34 +73,35 @@ class ParcelRegisterController extends Controller
         ParcelOrder::create([
             'otp' => $otp,
             'id_user_app' => $user_id,
-            'source' => $source_adrs,
-            'destination' => $destination_adrs,
-            'lat_source' => $lat1,
-            'lng_source' => $lng1,
-            'lat_destination' => $lat2,
-            'lng_destination' => $lng2,
-            'source_city' => $sourceCity,
-            'destination_city' => $destinationCity,
-            'sender_name' => $sender_name,
-            'sender_phone' => $sender_phone,
-            'receiver_name' => $receiver_name,
-            'receiver_phone' => $receiver_phone,
-            'parcel_weight' => $parcel_weight,
-            'parcel_dimension' => $parcel_dimension,
+            'source' => $source_adrs ?: '',
+            'destination' => $destination_adrs ?: '',
+            'lat_source' => $lat1 ?: '',
+            'lng_source' => $lng1 ?: '',
+            'lat_destination' => $lat2 ?: '',
+            'lng_destination' => $lng2 ?: '',
+            'source_city' => $sourceCity ?? '',
+            'destination_city' => $destinationCity ?? '',
+            'sender_name' => $sender_name ?? '',
+            'sender_phone' => $sender_phone ?? '',
+            'receiver_name' => $receiver_name ?? '',
+            'receiver_phone' => $receiver_phone ?? '',
+            'parcel_weight' => $parcel_weight ?? '',
+            'parcel_dimension' => $parcel_dimension ?? '',
             'parcel_type' => $parcel_type,
-            'parcel_image' => $filename,
-            'note' => $note,
-            'parcel_date' => $parcel_date,
-            'parcel_time' => $parcel_time,
-            'receive_date' => $receive_date,
-            'receive_time' => $receive_time,
+            'parcel_image' => (!empty($filename) && $filename !== '""') ? $filename : json_encode([]),
+            'note' => $note ?? '',
+            'parcel_date' => $parcel_date ?: date('Y-m-d'),
+            'parcel_time' => $parcel_time ?: date('H:i:s'),
+            'receive_date' => $receive_date ?: date('Y-m-d'),
+            'receive_time' => $receive_time ?: date('H:i:s'),
             'status' => 'new',
+            'reason' => '',
             'payment_status' => 'no',
-            'id_payment_method' => $id_payment,
-            'distance' => $distance,
-            'distance_unit' => $distance_unit,
-            'amount' => $amount,
-            'duration' => $duration
+            'id_payment_method' => $id_payment ?: '0',
+            'distance' => $distance ?? '0',
+            'distance_unit' => $distance_unit ?? 'KM',
+            'amount' => $amount ?? '0',
+            'duration' => $duration ?? ''
         ]);
 
         $id = DB::getPdo()->lastInsertId();

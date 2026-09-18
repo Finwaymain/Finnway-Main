@@ -7,6 +7,7 @@ use App\Models\Driver;
 use App\Models\ParcelOrder;
 use App\Models\Zone;
 use Illuminate\Http\Request;
+use DB;
 
 class SearchDriverParcelOrdersController extends Controller
 {
@@ -27,14 +28,14 @@ class SearchDriverParcelOrdersController extends Controller
     {
         $months = array("January" => 'Jan', "February" => 'Feb', "March" => 'Mar', "April" => 'Apr', "May" => 'May', "June" => 'Jun', "July" => 'Jul', "August" => 'Aug', "September" => 'Sep', "October" => 'Oct', "November" => 'Nov', "December" => 'Dec');
 
-        $source_lat = $request->get('source_lat');
-        $source_lng = $request->get('source_lng');
+        $source_lat = $request->get('source_lat') ?: $request->get('lat');
+        $source_lng = $request->get('source_lng') ?: $request->get('lng');
         $destination_lat = $request->get('destination_lat');
         $destination_lng = $request->get('destination_lng');
         $date = $request->get('date');
         $source_city = $request->get('source_city');
-        $driver_id = $request->get('driver_id');
-        $driver=Driver::where('id', $driver_id)->where('is_verified','1')->first();
+        $driver_id = $request->get('driver_id') ?: $request->get('id_driver');
+        $driver = Driver::where('id', $driver_id)->where('is_verified', '1')->first();
 
         if(empty($driver)){
 

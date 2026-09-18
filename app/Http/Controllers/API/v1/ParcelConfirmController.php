@@ -195,18 +195,13 @@ class ParcelConfirmController extends Controller
                     $row['from_id'] = $data['from_id'];
 
                     $row['type'] = $data['type'];
+                }
 
-
-
-                    $driver_data = Driver::where('id', $driver_id)->first();
-
-                    $driver = $driver_data->toArray();
-
-                    $row['driver_id'] = (string) $driver['id'];
-
-                    $row['driver_name'] = (string) $driver_name;
-
-                    $row['driver_phone'] = (string) $driver['phone'];
+                $driver_data = Driver::where('id', $driver_id)->first();
+                if ($driver_data) {
+                    $row['driver_id'] = (string) $driver_data->id;
+                    $row['driver_name'] = (string) ($driver_name ?: ($driver_data->prenom . ' ' . $driver_data->nom));
+                    $row['driver_phone'] = (string) $driver_data->phone;
                 }
 
 

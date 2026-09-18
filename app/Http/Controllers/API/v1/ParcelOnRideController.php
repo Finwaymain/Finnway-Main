@@ -64,6 +64,11 @@ class ParcelOnRideController extends Controller
         $driver_id = $request->get('driver_id');
         $otp = $request->get('otp');
         $sql = ParcelOrder::where('id', $id_parcel)->first();
+        if (!$sql) {
+            $response['success'] = 'failed';
+            $response['error'] = 'Parcel order not found';
+            return response()->json($response);
+        }
         
         $settings = DB::table('tj_settings')->select('show_ride_otp')->first();
         if ($settings && $settings->show_ride_otp == 'yes') {
@@ -74,15 +79,20 @@ class ParcelOnRideController extends Controller
             }
         }
 
-        $driverId = $sql->id_conducteur;
+        $driverId = $sql->id_conducteur ?: $driver_id;
         $driverDetail = Driver::where('id', $driverId)->first();
-        if ($driverDetail->driver_on_ride == 'no') {
+        if (!$driverDetail) {
+            $response['success'] = 'failed';
+            $response['error'] = 'Driver not found';
+            return response()->json($response);
+        }
+        if ($driverDetail->driver_on_ride == 'no' || empty($driverDetail->driver_on_ride) || $sql->status == 'onride') {
             $updatedata = ParcelOrder::where('id', $id_parcel)->update(['status' => 'onride']);
 
 
             $updateDriver = Driver::where('id', $driverId)->update(['driver_on_ride' => 'yes']);
 
-            if (! empty($updatedata)) {
+            if (! empty($updatedata) || $sql->status == 'onride') {
 
 
 

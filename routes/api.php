@@ -448,7 +448,10 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
 
     Route::post('v1/amount/', [AddAmountController::class, 'register']);
 
-    Route::get('v1/otp_verify/', [OtpVerificationController::class, 'VerifyOTP']);
+    Route::match(['get', 'post'], 'v1/otp_verify/', [OtpVerificationController::class, 'VerifyOTP']);
+    Route::match(['get', 'post'], 'v1/otp_verify', [OtpVerificationController::class, 'VerifyOTP']);
+    Route::match(['get', 'post'], 'v1/verify-otp/', [OtpVerificationController::class, 'VerifyOTP']);
+    Route::match(['get', 'post'], 'v1/verify-otp', [OtpVerificationController::class, 'VerifyOTP']);
 
     Route::get('v1/otp/', [generateotpController::class, 'OTP']);
 

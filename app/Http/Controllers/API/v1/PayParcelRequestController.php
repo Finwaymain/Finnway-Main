@@ -88,19 +88,26 @@ class PayParcelRequestController extends Controller
 
 
 
-        $admin_commisions = Commission::where('statut', 'yes')->first();
-
         $commission_amount = 0;
+        $driverData = Driver::where('id', $id_user)->first();
+        $adminCommission = !empty($driverData->adminCommission) ? $driverData->adminCommission : null;
+        $admin_commisions = Commission::where('statut', 'yes')->first() ?: Commission::first();
 
-        if (!empty($admin_commisions)) {
-            $driverData = Driver::where('id', $id_user)->first();
-            $adminCommission = $driverData->adminCommission;
-            if ($adminCommission['type'] == 'Percentage') {
-
-                $commission_amount = ((floatval($adminCommission['value']) * floatval($totalamount)) / 100);
+        if ($adminCommission && isset($adminCommission['value'])) {
+            $commType = strtolower(trim((string) ($adminCommission['type'] ?? 'percentage')));
+            $commVal = floatval($adminCommission['value']);
+            if ($commType == 'percentage' || $commType == 'percent') {
+                $commission_amount = round(($commVal * floatval($totalamount)) / 100, 2);
             } else {
-
-                $commission_amount = floatval($adminCommission['value']);
+                $commission_amount = round($commVal, 2);
+            }
+        } elseif (!empty($admin_commisions)) {
+            $commType = strtolower(trim((string) ($admin_commisions->type ?? 'percentage')));
+            $commVal = floatval($admin_commisions->value ?? 0);
+            if ($commType == 'percentage' || $commType == 'percent') {
+                $commission_amount = round(($commVal * floatval($totalamount)) / 100, 2);
+            } else {
+                $commission_amount = round($commVal, 2);
             }
         }
 
@@ -210,34 +217,26 @@ class PayParcelRequestController extends Controller
 
 
         $sql_payment_method = DB::table('tj_payment_method')
+            ->select('id')
+            ->where(DB::raw('LOWER(libelle)'), '=', strtolower($paymethod ?: 'razorpay'))
+            ->first();
 
-            ->select('id')->where('libelle', '=', $paymethod)->first();
-
-
+        if (!$sql_payment_method) {
+            $sql_payment_method = DB::table('tj_payment_method')->where('statut', 'yes')->first();
+        }
 
         if ($sql_payment_method) {
-
             $id_payment = $sql_payment_method->id;
-
         } else {
-
             $response['success'] = 'Failed';
-
             $response['error'] = 'Payment method not found';
-
             return response()->json($response);
-
         }
 
         $updatedata = DB::update('update parcel_orders set payment_status = ?,id_payment_method = ?,tax = ?,tip = ?,discount = ?,admin_commission = ? where id = ?', ['yes', $id_payment, $tax_json, $tip, $discount, $commission_amount, $id_requete]);
 
-
-
-
-
-        if ($updatedata > 0) {
-
-            $sql = ParcelOrder::where('id', $id_requete)->first();
+        $sql = ParcelOrder::where('id', $id_requete)->first();
+        if ($sql) {
 
             $row = $sql->toarray();
 

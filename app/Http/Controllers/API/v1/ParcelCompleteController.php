@@ -68,18 +68,20 @@ class ParcelCompleteController extends Controller
 
         if (!empty($id_parcel) && !empty($driver_name) && !empty($id_user) && !empty($from_id)) {
 
-
+            $sql = ParcelOrder::where('id', $id_parcel)->first();
+            if (!$sql) {
+                $response['success'] = 'Failed';
+                $response['error'] = 'Parcel order not found';
+                return response()->json($response);
+            }
 
             $updatedata = ParcelOrder::where('id', $id_parcel)->update(['status' => 'completed']);
-            $sql = ParcelOrder::where('id', $id_parcel)->first();
-            $driverId = $sql->id_conducteur;
+            $driverId = $sql->id_conducteur ?: $from_id;
             $updateDriver = Driver::where('id', $driverId)->update(['driver_on_ride' => 'no']);
-
-
 
             if (!empty($updatedata)) {
 
-
+                $sql = ParcelOrder::where('id', $id_parcel)->first();
                 $row = $sql->toArray();
 
                 $row['id'] = (string)$row['id'];
@@ -90,7 +92,7 @@ class ParcelCompleteController extends Controller
 
 
 
-                if ($row['parcel_image'] != '') {
+                if (!empty($row['parcel_image'])) {
 
                     if (file_exists(public_path('images/parcel_order' . '/' . $row['parcel_image']))) {
 
@@ -100,25 +102,25 @@ class ParcelCompleteController extends Controller
 
                         $image_user = asset('assets/images/placeholder_image.jpg');
 
-
-
                     }
 
                     $row['parcel_image'] = $image_user;
 
+                } else {
+                    $row['parcel_image'] = asset('assets/images/placeholder_image.jpg');
                 }
 
 
 
-                $driver = Driver::where('id', $row['id_conducteur'])->first();
+                $driver = Driver::where('id', $driverId)->first();
 
-                $row['prenomConducteur'] = $driver->prenom;
+                $row['prenomConducteur'] = $driver ? $driver->prenom : '';
 
-                $row['nomConducteur'] = $driver->nom;
+                $row['nomConducteur'] = $driver ? $driver->nom : '';
 
-                $row['photo_path'] = $driver->photo_path;
+                $row['photo_path'] = $driver ? $driver->photo_path : '';
 
-                if ($row['photo_path'] != '') {
+                if (!empty($row['photo_path'])) {
 
                     if (file_exists(public_path('assets/images/driver' . '/' . $row['photo_path']))) {
 

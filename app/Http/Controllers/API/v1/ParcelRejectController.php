@@ -70,14 +70,15 @@ class ParcelRejectController extends Controller
         $settings = Settings::first();
         $subscriptionModel = $settings->subscription_model;
         $commissionData = Commission::first();
-        $commissionModel = $commissionData->statut;
         $sql = ParcelOrder::where('id', $id_parcel)->first();
+        if (!$sql) {
+            $response['success'] = 'Failed';
+            $response['error'] = 'Parcel order not found';
+            return response()->json($response);
+        }
         $rideStatus = $sql->status;
         if (!empty($id_parcel) && !empty($from_id) && !empty($driver_name) && !empty($id_user)) {
 
-
-
-            
             $drivertoReject = $sql->id_conducteur;
             $rejectDriverIds = $sql->rejected_driver_id;
 
@@ -265,10 +266,13 @@ class ParcelRejectController extends Controller
 
             }
 
-            if ($rideStatus == 'confirmed') {
+            if ($rideStatus == 'confirmed' || $rideStatus == 'onride') {
+                if ($drivertoReject) {
+                    Driver::where('id', $drivertoReject)->update(['driver_on_ride' => 'no']);
+                }
                 if ($subscriptionModel == 'true' || $commissionModel == 'yes') {
                     $rejectedDriverData = Driver::where('id', $drivertoReject)->first();
-                    if ($rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders != '-1')) {
+                    if ($rejectedDriverData && $rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders) != -1) {
                         $subscriptionTotalOrders = intval($rejectedDriverData->subscriptionTotalOrders) + 1;
                         Driver::where('id', $drivertoReject)->update(['subscriptionTotalOrders' => $subscriptionTotalOrders]);
                     }

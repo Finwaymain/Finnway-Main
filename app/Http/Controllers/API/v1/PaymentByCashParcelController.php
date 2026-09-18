@@ -232,7 +232,10 @@ class PaymentByCashParcelController extends Controller
         }
 
 
-        $row_payment_method = DB::table('tj_payment_method')->select('id')->where('libelle', $paymethod)->first();
+        $row_payment_method = DB::table('tj_payment_method')->where(DB::raw('LOWER(libelle)'), '=', strtolower($paymethod ?: 'cash'))->first();
+        if (!$row_payment_method) {
+            $row_payment_method = DB::table('tj_payment_method')->where('libelle', 'like', '%cash%')->first();
+        }
 
         if ($row_payment_method) {
 
