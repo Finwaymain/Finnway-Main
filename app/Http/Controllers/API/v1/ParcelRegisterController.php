@@ -268,21 +268,56 @@ class ParcelRegisterController extends Controller
                         ->get();
                 }
 
+                if ($drivers->isEmpty()) {
+                    // Fallback to ANY active online driver within radius
+                    \Log::info("ParcelRegister: No category-matched drivers for parcel #{$id}, falling back to any online driver within {$radius}km");
+                    $drivers = $baseQuery()->get();
+                }
+
+                if ($drivers->isEmpty()) {
+                    // Final fallback: expand radius up to 100km to find any active driver
+                    $expandedRadius = max(100, $radius * 2);
+                    \Log::info("ParcelRegister: Expanding radius to {$expandedRadius}km for parcel #{$id}");
+                    $drivers = DB::table("tj_conducteur")
+                        ->select("tj_conducteur.id", "tj_conducteur.fcm_id")
+                        ->whereNotNull('tj_conducteur.latitude')
+                        ->whereNotNull('tj_conducteur.longitude')
+                        ->where('tj_conducteur.latitude', '!=', '')
+                        ->where('tj_conducteur.longitude', '!=', '')
+                        ->where('tj_conducteur.statut', 'yes')
+                        ->where('tj_conducteur.online', '!=', 'no')
+                        ->whereNotNull('tj_conducteur.fcm_id')
+                        ->where('tj_conducteur.fcm_id', '!=', '')
+                        ->get();
+                }
+
                 $drivers = $drivers->unique('id');
 
                 if ($drivers->isNotEmpty()) {
                     $notifTag = $isBikeEligible ? 'parcelbike' : 'parcelnew';
                     $fcmMsg = [
+                        "id"               => (string)$id,
+                        "id_parcel"        => (string)$id,
+                        "booking_id"       => (string)$id,
                         "body"             => "New Parcel: {$source_adrs} to {$destination_adrs} (₹{$amount})",
                         "title"            => "New Parcel Request",
                         "sound"            => "ride_request_sound",
                         "tag"              => $notifTag,
                         "statut"           => "new",
                         "order_type"       => "parcel",
-                        "depart_name"      => $source_adrs,
-                        "destination_name" => $destination_adrs,
+                        "depart_name"      => (string)$source_adrs,
+                        "destination_name" => (string)$destination_adrs,
+                        "latitude_depart"  => (string)$lat1,
+                        "longitude_depart" => (string)$lng1,
+                        "latitude_arrivee" => (string)$lat2,
+                        "longitude_arrivee" => (string)$lng2,
+                        "prenom"           => (string)$sender_name,
+                        "nom"              => "",
+                        "phone"            => (string)$sender_phone,
                         "montant"          => (string)$amount,
-                        "preferred_vehicle" => $isBikeEligible ? 'bike' : 'any',
+                        "distance"         => (string)$distance,
+                        "distance_unit"    => (string)$distance_unit,
+                        "preferred_vehicle"=> $isBikeEligible ? 'bike' : 'any',
                     ];
 
                     $notificationPayload = array_merge($row, $fcmMsg);

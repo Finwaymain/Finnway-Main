@@ -121,46 +121,9 @@ class ParcelCanceledController extends Controller
                 GcmController::sendNotification($fcm_token, $cancelMsg);
             }
         } else {
-            // Pre-assignment cancellation: broadcast cancellation to nearby drivers who may have received the ping
-            try {
-                $lat = $sql->lat_source;
-                $lng = $sql->lng_source;
-                if (!empty($lat) && !empty($lng)) {
-                    $settings = DB::table('tj_settings')->select('driver_radios')->first();
-                    $radius = $settings ? ($settings->driver_radios ?? 50) : 50;
-
-                    $nearbyDrivers = DB::table('tj_conducteur')
-                        ->select('id', 'fcm_id', DB::raw("6371 * acos(cos(radians(" . (float)$lat . "))
-                            * cos(radians(latitude))
-                            * cos(radians(longitude) - radians(" . (float)$lng . "))
-                            + sin(radians(" . (float)$lat . "))
-                            * sin(radians(latitude))) AS distance"))
-                        ->having('distance', '<=', $radius)
-                        ->where('statut', 'yes')
-                        ->where('fcm_id', '!=', '')
-                        ->get();
-
-                    $broadcastCancel = [
-                        'body' => "Parcel booking #{$id_requete} has been cancelled.",
-                        'title' => 'Parcel Cancelled',
-                        'sound' => 'mySound',
-                        'tag' => 'booking_cancelled',
-                        'statut' => 'cancelled',
-                        'booking_id' => (string)$id_requete,
-                        'id_ride' => (string)$id_requete,
-                        'id' => (string)$id_requete,
-                        'order_type' => 'parcel',
-                    ];
-
-                    foreach ($nearbyDrivers as $nDriver) {
-                        if (!empty($nDriver->fcm_id)) {
-                            GcmController::sendNotification($nDriver->fcm_id, $broadcastCancel);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                \Log::warning("ParcelCanceledController broadcast cancel failed: " . $e->getMessage());
-            }
+            // Pre-assignment cancellation: Driver was not yet assigned.
+            // Do NOT blast visible cancellation notifications to nearby drivers who never accepted the parcel.
+            \Log::info("ParcelCanceledController: Parcel #{$id_requete} cancelled prior to driver assignment. Skipping unaccepted driver broadcast.");
         }
 
         // 4. Format response data
