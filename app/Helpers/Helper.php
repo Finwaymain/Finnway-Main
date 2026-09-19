@@ -14,28 +14,61 @@ class Helper {
     }
 
     public static function compressFile($source, $destination, $quality) { 
-        // Get image info 
-        $imgInfo = getimagesize($source); 
+        $dir = dirname($destination);
+        if (!file_exists($dir)) {
+            @mkdir($dir, 0777, true);
+        }
+
+        // Get image info safely
+        $imgInfo = @getimagesize($source); 
+        if (!$imgInfo || empty($imgInfo['mime'])) {
+            @copy($source, $destination);
+            return $destination;
+        }
+
         $mime = $imgInfo['mime']; 
-        // Create a new image from file 
-        switch($mime){ 
-            case 'image/jpeg': 
-                $image = imagecreatefromjpeg($source); 
-               imagejpeg($image, $destination, $quality);
-                break; 
-            case 'image/png': 
-                $image = imagecreatefrompng($source); 
-                imagepng($image, $destination, $quality);
-                break; 
-            case 'image/gif': 
-                $image = imagecreatefromgif($source); 
-                imagegif($image, $destination, $quality);
-                break; 
-            default: 
-                $image = imagecreatefromjpeg($source); 
-               imagejpeg($image, $destination, $quality);
-        } 
-        // Return compressed image
+        try {
+            switch($mime){ 
+                case 'image/jpeg': 
+                    $image = @imagecreatefromjpeg($source); 
+                    if ($image) {
+                        @imagejpeg($image, $destination, $quality);
+                        @imagedestroy($image);
+                        return $destination;
+                    }
+                    break; 
+                case 'image/png': 
+                    $image = @imagecreatefrompng($source); 
+                    if ($image) {
+                        @imagepng($image, $destination, 8);
+                        @imagedestroy($image);
+                        return $destination;
+                    }
+                    break; 
+                case 'image/gif': 
+                    $image = @imagecreatefromgif($source); 
+                    if ($image) {
+                        @imagegif($image, $destination);
+                        @imagedestroy($image);
+                        return $destination;
+                    }
+                    break; 
+                default: 
+                    $image = @imagecreatefromjpeg($source); 
+                    if ($image) {
+                        @imagejpeg($image, $destination, $quality);
+                        @imagedestroy($image);
+                        return $destination;
+                    }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('compressFile exception: ' . $e->getMessage());
+        }
+
+        // Fallback: direct copy if GD failed
+        if (!file_exists($destination)) {
+            @copy($source, $destination);
+        }
         return $destination;
     }
 

@@ -46,18 +46,31 @@ class ParcelRegisterController extends Controller
         $image = $request->file('parcel_image');
         $filenames = [];
         $filename = json_encode([]);
+        $amount = number_format((float)($request->get('amount') ?? 0), 2, '.', '');
+        $distance = number_format((float)($request->get('distance') ?? 0), 2, '.', '');
+
         if ($request->hasfile('parcel_image')) {
-            for ($i = 0; $i < sizeof($image); $i++) {
+            $images = is_array($image) ? $image : [$image];
+            $destDir = public_path('images/parcel_order');
+            if (!File::isDirectory($destDir)) {
+                @File::makeDirectory($destDir, 0777, true, true);
+            }
+            foreach ($images as $idx => $imgFile) {
+                if (!$imgFile) continue;
                 try {
-                    $url = $this->uploadToImageKit($image[$i], '/parcel_order');
+                    $url = $this->uploadToImageKit($imgFile, '/parcel_order');
                     array_push($filenames, $url);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     \Log::warning('ImageKit upload for parcel failed, falling back to local: ' . $e->getMessage());
-                    $extenstion = $image[$i]->getClientOriginalExtension();
-                    $time = time() . '_' . $i . '.' . $extenstion;
-                    $filename = 'parcel_' . $time;
-                    $compressedImage = Helper::compressFile($image[$i]->getPathName(), public_path('images/parcel_order') . '/' . $filename, 8);
-                    array_push($filenames, $filename);
+                    try {
+                        $extension = method_exists($imgFile, 'getClientOriginalExtension') ? ($imgFile->getClientOriginalExtension() ?: 'jpg') : 'jpg';
+                        $imgFileName = 'parcel_' . time() . '_' . $idx . '.' . $extension;
+                        $destPath = $destDir . '/' . $imgFileName;
+                        Helper::compressFile($imgFile->getPathName(), $destPath, 8);
+                        array_push($filenames, $imgFileName);
+                    } catch (\Throwable $localEx) {
+                        \Log::error('Local image save for parcel failed: ' . $localEx->getMessage());
+                    }
                 }
             }
             $filename = json_encode($filenames);
@@ -67,44 +80,52 @@ class ParcelRegisterController extends Controller
         $receive_date = $request->get('receive_date');
         $receive_time = $request->get('receive_time');
 
-        $amount = $request->get('amount');
         $created_at = date('Y-m-d H:i:s');
         $otp = (string) random_int(100000, 999999);
-        ParcelOrder::create([
-            'otp' => $otp,
-            'id_user_app' => $user_id,
-            'source' => $source_adrs ?: '',
-            'destination' => $destination_adrs ?: '',
-            'lat_source' => $lat1 ?: '',
-            'lng_source' => $lng1 ?: '',
-            'lat_destination' => $lat2 ?: '',
-            'lng_destination' => $lng2 ?: '',
-            'source_city' => $sourceCity ?? '',
-            'destination_city' => $destinationCity ?? '',
-            'sender_name' => $sender_name ?? '',
-            'sender_phone' => $sender_phone ?? '',
-            'receiver_name' => $receiver_name ?? '',
-            'receiver_phone' => $receiver_phone ?? '',
-            'parcel_weight' => $parcel_weight ?? '',
-            'parcel_dimension' => $parcel_dimension ?? '',
-            'parcel_type' => $parcel_type,
-            'parcel_image' => (!empty($filename) && $filename !== '""') ? $filename : json_encode([]),
-            'note' => $note ?? '',
-            'parcel_date' => $parcel_date ?: date('Y-m-d'),
-            'parcel_time' => $parcel_time ?: date('H:i:s'),
-            'receive_date' => $receive_date ?: date('Y-m-d'),
-            'receive_time' => $receive_time ?: date('H:i:s'),
-            'status' => 'new',
-            'reason' => '',
-            'payment_status' => 'no',
-            'id_payment_method' => $id_payment ?: '0',
-            'distance' => $distance ?? '0',
-            'distance_unit' => $distance_unit ?? 'KM',
-            'amount' => $amount ?? '0',
-            'duration' => $duration ?? ''
-        ]);
-
-        $id = DB::getPdo()->lastInsertId();
+        $id = 0;
+        try {
+            $newOrder = ParcelOrder::create([
+                'otp' => $otp,
+                'id_user_app' => $user_id,
+                'source' => $source_adrs ?: '',
+                'destination' => $destination_adrs ?: '',
+                'lat_source' => $lat1 ?: '',
+                'lng_source' => $lng1 ?: '',
+                'lat_destination' => $lat2 ?: '',
+                'lng_destination' => $lng2 ?: '',
+                'source_city' => $sourceCity ?? '',
+                'destination_city' => $destinationCity ?? '',
+                'sender_name' => $sender_name ?? '',
+                'sender_phone' => $sender_phone ?? '',
+                'receiver_name' => $receiver_name ?? '',
+                'receiver_phone' => $receiver_phone ?? '',
+                'parcel_weight' => $parcel_weight ?? '',
+                'parcel_dimension' => $parcel_dimension ?? '',
+                'parcel_type' => $parcel_type,
+                'parcel_image' => (!empty($filename) && $filename !== '""') ? $filename : json_encode([]),
+                'note' => $note ?? '',
+                'parcel_date' => $parcel_date ?: date('Y-m-d'),
+                'parcel_time' => $parcel_time ?: date('H:i:s'),
+                'receive_date' => $receive_date ?: date('Y-m-d'),
+                'receive_time' => $receive_time ?: date('H:i:s'),
+                'status' => 'new',
+                'reason' => '',
+                'payment_status' => 'no',
+                'id_payment_method' => $id_payment ?: '0',
+                'distance' => $distance ?? '0',
+                'distance_unit' => $distance_unit ?? 'KM',
+                'amount' => $amount ?? '0',
+                'duration' => $duration ?? ''
+            ]);
+            $id = $newOrder ? $newOrder->id : DB::getPdo()->lastInsertId();
+        } catch (\Throwable $dbEx) {
+            \Log::error('ParcelOrder::create failed: ' . $dbEx->getMessage());
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Database error: ' . $dbEx->getMessage(),
+                'message' => 'Failed to create parcel order'
+            ], 200);
+        }
         if ($id > 0) {
             try {
                 // BUG FIX: alias 'parcel_type' conflicted with parcel_orders.parcel_type column.
