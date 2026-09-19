@@ -191,15 +191,15 @@ class ParcelRegisterController extends Controller
                 $isBikeEligible  = ($parcelWeight <= 5 && $parcelDimension <= 3);
 
                 // Shared haversine distance expression based on pickup location
-                $distanceExpr = DB::raw("6371 * acos(
-                    LEAST(1, GREATEST(-1,
+                $distanceExpr = DB::raw("(6371 * acos(
+                    LEAST(1.0, GREATEST(-1.0,
                         cos(radians(" . floatval($lat1) . "))
                         * cos(radians(COALESCE(tj_conducteur.latitude, 0)))
                         * cos(radians(COALESCE(tj_conducteur.longitude, 0)) - radians(" . floatval($lng1) . "))
                         + sin(radians(" . floatval($lat1) . "))
                         * sin(radians(COALESCE(tj_conducteur.latitude, 0)))
-                    )
-                ) AS distance");
+                    ))
+                )) AS distance");
 
                 // Tier 1: Any driver within search radius ($radius km) having valid FCM token
                 $drivers = DB::table("tj_conducteur")

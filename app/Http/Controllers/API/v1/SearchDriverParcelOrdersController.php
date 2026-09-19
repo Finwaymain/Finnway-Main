@@ -33,7 +33,7 @@ class SearchDriverParcelOrdersController extends Controller
         $destination_lng = $request->get('destination_lng');
         $date = $request->get('date');
         $source_city = $request->get('source_city');
-        $driver_id = $request->get('driver_id') ?: $request->get('id_driver');
+        $driver_id = $request->get('driver_id') ?: ($request->get('id_driver') ?: $request->get('id_conducteur'));
 
         $driver = null;
         if (!empty($driver_id) && (int)$driver_id > 0) {
@@ -130,6 +130,9 @@ class SearchDriverParcelOrdersController extends Controller
             foreach ($ParcelOrder as $row) {
                 $row->id = (string)$row->id;
                 $row->user_name = trim((string)$row->prenom . " " . (string)$row->nom);
+                $row->distance = isset($row->distance) ? (string)round(floatval($row->distance), 2) : "0";
+                $row->amount = isset($row->amount) ? (string)$row->amount : "0";
+                $row->otp = isset($row->otp) ? (string)$row->otp : "";
 
                 if (!empty($row->parcel_image)) {
                     $parcelImage = is_string($row->parcel_image) ? json_decode($row->parcel_image, true) : $row->parcel_image;
