@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API\v1;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\ParcelOrder;
-use App\Models\Zone;
 use Illuminate\Http\Request;
 use DB;
 
@@ -183,16 +182,4 @@ class SearchDriverParcelOrdersController extends Controller
 
         return response()->json($response);
     }
-
-    public function is_in_polygon($points_polygon, $vertices_x, $vertices_y, $longitude_x, $latitude_y){
-		$i = $j = $c = $point = 0;
-		for ($i = 0, $j = $points_polygon ; $i < $points_polygon; $j = $i++) {
-			$point = $i;
-			if( $point == $points_polygon )
-				$point = 0;
-			if ( (($vertices_y[$point]  >  $latitude_y != ($vertices_y[$j] > $latitude_y)) && ($longitude_x < ($vertices_x[$j] - $vertices_x[$point]) * ($latitude_y - $vertices_y[$point]) / ($vertices_y[$j] - $vertices_y[$point]) + $vertices_x[$point]) ) )
-				$c = !$c;
-		}
-		return $c;
-	}
 }

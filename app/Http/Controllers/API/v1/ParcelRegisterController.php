@@ -180,20 +180,17 @@ class ParcelRegisterController extends Controller
                 }
             }
 
-            // Find nearby parcel drivers and notify them
+            // Find nearby parcel drivers and notify them - ONLY CHECK RADIUS!
             try {
                 $settings = DB::table('tj_settings')->select('driver_radios')->first();
                 $radius = floatval($settings->driver_radios ?? 15);
                 if ($radius <= 0) $radius = 15;
 
-                // ── Bike-first logic ─────────────────────────────────────────
-                // If parcel is light (≤ 5 kg) AND small (≤ 3 ft dimension),
-                // prefer bike/motorcycle drivers. Fall back to all types if none found nearby.
                 $parcelWeight    = floatval($parcel_weight ?? 999);
                 $parcelDimension = floatval($parcel_dimension ?? 999);
                 $isBikeEligible  = ($parcelWeight <= 5 && $parcelDimension <= 3);
 
-                // Shared haversine distance expression
+                // Shared haversine distance expression based on pickup location
                 $distanceExpr = DB::raw("6371 * acos(
                     LEAST(1, GREATEST(-1,
                         cos(radians(" . floatval($lat1) . "))
@@ -204,78 +201,53 @@ class ParcelRegisterController extends Controller
                     )
                 ) AS distance");
 
-                // Base driver query builder (shared filters)
-                $baseQuery = function () use ($distanceExpr, $radius) {
-                    return DB::table("tj_conducteur")
-                        ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
-                        ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
-                        ->leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
-                        ->leftJoin('tj_type_vehicule', 'tj_vehicule.id_type_vehicule', '=', 'tj_type_vehicule.id')
-                        ->select(
-                            "tj_conducteur.id",
-                            "tj_conducteur.fcm_id",
-                            "tj_type_vehicule.libelle as vehicle_type_libelle",
-                            "tj_vehicule.brand as vehicle_brand",
-                            "tj_vehicule.model as vehicle_model",
-                            $distanceExpr
-                        )
+                // Tier 1: Any driver within search radius ($radius km) having valid FCM token
+                $drivers = DB::table("tj_conducteur")
+                    ->select("tj_conducteur.id", "tj_conducteur.fcm_id", $distanceExpr)
+                    ->whereNotNull('tj_conducteur.latitude')
+                    ->whereNotNull('tj_conducteur.longitude')
+                    ->where('tj_conducteur.latitude', '!=', '')
+                    ->where('tj_conducteur.longitude', '!=', '')
+                    ->whereNotNull('tj_conducteur.fcm_id')
+                    ->where('tj_conducteur.fcm_id', '!=', '')
+                    ->having('distance', '<=', $radius)
+                    ->orderBy('distance', 'ASC')
+                    ->get();
+
+                // Tier 2: If none within initial radius, expand to 50km
+                if ($drivers->isEmpty()) {
+                    \Log::info("ParcelRegister: No drivers within {$radius}km for parcel #{$id}, expanding to 50km");
+                    $drivers = DB::table("tj_conducteur")
+                        ->select("tj_conducteur.id", "tj_conducteur.fcm_id", $distanceExpr)
                         ->whereNotNull('tj_conducteur.latitude')
                         ->whereNotNull('tj_conducteur.longitude')
                         ->where('tj_conducteur.latitude', '!=', '')
                         ->where('tj_conducteur.longitude', '!=', '')
-                        ->where('tj_conducteur.statut', 'yes')
-                        ->where('tj_conducteur.online', '!=', 'no')
-                        ->where(function ($q) {
-                            $q->whereIn('tj_conducteur.is_verified', ['1', 1, 'yes'])
-                              ->orWhere('tj_conducteur.statut', 'yes');
-                        })
-                        ->having('distance', '<=', $radius);
-                };
-
-                $drivers = collect();
-
-                if ($isBikeEligible) {
-                    // First: try bike/motorcycle drivers only
-                    $drivers = $baseQuery()
-                        ->where(function ($q) {
-                            $q->whereIn(DB::raw('LOWER(COALESCE(tj_type_vehicule.libelle, ""))'), ['bike', 'motorcycle', 'two wheeler', 'scooter', 'moped'])
-                              ->orWhere(DB::raw('LOWER(COALESCE(tj_vehicule.model, ""))'), 'like', '%splendor%')
-                              ->orWhere(DB::raw('LOWER(COALESCE(tj_vehicule.model, ""))'), 'like', '%bike%')
-                              ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes')
-                              ->orWhere('tj_categorie_user.libelle', 'like', '%logistics%')
-                              ->orWhere('tj_categorie_user.libelle', 'like', '%parcel%')
-                              ->orWhere('tj_categorie_user.libelle', 'like', '%delivery%');
-                        })
-                        ->get();
-
-                    if ($drivers->isEmpty()) {
-                        // Fall back to all parcel-capable drivers
-                        \Log::info('ParcelRegister: No bike drivers found nearby, falling back to all drivers for parcel #' . $id);
-                    }
-                }
-
-                if ($drivers->isEmpty()) {
-                    // All parcel-capable drivers (or non-bike-eligible parcel)
-                    $drivers = $baseQuery()
-                        ->where(function ($query) {
-                            $query->whereIn('tj_categorie_user.libelle', [
-                                'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)',
-                                'Logistics Partner', 'Bike Rider', 'Pickup'
-                            ])
-                            ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
-                            ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
-                        })
+                        ->whereNotNull('tj_conducteur.fcm_id')
+                        ->where('tj_conducteur.fcm_id', '!=', '')
+                        ->having('distance', '<=', 50)
+                        ->orderBy('distance', 'ASC')
                         ->get();
                 }
 
+                // Tier 3: If none within 50km, expand to 150km
                 if ($drivers->isEmpty()) {
-                    // Fallback to ANY active online driver within radius
-                    \Log::info("ParcelRegister: No category-matched drivers for parcel #{$id}, falling back to any online driver within {$radius}km");
-                    $drivers = $baseQuery()->get();
+                    \Log::info("ParcelRegister: No drivers within 50km for parcel #{$id}, expanding to 150km");
+                    $drivers = DB::table("tj_conducteur")
+                        ->select("tj_conducteur.id", "tj_conducteur.fcm_id", $distanceExpr)
+                        ->whereNotNull('tj_conducteur.latitude')
+                        ->whereNotNull('tj_conducteur.longitude')
+                        ->where('tj_conducteur.latitude', '!=', '')
+                        ->where('tj_conducteur.longitude', '!=', '')
+                        ->whereNotNull('tj_conducteur.fcm_id')
+                        ->where('tj_conducteur.fcm_id', '!=', '')
+                        ->having('distance', '<=', 150)
+                        ->orderBy('distance', 'ASC')
+                        ->get();
                 }
 
+                // Tier 4: Fallback to all registered drivers with valid FCM tokens
                 if ($drivers->isEmpty()) {
-                    // Final fallback: expand to all available drivers with valid FCM tokens
                     \Log::info("ParcelRegister: Expanding search to all registered drivers with FCM tokens for parcel #{$id}");
                     $drivers = DB::table("tj_conducteur")
                         ->select("tj_conducteur.id", "tj_conducteur.fcm_id")

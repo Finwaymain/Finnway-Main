@@ -539,4 +539,65 @@ class ParcelDeliveryFlowTest extends TestCase
             'status' => 'canceled',
         ]);
     }
+
+    /**
+     * Test 12: Verify pure radius-based matching without zone requirements
+     */
+    public function test_12_radius_only_matching_and_fallback_without_zone(): void
+    {
+        $cat = DB::table('parcel_category')->where('status', 'yes')->first();
+
+        // 1. Create a parcel in Ujjain
+        $regResp = $this->withHeaders($this->getHeaders())
+            ->postJson('/api/v1/parcel-register', [
+                'id_user_app' => $this->testUserId,
+                'source' => 'Indira Nagar, Ujjain',
+                'lat_source' => '23.2017876',
+                'lng_source' => '75.7843825',
+                'destination' => 'Malipura, Ujjain',
+                'lat_destination' => '23.1808951',
+                'lng_destination' => '75.7822715',
+                'distance' => '2.5',
+                'distance_unit' => 'KM',
+                'amount' => '45.00',
+                'parcel_type' => $cat->id,
+                'sender_name' => 'Mohammed Test',
+                'sender_phone' => '+919669454554',
+                'receiver_name' => 'Receiver Test',
+                'receiver_phone' => '+919900990099',
+            ]);
+
+        $regResp->assertStatus(200)->assertJson(['success' => 'success']);
+        $parcelId = (int)$regResp->json('data.0.id');
+        $this->assertGreaterThan(0, $parcelId);
+
+        // 2. Ensure driver has NO zone (zone_id = null)
+        DB::table('tj_conducteur')->where('id', $this->testDriverId)->update([
+            'zone_id' => null,
+            'latitude' => '23.2050',
+            'longitude' => '75.7880', // ~0.5 km away in Ujjain
+        ]);
+
+        // 3. Search orders by GPS radius (no zone provided)
+        $searchResp = $this->withHeaders($this->getHeaders())
+            ->getJson('/api/v1/search-driver-parcel-order?' . http_build_query([
+                'id_driver' => $this->testDriverId,
+                'source_lat' => '23.2050',
+                'source_lng' => '75.7880',
+                'source_city' => 'Ujjain',
+            ]));
+
+        $searchResp->assertStatus(200)
+            ->assertJson(['success' => 'success']);
+
+        $orders = $searchResp->json('data');
+        $this->assertIsArray($orders);
+        $this->assertNotEmpty($orders, 'Driver without zone must see order based on radius');
+
+        $found = collect($orders)->firstWhere('id', (string)$parcelId);
+        $this->assertNotNull($found, 'Registered parcel #'.$parcelId.' must be found in radius');
+
+        // Clean up
+        DB::table('parcel_orders')->where('id', $parcelId)->delete();
+    }
 }
