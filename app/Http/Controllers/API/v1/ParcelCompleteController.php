@@ -56,7 +56,7 @@ class ParcelCompleteController extends Controller
 
 
 
-        $id_parcel = $request->get('id_parcel');
+        $id_parcel = $request->get('id_parcel') ?: $request->get('id_pracel');
 
         $id_user = $request->get('id_user');
 
