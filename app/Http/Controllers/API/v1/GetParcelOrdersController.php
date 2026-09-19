@@ -147,25 +147,22 @@ class GetParcelOrdersController extends Controller
                 $row->moyenne_driver = number_format((float)$moyenne_driver, 1);
 
                 $image_parcel = [];
-                if ($row->parcel_image != '') {
-                    $parcelImage = json_decode($row->parcel_image, true);
-
-                    foreach ($parcelImage as $value) {
-                        if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-                            $image = asset('images/parcel_order/') . '/' . $value;
+                if (!empty($row->parcel_image)) {
+                    $parcelImage = is_string($row->parcel_image) ? json_decode($row->parcel_image, true) : $row->parcel_image;
+                    if (is_array($parcelImage)) {
+                        foreach ($parcelImage as $value) {
+                            if (empty($value)) continue;
+                            if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+                                $image_parcel[] = $value;
+                            } elseif (file_exists(public_path('images/parcel_order/' . $value))) {
+                                $image_parcel[] = asset('images/parcel_order/' . $value);
+                            } else {
+                                $image_parcel[] = asset('assets/images/placeholder_image.jpg');
+                            }
                         }
-                        array_push($image_parcel, $image);
-                    }
-                    if (!empty($image_parcel)) {
-                        $row->parcel_image = $image_parcel;
-                    } else {
-                        $row->parcel_image = asset('assets/images/placeholder_image.jpg');
                     }
                 }
-
-                if (empty($row->parcel_image)) {
-                    $row->parcel_image = $image_parcel;
-                }
+                $row->parcel_image = !empty($image_parcel) ? $image_parcel : [asset('assets/images/placeholder_image.jpg')];
 
                 if ($row->payment_image != '') {
                     if (file_exists(public_path('assets/images/payment_method' . '/' . $row->payment_image))) {
@@ -332,25 +329,22 @@ class GetParcelOrdersController extends Controller
                 }
 
                 $image_parcel = [];
-                if ($row->parcel_image != '') {
-                    $parcelImage = json_decode($row->parcel_image, true);
-
-                    foreach ($parcelImage as $value) {
-                        if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-                            $image = asset('images/parcel_order/') . '/' . $value;
+                if (!empty($row->parcel_image)) {
+                    $parcelImage = is_string($row->parcel_image) ? json_decode($row->parcel_image, true) : $row->parcel_image;
+                    if (is_array($parcelImage)) {
+                        foreach ($parcelImage as $value) {
+                            if (empty($value)) continue;
+                            if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+                                $image_parcel[] = $value;
+                            } elseif (file_exists(public_path('images/parcel_order/' . $value))) {
+                                $image_parcel[] = asset('images/parcel_order/' . $value);
+                            } else {
+                                $image_parcel[] = asset('assets/images/placeholder_image.jpg');
+                            }
                         }
-                        array_push($image_parcel, $image);
-                    }
-                    if (!empty($image_parcel)) {
-                        $row->parcel_image = $image_parcel;
-                    } else {
-                        $row->parcel_image = asset('assets/images/placeholder_image.jpg');
                     }
                 }
-
-                if (empty($row->parcel_image)) {
-                    $row->parcel_image = $image_parcel;
-                }
+                $row->parcel_image = !empty($image_parcel) ? $image_parcel : [asset('assets/images/placeholder_image.jpg')];
 
                 $output[] = $row;
             }
@@ -403,25 +397,22 @@ class GetParcelOrdersController extends Controller
                 $row->driver_name = ($row->prenom) ? $row->prenom . " " . $row->nom : "";
                 $row->driver_name = ($row->driverPreNom) ? $row->driverPreNom . " " . $row->driverNom : "";
 
-                if ($row->parcel_image != '') {
-                    $parcelImage = json_decode($row->parcel_image, true);
-
-                    foreach ($parcelImage as $value) {
-                        if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-                            $image = asset('images/parcel_order/') . '/' . $value;
+                if (!empty($row->parcel_image)) {
+                    $parcelImage = is_string($row->parcel_image) ? json_decode($row->parcel_image, true) : $row->parcel_image;
+                    if (is_array($parcelImage)) {
+                        foreach ($parcelImage as $value) {
+                            if (empty($value)) continue;
+                            if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+                                $image_parcel[] = $value;
+                            } elseif (file_exists(public_path('images/parcel_order/' . $value))) {
+                                $image_parcel[] = asset('images/parcel_order/' . $value);
+                            } else {
+                                $image_parcel[] = asset('assets/images/placeholder_image.jpg');
+                            }
                         }
-                        array_push($image_parcel, $image);
-                    }
-                    if (!empty($image_parcel)) {
-                        $row->parcel_image = $image_parcel;
-                    } else {
-                        $row->parcel_image = asset('assets/images/placeholder_image.jpg');
                     }
                 }
-
-                if (empty($row->parcel_image)) {
-                    $row->parcel_image = $image_parcel;
-                }
+                $row->parcel_image = !empty($image_parcel) ? $image_parcel : [asset('assets/images/placeholder_image.jpg')];
                 if ($row->user_photo != '') {
                     if (file_exists(public_path('assets/images/users' . '/' . $row->user_photo))) {
                         $user_photo = asset('assets/images/users') . '/' . $row->user_photo;
