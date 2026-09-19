@@ -35,7 +35,12 @@ class SearchDriverParcelOrdersController extends Controller
         $date = $request->get('date');
         $source_city = $request->get('source_city');
         $driver_id = $request->get('driver_id') ?: $request->get('id_driver');
-        $driver = Driver::where('id', $driver_id)->where('is_verified', '1')->first();
+        $driver = Driver::where('id', $driver_id)
+            ->where(function($q) {
+                $q->whereIn('is_verified', ['1', 1, 'yes'])
+                  ->orWhere('statut', 'yes');
+            })
+            ->first();
 
         if(empty($driver)){
 
@@ -53,26 +58,29 @@ class SearchDriverParcelOrdersController extends Controller
                         $in_zone = "no";
                         $zones= Zone::whereIn('id',$driver_zone_ids)->where('status','yes')->get();
                         foreach($zones as $zone){
-                            $zone_area_json = $zone->area->toJson();
-                            $zone_area_array = json_decode($zone_area_json, true);
-                            $vertices_x = $vertices_y = [];
-                            foreach($zone_area_array['coordinates'] as $key => $data){
-                                foreach($data as $k=>$v){
-                                    $vertices_x[] = (float) $v[0]; // Longitude = X
-                                    $vertices_y[] = (float) $v[1]; // Latitude = Y
-                                }
-                            }
-                            $points_polygon = count($vertices_x)-1; 
-                            if($points_polygon >= 3 && $this->is_in_polygon($points_polygon, $vertices_x, $vertices_y, (float)$source_lng, (float)$source_lat)){
-                                $in_zone = "yes";
-                                break; 
+                            if(!empty($zone->area)){
+                                try {
+                                    $zone_area_json = $zone->area->toJson();
+                                    $zone_area_array = json_decode($zone_area_json, true);
+                                    $vertices_x = $vertices_y = [];
+                                    if(isset($zone_area_array['coordinates'])){
+                                        foreach($zone_area_array['coordinates'] as $key => $data){
+                                            foreach($data as $k=>$v){
+                                                $vertices_x[] = (float) $v[0]; // Longitude = X
+                                                $vertices_y[] = (float) $v[1]; // Latitude = Y
+                                            }
+                                        }
+                                        $points_polygon = count($vertices_x)-1; 
+                                        if($points_polygon >= 3 && $this->is_in_polygon($points_polygon, $vertices_x, $vertices_y, (float)$source_lng, (float)$source_lat)){
+                                            $in_zone = "yes";
+                                            break; 
+                                        }
+                                    }
+                                } catch (\Throwable $e) {}
                             }
                         }
                         if($in_zone == "no"){
-                            $response['success'] = 'Failed';
-                            $response['error'] = 'No Data Found';
-                            $response['message'] = null;
-                            return response()->json($response);
+                            \Log::info("SearchDriverParcelOrders: Driver $driver_id outside zone polygon, falling back to GPS radius.");
                         }
                     }
 				}

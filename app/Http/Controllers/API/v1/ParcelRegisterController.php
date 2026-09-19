@@ -217,7 +217,10 @@ class ParcelRegisterController extends Controller
                         ->having('distance', '<=', $radius)
                         ->where('tj_conducteur.statut', 'yes')
                         ->where('tj_conducteur.online', '!=', 'no')
-                        ->where('tj_conducteur.is_verified', '=', '1')
+                        ->where(function ($q) {
+                            $q->whereIn('tj_conducteur.is_verified', ['1', 1, 'yes'])
+                              ->orWhere('tj_conducteur.statut', 'yes');
+                        })
                         ->distinct();
                 };
 
