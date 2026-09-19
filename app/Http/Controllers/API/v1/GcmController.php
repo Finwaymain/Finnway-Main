@@ -107,21 +107,18 @@ class GcmController extends Controller
                         ],
                     ];
 
-                    // For standard notifications (marketing, chat, receipts), attach top-level notification
-                    // For incoming ride/service alerts, omit top-level notification for Android so Google Play
-                    // does not swallow the push into system tray, ensuring background Dart handler fires immediately!
-                    if (!$isIncomingAlert) {
-                        $messageBlock['notification'] = [
-                            'title' => $title,
-                            'body' => $body,
-                        ];
-                        $messageBlock['android']['notification'] = [
-                            'channel_id' => $channelId,
-                            'notification_priority' => 'PRIORITY_HIGH',
-                            'default_sound' => true,
-                            'default_vibrate_timings' => true,
-                        ];
-                    }
+                    // Attach top-level notification so Android and iOS display the notification
+                    // in the system tray / lock screen and play sound even when the app is in background or closed!
+                    $messageBlock['notification'] = [
+                        'title' => $title,
+                        'body' => $body,
+                    ];
+                    $messageBlock['android']['notification'] = [
+                        'channel_id' => $channelId,
+                        'notification_priority' => 'PRIORITY_HIGH',
+                        'default_sound' => true,
+                        'default_vibrate_timings' => true,
+                    ];
 
                     if (!empty($topic) && empty($token)) {
                         $messageBlock['topic'] = $topic;

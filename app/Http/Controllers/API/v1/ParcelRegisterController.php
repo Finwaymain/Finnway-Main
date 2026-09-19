@@ -209,19 +209,27 @@ class ParcelRegisterController extends Controller
                     return DB::table("tj_conducteur")
                         ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
                         ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
-                        ->select("tj_conducteur.id", "tj_conducteur.fcm_id", "tj_conducteur.vehicle_type", $distanceExpr)
+                        ->leftJoin('tj_vehicule', 'tj_vehicule.id_conducteur', '=', 'tj_conducteur.id')
+                        ->leftJoin('tj_type_vehicule', 'tj_vehicule.id_type_vehicule', '=', 'tj_type_vehicule.id')
+                        ->select(
+                            "tj_conducteur.id",
+                            "tj_conducteur.fcm_id",
+                            "tj_type_vehicule.libelle as vehicle_type_libelle",
+                            "tj_vehicule.brand as vehicle_brand",
+                            "tj_vehicule.model as vehicle_model",
+                            $distanceExpr
+                        )
                         ->whereNotNull('tj_conducteur.latitude')
                         ->whereNotNull('tj_conducteur.longitude')
                         ->where('tj_conducteur.latitude', '!=', '')
                         ->where('tj_conducteur.longitude', '!=', '')
-                        ->having('distance', '<=', $radius)
                         ->where('tj_conducteur.statut', 'yes')
                         ->where('tj_conducteur.online', '!=', 'no')
                         ->where(function ($q) {
                             $q->whereIn('tj_conducteur.is_verified', ['1', 1, 'yes'])
                               ->orWhere('tj_conducteur.statut', 'yes');
                         })
-                        ->distinct();
+                        ->having('distance', '<=', $radius);
                 };
 
                 $drivers = collect();
@@ -230,14 +238,19 @@ class ParcelRegisterController extends Controller
                     // First: try bike/motorcycle drivers only
                     $drivers = $baseQuery()
                         ->where(function ($q) {
-                            $q->whereIn(DB::raw('LOWER(tj_conducteur.vehicle_type)'), ['bike', 'motorcycle', 'two wheeler', 'scooter', 'moped'])
-                              ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
+                            $q->whereIn(DB::raw('LOWER(COALESCE(tj_type_vehicule.libelle, ""))'), ['bike', 'motorcycle', 'two wheeler', 'scooter', 'moped'])
+                              ->orWhere(DB::raw('LOWER(COALESCE(tj_vehicule.model, ""))'), 'like', '%splendor%')
+                              ->orWhere(DB::raw('LOWER(COALESCE(tj_vehicule.model, ""))'), 'like', '%bike%')
+                              ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes')
+                              ->orWhere('tj_categorie_user.libelle', 'like', '%logistics%')
+                              ->orWhere('tj_categorie_user.libelle', 'like', '%parcel%')
+                              ->orWhere('tj_categorie_user.libelle', 'like', '%delivery%');
                         })
                         ->get();
 
                     if ($drivers->isEmpty()) {
                         // Fall back to all parcel-capable drivers
-                        \Log::info('ParcelRegister: No bike drivers found near by, falling back to all drivers for parcel #' . $id);
+                        \Log::info('ParcelRegister: No bike drivers found nearby, falling back to all drivers for parcel #' . $id);
                     }
                 }
 
@@ -254,6 +267,8 @@ class ParcelRegisterController extends Controller
                         })
                         ->get();
                 }
+
+                $drivers = $drivers->unique('id');
 
                 if ($drivers->isNotEmpty()) {
                     $notifTag = $isBikeEligible ? 'parcelbike' : 'parcelnew';
@@ -278,6 +293,7 @@ class ParcelRegisterController extends Controller
                     foreach ($drivers as $driver) {
                         if (!empty($driver->fcm_id)) {
                             try {
+                                \Log::info("ParcelRegister: Sending FCM notification to driver #{$driver->id} for parcel #{$id}");
                                 \App\Http\Controllers\API\v1\GcmController::sendNotification($driver->fcm_id, $notificationPayload);
                             } catch (\Exception $notifEx) {
                                 \Log::warning('Parcel FCM notification failed for driver ' . $driver->id . ': ' . $notifEx->getMessage());

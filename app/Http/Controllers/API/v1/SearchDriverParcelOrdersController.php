@@ -151,32 +151,36 @@ class SearchDriverParcelOrdersController extends Controller
                         
                         $row->user_name = (string)$row->prenom . " " . $row->nom;
                         
-                        if ($row->parcel_image != '') {
-
-                            $parcelImage = json_decode($row->parcel_image, true);
+                        if (!empty($row->parcel_image)) {
+                            $parcelImage = is_string($row->parcel_image) ? json_decode($row->parcel_image, true) : $row->parcel_image;
                             $image_user = [];
-                            
-                            foreach ($parcelImage as $value) {
-                                if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-                                    $image = asset('images/parcel_order/') . '/' . $value;
+                            if (is_array($parcelImage)) {
+                                foreach ($parcelImage as $value) {
+                                    if (empty($value)) continue;
+                                    if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+                                        $image_user[] = $value;
+                                    } elseif (file_exists(public_path('images/parcel_order/' . $value))) {
+                                        $image_user[] = asset('images/parcel_order/' . $value);
+                                    } else {
+                                        $image_user[] = asset('assets/images/placeholder_image.jpg');
+                                    }
                                 }
-                                array_push($image_user, $image);
                             }
-                            
-                            if (!empty($image_user)) {
-                                $row->parcel_image = $image_user;
-                            } else {
-                                $row->parcel_image = asset('assets/images/placeholder_image.jpg');
-                            }
+                            $row->parcel_image = !empty($image_user) ? $image_user : [asset('assets/images/placeholder_image.jpg')];
+                        } else {
+                            $row->parcel_image = [asset('assets/images/placeholder_image.jpg')];
                         }
 
-                        if ($row->user_photo != '') {
-                            if (file_exists(public_path('assets/images/users' . '/' . $row->user_photo))) {
-                                $user_photo = asset('assets/images/users') . '/' . $row->user_photo;
+                        if (!empty($row->user_photo)) {
+                            if (str_starts_with($row->user_photo, 'http://') || str_starts_with($row->user_photo, 'https://')) {
+                                // already absolute url
+                            } elseif (file_exists(public_path('assets/images/users/' . $row->user_photo))) {
+                                $row->user_photo = asset('assets/images/users/' . $row->user_photo);
                             } else {
-                                $user_photo = asset('assets/images/placeholder_image.jpg');
+                                $row->user_photo = asset('assets/images/placeholder_image.jpg');
                             }
-                            $row->user_photo = $user_photo;
+                        } else {
+                            $row->user_photo = asset('assets/images/placeholder_image.jpg');
                         }
 
                         $row->created_at = date("d", strtotime($row->created_at)) . " " . $months[date("F", strtotime($row->created_at))] . ". " . date("Y", strtotime($row->created_at));
