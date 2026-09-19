@@ -1,312 +1,234 @@
 <?php
 
-
-
 namespace App\Http\Controllers\API\v1;
 
-
-
 use App\Http\Controllers\API\v1\GcmController;
-
 use App\Http\Controllers\Controller;
-
 use App\Models\Notification;
-
 use App\Models\ParcelOrder;
 use App\Models\Commission;
 use App\Models\Driver;
 use App\Models\Settings;
-
 use DB;
-
 use Illuminate\Http\Request;
 
-
-
 class ParcelRejectController extends Controller
-
 {
-
-
-
     public function __construct()
-
     {
-
         $this->limit = 20;
-
     }
 
-
-
     /**
-
-     * Display a listing of the resource.
-
+     * Reject or cancel parcel request
      *
-
-     * @return \Illuminate\Http\Response
-
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
-
     public function rejectRequest(Request $request)
-
     {
-
-
-
-        $id_parcel = $request->get('id_parcel');
-
-        $id_user = $request->get('id_user');
-
-        $driver_name = $request->get('name');
-
+        $id_parcel = $request->get('id_parcel') ?: $request->get('parcel_id');
+        $id_user = $request->get('id_user') ?: $request->get('user_id');
+        $driver_name = $request->get('name') ?: $request->get('driver_name');
         $from_id = $request->get('from_id');
+        $reason = $request->get('reason') ?: 'Rejected';
+        $user_cat = strtolower(trim((string)$request->get('user_cat', 'user_app')));
 
-        $reason = $request->get('reason');
+        if (empty($id_parcel)) {
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Parcel ID is required',
+            ]);
+        }
 
-        $user_cat = $request->get('user_cat');
-
-        $settings = Settings::first();
-        $subscriptionModel = $settings->subscription_model;
-        $commissionData = Commission::first();
         $sql = ParcelOrder::where('id', $id_parcel)->first();
         if (!$sql) {
-            $response['success'] = 'Failed';
-            $response['error'] = 'Parcel order not found';
-            return response()->json($response);
+            return response()->json([
+                'success' => 'Failed',
+                'error' => 'Parcel order not found',
+            ]);
         }
+
         $rideStatus = $sql->status;
-        if (!empty($id_parcel) && !empty($from_id) && !empty($driver_name) && !empty($id_user)) {
+        $drivertoReject = (int)($sql->id_conducteur ?? 0);
+        $userId = (int)($sql->id_user_app ?? 0);
 
-            $drivertoReject = $sql->id_conducteur;
-            $rejectDriverIds = $sql->rejected_driver_id;
+        $settings = Settings::first();
+        $subscriptionModel = $settings ? $settings->subscription_model : null;
+        $commissionData = Commission::first();
+        $commissionModel = $commissionData ? $commissionData->statut : null;
 
-            $rejDriverIds = array();
+        $rejectDriverIds = $sql->rejected_driver_id;
+        $rejDriverIds = [];
+        if ($rejectDriverIds != null) {
+            $rejDriverIds = json_decode($rejectDriverIds, true) ?? [];
+        }
 
-            if ($rejectDriverIds != null) {
+        $title = '';
+        $msg = '';
+        $fcm_token = null;
 
-                $rejDriverIds = json_decode($rejectDriverIds, true);
+        if ($user_cat === 'driver') {
+            // DRIVER REJECTING THE PARCEL
+            $driver_name = $driver_name ?: 'Driver';
+            $title = "Rejection of your Parcel";
+            $msg = $driver_name . " has rejected your parcel.";
 
+            // Free up driver
+            $fromDriverId = !empty($from_id) ? (int)$from_id : $drivertoReject;
+            if ($fromDriverId > 0) {
+                Driver::where('id', $fromDriverId)->update(['driver_on_ride' => 'no']);
+                if (!in_array($fromDriverId, $rejDriverIds)) {
+                    $rejDriverIds[] = $fromDriverId;
+                }
             }
 
-
-
-            $row_sql = $sql->toArray();
-
-            if ($row_sql['parcel_image'] != '') {
-
-                if (file_exists(public_path('images/parcel_order' . '/' . $row_sql['parcel_image']))) {
-
-                    $image_user = asset('images/parcel_order') . '/' . $row_sql['parcel_image'];
-
-                } else {
-
-                    $image_user = asset('assets/images/placeholder_image.jpg');
-
-
-
-                }
-
-                $row_sql['parcel_image'] = $image_user;
-
-            }
-
-
-
-            if ($user_cat == 'driver') {
-
-
-
-                $title = str_replace("'", "\'", "Rejection of your Parcel");
-
-                $msg = str_replace("'", "\'", $driver_name . " is rejected your parcel.");
-
-                $reasons = str_replace("'", "\'", "$reason");
-
-
-
-                $tab[] = array();
-
-                $tab = explode("\\", $msg);
-
-                $msg_ = "";
-
-                for ($i = 0; $i < count($tab); $i++) {
-
-                    $msg_ = $msg_ . "" . $tab[$i];
-
-                }
-
-
-
-                $message = array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected");
-
-                $fcm_token = DB::table('tj_user_app')->where('fcm_id','!=','')->where('id','=',$id_user)->value('fcm_id');
-
-                if (!empty($fcm_token)) {
-
-                    GcmController::sendNotification($fcm_token, $message);
-
-                }
-
-
-
-                $driver_id = $row_sql['id_conducteur'];
-
-                if (!in_array($driver_id, $rejDriverIds)) {
-
-                    array_push($rejDriverIds, $driver_id);
-
-                }
-
-
-
-                $updateRejDriverArr = json_encode($rejDriverIds);
-
-                $updatedata = DB::update('update parcel_orders set status = ?,rejected_driver_id=? where id = ?', ['driver_rejected', $updateRejDriverArr, $id_parcel]);
-
-                $sql_update = ParcelOrder::where('id', '=', $id_parcel)->first();
-
-                $row = $sql_update->toArray();
-
-                $row['id'] = (string) $row['id'];
-
-
-
-            } elseif ($user_cat == 'user_app') {
-
-
-
-                $updatedata = DB::update('update parcel_orders set status = ? where id = ?', ['rejected', $id_parcel]);
-
-                $sql_update = ParcelOrder::where('id', '=', $id_parcel)->first();
-
-                $row = $sql_update->toArray();
-
-                $row['id'] = (string) $row['id'];
-
-                $tmsg = '';
-
-                $terrormsg = '';
-
-
-
-                $title = str_replace("'", "\'", "Cancellation of  parcel delivery");
-
-                $msg = str_replace("'", "\'", $driver_name . " canceled the parcel delivery");
-
-                $reasons = str_replace("'", "\'", "$reason");
-
-
-
-                $tab[] = array();
-
-                $tab = explode("\\", $msg);
-
-                $msg_ = "";
-
-                for ($i = 0; $i < count($tab); $i++) {
-
-                    $msg_ = $msg_ . "" . $tab[$i];
-
-                }
-
-
-
-
-
-                $message = array("body" => $msg_, "reasons" => $reasons, "title" => $title, "sound" => "mySound", "tag" => "riderejected");
-
-                $fcm_token = DB::table('tj_conducteur')->where('fcm_id','!=','')->where('id','=',$id_user)->value('fcm_id');
-
-                if (!empty($fcm_token)) {
-
-                    GcmController::sendNotification($fcm_token, $message);
-
-                }
-
-            }
-
-
-
+            $updateRejDriverArr = json_encode($rejDriverIds);
+            DB::update('update parcel_orders set status = ?, rejected_driver_id = ?, id_conducteur = 0 where id = ?', ['driver_rejected', $updateRejDriverArr, $id_parcel]);
+
+            // Notify user app
+            $targetUserId = !empty($id_user) && (int)$id_user > 0 ? (int)$id_user : $userId;
+            $fcm_token = DB::table('tj_user_app')->where('fcm_id', '!=', '')->where('id', '=', $targetUserId)->value('fcm_id');
             if (!empty($fcm_token)) {
-
-                
-
-                $date_heure = date('Y-m-d H:i:s');
-
-                $from_id = $request->get('from_id');
-
-                $to_id = $request->get('id_user');
-
-
-
-                $insertdata = DB::insert("insert into tj_notification(titre,message,statut,creer,modifier,to_id,from_id,type)
-
-                values('" . $title . "','" . $msg . "','yes','" . $date_heure . "','" . $date_heure . "','" . $to_id . "','" . $from_id . "','riderejected')");
-
-                $sql_notification = Notification::orderby('id', 'desc')->first();
-
-                $data = $sql_notification->toArray();
-
-                $row['titre'] = $data['titre'];
-
-                $row['message'] = $data['message'];
-
-                $row['reason'] = $reason;
-
-                $row['statut_notification'] = $data['statut'];
-
-                $row['to_id'] = $data['to_id'];
-
-                $row['from_id'] = $data['from_id'];
-
-                $row['type'] = $data['type'];
-
+                $message = [
+                    'body' => $msg,
+                    'reasons' => $reason,
+                    'title' => $title,
+                    'sound' => 'mySound',
+                    'tag' => 'riderejected',
+                    'statut' => 'driver_rejected',
+                    'order_type' => 'parcel',
+                    'id_parcel' => (string)$id_parcel,
+                ];
+                GcmController::sendNotification($fcm_token, $message);
             }
 
+            // Restore subscription for driver if confirmed
             if ($rideStatus == 'confirmed' || $rideStatus == 'onride') {
-                if ($drivertoReject) {
-                    Driver::where('id', $drivertoReject)->update(['driver_on_ride' => 'no']);
-                }
                 if ($subscriptionModel == 'true' || $commissionModel == 'yes') {
-                    $rejectedDriverData = Driver::where('id', $drivertoReject)->first();
+                    $rejectedDriverData = Driver::where('id', $fromDriverId)->first();
                     if ($rejectedDriverData && $rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders) != -1) {
                         $subscriptionTotalOrders = intval($rejectedDriverData->subscriptionTotalOrders) + 1;
-                        Driver::where('id', $drivertoReject)->update(['subscriptionTotalOrders' => $subscriptionTotalOrders]);
+                        Driver::where('id', $fromDriverId)->update(['subscriptionTotalOrders' => $subscriptionTotalOrders]);
                     }
                 }
             }
-            $response['success'] = 'success';
-
-            $response['error'] = null;
-
-            $response['message'] = 'status successfully updated';
-
-            $response['data'] = $row;
-
-
-
-
-
         } else {
+            // USER CANCELLING THE PARCEL (user_app or customer)
+            $title = "Cancellation of parcel delivery";
+            $msg = "Customer has cancelled the parcel delivery";
 
-            $response['success'] = 'Failed';
+            DB::update('update parcel_orders set status = ?, reason = ? where id = ?', ['canceled', $reason, $id_parcel]);
 
-            $response['error'] = 'some fields are missing';
+            // Refund wallet if paid via wallet
+            $isWallet = false;
+            if (!empty($sql->id_payment_method)) {
+                $payMethod = DB::table('tj_payment_method')->where('id', $sql->id_payment_method)->first();
+                if ($payMethod && (stripos($payMethod->libelle, 'wallet') !== false || stripos($payMethod->slug ?? '', 'wallet') !== false || $sql->id_payment_method == 5)) {
+                    $isWallet = true;
+                }
+            }
 
+            if (($sql->payment_status == 'yes' || $sql->payment_status == 'success') && $isWallet && (float)$sql->amount > 0 && !empty($userId)) {
+                $alreadyRefunded = DB::table('tj_transaction')
+                    ->where('id_user_app', $userId)
+                    ->where('note', 'like', "%Parcel #{$id_parcel}%cancelled%")
+                    ->exists();
 
+                if (!$alreadyRefunded) {
+                    DB::table('tj_user_app')->where('id', $userId)->increment('amount', (float)$sql->amount);
 
+                    $date_heure = date('Y-m-d H:i:s');
+                    DB::table('tj_transaction')->insert([
+                        'amount' => $sql->amount,
+                        'note' => "Parcel #{$id_parcel} cancelled - Refund to wallet",
+                        'id_user_app' => $userId,
+                        'creer' => $date_heure,
+                        'modifier' => $date_heure,
+                        'deduct_type' => 'credit',
+                        'payment_type' => 'wallet',
+                    ]);
+
+                    DB::table('parcel_orders')->where('id', $id_parcel)->update(['payment_status' => 'refunded']);
+                }
+            }
+
+            // Free up assigned driver & notify them
+            $targetDriverId = $drivertoReject > 0 ? $drivertoReject : (int)($id_user ?? 0);
+            if ($targetDriverId > 0) {
+                Driver::where('id', $targetDriverId)->update(['driver_on_ride' => 'no']);
+
+                if ($rideStatus == 'confirmed' || $rideStatus == 'onride') {
+                    if ($subscriptionModel == 'true' || $commissionModel == 'yes') {
+                        $rejectedDriverData = Driver::where('id', $targetDriverId)->first();
+                        if ($rejectedDriverData && $rejectedDriverData->subscriptionTotalOrders != '' && $rejectedDriverData->subscriptionTotalOrders != null && intval($rejectedDriverData->subscriptionTotalOrders) != -1) {
+                            $subscriptionTotalOrders = intval($rejectedDriverData->subscriptionTotalOrders) + 1;
+                            Driver::where('id', $targetDriverId)->update(['subscriptionTotalOrders' => $subscriptionTotalOrders]);
+                        }
+                    }
+                }
+
+                $fcm_token = DB::table('tj_conducteur')->where('fcm_id', '!=', '')->where('id', '=', $targetDriverId)->value('fcm_id');
+                if (!empty($fcm_token)) {
+                    $message = [
+                        'body' => $msg,
+                        'reasons' => $reason,
+                        'title' => $title,
+                        'sound' => 'mySound',
+                        'tag' => 'booking_cancelled',
+                        'statut' => 'cancelled',
+                        'booking_id' => (string)$id_parcel,
+                        'id_ride' => (string)$id_parcel,
+                        'id' => (string)$id_parcel,
+                        'order_type' => 'parcel',
+                    ];
+                    GcmController::sendNotification($fcm_token, $message);
+                }
+            }
         }
 
-        return response()->json($response);
+        // Notification record in DB if notification sent
+        if (!empty($fcm_token)) {
+            $date_heure = date('Y-m-d H:i:s');
+            $notifTo = ($user_cat === 'driver') ? $userId : ($targetDriverId ?? 0);
+            $notifFrom = ($user_cat === 'driver') ? ($from_id ?? 0) : $userId;
 
+            DB::table('tj_notification')->insert([
+                'titre' => $title,
+                'message' => $msg,
+                'statut' => 'yes',
+                'creer' => $date_heure,
+                'modifier' => $date_heure,
+                'to_id' => $notifTo ?? 0,
+                'from_id' => $notifFrom ?? 0,
+                'type' => 'riderejected',
+            ]);
+        }
+
+        // Format updated row
+        $sql_update = ParcelOrder::where('id', '=', $id_parcel)->first();
+        $row = $sql_update ? $sql_update->toArray() : $sql->toArray();
+        $row['id'] = (string) $row['id'];
+        $row['tax'] = is_string($row['tax'] ?? null) ? json_decode($row['tax'], true) : ($row['tax'] ?? []);
+
+        $image_user = [];
+        if (!empty($row['parcel_image'])) {
+            $parcelImage = is_string($row['parcel_image']) ? json_decode($row['parcel_image'], true) : $row['parcel_image'];
+            if (is_array($parcelImage)) {
+                foreach ($parcelImage as $value) {
+                    if (!empty($value) && file_exists(public_path('images/parcel_order/' . $value))) {
+                        $image_user[] = asset('images/parcel_order/' . $value);
+                    }
+                }
+            }
+        }
+        $row['parcel_image'] = !empty($image_user) ? $image_user : [asset('assets/images/placeholder_image.jpg')];
+
+        return response()->json([
+            'success' => 'success',
+            'error' => null,
+            'message' => 'status successfully updated',
+            'data' => $row,
+        ]);
     }
-
-
-
-
-
 }
-
