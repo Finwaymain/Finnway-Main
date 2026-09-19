@@ -39,6 +39,7 @@ class GcmController extends Controller
 
         $isRideRequest = ($fcmData['statut'] ?? '') === 'new' || 
                          ($fcmData['tag'] ?? '') === 'ridenewrider' || 
+                         ($fcmData['tag'] ?? '') === 'parcelbike' || 
                          ($fcmData['tag'] ?? '') === 'parcelnew';
 
         $isHomeServiceAlert = ($fcmData['tag'] ?? '') === 'homeservicerequest' || 

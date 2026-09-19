@@ -275,19 +275,14 @@ class ParcelRegisterController extends Controller
                 }
 
                 if ($drivers->isEmpty()) {
-                    // Final fallback: expand radius up to 100km to find any active driver
-                    $expandedRadius = max(100, $radius * 2);
-                    \Log::info("ParcelRegister: Expanding radius to {$expandedRadius}km for parcel #{$id}");
+                    // Final fallback: expand to all available drivers with valid FCM tokens
+                    \Log::info("ParcelRegister: Expanding search to all registered drivers with FCM tokens for parcel #{$id}");
                     $drivers = DB::table("tj_conducteur")
                         ->select("tj_conducteur.id", "tj_conducteur.fcm_id")
-                        ->whereNotNull('tj_conducteur.latitude')
-                        ->whereNotNull('tj_conducteur.longitude')
-                        ->where('tj_conducteur.latitude', '!=', '')
-                        ->where('tj_conducteur.longitude', '!=', '')
-                        ->where('tj_conducteur.statut', 'yes')
-                        ->where('tj_conducteur.online', '!=', 'no')
                         ->whereNotNull('tj_conducteur.fcm_id')
                         ->where('tj_conducteur.fcm_id', '!=', '')
+                        ->orderBy('tj_conducteur.id', 'DESC')
+                        ->limit(30)
                         ->get();
                 }
 
