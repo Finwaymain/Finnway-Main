@@ -50,7 +50,20 @@ class PayParcelWalletController extends Controller
 
         $amount_new = floatval($request->get('amount'));
 
-        $paymethod = $request->get('paymethod');
+        $parcelOrder = ParcelOrder::where('id', $id_requete)->first();
+        if ($parcelOrder) {
+            if (empty($id_user)) {
+                $id_user = $parcelOrder->id_conducteur;
+            }
+            if (empty($amount_new)) {
+                $amount_new = floatval($parcelOrder->amount);
+            }
+            if (empty($id_user_app)) {
+                $id_user_app = $parcelOrder->id_user_app;
+            }
+        }
+
+        $paymethod = $request->get('paymethod') ?: 'Wallet';
 
         $date_heure = date('Y-m-d H:i:s');
 

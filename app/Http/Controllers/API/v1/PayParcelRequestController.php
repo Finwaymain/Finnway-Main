@@ -66,7 +66,17 @@ class PayParcelRequestController extends Controller
 
         $amount_new = floatval($request->get('amount'));
 
-        $paymethod = $request->get('paymethod');
+        $parcelOrder = ParcelOrder::where('id', $id_requete)->first();
+        if ($parcelOrder) {
+            if (empty($id_user)) {
+                $id_user = $parcelOrder->id_conducteur;
+            }
+            if (empty($amount_new)) {
+                $amount_new = floatval($parcelOrder->amount);
+            }
+        }
+
+        $paymethod = $request->get('paymethod') ?: 'RazorPay';
 
         $discount = floatval($request->get('discount'));
 
