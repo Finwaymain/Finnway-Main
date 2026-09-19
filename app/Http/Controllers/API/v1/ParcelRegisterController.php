@@ -165,54 +165,85 @@ class ParcelRegisterController extends Controller
                 $radius = floatval($settings->driver_radios ?? 15);
                 if ($radius <= 0) $radius = 15;
 
-                // BUG FIX: acos() throws a MySQL error when driver latitude/longitude is NULL.
-                // Added NULLIF guards so drivers with missing coordinates are excluded safely.
-                $drivers = DB::table("tj_conducteur")
-                    ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
-                    ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
-                    ->select(
-                        "tj_conducteur.id",
-                        "tj_conducteur.fcm_id",
-                        DB::raw("6371 * acos(
-                            LEAST(1, GREATEST(-1,
-                                cos(radians(" . floatval($lat1) . "))
-                                * cos(radians(COALESCE(tj_conducteur.latitude, 0)))
-                                * cos(radians(COALESCE(tj_conducteur.longitude, 0)) - radians(" . floatval($lng1) . "))
-                                + sin(radians(" . floatval($lat1) . "))
-                                * sin(radians(COALESCE(tj_conducteur.latitude, 0)))
-                            )
-                        ) AS distance")
+                // ── Bike-first logic ─────────────────────────────────────────
+                // If parcel is light (≤ 5 kg) AND small (≤ 3 ft dimension),
+                // prefer bike/motorcycle drivers. Fall back to all types if none found nearby.
+                $parcelWeight    = floatval($parcel_weight ?? 999);
+                $parcelDimension = floatval($parcel_dimension ?? 999);
+                $isBikeEligible  = ($parcelWeight <= 5 && $parcelDimension <= 3);
+
+                // Shared haversine distance expression
+                $distanceExpr = DB::raw("6371 * acos(
+                    LEAST(1, GREATEST(-1,
+                        cos(radians(" . floatval($lat1) . "))
+                        * cos(radians(COALESCE(tj_conducteur.latitude, 0)))
+                        * cos(radians(COALESCE(tj_conducteur.longitude, 0)) - radians(" . floatval($lng1) . "))
+                        + sin(radians(" . floatval($lat1) . "))
+                        * sin(radians(COALESCE(tj_conducteur.latitude, 0)))
                     )
-                    ->whereNotNull('tj_conducteur.latitude')
-                    ->whereNotNull('tj_conducteur.longitude')
-                    ->where('tj_conducteur.latitude', '!=', '')
-                    ->where('tj_conducteur.longitude', '!=', '')
-                    ->having('distance', '<=', $radius)
-                    ->where('tj_conducteur.statut', 'yes')
-                    ->where('tj_conducteur.online', '!=', 'no')
-                    ->where('tj_conducteur.is_verified', '=', '1')
-                    ->where(function ($query) {
-                        $query->whereIn('tj_categorie_user.libelle', [
-                            'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)',
-                            'Logistics Partner', 'Bike Rider', 'Pickup'
-                        ])
-                        ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
-                        ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
-                    })
-                    ->distinct()
-                    ->get();
+                ) AS distance");
+
+                // Base driver query builder (shared filters)
+                $baseQuery = function () use ($distanceExpr, $radius) {
+                    return DB::table("tj_conducteur")
+                        ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
+                        ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
+                        ->select("tj_conducteur.id", "tj_conducteur.fcm_id", "tj_conducteur.vehicle_type", $distanceExpr)
+                        ->whereNotNull('tj_conducteur.latitude')
+                        ->whereNotNull('tj_conducteur.longitude')
+                        ->where('tj_conducteur.latitude', '!=', '')
+                        ->where('tj_conducteur.longitude', '!=', '')
+                        ->having('distance', '<=', $radius)
+                        ->where('tj_conducteur.statut', 'yes')
+                        ->where('tj_conducteur.online', '!=', 'no')
+                        ->where('tj_conducteur.is_verified', '=', '1')
+                        ->distinct();
+                };
+
+                $drivers = collect();
+
+                if ($isBikeEligible) {
+                    // First: try bike/motorcycle drivers only
+                    $drivers = $baseQuery()
+                        ->where(function ($q) {
+                            $q->whereIn(DB::raw('LOWER(tj_conducteur.vehicle_type)'), ['bike', 'motorcycle', 'two wheeler', 'scooter', 'moped'])
+                              ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
+                        })
+                        ->get();
+
+                    if ($drivers->isEmpty()) {
+                        // Fall back to all parcel-capable drivers
+                        \Log::info('ParcelRegister: No bike drivers found near by, falling back to all drivers for parcel #' . $id);
+                    }
+                }
+
+                if ($drivers->isEmpty()) {
+                    // All parcel-capable drivers (or non-bike-eligible parcel)
+                    $drivers = $baseQuery()
+                        ->where(function ($query) {
+                            $query->whereIn('tj_categorie_user.libelle', [
+                                'Parcel Delivery', 'Food Delivery', 'Pickup & Drop (Personal runner)',
+                                'Logistics Partner', 'Bike Rider', 'Pickup'
+                            ])
+                            ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888])
+                            ->orWhere('tj_conducteur.parcel_delivery', '=', 'yes');
+                        })
+                        ->get();
+                }
 
                 if ($drivers->isNotEmpty()) {
+                    $notifTag = $isBikeEligible ? 'parcelbike' : 'parcelnew';
                     $fcmMsg = [
                         "body"             => "New Parcel: {$source_adrs} to {$destination_adrs} (₹{$amount})",
                         "title"            => "New Parcel Request",
                         "sound"            => "ride_request_sound",
-                        "tag"              => "parcelnew",
+                        "tag"              => $notifTag,
                         "statut"           => "new",
                         "order_type"       => "parcel",
                         "depart_name"      => $source_adrs,
                         "destination_name" => $destination_adrs,
                         "montant"          => (string)$amount,
+                        "preferred_vehicle" => $isBikeEligible ? 'bike' : 'any',
                     ];
 
                     $notificationPayload = array_merge($row, $fcmMsg);
@@ -220,7 +251,6 @@ class ParcelRegisterController extends Controller
                         $notificationPayload['parcel_image'] = json_encode($notificationPayload['parcel_image']);
                     }
 
-                    // BUG FIX: sendNotification was uncaught — any FCM failure would 500 the whole request
                     foreach ($drivers as $driver) {
                         if (!empty($driver->fcm_id)) {
                             try {
@@ -234,6 +264,49 @@ class ParcelRegisterController extends Controller
             } catch (\Exception $driverEx) {
                 // Driver search/notify failed — log it but still return success to the user
                 \Log::error('ParcelRegister driver search failed: ' . $driverEx->getMessage());
+            }
+
+            // ── Wallet: deduct balance at booking time if wallet payment ─────
+            // The payment screen calls this endpoint; for wallet method, deduct immediately
+            // so the user doesn't need a separate API call.
+            try {
+                $walletPaymentMethod = DB::table('tj_payment_method')
+                    ->where(DB::raw('LOWER(libelle)'), 'like', '%wallet%')
+                    ->first();
+
+                $isWalletPayment = $walletPaymentMethod && ((string)$id_payment === (string)$walletPaymentMethod->id);
+
+                if ($isWalletPayment && !empty($user_id)) {
+                    $userRow = DB::table('tj_user_app')->select('amount')->where('id', $user_id)->first();
+                    $currentBalance = floatval($userRow->amount ?? 0);
+                    $deductAmount   = floatval($amount ?? 0);
+
+                    if ($currentBalance >= $deductAmount && $deductAmount > 0) {
+                        $newBalance = $currentBalance - $deductAmount;
+                        DB::table('tj_user_app')->where('id', $user_id)->update(['amount' => $newBalance]);
+                        DB::table('parcel_orders')->where('id', $id)->update(['payment_status' => 'yes']);
+
+                        // Log transaction
+                        DB::table('tj_transaction')->insert([
+                            'amount'          => $deductAmount,
+                            'deduction_type'  => 0,
+                            'ride_id'         => $id,
+                            'payment_method'  => 'wallet',
+                            'payment_status'  => 'success',
+                            'id_user_app'     => $user_id,
+                            'creer'           => date('Y-m-d H:i:s'),
+                            'modifier'        => date('Y-m-d H:i:s'),
+                        ]);
+
+                        $row['payment_status'] = 'yes';
+                    } else if ($deductAmount > 0) {
+                        // Insufficient balance — booking was created but wallet not deducted
+                        \Log::warning("ParcelRegister: Wallet balance {$currentBalance} insufficient for {$deductAmount}, parcel #{$id}");
+                        $row['wallet_error'] = 'Insufficient wallet balance';
+                    }
+                }
+            } catch (\Exception $walletEx) {
+                \Log::error('ParcelRegister wallet deduction failed: ' . $walletEx->getMessage());
             }
 
             $output[] = $row;

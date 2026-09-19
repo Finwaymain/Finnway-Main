@@ -89,7 +89,7 @@ class SearchDriverParcelOrdersController extends Controller
                     ->select(
                         'parcel_orders.*',
                         DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"),
-                        'parcel_category.title as parcel_type',
+                        DB::raw("parcel_category.title as parcel_category_title"),
                         'tj_user_app.nom',
                         'tj_user_app.prenom',
                         'tj_user_app.phone as user_phone',
@@ -124,7 +124,7 @@ class SearchDriverParcelOrdersController extends Controller
                         ->select(
                             'parcel_orders.*',
                             DB::raw("COALESCE(tj_payment_method.libelle, 'Pending') as payment_method"),
-                            'parcel_category.title as parcel_type',
+                            DB::raw("parcel_category.title as parcel_category_title"),
                             'tj_user_app.nom',
                             'tj_user_app.prenom',
                             'tj_user_app.phone as user_phone',
