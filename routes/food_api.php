@@ -20,14 +20,20 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::get('types', [RestaurantAuthController::class, 'types']);
     Route::get('cuisines', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'cuisinesApi']);
 
-    // Customer discovery / order (user token optional for MVP; phone/id in body)
+    // Customer discovery / order (Public within food module, user token optional; phone/id in body)
     Route::get('customer/nearby', [CustomerFoodController::class, 'nearby']);
     Route::get('customer/restaurants/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
+    Route::get('customer/restaurant/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
     Route::post('customer/orders', [CustomerFoodController::class, 'placeOrder']);
+    Route::post('customer/order', [CustomerFoodController::class, 'placeOrder']);
     Route::get('customer/orders', [CustomerFoodController::class, 'myOrders']);
     Route::get('customer/orders/{id}', [CustomerFoodController::class, 'track']);
+    Route::get('customer/orders/{id}/track', [CustomerFoodController::class, 'track']);
+    Route::get('customer/order/{id}/track', [CustomerFoodController::class, 'track']);
     Route::post('customer/orders/{id}/rate', [CustomerFoodController::class, 'rate']);
+    Route::post('customer/order/{id}/rate', [CustomerFoodController::class, 'rate']);
     Route::get('customer/orders/{id}/reorder', [CustomerFoodController::class, 'reorder']);
+    Route::get('customer/order/{id}/reorder', [CustomerFoodController::class, 'reorder']);
 
     // Rider food delivery
     Route::get('rider/incoming', [RiderFoodController::class, 'incoming']);

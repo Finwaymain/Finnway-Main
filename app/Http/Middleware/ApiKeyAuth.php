@@ -21,6 +21,11 @@ class ApiKeyAuth
 
     public function handle($request, Closure $next, $guard = null)
     {
+        // Public customer food routes (nearby, menu, order tracking) do not require internal key
+        if ($request->is('api/v1/food/customer/*') || $request->is('*/v1/food/customer/*')) {
+            return $next($request);
+        }
+
         $apiKey = $request->header('apikey') ?: $request->query('apikey');
         $validKeys = [config('app.key'), 'f7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2', env('API_KEY')];
         if (empty($apiKey) || !in_array($apiKey, array_filter($validKeys))) {
