@@ -367,7 +367,7 @@ class GetParcelOrdersController extends Controller
 
     public function getParcelDetail(Request $request)
     {
-        $parcel_id = $request->get('parcel_id');
+        $parcel_id = $request->get('parcel_id') ?: $request->get('id_parcel');
 
         if (!empty($parcel_id)) {
 
