@@ -22,6 +22,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
 
     // Customer discovery / order (Public within food module, user token optional; phone/id in body)
     Route::get('customer/nearby', [CustomerFoodController::class, 'nearby']);
+    Route::get('customer/wallet', [CustomerFoodController::class, 'getWallet']);
     Route::get('customer/restaurants/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
     Route::get('customer/restaurant/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
     Route::post('customer/orders', [CustomerFoodController::class, 'placeOrder']);

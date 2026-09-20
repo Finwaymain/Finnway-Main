@@ -13,6 +13,7 @@ use App\Models\Food\FoodRestaurant;
 use App\Models\Food\FoodReview;
 use App\Models\Food\FoodSetting;
 use App\Models\Food\FoodTransaction;
+use App\Models\UserApp;
 use App\Services\Food\FoodPricingEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -157,27 +158,102 @@ class CustomerFoodController extends Controller
 
         $platform = $engine->calculatePlatformCharges($foodSubtotal);
         $discount = (float) $request->get('discount_amount', 0);
+
+        // Home Service Standard Promo Bonus discount
+        $applyPromo = filter_var($request->get('apply_promotional', false), FILTER_VALIDATE_BOOLEAN);
+        $promoDiscount = 0.0;
+        if ($applyPromo) {
+            $promoDiscount = min(50.0, round($foodSubtotal * 0.20, 2)); // 20% discount up to ₹50
+        }
+        $discount = max($discount, $promoDiscount);
+
         $deliveryCharge = $delivery['amount'];
-        $customerPayable = round($foodSubtotal + $platform['total'] + $deliveryCharge - $discount, 2);
+        $customerPayable = max(0, round($foodSubtotal + $platform['total'] + $deliveryCharge - $discount, 2));
         $commission = $engine->resolveCommission($restaurant, $foodAmount);
         $restaurantNet = round($foodAmount - $commission['amount'], 2);
         $companyDue = round($commission['amount'] + $markupAmount + $platform['total'], 2);
 
-        $paymentMethod = $request->get('payment_method', 'cod');
-        $paymentStatus = $paymentMethod === 'cod' ? 'cash_pending' : 'paid';
+        $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
+
+        // Customer resolution for wallet balance & MPIN
+        $userId = $request->get('customer_id') ?: $request->get('user_id');
+        $phone = $request->get('customer_phone') ?: $request->get('phone');
+        $user = null;
+        if ($userId) {
+            $user = UserApp::find($userId);
+        }
+        if (!$user && $phone) {
+            $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+            $last10 = substr($cleanPhone, -10);
+            if ($last10) {
+                $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+            }
+        }
+
+        // Home Service Wallet Payment Flow Verification
+        if ($paymentMethod === 'wallet') {
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Please log in to pay with your Fiinway Wallet.',
+                ], 422);
+            }
+
+            $walletBalance = floatval($user->amount ?? 0);
+            if ($walletBalance < $customerPayable) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Insufficient wallet balance. Required: ₹' . number_format($customerPayable, 2) . ', Available: ₹' . number_format($walletBalance, 2),
+                    'insufficient_balance' => true,
+                    'available_balance' => $walletBalance,
+                ], 422);
+            }
+
+            $mPin = $request->input('m_pin') ?? $request->input('mpin');
+            if (empty($mPin)) {
+                return response()->json([
+                    'success' => false,
+                    'require_mpin' => true,
+                    'error' => 'Wallet M-PIN is required to authorize payment.',
+                ], 422);
+            }
+
+            $userMPin = (string)($user->m_pin ?? '');
+            $userMdp  = (string)($user->mdp ?? '');
+            $enteredMPin = (string)$mPin;
+            $isMPinValid = (!empty($userMPin) && $userMPin === $enteredMPin) || 
+                           (!empty($userMdp) && $userMdp === md5($enteredMPin));
+
+            if (empty($userMPin) && empty($userMdp)) {
+                $user->m_pin = $enteredMPin;
+                $user->mdp = md5($enteredMPin);
+                $user->save();
+                $isMPinValid = true;
+            }
+
+            if (!$isMPinValid) {
+                return response()->json([
+                    'success' => false,
+                    'require_mpin' => true,
+                    'error' => 'Invalid Wallet M-PIN. Please enter your correct 4-digit M-PIN.',
+                ], 422);
+            }
+        }
+
+        $paymentStatus = ($paymentMethod === 'cod') ? 'cash_pending' : 'paid';
 
         $order = null;
         DB::transaction(function () use (
             &$order, $restaurant, $request, $foodAmount, $markupAmount, $foodSubtotal, $discount,
             $platform, $deliveryCharge, $customerPayable, $commission, $restaurantNet, $companyDue,
-            $paymentMethod, $paymentStatus, $distance, $lineRows
+            $paymentMethod, $paymentStatus, $distance, $lineRows, $user
         ) {
             $order = FoodOrder::create([
                 'order_number' => 'FIIN-FOOD-' . time() . random_int(10, 99),
                 'restaurant_id' => $restaurant->id,
-                'customer_id' => $request->get('customer_id'),
-                'customer_name' => $request->get('customer_name'),
-                'customer_phone' => $request->get('customer_phone'),
+                'customer_id' => $user ? $user->id : $request->get('customer_id'),
+                'customer_name' => $request->get('customer_name') ?: ($user ? trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')) : 'Customer'),
+                'customer_phone' => $request->get('customer_phone') ?: ($user ? $user->phone : ''),
                 'delivery_address' => $request->get('delivery_address'),
                 'delivery_landmark' => $request->get('delivery_landmark'),
                 'delivery_lat' => $request->get('delivery_lat'),
@@ -220,6 +296,26 @@ class CustomerFoodController extends Controller
                 'status' => 'pending',
             ]);
 
+            if ($paymentMethod === 'wallet' && $user && $customerPayable > 0) {
+                $user->amount = max(0, round(floatval($user->amount ?? 0) - $customerPayable, 2));
+                $user->save();
+
+                DB::table('tj_transaction')->insert([
+                    'id_user_app'     => $user->id,
+                    'user_type'       => 'customer',
+                    'amount'          => '-' . $customerPayable,
+                    'type'            => 'debit',
+                    'deduction_type'  => 0,
+                    'payment_method'  => 'Fiinway Wallet',
+                    'payment_status'  => 'success',
+                    'description'     => 'Food Order payment #' . $order->order_number,
+                    'txn_id'          => 'TXN' . time() . $order->id,
+                    'date'            => date('Y-m-d'),
+                    'creer'           => date('Y-m-d H:i:s'),
+                    'modifier'        => date('Y-m-d H:i:s'),
+                ]);
+            }
+
             if ($paymentMethod !== 'cod') {
                 FoodTransaction::create([
                     'txn_number' => 'TXN' . time() . $order->id,
@@ -249,6 +345,45 @@ class CustomerFoodController extends Controller
             'success' => true,
             'message' => 'Order placed successfully.',
             'data' => $order->load('items'),
+        ]);
+    }
+
+    public function getWallet(Request $request)
+    {
+        $userId = $request->get('user_id') ?: $request->get('id_user');
+        $phone = $request->get('customer_phone') ?: $request->get('phone');
+        $user = null;
+        if ($userId) {
+            $user = UserApp::find($userId);
+        }
+        if (!$user && $phone) {
+            $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+            $last10 = substr($cleanPhone, -10);
+            if ($last10) {
+                $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+            }
+        }
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'error' => 'User not found.',
+                'data' => [
+                    'wallet_balance' => 0.0,
+                    'has_mpin' => false,
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'user_id' => $user->id,
+                'name' => trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')),
+                'phone' => $user->phone,
+                'wallet_balance' => floatval($user->amount ?? 0),
+                'has_mpin' => !empty($user->m_pin) || !empty($user->mdp),
+            ]
         ]);
     }
 
