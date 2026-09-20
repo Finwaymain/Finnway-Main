@@ -96,6 +96,33 @@
                                         </div>
                                         <small class="text-muted d-block font-11">Max 5MB PNG/JPG</small>
                                     </div>
+
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold text-dark font-13">Product Gallery Images (Carousel Slider)</label>
+                                        @php
+                                            $currGallery = is_array($kit->images) ? $kit->images : (json_decode($kit->images ?? '[]', true) ?: []);
+                                        @endphp
+                                        @if(!empty($currGallery))
+                                            <div class="d-flex flex-wrap mb-2" style="gap: 8px;">
+                                                @foreach($currGallery as $gImg)
+                                                    <div class="position-relative border rounded p-1" style="width: 52px; height: 52px; background: #f8fafc;">
+                                                        <img src="{{ str_starts_with($gImg, 'http') ? $gImg : asset($gImg) }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
+                                                        <label class="position-absolute" style="top: -6px; right: -6px; background: #ef4444; color: #fff; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; margin: 0;" title="Click to mark for deletion">
+                                                            <input type="checkbox" name="remove_images[]" value="{{ $gImg }}" style="display: none;" onchange="this.parentElement.parentElement.style.opacity = this.checked ? '0.3' : '1';">
+                                                            ✕
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                            <small class="text-muted d-block mb-1 font-11">Click red ✕ on an image to delete upon saving</small>
+                                        @endif
+                                        <div class="custom-file mb-1">
+                                            <input type="file" name="images[]" id="kitGalleryFiles" class="custom-file-input" accept="image/*" multiple onchange="previewGalleryImages(this)">
+                                            <label class="custom-file-label rounded-lg font-12" for="kitGalleryFiles">Add more images (Multiple)</label>
+                                        </div>
+                                        <div id="newGalleryPreview" class="d-flex flex-wrap mt-2" style="gap: 8px;"></div>
+                                        <small class="text-muted d-block font-11">Upload multiple product shots for the app carousel slider</small>
+                                    </div>
                                 </div>
                             </div>
 
@@ -488,6 +515,25 @@ function previewKitImage(input) {
             document.getElementById('previewKitPlaceholder').style.display = 'none';
         };
         reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewGalleryImages(input) {
+    const previewContainer = document.getElementById('newGalleryPreview');
+    if (!previewContainer) return;
+    previewContainer.innerHTML = '';
+    if (input.files) {
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const div = document.createElement('div');
+                div.className = 'border rounded p-1';
+                div.style.cssText = 'width: 52px; height: 52px; background: #f8fafc; display: inline-block;';
+                div.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">`;
+                previewContainer.appendChild(div);
+            };
+            reader.readAsDataURL(file);
+        });
     }
 }
 

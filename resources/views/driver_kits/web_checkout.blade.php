@@ -1230,26 +1230,99 @@
                 <input type="hidden" name="kit_id" id="kitIdInput" value="{{ $kit ? $kit->id : 1 }}">
                 <input type="hidden" name="payment_method" id="selectedPaymentMethod" value="razorpay">
                 <input type="hidden" name="transaction_id" id="transactionId" value="">
+                <!-- Product Gallery Banner Carousel -->
+                @php
+                    $carouselImages = [];
+                    if (!empty($kit->images)) {
+                        $rawImgs = is_array($kit->images) ? $kit->images : (json_decode($kit->images, true) ?: []);
+                        foreach ($rawImgs as $im) {
+                            if (!empty($im)) {
+                                $carouselImages[] = str_starts_with($im, 'http') ? $im : asset($im);
+                            }
+                        }
+                    }
+                    if (empty($carouselImages) && !empty($kit->image)) {
+                        $carouselImages[] = str_starts_with($kit->image, 'http') ? $kit->image : asset($kit->image);
+                    }
+                    if (!empty($kit->products)) {
+                        $pList = is_array($kit->products) ? $kit->products : (json_decode($kit->products, true) ?: []);
+                        foreach ($pList as $pItem) {
+                            if (!empty($pItem['image'])) {
+                                $pImg = str_starts_with($pItem['image'], 'http') ? $pItem['image'] : asset($pItem['image']);
+                                if (!in_array($pImg, $carouselImages)) {
+                                    $carouselImages[] = $pImg;
+                                }
+                            }
+                        }
+                    }
+                @endphp
 
-                <!-- 1. Kit Selection Dropdown Card -->
-                <div class="card">
-                    <div class="card-title" style="margin-bottom: 8px;">Select Partner Package</div>
-                    <select id="kitDropdown" class="kit-select-box" onchange="onKitSelected(this.value)">
-                        @foreach($allKits as $k)
-                            <option value="{{ $k->id }}" {{ ($kit && $kit->id == $k->id) ? 'selected' : '' }}>
-                                {{ $k->title }} — ₹{{ number_format($k->price, 0) }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                <div class="card kit-carousel-card" style="padding: 0; overflow: hidden; margin-bottom: 14px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+                    <div class="carousel-wrapper" style="position: relative; width: 100%; height: 230px; background: #f8fafc; overflow: hidden;">
+                        <!-- Slides Track -->
+                        <div id="kitCarouselTrack" class="carousel-track" style="display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+                            @if(!empty($carouselImages))
+                                @foreach($carouselImages as $index => $imgUrl)
+                                    <div class="carousel-slide" data-index="{{ $index }}" style="min-width: 100%; max-width: 100%; height: 100%; flex-shrink: 0; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; position: relative; background: #f8fafc;">
+                                        <img src="{{ $imgUrl }}" alt="{{ $kit ? $kit->title : 'Product Image' }} - {{ $index + 1 }}" style="width: 100%; height: 100%; object-fit: contain; padding: 6px; border-radius: 12px;" onerror="this.onerror=null; this.src='{{ asset('images/fiinway_logo.png') }}';">
+                                    </div>
+                                @endforeach
+                            @else
+                                <div class="carousel-slide" style="min-width: 100%; height: 100%; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #15803d; background: #f0fdf4;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px;">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                    </svg>
+                                    <span style="font-size: 13px; font-weight: 600; margin-top: 8px;">Official Partner Welcome Kit</span>
+                                </div>
+                            @endif
+                        </div>
 
-                <!-- Cashback Callout Banner -->
-                <div class="cashback-banner">
-                    <div class="cashback-icon">₹</div>
-                    <div>
-                        <div class="cashback-title">₹100 Wallet Cashback Reward</div>
-                        <div class="cashback-sub">₹100 will be credited directly to your Fiinway wallet upon kit delivery.</div>
+                        <!-- Top Floating Badges -->
+                        <div style="position: absolute; top: 12px; left: 12px; z-index: 10; display: flex; gap: 6px;">
+                            <span style="background: rgba(21, 128, 61, 0.9); color: white; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                OFFICIAL GEAR
+                            </span>
+                        </div>
+                        @if(count($carouselImages) > 1)
+                            <div style="position: absolute; top: 12px; right: 12px; z-index: 10;">
+                                <span id="carouselCounter" style="background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px;">
+                                    1 / {{ count($carouselImages) }}
+                                </span>
+                            </div>
+                        @endif
+
+                        <!-- Arrow Navigation (if > 1 image) -->
+                        @if(count($carouselImages) > 1)
+                            <button type="button" class="carousel-arrow prev" onclick="scrollCarousel(-1)" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; color: #1e293b; font-size: 18px; font-weight: bold;">
+                                ‹
+                            </button>
+                            <button type="button" class="carousel-arrow next" onclick="scrollCarousel(1)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.9); box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; color: #1e293b; font-size: 18px; font-weight: bold;">
+                                ›
+                            </button>
+                        @endif
+
+                        <!-- Dots Indicator -->
+                        @if(count($carouselImages) > 1)
+                            <div id="carouselDots" style="position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; z-index: 10;">
+                                @foreach($carouselImages as $index => $img)
+                                    <div class="carousel-dot {{ $index === 0 ? 'active' : '' }}" onclick="goToSlide({{ $index }})" style="width: {{ $index === 0 ? '20px' : '6px' }}; height: 6px; border-radius: 3px; background: {{ $index === 0 ? '#15803d' : 'rgba(0,0,0,0.25)' }}; cursor: pointer; transition: all 0.3s;"></div>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
+
+                    <!-- Thumbnails Strip (if > 1 image) -->
+                    @if(count($carouselImages) > 1)
+                        <div id="carouselThumbnails" style="display: flex; gap: 8px; padding: 10px 12px; background: #ffffff; border-top: 1px solid var(--border-color); overflow-x: auto; scrollbar-width: none;">
+                            @foreach($carouselImages as $index => $imgUrl)
+                                <div class="carousel-thumb {{ $index === 0 ? 'active' : '' }}" onclick="goToSlide({{ $index }})" style="width: 52px; height: 52px; border-radius: 8px; overflow: hidden; border: 2px solid {{ $index === 0 ? '#15803d' : 'transparent' }}; background: #f8fafc; cursor: pointer; flex-shrink: 0; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                    <img src="{{ $imgUrl }}" alt="Thumb {{ $index + 1 }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
 
                 <!-- 2. Product Summary Card -->
@@ -1459,6 +1532,75 @@
         const walletBalance = {{ (float)($walletBalance ?? 0) }};
         const razorpayKey = "{{ $razorpayKey ?? 'rzp_test_key' }}";
         let currentPayment = 'razorpay';
+
+        // Product Banner Carousel Handlers
+        let currentSlideIndex = 0;
+        const totalSlides = {{ count($carouselImages ?? []) }};
+
+        function goToSlide(index) {
+            const track = document.getElementById('kitCarouselTrack');
+            if (!track) return;
+            const slides = track.querySelectorAll('.carousel-slide');
+            if (slides.length === 0) return;
+            if (index < 0) index = 0;
+            if (index >= slides.length) index = slides.length - 1;
+            currentSlideIndex = index;
+
+            const targetSlide = slides[index];
+            if (targetSlide) {
+                targetSlide.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+            }
+            updateCarouselUI(index);
+        }
+
+        function scrollCarousel(dir) {
+            goToSlide(currentSlideIndex + dir);
+        }
+
+        function updateCarouselUI(index) {
+            currentSlideIndex = index;
+            const counter = document.getElementById('carouselCounter');
+            if (counter && totalSlides > 0) {
+                counter.textContent = (index + 1) + ' / ' + totalSlides;
+            }
+            const dots = document.querySelectorAll('#carouselDots .carousel-dot');
+            dots.forEach((dot, idx) => {
+                if (idx === index) {
+                    dot.style.background = '#15803d';
+                    dot.style.width = '20px';
+                } else {
+                    dot.style.background = 'rgba(0,0,0,0.25)';
+                    dot.style.width = '6px';
+                }
+            });
+            const thumbs = document.querySelectorAll('#carouselThumbnails .carousel-thumb');
+            thumbs.forEach((thumb, idx) => {
+                if (idx === index) {
+                    thumb.style.borderColor = '#15803d';
+                    thumb.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                } else {
+                    thumb.style.borderColor = 'transparent';
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const track = document.getElementById('kitCarouselTrack');
+            if (track) {
+                let scrollTimeout;
+                track.addEventListener('scroll', () => {
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(() => {
+                        const scrollLeft = track.scrollLeft;
+                        const slideWidth = track.clientWidth || 1;
+                        const activeIndex = Math.round(scrollLeft / slideWidth);
+                        if (activeIndex !== currentSlideIndex && activeIndex >= 0 && activeIndex < totalSlides) {
+                            updateCarouselUI(activeIndex);
+                        }
+                    }, 50);
+                }, { passive: true });
+            }
+        });
 
         function onKitSelected(kitId) {
             const found = allKitsData.find(k => k.id == kitId);

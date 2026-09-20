@@ -161,6 +161,7 @@ class DriverKitApiController extends Controller
                     'cost_price_formatted' => '₹' . number_format($kit->cost_price ?? 0, 0),
                     'stock_quantity' => (int)($kit->stock_quantity ?? 500),
                     'image' => $kit->image ? (str_starts_with($kit->image, 'http') ? $kit->image : url($kit->image)) : '',
+                    'images' => $this->formatKitImages($kit),
                     'items_included' => is_array($kit->items_included) ? $kit->items_included : (json_decode($kit->items_included ?? '[]', true) ?: []),
                     'products' => $this->formatKitProducts($kit->products ?? []),
                     'status' => $kit->status ?? 'published',
@@ -218,6 +219,7 @@ class DriverKitApiController extends Controller
                 'booking_required' => (bool)($k->booking_required ?? true),
                 'stock_quantity' => (int)($k->stock_quantity ?? 500),
                 'image' => $k->image ? (str_starts_with($k->image, 'http') ? $k->image : url($k->image)) : '',
+                'images' => $this->formatKitImages($k),
                 'items_included' => is_array($k->items_included) ? $k->items_included : (json_decode($k->items_included ?? '[]', true) ?: []),
                 'products' => $this->formatKitProducts($k->products ?? []),
                 'status' => $k->status ?? 'published',
@@ -638,5 +640,22 @@ class DriverKitApiController extends Controller
             'home_service' => 'Home Service Specialist',
             default => 'Home Service Specialist',
         };
+    }
+
+    private function formatKitImages($kit): array
+    {
+        $images = [];
+        $rawImages = is_array($kit->images ?? null) ? $kit->images : (json_decode($kit->images ?? '[]', true) ?: []);
+        if (is_array($rawImages)) {
+            foreach ($rawImages as $img) {
+                if (!empty($img)) {
+                    $images[] = str_starts_with($img, 'http') ? $img : url($img);
+                }
+            }
+        }
+        if (empty($images) && !empty($kit->image)) {
+            $images[] = str_starts_with($kit->image, 'http') ? $kit->image : url($kit->image);
+        }
+        return $images;
     }
 }

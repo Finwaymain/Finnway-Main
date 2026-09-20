@@ -149,6 +149,7 @@ class DriverKitController extends Controller
             'stock_quantity' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
             'image' => 'nullable|image|max:5120',
+            'images.*' => 'nullable|image|max:5120',
         ]);
 
         $kit = new DriverKit();
@@ -173,14 +174,29 @@ class DriverKitController extends Controller
         $status = $request->input('status', 'published');
         $kit->status = in_array($status, ['published', 'draft']) ? $status : 'published';
 
-        if ($request->hasFile('image')) {
-            $kitDir = public_path('assets/images/kits');
-            if (!File::isDirectory($kitDir)) {
-                File::makeDirectory($kitDir, 0777, true, true);
+        $kitDir = public_path('assets/images/kits');
+        if (!File::isDirectory($kitDir)) {
+            File::makeDirectory($kitDir, 0777, true, true);
+        }
+
+        $galleryImages = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                if ($file && $file->isValid()) {
+                    $imgName = 'kit_' . time() . '_' . uniqid() . '.' . $file->extension();
+                    $file->move($kitDir, $imgName);
+                    $galleryImages[] = 'assets/images/kits/' . $imgName;
+                }
             }
+        }
+        $kit->images = $galleryImages;
+
+        if ($request->hasFile('image')) {
             $imageName = 'kit_' . time() . '_' . uniqid() . '.' . $request->image->extension();
             $request->image->move($kitDir, $imageName);
             $kit->image = 'assets/images/kits/' . $imageName;
+        } elseif (!empty($galleryImages)) {
+            $kit->image = $galleryImages[0];
         }
 
         $kit->save();
@@ -222,6 +238,7 @@ class DriverKitController extends Controller
             'stock_quantity' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
             'image' => 'nullable|image|max:5120',
+            'images.*' => 'nullable|image|max:5120',
         ]);
 
         $kit->title = $request->title;
@@ -256,14 +273,40 @@ class DriverKitController extends Controller
             $kit->status = in_array($request->status, ['published', 'draft']) ? $request->status : 'published';
         }
 
-        if ($request->hasFile('image')) {
-            $kitDir = public_path('assets/images/kits');
-            if (!File::isDirectory($kitDir)) {
-                File::makeDirectory($kitDir, 0777, true, true);
+        $kitDir = public_path('assets/images/kits');
+        if (!File::isDirectory($kitDir)) {
+            File::makeDirectory($kitDir, 0777, true, true);
+        }
+
+        $currentImages = is_array($kit->images) ? $kit->images : (json_decode($kit->images ?? '[]', true) ?: []);
+
+        // Handle removal of specific images
+        if ($request->has('remove_images')) {
+            $toRemove = (array)$request->input('remove_images');
+            $currentImages = array_values(array_filter($currentImages, function($img) use ($toRemove) {
+                return !in_array($img, $toRemove);
+            }));
+        }
+
+        // Handle newly uploaded gallery images
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                if ($file && $file->isValid()) {
+                    $imgName = 'kit_' . time() . '_' . uniqid() . '.' . $file->extension();
+                    $file->move($kitDir, $imgName);
+                    $currentImages[] = 'assets/images/kits/' . $imgName;
+                }
             }
+        }
+        $kit->images = array_values($currentImages);
+
+        // Handle single primary image upload
+        if ($request->hasFile('image')) {
             $imageName = 'kit_' . time() . '_' . uniqid() . '.' . $request->image->extension();
             $request->image->move($kitDir, $imageName);
             $kit->image = 'assets/images/kits/' . $imageName;
+        } elseif (empty($kit->image) && !empty($currentImages)) {
+            $kit->image = $currentImages[0];
         }
 
         $kit->save();

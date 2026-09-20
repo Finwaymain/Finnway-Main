@@ -91,6 +91,16 @@
                                         </div>
                                         <small class="text-muted d-block font-11">Recommended: 800x800 PNG or JPG (Max 5MB)</small>
                                     </div>
+
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold text-dark font-13">Product Gallery Images (Carousel Slider)</label>
+                                        <div class="custom-file mb-1">
+                                            <input type="file" name="images[]" id="kitGalleryFiles" class="custom-file-input" accept="image/*" multiple onchange="previewGalleryImages(this)">
+                                            <label class="custom-file-label rounded-lg font-12" for="kitGalleryFiles">Choose multiple images</label>
+                                        </div>
+                                        <div id="newGalleryPreview" class="d-flex flex-wrap mt-2" style="gap: 8px;"></div>
+                                        <small class="text-muted d-block font-11">Upload multiple product shots for the app carousel slider</small>
+                                    </div>
                                 </div>
                             </div>
 
@@ -482,6 +492,25 @@ function previewKitImage(input) {
             document.getElementById('previewKitPlaceholder').style.display = 'none';
         };
         reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewGalleryImages(input) {
+    const previewContainer = document.getElementById('newGalleryPreview');
+    if (!previewContainer) return;
+    previewContainer.innerHTML = '';
+    if (input.files) {
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const div = document.createElement('div');
+                div.className = 'border rounded p-1';
+                div.style.cssText = 'width: 52px; height: 52px; background: #f8fafc; display: inline-block;';
+                div.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">`;
+                previewContainer.appendChild(div);
+            };
+            reader.readAsDataURL(file);
+        });
     }
 }
 
