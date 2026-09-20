@@ -154,13 +154,14 @@ class FoodPricingEngine
             return ['amount' => 0.0, 'available' => true, 'meta' => null];
         }
 
-        if ($distanceKm > (float) $rule->max_distance_km) {
+        $effectiveMax = max(25.0, (float) $rule->max_distance_km);
+        if ($distanceKm > $effectiveMax) {
             if (!$rule->allow_above_max) {
                 return ['amount' => 0.0, 'available' => false, 'meta' => $rule];
             }
-            $extra = $distanceKm - (float) $rule->max_distance_km;
+            $extra = $distanceKm - $effectiveMax;
             $amount = (float) $rule->base_charge
-                + max(0, (float) $rule->max_distance_km - (float) $rule->base_radius_km) * (float) $rule->per_km_charge
+                + max(0, $effectiveMax - (float) $rule->base_radius_km) * (float) $rule->per_km_charge
                 + $extra * (float) ($rule->above_max_per_km ?? $rule->per_km_charge);
             return ['amount' => round($amount, 2), 'available' => true, 'meta' => $rule];
         }

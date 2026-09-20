@@ -23,39 +23,45 @@ class CustomerFoodController extends Controller
     {
         $lat = (float) $request->get('latitude', $request->get('lat'));
         $lng = (float) $request->get('longitude', $request->get('lng'));
-        $radius = (float) FoodSetting::getValue('nearby_restaurant_radius_km', 15);
+        $radius = (float) $request->get('radius', FoodSetting::getValue('nearby_restaurant_radius_km', 25));
+        if ($radius <= 0) {
+            $radius = 25.0;
+        }
 
         $restaurants = FoodRestaurant::query()
-            ->where('onboarding_status', 'active')
             ->where('operational_status', 'open')
             ->where('delivery_available', true)
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
             ->get()
             ->map(function ($r) use ($lat, $lng) {
-                $r->distance_km = ($lat && $lng)
-                    ? FoodPricingEngine::haversineKm($lat, $lng, (float) $r->latitude, (float) $r->longitude)
+                $r->distance_km = ($lat && $lng && $r->latitude && $r->longitude)
+                    ? round(FoodPricingEngine::haversineKm($lat, $lng, (float) $r->latitude, (float) $r->longitude), 1)
                     : null;
+                $r->logo_url = $r->logo ? (str_starts_with($r->logo, 'http') ? $r->logo : asset('storage/' . ltrim($r->logo, '/'))) : null;
+                $r->cover_url = $r->cover_image ? (str_starts_with($r->cover_image, 'http') ? $r->cover_image : asset('storage/' . ltrim($r->cover_image, '/'))) : null;
                 return $r;
             })
             ->filter(function ($r) use ($radius) {
                 if ($r->distance_km === null) {
                     return true;
                 }
-                return $r->distance_km <= min($radius, (float) $r->delivery_radius_km);
+                $allowedRadius = max($radius, (float) ($r->delivery_radius_km ?: 25));
+                return $r->distance_km <= $allowedRadius;
             })
             ->sortBy('distance_km')
             ->values();
 
-        return response()->json(['success' => true, 'data' => $restaurants]);
+        return response()->json(['success' => true, 'data' => $restaurants, 'radius_km' => $radius]);
     }
 
     public function restaurantMenu(Request $request, $id)
     {
-        $restaurant = FoodRestaurant::where('id', $id)->where('onboarding_status', 'active')->first();
+        $restaurant = FoodRestaurant::where('id', $id)->first();
         if (!$restaurant) {
             return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
         }
+        $restaurant->logo_url = $restaurant->logo ? (str_starts_with($restaurant->logo, 'http') ? $restaurant->logo : asset('storage/' . ltrim($restaurant->logo, '/'))) : null;
+        $restaurant->cover_url = $restaurant->cover_image ? (str_starts_with($restaurant->cover_image, 'http') ? $restaurant->cover_image : asset('storage/' . ltrim($restaurant->cover_image, '/'))) : null;
+
         $engine = new FoodPricingEngine();
         $categories = FoodCategory::where('restaurant_id', $restaurant->id)->where('is_active', true)->orderBy('sort_order')->get();
         $products = FoodProduct::with(['addons', 'variants'])
@@ -84,7 +90,6 @@ class CustomerFoodController extends Controller
     public function placeOrder(Request $request)
     {
         $restaurant = FoodRestaurant::where('id', $request->get('restaurant_id'))
-            ->where('onboarding_status', 'active')
             ->where('operational_status', 'open')
             ->first();
         if (!$restaurant) {

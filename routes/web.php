@@ -55,26 +55,13 @@ Route::get('/onboarding/marketplace.html', function () {
 
 // Food & Restaurant Partner Route Handler
 $serveFoodRoute = function (\Illuminate\Http\Request $request) {
-    // Check if request is from Restaurant Partner App / Portal
-    // Restaurant App always sends view=portal, tab=dashboard/orders/menu/etc., or restaurant token
-    $isRestaurantPortal = $request->query('view') === 'portal'
-        || $request->has('tab')
-        || ($request->has('token') && !$request->has('accesstoken'))
-        || $request->query('user_type') === 'restaurant'
-        || $request->query('role') === 'restaurant';
-
-    if ($isRestaurantPortal) {
-        if (file_exists(public_path('onboarding-assets/food.html'))) {
-            return response()->file(public_path('onboarding-assets/food.html'));
-        }
-        if (file_exists(public_path('onboarding-assets/food/index.html'))) {
-            return response()->file(public_path('onboarding-assets/food/index.html'));
-        }
-        return OnboardingAccess::renderView('food');
+    if (file_exists(public_path('onboarding-assets/food.html'))) {
+        return response()->file(public_path('onboarding-assets/food.html'));
     }
-
-    // Customer Food Ordering (User App, Business App, or general /food)
-    return view('food_coming_soon');
+    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
+        return response()->file(public_path('onboarding-assets/food/index.html'));
+    }
+    return OnboardingAccess::renderView('food');
 };
 
 Route::get('/onboarding/food.html', $serveFoodRoute);
