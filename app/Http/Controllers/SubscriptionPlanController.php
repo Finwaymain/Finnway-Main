@@ -109,11 +109,10 @@ class SubscriptionPlanController extends Controller
             'description' => 'required',
             'order' => 'required',
             'image' => 'required|mimes:jpeg,jpg,png,webp,gif',
-            'booking_limit' => ['required_if:set_booking_limit,limited',
+            'booking_limit' => ['nullable',
                 function ($attribute, $value, $fail) use ($request) {
-                    if ($request->input('set_booking_limit') === 'limited' && $value <= 0) {
+                    if ($request->input('set_booking_limit') === 'limited' && !empty($value) && $value <= 0) {
                         $fail(__('lang.booking_limit_in_positive_no'));
-
                     }
                 }],
             'plan_points' => 'required|array|min:1',
@@ -282,11 +281,10 @@ class SubscriptionPlanController extends Controller
             'order' => 'required',
             'image' => 'image|mimes:jpeg,jpg,png',
             'booking_limit' => [
-                'required_if:set_booking_limit,limited',
+                'nullable',
                 function ($attribute, $value, $fail) use ($request) {
-                    if ($request->input('set_booking_limit') === 'limited' && $value <= 0) {
+                    if ($request->input('set_booking_limit') === 'limited' && !empty($value) && $value <= 0) {
                         $fail(__('lang.booking_limit_in_positive_no'));
-                        
                     }
                 }
             ],

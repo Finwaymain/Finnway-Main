@@ -253,7 +253,8 @@
             @csrf
             @method('PUT')
             <input type="hidden" name="order" value="{{ $subscriptionPlan->place ?? 1 }}">
-            <input type="hidden" name="set_booking_limit" value="{{ $subscriptionPlan->bookingLimit != '-1' ? 'limited' : 'unlimited' }}">
+            <input type="hidden" name="set_booking_limit" value="unlimited">
+            <input type="hidden" name="booking_limit" value="{{ $subscriptionPlan->bookingLimit != '-1' ? $subscriptionPlan->bookingLimit : '' }}">
 
             <!-- Section 1: Plan Tier & Basic Details -->
             <div class="section-card">
