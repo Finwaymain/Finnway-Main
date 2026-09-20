@@ -699,12 +699,20 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
     Route::get('v1/get-user-parcel-orders', [GetParcelOrdersController::class, 'getUserParcel']);
 
     Route::get('v1/get-parcel-detail', [GetParcelOrdersController::class, 'getParcelDetail']);
+    Route::get('v1/get-parcel-detail/', [GetParcelOrdersController::class, 'getParcelDetail']);
 
+    Route::post('v1/parcel-pay-requete-wallet', [PayParcelWalletController::class, 'UpdatePayRequeteWallet']);
     Route::post('v1/parcel-pay-requete-wallet/', [PayParcelWalletController::class, 'UpdatePayRequeteWallet']);
+    Route::post('v1/parcel-pay-wallet', [PayParcelWalletController::class, 'UpdatePayRequeteWallet']);
+    Route::post('v1/parcel-pay-wallet/', [PayParcelWalletController::class, 'UpdatePayRequeteWallet']);
 
+    Route::post('v1/parcel-payment-by-cash', [PaymentByCashParcelController::class, 'UpdatePayment']);
     Route::post('v1/parcel-payment-by-cash/', [PaymentByCashParcelController::class, 'UpdatePayment']);
 
+    Route::post('v1/parcel-payment-requete', [PayParcelRequestController::class, 'UpdatePayment']);
     Route::post('v1/parcel-payment-requete/', [PayParcelRequestController::class, 'UpdatePayment']);
+    Route::post('v1/parcel-payment-request', [PayParcelRequestController::class, 'UpdatePayment']);
+    Route::post('v1/parcel-payment-request/', [PayParcelRequestController::class, 'UpdatePayment']);
 
 
 
