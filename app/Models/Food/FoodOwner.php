@@ -9,7 +9,7 @@ class FoodOwner extends Model
     protected $table = 'food_owners';
 
     protected $fillable = [
-        'name', 'phone', 'email', 'password', 'mpin', 'otp', 'otp_expires_at',
+        'name', 'phone', 'email', 'image', 'pan_number', 'password', 'mpin', 'otp', 'otp_expires_at',
         'access_token', 'fcm_token', 'status',
     ];
 

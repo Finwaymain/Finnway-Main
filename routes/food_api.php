@@ -50,6 +50,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
         Route::post('onboarding/payment/proof', [RestaurantOnboardingController::class, 'submitPaymentProof']);
         Route::post('operational-status', [RestaurantOnboardingController::class, 'setOperationalStatus']);
         Route::post('update', [RestaurantOnboardingController::class, 'updateProfile']);
+        Route::post('upload-image', [RestaurantOnboardingController::class, 'uploadImage']);
 
         Route::get('categories', [RestaurantMenuController::class, 'categories']);
         Route::post('categories', [RestaurantMenuController::class, 'saveCategory']);

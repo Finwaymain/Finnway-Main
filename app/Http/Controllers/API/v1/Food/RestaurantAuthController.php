@@ -274,7 +274,7 @@ class RestaurantAuthController extends Controller
     {
         /** @var FoodOwner $owner */
         $owner = $request->attributes->get('food_owner');
-        foreach (['name', 'email', 'fcm_token'] as $field) {
+        foreach (['name', 'email', 'fcm_token', 'pan_number'] as $field) {
             if ($request->filled($field)) {
                 $owner->{$field} = $request->input($field);
             }
@@ -282,7 +282,42 @@ class RestaurantAuthController extends Controller
         if ($request->filled('password')) {
             $owner->password = Hash::make($request->input('password'));
         }
+
+        // Handle owner photo/image upload (file upload or base64)
+        $imageFile = $request->file('image') ?: $request->file('owner_image');
+        if ($imageFile) {
+            $dir = 'food/owners/' . $owner->id;
+            $path = $imageFile->store($dir, 'public');
+            $owner->image = $path;
+        } else {
+            $rawImage = $request->input('image') ?: $request->input('owner_image');
+            if (is_string($rawImage) && str_starts_with($rawImage, 'data:image')) {
+                try {
+                    $parts = explode(',', $rawImage);
+                    $data = base64_decode($parts[1] ?? '');
+                    if (!empty($data)) {
+                        $filename = 'food/owners/' . $owner->id . '/owner_' . time() . '.jpg';
+                        \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                        $owner->image = $filename;
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Base64 owner image save error: ' . $e->getMessage());
+                }
+            } elseif (is_string($rawImage) && !empty($rawImage) && !str_starts_with($rawImage, 'data:image')) {
+                $owner->image = $rawImage;
+            }
+        }
+
         $owner->save();
+
+        // Synchronize restaurant owner info
+        FoodRestaurant::where('owner_id', $owner->id)->update([
+            'owner_name' => $owner->name,
+            'owner_email' => $owner->email,
+            'owner_image' => $owner->image,
+            'pan_number' => $owner->pan_number ?: \DB::raw('pan_number'),
+        ]);
+
         return response()->json(['success' => true, 'data' => $this->ownerPayload($owner, $owner->access_token)]);
     }
 
@@ -321,6 +356,9 @@ class RestaurantAuthController extends Controller
                 'name' => $owner->name,
                 'phone' => $owner->phone,
                 'email' => $owner->email,
+                'image' => $owner->image ? (str_starts_with($owner->image, 'http') ? $owner->image : asset('storage/' . $owner->image)) : null,
+                'image_path' => $owner->image,
+                'pan_number' => $owner->pan_number,
                 'status' => $owner->status,
                 'has_mpin' => !empty($owner->mpin),
                 'profile_completed' => !empty($owner->name),

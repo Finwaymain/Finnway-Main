@@ -84,12 +84,17 @@ class RestaurantOnboardingController extends Controller
         $restaurant->bank_branch = $request->input('bank_branch');
         $restaurant->upi_id = $request->input('upi_id');
 
-        foreach (['logo', 'cover_image', 'id_proof', 'business_proof', 'fssai_doc', 'gst_doc', 'cancelled_cheque'] as $fileField) {
+        foreach (['owner_image', 'logo', 'cover_image', 'id_proof', 'business_proof', 'fssai_doc', 'gst_doc', 'cancelled_cheque'] as $fileField) {
             if ($request->hasFile($fileField)) {
-                $restaurant->{$fileField} = $request->file($fileField)->store('food/restaurants/' . $owner->id, 'public');
+                $folder = $fileField === 'owner_image' ? ('food/owners/' . $owner->id) : ('food/restaurants/' . $owner->id);
+                $restaurant->{$fileField} = $request->file($fileField)->store($folder, 'public');
             } elseif ($request->filled($fileField)) {
                 $restaurant->{$fileField} = $request->input($fileField);
             }
+        }
+
+        if ($restaurant->owner_image) {
+            $owner->image = $restaurant->owner_image;
         }
 
         $fee = (float) $type->onboarding_fee;
@@ -105,10 +110,16 @@ class RestaurantOnboardingController extends Controller
         }
         $restaurant->save();
 
-        if (!$owner->name && $request->filled('owner_name')) {
+        if ($request->filled('owner_name')) {
             $owner->name = $request->get('owner_name');
-            $owner->save();
         }
+        if ($request->filled('owner_email')) {
+            $owner->email = $request->get('owner_email');
+        }
+        if ($request->filled('pan_number')) {
+            $owner->pan_number = $request->get('pan_number');
+        }
+        $owner->save();
 
         return response()->json([
             'success' => true,
@@ -351,8 +362,9 @@ class RestaurantOnboardingController extends Controller
 
     public function updateProfile(Request $request)
     {
+        /** @var \App\Models\Food\FoodOwner $owner */
         $owner = $request->attributes->get('food_owner');
-        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->first();
+        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
         if (!$restaurant) {
             return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
         }
@@ -361,8 +373,10 @@ class RestaurantOnboardingController extends Controller
             'latitude', 'longitude', 'opening_time', 'closing_time', 'working_days',
             'avg_prep_minutes', 'delivery_radius_km', 'min_order_amount', 'max_order_amount',
             'delivery_available', 'takeaway_available', 'dine_in_available', 'auto_accept',
+            'pure_veg', 'operational_status',
             'bank_account_name', 'bank_name', 'bank_account_number', 'bank_ifsc', 'bank_branch', 'upi_id',
             'fssai_number', 'gst_number', 'pan_number',
+            'owner_name', 'owner_email', 'owner_phone',
         ];
         foreach ($allowed as $field) {
             if ($request->exists($field)) {
@@ -370,15 +384,152 @@ class RestaurantOnboardingController extends Controller
                 if ($field === 'working_days' && is_array($val)) {
                     $val = json_encode($val);
                 }
+                if ($field === 'pure_veg') {
+                    $val = filter_var($val, FILTER_VALIDATE_BOOLEAN);
+                }
                 $restaurant->{$field} = $val;
             }
         }
-        foreach (['logo', 'cover_image'] as $fileField) {
-            if ($request->hasFile($fileField)) {
-                $restaurant->{$fileField} = $request->file($fileField)->store('food/restaurants/' . $owner->id, 'public');
+
+        // Handle Owner Image (file upload, base64 data URI, or string path)
+        $ownerImageFile = $request->file('owner_image') ?: $request->file('image');
+        if ($ownerImageFile) {
+            $path = $ownerImageFile->store('food/owners/' . $owner->id, 'public');
+            $restaurant->owner_image = $path;
+            $owner->image = $path;
+            $owner->save();
+        } else {
+            $rawOwnerImage = $request->input('owner_image') ?: $request->input('image');
+            if (is_string($rawOwnerImage) && str_starts_with($rawOwnerImage, 'data:image')) {
+                try {
+                    $parts = explode(',', $rawOwnerImage);
+                    $data = base64_decode($parts[1] ?? '');
+                    if (!empty($data)) {
+                        $filename = 'food/owners/' . $owner->id . '/owner_' . time() . '.jpg';
+                        \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                        $restaurant->owner_image = $filename;
+                        $owner->image = $filename;
+                        $owner->save();
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Base64 owner image save error: ' . $e->getMessage());
+                }
+            } elseif (is_string($rawOwnerImage) && !empty($rawOwnerImage) && !str_starts_with($rawOwnerImage, 'data:image')) {
+                $restaurant->owner_image = $rawOwnerImage;
+                $owner->image = $rawOwnerImage;
+                $owner->save();
             }
         }
+
+        // Handle Restaurant Logo & Cover Image
+        foreach (['logo', 'cover_image', 'fssai_doc', 'gst_doc', 'cancelled_cheque'] as $fileField) {
+            if ($request->hasFile($fileField)) {
+                $restaurant->{$fileField} = $request->file($fileField)->store('food/restaurants/' . $owner->id, 'public');
+            } else {
+                $rawVal = $request->input($fileField);
+                if (is_string($rawVal) && str_starts_with($rawVal, 'data:image')) {
+                    try {
+                        $parts = explode(',', $rawVal);
+                        $data = base64_decode($parts[1] ?? '');
+                        if (!empty($data)) {
+                            $filename = 'food/restaurants/' . $owner->id . '/' . $fileField . '_' . time() . '.jpg';
+                            \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                            $restaurant->{$fileField} = $filename;
+                        }
+                    } catch (\Throwable $e) {}
+                } elseif (is_string($rawVal) && !empty($rawVal) && !str_starts_with($rawVal, 'data:image')) {
+                    $restaurant->{$fileField} = $rawVal;
+                }
+            }
+        }
+
+        // Sync owner profile attributes
+        if ($request->filled('owner_name')) {
+            $owner->name = $request->input('owner_name');
+        }
+        if ($request->filled('owner_email')) {
+            $owner->email = $request->input('owner_email');
+        }
+        if ($request->filled('pan_number')) {
+            $owner->pan_number = $request->input('pan_number');
+        }
+        $owner->save();
+
         $restaurant->save();
-        return response()->json(['success' => true, 'data' => $restaurant]);
+
+        // Build augmented response with full image URLs
+        $resData = $restaurant->toArray();
+        $resData['logo_url'] = $restaurant->logo ? (str_starts_with($restaurant->logo, 'http') ? $restaurant->logo : asset('storage/' . $restaurant->logo)) : null;
+        $resData['cover_url'] = $restaurant->cover_image ? (str_starts_with($restaurant->cover_image, 'http') ? $restaurant->cover_image : asset('storage/' . $restaurant->cover_image)) : null;
+        $resData['owner_image_url'] = $restaurant->owner_image ? (str_starts_with($restaurant->owner_image, 'http') ? $restaurant->owner_image : asset('storage/' . $restaurant->owner_image)) : ($owner->image ? asset('storage/' . $owner->image) : null);
+        $resData['owner'] = [
+            'id' => $owner->id,
+            'name' => $owner->name,
+            'phone' => $owner->phone,
+            'email' => $owner->email,
+            'image' => $resData['owner_image_url'],
+            'pan_number' => $owner->pan_number,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.',
+            'data' => $resData,
+        ]);
+    }
+
+    public function uploadImage(Request $request)
+    {
+        /** @var \App\Models\Food\FoodOwner $owner */
+        $owner = $request->attributes->get('food_owner');
+        $file = $request->file('image') ?: ($request->file('file') ?: $request->file('photo'));
+        $type = $request->input('type', 'general'); // owner | logo | cover | dish | general
+        
+        $path = null;
+        if ($file) {
+            $folder = 'food/' . ($type === 'owner' ? ('owners/' . $owner->id) : ('restaurants/' . $owner->id));
+            $path = $file->store($folder, 'public');
+        } else {
+            $base64 = $request->input('image') ?: $request->input('data');
+            if (is_string($base64) && str_starts_with($base64, 'data:image')) {
+                try {
+                    $parts = explode(',', $base64);
+                    $data = base64_decode($parts[1] ?? '');
+                    if (!empty($data)) {
+                        $folder = 'food/' . ($type === 'owner' ? ('owners/' . $owner->id) : ('restaurants/' . $owner->id));
+                        $filename = $folder . '/' . $type . '_' . time() . '.jpg';
+                        \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
+                        $path = $filename;
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Image upload base64 error: ' . $e->getMessage());
+                }
+            }
+        }
+
+        if (!$path) {
+            return response()->json(['success' => false, 'error' => 'No image file or valid image data provided.'], 400);
+        }
+
+        $url = asset('storage/' . $path);
+
+        // Auto-persist directly to owner / restaurant models based on type
+        if ($type === 'owner') {
+            $owner->image = $path;
+            $owner->save();
+            FoodRestaurant::where('owner_id', $owner->id)->update(['owner_image' => $path]);
+        } elseif ($type === 'logo') {
+            FoodRestaurant::where('owner_id', $owner->id)->update(['logo' => $path]);
+        } elseif ($type === 'cover') {
+            FoodRestaurant::where('owner_id', $owner->id)->update(['cover_image' => $path]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Image uploaded successfully.',
+            'url' => $url,
+            'path' => $path,
+            'type' => $type,
+        ]);
     }
 }
