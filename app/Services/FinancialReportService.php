@@ -191,17 +191,12 @@ class FinancialReportService
         $hasCondTxn      = Schema::hasTable('tj_conducteur_transaction');
         $hasUserTxn      = Schema::hasTable('tj_transaction');
 
-        // Helper to sum real Online / Wallet Turnover (Cash collections go directly into provider's hands, so only Online/Wallet reflects in company Turnover)
+        // Helper to sum total Gross Merchandise Value (GMV) across all services (both Online and Cash volume)
         $calcPeriodGmv = function($pStart, $pEnd) use ($hasRequete, $hasMarketOrders, $hasServiceReq, $hasParcelOrders, $hasSubHist, $validRide, $validMarket, $validService, $validParcel, $calcSubRevenue) {
             $sum = 0.0;
             if ($hasRequete) {
                 $sum += (float)$validRide(DB::table('tj_requete'))
                     ->whereBetween('creer', [$pStart, $pEnd])
-                    ->where(function($q) {
-                        $q->whereNotIn('id_payment_method', [1, 5])
-                          ->where('statut_paiement', '!=', 'cash')
-                          ->where('statut_paiement', '!=', 'Cash');
-                    })
                     ->sum('montant');
             }
             if ($hasMarketOrders) {
@@ -210,13 +205,11 @@ class FinancialReportService
             if ($hasServiceReq) {
                 $sum += (float)$validService(DB::table('service_requests'))
                     ->whereBetween('created_at', [$pStart, $pEnd])
-                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                     ->sum('amount');
             }
             if ($hasParcelOrders) {
                 $sum += (float)$validParcel(DB::table('parcel_orders'))
                     ->whereBetween('created_at', [$pStart, $pEnd])
-                    ->whereNotIn('payment_status', ['paid_cash', 'cash'])
                     ->sum('amount');
             }
             if ($hasSubHist) {
@@ -794,83 +787,132 @@ class FinancialReportService
         $gstCollectedOnline    = round($totalOnlineGst, 2);
         $gstCollectedCash      = round($recoveredCashGst, 2);
 
-        // Total Gross Ecosystem Volume (GMV) - Online & Wallet Turnover only (Cash is held in hand by providers)
+        // Total Gross Ecosystem Volume (GMV) - Both Online and Cash Volume
         $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodOnlineGross + $parcelOnlineGross + $travelOnlineGross + $otherOnlineGross + $marketGross + $subRevenue, 2);
         $cashGrossVolume   = round($cabCashGross + $homeCashGross + $foodCashGross + $parcelCashGross + $travelCashGross + $otherCashGross, 2);
-        $grossRevenue      = round($onlineGrossVolume, 2);
+        $grossRevenue      = round($onlineGrossVolume + $cashGrossVolume, 2);
 
         // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
         $netRevenue = round($totalCommissionEarned + $marketComm + $platformFeeTotal + $subRevenue, 2);
         $totalTransactions = $cabBookings + $homeBookings + $foodBookings + $parcelBookings + $travelBookings + $otherBookings + $marketTxnCount + $subTxnCount;
 
-        // Due Cash Charges (Remaining unpaid by drivers • Kept strictly in Pending Due Recovery)
+        // Due Cash Charges (Remaining unpaid by drivers in debt • Kept strictly in Pending Due Recovery)
         $dueCashComm = max(0, round($totalCashComm - $recoveredCashComm, 2));
         $dueCashPFee = max(0, round($totalCashPFee - $recoveredCashPFee, 2));
         $dueCashGst  = max(0, round($totalCashGst - $recoveredCashGst, 2));
         $dueAdminRevenue = round($dueCashComm + $dueCashPFee, 2);
         $realizedAdminRevenue = round($netRevenue, 2);
+        $totalAccruedRevenue = round($realizedAdminRevenue + $dueAdminRevenue, 2);
 
         // ── 4. SERVICE BREAKDOWN ARRAY (SECTION 2) ───────────────────────────
         $servicesBreakdown = [
             [
-                'service'       => 'Cab & Transport Rides',
-                'rate'          => 'Dynamic %',
-                'bookings'      => $cabBookings,
-                'gross'         => round($cabGross, 2),
-                'commission'    => round($cabCommRealized, 2),
-                'platform_fee'  => round($cabPFeeRealized, 2),
-                'gst'           => round($cabGstRealized, 2),
-                'admin_earning' => round($cabCommRealized + $cabPFeeRealized, 2),
+                'service'                 => 'Cab & Transport Rides',
+                'rate'                    => 'Dynamic %',
+                'bookings'                => $cabBookings,
+                'gross'                   => round($cabGross, 2),
+                'commission'              => round($cabCommRealized, 2),
+                'commission_total'        => round($cabComm, 2),
+                'commission_due'          => max(0, round($cabComm - $cabCommRealized, 2)),
+                'platform_fee'            => round($cabPFeeRealized, 2),
+                'platform_fee_total'      => round($cabPFee, 2),
+                'platform_fee_due'        => max(0, round($cabPFee - $cabPFeeRealized, 2)),
+                'gst'                     => round($cabGstRealized, 2),
+                'gst_total'               => round($cabGst, 2),
+                'gst_due'                 => max(0, round($cabGst - $cabGstRealized, 2)),
+                'admin_earning'           => round($cabCommRealized + $cabPFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($cabComm - $cabCommRealized) + ($cabPFee - $cabPFeeRealized), 2)),
+                'admin_earning_total'     => round($cabComm + $cabPFee, 2),
             ],
             [
-                'service'       => 'Home Services & Repairs',
-                'rate'          => '10% + Platform Fee',
-                'bookings'      => $homeBookings,
-                'gross'         => round($homeGross, 2),
-                'commission'    => round($homeCommRealized, 2),
-                'platform_fee'  => round($homePFeeRealized, 2),
-                'gst'           => round($homeGstRealized, 2),
-                'admin_earning' => round($homeCommRealized + $homePFeeRealized, 2),
+                'service'                 => 'Home Services & Repairs',
+                'rate'                    => '10% + Platform Fee',
+                'bookings'                => $homeBookings,
+                'gross'                   => round($homeGross, 2),
+                'commission'              => round($homeCommRealized, 2),
+                'commission_total'        => round($homeComm, 2),
+                'commission_due'          => max(0, round($homeComm - $homeCommRealized, 2)),
+                'platform_fee'            => round($homePFeeRealized, 2),
+                'platform_fee_total'      => round($homePFee, 2),
+                'platform_fee_due'        => max(0, round($homePFee - $homePFeeRealized, 2)),
+                'gst'                     => round($homeGstRealized, 2),
+                'gst_total'               => round($homeGst, 2),
+                'gst_due'                 => max(0, round($homeGst - $homeGstRealized, 2)),
+                'admin_earning'           => round($homeCommRealized + $homePFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($homeComm - $homeCommRealized) + ($homePFee - $homePFeeRealized), 2)),
+                'admin_earning_total'     => round($homeComm + $homePFee, 2),
             ],
             [
-                'service'       => 'Food Delivery Orders',
-                'rate'          => '18%',
-                'bookings'      => $foodBookings,
-                'gross'         => round($foodGross, 2),
-                'commission'    => round($foodCommRealized, 2),
-                'platform_fee'  => round($foodPFeeRealized, 2),
-                'gst'           => round($foodGstRealized, 2),
-                'admin_earning' => round($foodCommRealized + $foodPFeeRealized, 2),
+                'service'                 => 'Food Delivery Orders',
+                'rate'                    => '18%',
+                'bookings'                => $foodBookings,
+                'gross'                   => round($foodGross, 2),
+                'commission'              => round($foodCommRealized, 2),
+                'commission_total'        => round($foodComm, 2),
+                'commission_due'          => max(0, round($foodComm - $foodCommRealized, 2)),
+                'platform_fee'            => round($foodPFeeRealized, 2),
+                'platform_fee_total'      => round($foodPFee, 2),
+                'platform_fee_due'        => max(0, round($foodPFee - $foodPFeeRealized, 2)),
+                'gst'                     => round($foodGstRealized, 2),
+                'gst_total'               => round($foodGst, 2),
+                'gst_due'                 => max(0, round($foodGst - $foodGstRealized, 2)),
+                'admin_earning'           => round($foodCommRealized + $foodPFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($foodComm - $foodCommRealized) + ($foodPFee - $foodPFeeRealized), 2)),
+                'admin_earning_total'     => round($foodComm + $foodPFee, 2),
             ],
             [
-                'service'       => 'Parcel & Courier',
-                'rate'          => 'Flat / 10%',
-                'bookings'      => $parcelBookings,
-                'gross'         => round($parcelGross, 2),
-                'commission'    => round($parcelCommRealized, 2),
-                'platform_fee'  => round($parcelPFeeRealized, 2),
-                'gst'           => round($parcelGstRealized, 2),
-                'admin_earning' => round($parcelCommRealized + $parcelPFeeRealized, 2),
+                'service'                 => 'Parcel & Courier',
+                'rate'                    => 'Flat / 10%',
+                'bookings'                => $parcelBookings,
+                'gross'                   => round($parcelGross, 2),
+                'commission'              => round($parcelCommRealized, 2),
+                'commission_total'        => round($parcelComm, 2),
+                'commission_due'          => max(0, round($parcelComm - $parcelCommRealized, 2)),
+                'platform_fee'            => round($parcelPFeeRealized, 2),
+                'platform_fee_total'      => round($parcelPFee, 2),
+                'platform_fee_due'        => max(0, round($parcelPFee - $parcelPFeeRealized, 2)),
+                'gst'                     => round($parcelGstRealized, 2),
+                'gst_total'               => round($parcelGst, 2),
+                'gst_due'                 => max(0, round($parcelGst - $parcelGstRealized, 2)),
+                'admin_earning'           => round($parcelCommRealized + $parcelPFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($parcelComm - $parcelCommRealized) + ($parcelPFee - $parcelPFeeRealized), 2)),
+                'admin_earning_total'     => round($parcelComm + $parcelPFee, 2),
             ],
             [
-                'service'       => 'Travel & Outstation',
-                'rate'          => '10%',
-                'bookings'      => $travelBookings,
-                'gross'         => round($travelGross, 2),
-                'commission'    => round($travelCommRealized, 2),
-                'platform_fee'  => round($travelPFeeRealized, 2),
-                'gst'           => round($travelGstRealized, 2),
-                'admin_earning' => round($travelCommRealized + $travelPFeeRealized, 2),
+                'service'                 => 'Travel & Outstation',
+                'rate'                    => '10%',
+                'bookings'                => $travelBookings,
+                'gross'                   => round($travelGross, 2),
+                'commission'              => round($travelCommRealized, 2),
+                'commission_total'        => round($travelComm, 2),
+                'commission_due'          => max(0, round($travelComm - $travelCommRealized, 2)),
+                'platform_fee'            => round($travelPFeeRealized, 2),
+                'platform_fee_total'      => round($travelPFee, 2),
+                'platform_fee_due'        => max(0, round($travelPFee - $travelPFeeRealized, 2)),
+                'gst'                     => round($travelGstRealized, 2),
+                'gst_total'               => round($travelGst, 2),
+                'gst_due'                 => max(0, round($travelGst - $travelGstRealized, 2)),
+                'admin_earning'           => round($travelCommRealized + $travelPFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($travelComm - $travelCommRealized) + ($travelPFee - $travelPFeeRealized), 2)),
+                'admin_earning_total'     => round($travelComm + $travelPFee, 2),
             ],
             [
-                'service'       => 'Other On-Demand Services',
-                'rate'          => '10%',
-                'bookings'      => $otherBookings,
-                'gross'         => round($otherGross, 2),
-                'commission'    => round($otherCommRealized, 2),
-                'platform_fee'  => round($otherPFeeRealized, 2),
-                'gst'           => round($otherGstRealized, 2),
-                'admin_earning' => round($otherCommRealized + $otherPFeeRealized, 2),
+                'service'                 => 'Other On-Demand Services',
+                'rate'                    => '10%',
+                'bookings'                => $otherBookings,
+                'gross'                   => round($otherGross, 2),
+                'commission'              => round($otherCommRealized, 2),
+                'commission_total'        => round($otherComm, 2),
+                'commission_due'          => max(0, round($otherComm - $otherCommRealized, 2)),
+                'platform_fee'            => round($otherPFeeRealized, 2),
+                'platform_fee_total'      => round($otherPFee, 2),
+                'platform_fee_due'        => max(0, round($otherPFee - $otherPFeeRealized, 2)),
+                'gst'                     => round($otherGstRealized, 2),
+                'gst_total'               => round($otherGst, 2),
+                'gst_due'                 => max(0, round($otherGst - $otherGstRealized, 2)),
+                'admin_earning'           => round($otherCommRealized + $otherPFeeRealized, 2),
+                'admin_earning_due'       => max(0, round(($otherComm - $otherCommRealized) + ($otherPFee - $otherPFeeRealized), 2)),
+                'admin_earning_total'     => round($otherComm + $otherPFee, 2),
             ],
         ];
 
@@ -1383,6 +1425,10 @@ class FinancialReportService
             'driversDebtList'         => $driversDebtList,
             'realizedAdminRevenue'    => round($realizedAdminRevenue, 2),
             'dueAdminRevenue'         => round($dueAdminRevenue, 2),
+            'totalAccruedRevenue'     => round($totalAccruedRevenue, 2),
+            'dueCashComm'             => round($dueCashComm, 2),
+            'dueCashPFee'             => round($dueCashPFee, 2),
+            'dueCashGst'              => round($dueCashGst, 2),
             'onlineGrossVolume'       => round($onlineGrossVolume, 2),
             'cashGrossVolume'         => round($cashGrossVolume, 2),
             'dailyReports'            => $dailyReports,

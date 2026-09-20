@@ -387,21 +387,19 @@
                 <div class="col-12 col-md-6 col-xl-3">
                     <div class="big-stat-card" style="border-left: 4px solid #6d28d9;">
                         <div class="stat-header">
-                            <span class="stat-tag text-purple">NET ADMIN REVENUE</span>
+                            <span class="stat-tag text-purple">REALIZED ADMIN REVENUE</span>
                             <i class="mdi mdi-cash-multiple stat-icon text-purple"></i>
                         </div>
-                        <div class="stat-big-value highlight-purple">₹{{ number_format($stats['netRevenue'], 2) }}</div>
+                        <div class="stat-big-value highlight-purple">₹{{ number_format($stats['realizedAdminRevenue'] ?? $stats['netRevenue'], 2) }}</div>
                         <div class="stat-subtext mb-1 font-12 text-dark-bold">
                             Commissions (₹{{ number_format($stats['totalCommissionEarned'] + $stats['marketplaceSellerComm'], 2) }}) + Fees (₹{{ number_format($stats['platformFeeTotal'] ?? 0, 2) }}) + Subscriptions (₹{{ number_format($stats['totalSubscriptionRevenue'] ?? 0, 2) }})
                         </div>
-                        <div class="font-11 text-muted">
+                        <div class="font-11 text-muted d-flex flex-wrap gap-1 mt-1">
                             <span class="badge badge-dark-success">Realized: ₹{{ number_format($stats['realizedAdminRevenue'] ?? $stats['netRevenue'], 2) }}</span>
-                            @if(($stats['marketplacePendingComm'] ?? 0) > 0 || ($stats['marketplacePendingPFee'] ?? 0) > 0)
-                                <span class="badge badge-dark-info ml-1" title="Held in escrow until marketplace payout is released">Escrow Hold: ₹{{ number_format(($stats['marketplacePendingComm'] ?? 0) + ($stats['marketplacePendingPFee'] ?? 0), 2) }}</span>
-                            @endif
                             @if(($stats['dueAdminRevenue'] ?? 0) > 0)
-                                <span class="badge badge-dark-danger ml-1" title="Uncollected platform revenue owed by drivers from cash bookings">Pending Due: ₹{{ number_format($stats['dueAdminRevenue'], 2) }}</span>
+                                <span class="badge badge-dark-danger ml-1" title="Uncollected platform revenue owed by drivers with negative wallet debt">Pending Due: ₹{{ number_format($stats['dueAdminRevenue'], 2) }}</span>
                             @endif
+                            <span class="badge badge-dark-primary ml-1" title="Total accrued revenue if all provider debt is settled">Accrued: ₹{{ number_format(($stats['totalAccruedRevenue'] ?? (($stats['realizedAdminRevenue'] ?? $stats['netRevenue']) + ($stats['dueAdminRevenue'] ?? 0))), 2) }}</span>
                         </div>
                     </div>
                 </div>
@@ -453,6 +451,10 @@
                         <div class="stat-big-value highlight-danger">₹{{ number_format($stats['pendingDriverDebt'] ?? 0, 2) }}</div>
                         <div class="stat-subtext mb-1">
                             <span class="badge badge-dark-danger font-11">{{ $stats['driversWithDebtCount'] ?? 0 }} Providers in Cash Debt</span>
+                        </div>
+                        <div class="font-11 text-muted">
+                            <span>Platform Due: ₹{{ number_format($stats['dueAdminRevenue'] ?? 0, 2) }}</span> • 
+                            <span>GST Due: ₹{{ number_format($stats['dueCashGst'] ?? 0, 2) }}</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-between mt-2">
                             <span class="font-11 text-muted">Auto-deducted on Top-up</span>
@@ -678,10 +680,10 @@
                             <th>Commission Config Rate</th>
                             <th>Total Bookings</th>
                             <th>Gross Sales (GMV)</th>
-                            <th>Admin Commission Earned</th>
-                            <th>Platform Fee Collected</th>
-                            <th>GST Tax Collected</th>
-                            <th>Net Admin Earning</th>
+                            <th>Commission<br><small class="text-muted font-11 font-weight-normal">Realized / Pending Due</small></th>
+                            <th>Platform Fee<br><small class="text-muted font-11 font-weight-normal">Realized / Pending Due</small></th>
+                            <th>GST Tax<br><small class="text-muted font-11 font-weight-normal">Realized / Pending Due</small></th>
+                            <th>Realized Admin Earning</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -691,19 +693,67 @@
                             <td><span class="badge badge-dark-primary font-13">{{ $sb['rate'] }}</span></td>
                             <td class="text-dark-bold font-15">{{ number_format($sb['bookings']) }} Bookings</td>
                             <td class="text-dark-bold font-15">₹{{ number_format($sb['gross'], 2) }}</td>
-                            <td class="highlight-green font-16">₹{{ number_format($sb['commission'], 2) }}</td>
-                            <td class="highlight-blue font-16">₹{{ number_format($sb['platform_fee'], 2) }}</td>
-                            <td class="text-warning font-16 font-weight-bold">₹{{ number_format($sb['gst'], 2) }}</td>
-                            <td class="highlight-purple font-16 font-weight-bold">₹{{ number_format($sb['admin_earning'], 2) }}</td>
+                            <td>
+                                <div class="highlight-green font-16">₹{{ number_format($sb['commission'], 2) }}</div>
+                                @if(($sb['commission_due'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold" title="Uncollected platform revenue owed by drivers in cash debt">
+                                        <i class="mdi mdi-clock-outline"></i> Due: ₹{{ number_format($sb['commission_due'], 2) }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="highlight-blue font-16">₹{{ number_format($sb['platform_fee'], 2) }}</div>
+                                @if(($sb['platform_fee_due'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold" title="Uncollected platform fee owed by drivers in cash debt">
+                                        <i class="mdi mdi-clock-outline"></i> Due: ₹{{ number_format($sb['platform_fee_due'], 2) }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="text-warning font-16 font-weight-bold">₹{{ number_format($sb['gst'], 2) }}</div>
+                                @if(($sb['gst_due'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold" title="Uncollected GST owed by drivers in cash debt">
+                                        <i class="mdi mdi-clock-outline"></i> Due: ₹{{ number_format($sb['gst_due'], 2) }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="highlight-purple font-16 font-weight-bold">₹{{ number_format($sb['admin_earning'], 2) }}</div>
+                                @if(($sb['admin_earning_due'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold">
+                                        + ₹{{ number_format($sb['admin_earning_due'], 2) }} Due
+                                    </div>
+                                @endif
+                            </td>
                         </tr>
                         @endforeach
                         <tr class="bg-light font-weight-900" style="font-size: 16px;">
                             <td colspan="3" class="text-dark-bold">TOTAL SERVICE STREAM EARNINGS</td>
                             <td class="text-dark-bold font-16">₹{{ number_format(collect($stats['servicesBreakdown'])->sum('gross'), 2) }}</td>
-                            <td class="highlight-green font-16">₹{{ number_format($stats['totalCommissionEarned'], 2) }}</td>
-                            <td class="highlight-blue font-16">₹{{ number_format($stats['platformFeeTotal'], 2) }}</td>
-                            <td class="text-warning font-16 font-weight-bold">₹{{ number_format(collect($stats['servicesBreakdown'])->sum('gst'), 2) }}</td>
-                            <td class="highlight-purple font-18">₹{{ number_format($stats['totalCommissionEarned'] + $stats['platformFeeTotal'], 2) }}</td>
+                            <td>
+                                <div class="highlight-green font-16">₹{{ number_format($stats['totalCommissionEarned'], 2) }}</div>
+                                @if(($stats['dueCashComm'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold">Due: ₹{{ number_format($stats['dueCashComm'], 2) }}</div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="highlight-blue font-16">₹{{ number_format($stats['platformFeeTotal'], 2) }}</div>
+                                @if(($stats['dueCashPFee'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold">Due: ₹{{ number_format($stats['dueCashPFee'], 2) }}</div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="text-warning font-16 font-weight-bold">₹{{ number_format(collect($stats['servicesBreakdown'])->sum('gst'), 2) }}</div>
+                                @if(($stats['dueCashGst'] ?? 0) > 0)
+                                    <div class="font-11 text-danger font-weight-bold">Due: ₹{{ number_format($stats['dueCashGst'], 2) }}</div>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="highlight-purple font-18">₹{{ number_format($stats['totalCommissionEarned'] + $stats['platformFeeTotal'], 2) }}</div>
+                                @if(($stats['dueAdminRevenue'] ?? 0) > 0)
+                                    <div class="font-12 text-danger font-weight-bold">+ ₹{{ number_format($stats['dueAdminRevenue'], 2) }} Due Debt</div>
+                                @endif
+                            </td>
                         </tr>
                     </tbody>
                 </table>
