@@ -178,7 +178,7 @@ class SubscriptionPlanController extends Controller
             'image'        => $filename,
             'plan_points'  => $data['plan_points'],
             'benefits_list' => $data['plan_points'],
-            'bookingLimit' => $data['set_booking_limit'] == 'limited' ? $data['booking_limit'] : '-1',
+            'bookingLimit' => ($data['set_booking_limit'] == 'limited' && !empty($data['booking_limit'] ?? null)) ? $data['booking_limit'] : '-1',
             // Benefit config
             'plan_tier'                  => $data['plan_tier'] ?? 'basic',
             'business_categories'        => $categories,
@@ -360,7 +360,7 @@ class SubscriptionPlanController extends Controller
             'image'        => $filename,
             'plan_points'  => $data['plan_points'],
             'benefits_list' => $data['plan_points'],
-            'bookingLimit' => $data['set_booking_limit'] == 'limited' ? $data['booking_limit'] : '-1',
+            'bookingLimit' => ($data['set_booking_limit'] == 'limited' && !empty($data['booking_limit'] ?? null)) ? $data['booking_limit'] : '-1',
             // Benefit config
             'plan_tier'                  => $data['plan_tier'] ?? 'basic',
             'business_categories'        => $categories,
