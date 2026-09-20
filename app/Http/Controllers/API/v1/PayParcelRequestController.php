@@ -257,33 +257,25 @@ class PayParcelRequestController extends Controller
             $image_parcel = [];
 
             if ($row['parcel_image'] != '') {
-
                 $parcelImage = json_decode($row['parcel_image'], true);
-
-
-
-                foreach ($parcelImage as $value) {
-
-                    if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-
-                        $image = asset('images/parcel_order/') . '/' . $value;
-
+                if (is_array($parcelImage)) {
+                    foreach ($parcelImage as $value) {
+                        if (!empty($value) && file_exists(public_path('images/parcel_order/' . $value))) {
+                            $image = asset('images/parcel_order/' . $value);
+                        } elseif (!empty($value) && filter_var($value, FILTER_VALIDATE_URL)) {
+                            $image = $value;
+                        } else {
+                            $image = asset('assets/images/placeholder_image.jpg');
+                        }
+                        array_push($image_parcel, $image);
                     }
-
-                    array_push($image_parcel, $image);
-
                 }
 
                 if (!empty($image_parcel)) {
-
                     $row['parcel_image'] = $image_parcel;
-
                 } else {
-
-                    $row['parcel_image'] = asset('assets/images/placeholder_image.jpg');
-
+                    $row['parcel_image'] = [asset('assets/images/placeholder_image.jpg')];
                 }
-
             }
 
 

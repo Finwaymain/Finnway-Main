@@ -119,25 +119,24 @@ class ParcelConfirmController extends Controller
                 if ($row['parcel_image'] != '') {
 
                     $parcelImage = json_decode($row['parcel_image'], true);
-
                     $image_user = [];
-
-                    foreach ($parcelImage as $value) {
-
-                        if (file_exists(public_path('images/parcel_order/' . '/' . $value))) {
-
-                            $image = asset('images/parcel_order/') . '/' . $value;
+                    if (is_array($parcelImage)) {
+                        foreach ($parcelImage as $value) {
+                            if (!empty($value) && file_exists(public_path('images/parcel_order/' . $value))) {
+                                $image = asset('images/parcel_order/' . $value);
+                            } elseif (!empty($value) && filter_var($value, FILTER_VALIDATE_URL)) {
+                                $image = $value;
+                            } else {
+                                $image = asset('assets/images/placeholder_image.jpg');
+                            }
+                            array_push($image_user, $image);
                         }
-
-                        array_push($image_user, $image);
                     }
 
-                    if (! empty($image_user)) {
-
+                    if (!empty($image_user)) {
                         $row['parcel_image'] = $image_user;
                     } else {
-
-                        $image_user = asset('assets/images/placeholder_image.jpg');
+                        $row['parcel_image'] = [asset('assets/images/placeholder_image.jpg')];
                     }
                 }
 
