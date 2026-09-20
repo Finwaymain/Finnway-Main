@@ -485,9 +485,14 @@ class RestaurantOnboardingController extends Controller
         $file = $request->file('image') ?: ($request->file('file') ?: $request->file('photo'));
         $type = $request->input('type', 'general'); // owner | logo | cover | dish | general
         
-        $path = null;
+        $folder = 'food/restaurants/' . $owner->id;
+        if ($type === 'owner') {
+            $folder = 'food/owners/' . $owner->id;
+        } elseif ($type === 'dish') {
+            $folder = 'food/products';
+        }
+
         if ($file) {
-            $folder = 'food/' . ($type === 'owner' ? ('owners/' . $owner->id) : ('restaurants/' . $owner->id));
             $path = $file->store($folder, 'public');
         } else {
             $base64 = $request->input('image') ?: $request->input('data');
@@ -496,8 +501,8 @@ class RestaurantOnboardingController extends Controller
                     $parts = explode(',', $base64);
                     $data = base64_decode($parts[1] ?? '');
                     if (!empty($data)) {
-                        $folder = 'food/' . ($type === 'owner' ? ('owners/' . $owner->id) : ('restaurants/' . $owner->id));
-                        $filename = $folder . '/' . $type . '_' . time() . '.jpg';
+                        $prefix = ($type === 'dish') ? uniqid('prod_', true) : ($type . '_' . time());
+                        $filename = $folder . '/' . $prefix . '.jpg';
                         \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
                         $path = $filename;
                     }

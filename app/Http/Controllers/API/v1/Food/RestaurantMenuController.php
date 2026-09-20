@@ -90,6 +90,7 @@ class RestaurantMenuController extends Controller
             $price = $engine->customerUnitPrice($p, $restaurant);
             $p->customer_price = $price['customer_price'];
             $p->markup_amount = $price['markup'];
+            $p->image_url = $p->image_url;
             return $p;
         });
         return response()->json(['success' => true, 'data' => $products]);
@@ -114,19 +115,21 @@ class RestaurantMenuController extends Controller
             'name' => $request->get('name', $product->name),
             'description' => $request->get('description', $product->description),
             'food_type' => $request->get('food_type', $product->food_type ?? 'veg'),
-            'restaurant_price' => (float) $request->get('restaurant_price', $product->restaurant_price ?? 0),
+            'restaurant_price' => (float) $request->get('restaurant_price', $request->get('price', $product->restaurant_price ?? 0)),
             'discount_price' => $request->get('discount_price', $product->discount_price),
-            'prep_minutes' => $request->get('prep_minutes', $product->prep_minutes),
+            'prep_minutes' => (int) $request->get('prep_minutes', $request->get('prep_time_minutes', $product->prep_minutes ?? 20)),
             'available_qty' => $request->get('available_qty', $product->available_qty),
             'availability' => $request->get('availability', $product->availability ?? 'available'),
             'ingredients' => $request->get('ingredients', $product->ingredients),
             'is_active' => $request->exists('is_active') ? (bool) $request->get('is_active') : ($product->is_active ?? true),
             'sort_order' => (int) $request->get('sort_order', $product->sort_order ?? 0),
         ]);
-        if ($request->hasFile('image') && $request->file('image')->isValid()) {
-            $path = $request->file('image')->store('food/products', 'public');
+
+        $uploadedFile = $request->file('image') ?: ($request->file('photo') ?: $request->file('file'));
+        if ($uploadedFile && $uploadedFile->isValid()) {
+            $path = $uploadedFile->store('food/products', 'public');
             $product->image = $path;
-            \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with uploaded file: {$path}");
+            \Illuminate\Support\Facades\Log::info("FoodProduct saved with uploaded file: {$path}");
         } elseif ($request->filled('image_base64')) {
             $val = $request->get('image_base64');
             if (is_string($val) && preg_match('/^data:image\/(\w+);base64,/', $val, $type)) {
@@ -137,7 +140,7 @@ class RestaurantMenuController extends Controller
                     $filename = 'food/products/' . uniqid('prod_', true) . '.' . $ext;
                     \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
                     $product->image = $filename;
-                    \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with base64 image: {$filename}");
+                    \Illuminate\Support\Facades\Log::info("FoodProduct saved with base64 image: {$filename}");
                 }
             }
         } elseif ($request->filled('image')) {
@@ -150,9 +153,20 @@ class RestaurantMenuController extends Controller
                     $filename = 'food/products/' . uniqid('prod_', true) . '.' . $ext;
                     \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $data);
                     $product->image = $filename;
-                    \Illuminate\Support\Facades\Log::info("FoodProduct #{$product->id} saved with inline base64 image: {$filename}");
+                    \Illuminate\Support\Facades\Log::info("FoodProduct saved with inline base64 image: {$filename}");
                 }
             } elseif (is_string($val) && !empty($val) && !str_starts_with($val, 'blob:')) {
+                if (str_contains($val, '/storage/')) {
+                    $product->image = substr($val, strpos($val, '/storage/') + 9);
+                } else {
+                    $product->image = $val;
+                }
+            }
+        } elseif ($request->filled('image_path')) {
+            $val = $request->get('image_path');
+            if (str_contains($val, '/storage/')) {
+                $product->image = substr($val, strpos($val, '/storage/') + 9);
+            } else {
                 $product->image = $val;
             }
         }
@@ -189,6 +203,7 @@ class RestaurantMenuController extends Controller
         }
 
         $product->load(['addons', 'variants', 'category']);
+        $product->image_url = $product->image_url;
         return response()->json(['success' => true, 'data' => $product]);
     }
 

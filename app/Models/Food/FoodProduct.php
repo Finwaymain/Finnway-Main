@@ -14,11 +14,24 @@ class FoodProduct extends Model
         'availability', 'ingredients', 'is_active', 'sort_order',
     ];
 
+    protected $appends = ['image_url'];
+
     protected $casts = [
         'restaurant_price' => 'float',
         'discount_price' => 'float',
         'is_active' => 'boolean',
     ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (empty($this->image)) {
+            return null;
+        }
+        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
+            return $this->image;
+        }
+        return asset('storage/' . ltrim($this->image, '/'));
+    }
 
     public function category()
     {
