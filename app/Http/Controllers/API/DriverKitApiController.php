@@ -42,7 +42,9 @@ class DriverKitApiController extends Controller
             ], 404);
         }
 
-        // 1. Check if Driver has completed category onboarding (check driver categories, skills, vehicles, and profile)
+        // 1. Check if Driver has completed category onboarding
+        $isOnboarded = ($driver->onboarding_completed ?? '') === 'yes';
+
         $hasCatTable = \Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_categories')
             && \Illuminate\Support\Facades\DB::table('tj_conducteur_categories')->where('driver_id', $driver->id)->exists();
 
@@ -52,13 +54,35 @@ class DriverKitApiController extends Controller
         $hasVehTable = \Illuminate\Support\Facades\Schema::hasTable('tj_vehicule')
             && \Illuminate\Support\Facades\DB::table('tj_vehicule')->where('id_conducteur', $driver->id)->exists();
 
-        $hasCategories = $hasCatTable || $hasSkillTable || $hasVehTable || !empty($driver->category_id) || ($driver->onboarding_completed ?? '') === 'yes' || !empty($driver->user_cat);
+        $hasCategories = $hasCatTable || $hasSkillTable || $hasVehTable || !empty($driver->category_id);
+
+        // Determine Driver Category Code strictly from onboarding selections ('bike', 'auto', 'car', 'home_service')
+        $categoryCode = $this->resolveDriverCategoryCode($driver);
+
+        // Guard: Driver kit is strictly dependent on the service selected by the driver/service person during onboarding.
+        // If the user has NOT completed onboarding OR has not selected a valid category, do NOT return or show any kit!
+        if (!$isOnboarded || !$hasCategories || empty($categoryCode)) {
+            return response()->json([
+                'success' => 'success',
+                'data' => [
+                    'driver_id' => (int)$driver->id,
+                    'driver_name' => trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? '')),
+                    'onboarding_completed' => false,
+                    'category_code' => null,
+                    'category_label' => null,
+                    'is_verified' => (bool)($driver->statut === 'yes' || (isset($driver->is_verified) && $driver->is_verified == 1)),
+                    'has_purchased' => false,
+                    'should_show_popup' => false,
+                    'is_compulsory' => false,
+                    'booking_required' => false,
+                    'kit' => null,
+                    'message' => 'Driver has not completed onboarding. Kit is assigned based on the service selected during onboarding.',
+                ]
+            ]);
+        }
 
         // 2. Check if Driver is Verified by Admin
         $isVerified = ($driver->statut === 'yes' || (isset($driver->is_verified) && $driver->is_verified == 1));
-
-        // 3. Determine Driver Category Code ('bike', 'auto', 'car', 'home_service', 'all')
-        $categoryCode = $this->resolveDriverCategoryCode($driver) ?? 'home_service';
 
         // 3. Check if Driver has already purchased the Welcome Kit (by driver_id OR by phone number verification!)
         $driverPhone = trim($driver->phone ?? '');
@@ -459,7 +483,7 @@ class DriverKitApiController extends Controller
     /**
      * Resolve Driver's primary category code ('bike', 'auto', 'car', 'home_service', 'all')
      */
-    private function resolveDriverCategoryCode(Driver $driver): string
+    private function resolveDriverCategoryCode(Driver $driver): ?string
     {
         // 1. Direct check on Driver's primary selected category ID ($driver->category_id)
         if (!empty($driver->category_id)) {
@@ -525,8 +549,8 @@ class DriverKitApiController extends Controller
             if ($code) return $code;
         }
 
-        // Default to home_service if no vehicle, otherwise all
-        return 'home_service';
+        // If no vehicle, categories, or skills match, do NOT default to home_service
+        return null;
     }
 
     private function matchCategoryKeyword(string $text): ?string

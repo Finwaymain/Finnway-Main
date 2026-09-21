@@ -31,11 +31,21 @@ class DriverKitWebController extends Controller
         }
 
         // Determine Category Code from Driver profile or query
-        $category = 'home_service';
+        $category = null;
         if ($driver) {
             $category = $this->resolveDriverCategoryCode($driver);
-        } else if ($request->filled('category')) {
+        }
+        if (!$category && $request->filled('category')) {
             $category = $request->query('category');
+        }
+
+        // If driver hasn't completed onboarding and has no category selected, redirect to onboarding
+        if ($driver && (($driver->onboarding_completed ?? '') !== 'yes') && empty($category)) {
+            return redirect('/onboarding?driver_id=' . $driver->id . '&notice=' . urlencode('Please complete onboarding and select your service first.'));
+        }
+
+        if (!$category) {
+            $category = 'home_service';
         }
 
         $kit = null;
@@ -233,7 +243,7 @@ class DriverKitWebController extends Controller
     /**
      * Resolve Driver's primary category code ('bike', 'auto', 'car', 'home_service', 'all')
      */
-    private function resolveDriverCategoryCode(Driver $driver): string
+    private function resolveDriverCategoryCode(Driver $driver): ?string
     {
         if (!empty($driver->category_id)) {
             $cat = DB::table('tj_categorie_user')->where('id', $driver->category_id)->first();
@@ -294,7 +304,8 @@ class DriverKitWebController extends Controller
             if ($code) return $code;
         }
 
-        return 'home_service';
+        // Do NOT default to home_service if no vehicle/category selected; return null
+        return null;
     }
 
     private function matchCategoryKeyword(string $text): ?string
