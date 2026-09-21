@@ -374,8 +374,9 @@
                         </div>
                         <div class="stat-big-value text-dark-bold">₹{{ number_format($stats['grossRevenue'], 2) }}</div>
                         <div class="stat-subtext font-12">
-                            <span class="text-success font-weight-bold">Online: ₹{{ number_format($stats['onlineGrossVolume'] ?? 0, 2) }}</span> • 
-                            <span class="text-danger font-weight-bold">Cash: ₹{{ number_format($stats['cashGrossVolume'] ?? 0, 2) }}</span>
+                            <span class="text-primary font-weight-bold" title="Direct UPI / NetBanking / Gateway Payments">UPI: ₹{{ number_format($stats['upiGrossVolume'] ?? 0, 2) }}</span> • 
+                            <span class="text-info font-weight-bold" title="Internal Wallet Float Deductions">Wallet: ₹{{ number_format($stats['walletGrossVolume'] ?? 0, 2) }}</span> • 
+                            <span class="text-danger font-weight-bold" title="Direct Physical Cash Collected by Providers">Cash: ₹{{ number_format($stats['cashGrossVolume'] ?? 0, 2) }}</span>
                         </div>
                     </div>
                 </div>
@@ -544,7 +545,7 @@
                             <th colspan="4" style="background: #4f46e5; color: #ffffff; border-right: 2px solid #ffffff; padding: 10px;">Charges Calculate</th>
                             <th rowspan="2" style="background: #7c3aed; color: #ffffff; vertical-align: middle; border-right: 2px solid #ffffff; padding: 10px;">SubTotal<br><small style="font-size: 10px; font-weight: 400;">Total Amt</small></th>
                             <th rowspan="2" style="background: #0d9488; color: #ffffff; vertical-align: middle; border-right: 2px solid #ffffff; padding: 10px;">Payment<br><small style="font-size: 10px; font-weight: 400;">Mode</small></th>
-                            <th colspan="2" style="background: #dc2626; color: #ffffff; border-right: 2px solid #ffffff; padding: 10px;">Fiinway Due</th>
+                            <th colspan="4" style="background: #dc2626; color: #ffffff; border-right: 2px solid #ffffff; padding: 10px;">Fiinway Due (Cash Collection Only)</th>
                             <th rowspan="2" style="background: #ea580c; color: #ffffff; vertical-align: middle; padding: 10px;">Due From<br><small style="font-size: 10px; font-weight: 400;">Business User</small></th>
                         </tr>
                         <!-- TIER 2 SUB-HEADERS -->
@@ -573,7 +574,9 @@
                             <th style="border-right: 2px solid #cbd5e1;">UPI Handling</th>
 
                             <th style="border-right: 1px solid #e2e8f0;">Commission</th>
-                            <th style="border-right: 2px solid #cbd5e1;">Total</th>
+                            <th style="border-right: 1px solid #e2e8f0;">GST</th>
+                            <th style="border-right: 1px solid #e2e8f0;">Platform Fee</th>
+                            <th style="border-right: 2px solid #cbd5e1;">Total Due</th>
                         </tr>
                     </thead>
                     <tbody id="ledgerTableBody">
@@ -609,15 +612,19 @@
                                     @endif
                                 </td>
                                 <td class="text-right font-weight-800 text-primary">₹{{ $row['fiinway_due_comm'] }}</td>
-                                <td class="text-right font-weight-900 font-14" style="background: #fee2e2; color: #991b1b;">₹{{ $row['fiinway_due_total'] }}</td>
+                                <td class="text-right font-weight-700 text-secondary">₹{{ $row['fiinway_due_gst'] }}</td>
+                                <td class="text-right font-weight-700 text-info">₹{{ $row['fiinway_due_pfee'] }}</td>
+                                <td class="text-right font-weight-900 font-14" style="background: {{ strtolower($row['due_from_business']) === 'yes' ? '#fee2e2; color: #991b1b;' : '#f8fafc; color: #64748b;' }}">
+                                    ₹{{ $row['fiinway_due_total'] }}
+                                </td>
                                 <td class="text-center">
                                     @if(strtolower($row['due_from_business']) === 'yes')
-                                        <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 900; border: 1px solid #ef4444; padding: 5px 10px;">
-                                            <i class="mdi mdi-alert-circle mr-1"></i>yes (Due from Provider)
+                                        <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 800; border: 1px solid #ef4444; padding: 5px 8px;">
+                                            <i class="mdi mdi-alert-circle mr-1"></i>Yes (Due: ₹{{ $row['fiinway_due_total'] }})
                                         </span>
                                     @else
-                                        <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 900; border: 1px solid #22c55e; padding: 5px 10px;">
-                                            <i class="mdi mdi-check-circle mr-1"></i>Collected (Settled)
+                                        <span class="badge" style="background: #dcfce7; color: #166534; font-weight: 800; border: 1px solid #22c55e; padding: 5px 8px;">
+                                            <i class="mdi mdi-check-circle mr-1"></i>Collected / Settled (₹0 Due)
                                         </span>
                                     @endif
                                 </td>
@@ -625,7 +632,7 @@
                             @endforeach
                         @else
                             <tr>
-                                <td colspan="23" class="text-center py-4 text-muted font-weight-bold">
+                                <td colspan="25" class="text-center py-4 text-muted font-weight-bold">
                                     <i class="mdi mdi-information-outline mr-1"></i> No live bookings found in the selected date range.
                                 </td>
                             </tr>

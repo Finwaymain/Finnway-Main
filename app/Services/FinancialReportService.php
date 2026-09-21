@@ -266,6 +266,8 @@ class FinancialReportService
         $cabPFeeRealized = 0.0;
         $cabBookings = 0;
         $cabOnlineGross = 0.0;
+        $cabUpiGross    = 0.0;
+        $cabWalletGross = 0.0;
         $cabCashGross   = 0.0;
 
         if ($hasRequete) {
@@ -295,8 +297,9 @@ class FinancialReportService
                 $tAmt = $parsePureRecordedTax($cr->tax ?? null);
                 $cabGst += $tAmt;
 
-                // Check cash vs online
+                // Check cash vs wallet vs UPI/online
                 $isCash = (str_contains(strtolower((string)($cr->statut_paiement ?? '')), 'cash') || $cr->id_payment_method == 5 || $cr->id_payment_method == 1);
+                $isWallet = !$isCash && (str_contains(strtolower((string)($cr->statut_paiement ?? '')), 'wallet') || $cr->id_payment_method == 9);
                 if ($isCash) {
                     $cabCashGross += $fare;
                     $cabCommCash  += $cComm;
@@ -307,7 +310,17 @@ class FinancialReportService
                     $cabCommRealized += round($cComm * $ratio, 2);
                     $cabPFeeRealized += round($cPFee * $ratio, 2);
                     $cabGstRealized  += round($tAmt * $ratio, 2);
+                } elseif ($isWallet) {
+                    $cabWalletGross  += $fare;
+                    $cabOnlineGross  += $fare;
+                    $cabCommOnline   += $cComm;
+                    $cabPFeeOnline   += $cPFee;
+                    $cabGstOnline    += $tAmt;
+                    $cabCommRealized += $cComm;
+                    $cabPFeeRealized += $cPFee;
+                    $cabGstRealized  += $tAmt;
                 } else {
+                    $cabUpiGross     += $fare;
                     $cabOnlineGross  += $fare;
                     $cabCommOnline   += $cComm;
                     $cabPFeeOnline   += $cPFee;
@@ -335,6 +348,8 @@ class FinancialReportService
         $homePFeeRealized = 0.0;
         $homeBookings = 0;
         $homeOnlineGross = 0.0;
+        $homeUpiGross    = 0.0;
+        $homeWalletGross = 0.0;
         $homeCashGross   = 0.0;
 
         if ($hasServiceReq) {
@@ -372,7 +387,9 @@ class FinancialReportService
                 }
                 $homeGst += $sTax;
 
-                $isCash = in_array(strtolower(trim((string)($hr->payment_status ?? ''))), ['paid_cash', 'cash'], true);
+                $pm = strtolower(trim((string)($hr->payment_status ?? $hr->payment_method ?? '')));
+                $isCash = str_contains($pm, 'cash');
+                $isWallet = !$isCash && str_contains($pm, 'wallet');
                 if ($isCash) {
                     $homeCashGross += $bAmt;
                     $homeCommCash  += $sComm;
@@ -383,7 +400,17 @@ class FinancialReportService
                     $homeCommRealized += round($sComm * $ratio, 2);
                     $homePFeeRealized += round($pF * $ratio, 2);
                     $homeGstRealized  += round($sTax * $ratio, 2);
+                } elseif ($isWallet) {
+                    $homeWalletGross  += $bAmt;
+                    $homeOnlineGross  += $bAmt;
+                    $homeCommOnline   += $sComm;
+                    $homePFeeOnline   += $pF;
+                    $homeGstOnline    += $sTax;
+                    $homeCommRealized += $sComm;
+                    $homePFeeRealized += $pF;
+                    $homeGstRealized  += $sTax;
                 } else {
+                    $homeUpiGross     += $bAmt;
                     $homeOnlineGross  += $bAmt;
                     $homeCommOnline   += $sComm;
                     $homePFeeOnline   += $pF;
@@ -411,6 +438,8 @@ class FinancialReportService
         $foodPFeeRealized = 0.0;
         $foodBookings = 0;
         $foodOnlineGross = 0.0;
+        $foodUpiGross    = 0.0;
+        $foodWalletGross = 0.0;
         $foodCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $foodQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'food');
@@ -428,6 +457,7 @@ class FinancialReportService
                 $foodGst += $fGst;
 
                 $isCash = (str_contains(strtolower((string)($fr->statut_paiement ?? '')), 'cash') || $fr->id_payment_method == 5 || $fr->id_payment_method == 1);
+                $isWallet = !$isCash && (str_contains(strtolower((string)($fr->statut_paiement ?? '')), 'wallet') || $fr->id_payment_method == 9);
                 if ($isCash) {
                     $foodCashGross += $fFare;
                     $foodCommCash  += $fComm;
@@ -438,7 +468,17 @@ class FinancialReportService
                     $foodCommRealized += round($fComm * $ratio, 2);
                     $foodPFeeRealized += round($fPFee * $ratio, 2);
                     $foodGstRealized  += round($fGst * $ratio, 2);
+                } elseif ($isWallet) {
+                    $foodWalletGross  += $fFare;
+                    $foodOnlineGross  += $fFare;
+                    $foodCommOnline   += $fComm;
+                    $foodPFeeOnline   += $fPFee;
+                    $foodGstOnline    += $fGst;
+                    $foodCommRealized += $fComm;
+                    $foodPFeeRealized += $fPFee;
+                    $foodGstRealized  += $fGst;
                 } else {
+                    $foodUpiGross     += $fFare;
                     $foodOnlineGross  += $fFare;
                     $foodCommOnline   += $fComm;
                     $foodPFeeOnline   += $fPFee;
@@ -466,6 +506,8 @@ class FinancialReportService
         $parcelPFeeRealized = 0.0;
         $parcelBookings = 0;
         $parcelOnlineGross = 0.0;
+        $parcelUpiGross    = 0.0;
+        $parcelWalletGross = 0.0;
         $parcelCashGross   = 0.0;
         if ($hasParcelOrders) {
             $parcelQuery = $validParcel(DB::table('parcel_orders'))->whereBetween('created_at', [$startStr, $endStr]);
@@ -482,7 +524,9 @@ class FinancialReportService
                 $pGst = $parsePureRecordedTax($pr->tax ?? null);
                 $parcelGst += $pGst;
 
-                $isCash = (str_contains(strtolower((string)($pr->payment_status ?? $pr->payment_method ?? '')), 'cash'));
+                $pm = strtolower(trim((string)($pr->payment_status ?? $pr->payment_method ?? '')));
+                $isCash = str_contains($pm, 'cash');
+                $isWallet = !$isCash && str_contains($pm, 'wallet');
                 if ($isCash) {
                     $parcelCashGross += $pFare;
                     $parcelCommCash  += $pComm;
@@ -493,7 +537,17 @@ class FinancialReportService
                     $parcelCommRealized += round($pComm * $ratio, 2);
                     $parcelPFeeRealized += round($pPFee * $ratio, 2);
                     $parcelGstRealized  += round($pGst * $ratio, 2);
+                } elseif ($isWallet) {
+                    $parcelWalletGross  += $pFare;
+                    $parcelOnlineGross  += $pFare;
+                    $parcelCommOnline   += $pComm;
+                    $parcelPFeeOnline   += $pPFee;
+                    $parcelGstOnline    += $pGst;
+                    $parcelCommRealized += $pComm;
+                    $parcelPFeeRealized += $pPFee;
+                    $parcelGstRealized  += $pGst;
                 } else {
+                    $parcelUpiGross     += $pFare;
                     $parcelOnlineGross  += $pFare;
                     $parcelCommOnline   += $pComm;
                     $parcelPFeeOnline   += $pPFee;
@@ -520,6 +574,7 @@ class FinancialReportService
                 $parcelGst += $pGst;
 
                 $isCash = (str_contains(strtolower((string)($pr->statut_paiement ?? '')), 'cash') || $pr->id_payment_method == 5 || $pr->id_payment_method == 1);
+                $isWallet = !$isCash && (str_contains(strtolower((string)($pr->statut_paiement ?? '')), 'wallet') || $pr->id_payment_method == 9);
                 if ($isCash) {
                     $parcelCashGross += $pFare;
                     $parcelCommCash  += $pComm;
@@ -530,7 +585,17 @@ class FinancialReportService
                     $parcelCommRealized += round($pComm * $ratio, 2);
                     $parcelPFeeRealized += round($pPFee * $ratio, 2);
                     $parcelGstRealized  += round($pGst * $ratio, 2);
+                } elseif ($isWallet) {
+                    $parcelWalletGross  += $pFare;
+                    $parcelOnlineGross  += $pFare;
+                    $parcelCommOnline   += $pComm;
+                    $parcelPFeeOnline   += $pPFee;
+                    $parcelGstOnline    += $pGst;
+                    $parcelCommRealized += $pComm;
+                    $parcelPFeeRealized += $pPFee;
+                    $parcelGstRealized  += $pGst;
                 } else {
+                    $parcelUpiGross     += $pFare;
                     $parcelOnlineGross  += $pFare;
                     $parcelCommOnline   += $pComm;
                     $parcelPFeeOnline   += $pPFee;
@@ -558,6 +623,8 @@ class FinancialReportService
         $travelPFeeRealized = 0.0;
         $travelBookings = 0;
         $travelOnlineGross = 0.0;
+        $travelUpiGross    = 0.0;
+        $travelWalletGross = 0.0;
         $travelCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $travelQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])->where('ride_type', 'travel');
@@ -575,6 +642,7 @@ class FinancialReportService
                 $travelGst += $tGst;
 
                 $isCash = (str_contains(strtolower((string)($tr->statut_paiement ?? '')), 'cash') || $tr->id_payment_method == 5 || $tr->id_payment_method == 1);
+                $isWallet = !$isCash && (str_contains(strtolower((string)($tr->statut_paiement ?? '')), 'wallet') || $tr->id_payment_method == 9);
                 if ($isCash) {
                     $travelCashGross += $tFare;
                     $travelCommCash  += $tComm;
@@ -585,7 +653,17 @@ class FinancialReportService
                     $travelCommRealized += round($tComm * $ratio, 2);
                     $travelPFeeRealized += round($tPFee * $ratio, 2);
                     $travelGstRealized  += round($tGst * $ratio, 2);
+                } elseif ($isWallet) {
+                    $travelWalletGross  += $tFare;
+                    $travelOnlineGross  += $tFare;
+                    $travelCommOnline   += $tComm;
+                    $travelPFeeOnline   += $tPFee;
+                    $travelGstOnline    += $tGst;
+                    $travelCommRealized += $tComm;
+                    $travelPFeeRealized += $tPFee;
+                    $travelGstRealized  += $tGst;
                 } else {
+                    $travelUpiGross     += $tFare;
                     $travelOnlineGross  += $tFare;
                     $travelCommOnline   += $tComm;
                     $travelPFeeOnline   += $tPFee;
@@ -613,6 +691,8 @@ class FinancialReportService
         $otherPFeeRealized = 0.0;
         $otherBookings = 0;
         $otherOnlineGross = 0.0;
+        $otherUpiGross    = 0.0;
+        $otherWalletGross = 0.0;
         $otherCashGross   = 0.0;
         if ($hasRideTypeCol) {
             $otherQuery = $validRide(DB::table('tj_requete'))->whereBetween('creer', [$startStr, $endStr])
@@ -632,6 +712,7 @@ class FinancialReportService
                 $otherGst += $oGst;
 
                 $isCash = (str_contains(strtolower((string)($or->statut_paiement ?? '')), 'cash') || $or->id_payment_method == 5 || $or->id_payment_method == 1);
+                $isWallet = !$isCash && (str_contains(strtolower((string)($or->statut_paiement ?? '')), 'wallet') || $or->id_payment_method == 9);
                 if ($isCash) {
                     $otherCashGross += $oFare;
                     $otherCommCash  += $oComm;
@@ -642,7 +723,17 @@ class FinancialReportService
                     $otherCommRealized += round($oComm * $ratio, 2);
                     $otherPFeeRealized += round($oPFee * $ratio, 2);
                     $otherGstRealized  += round($oGst * $ratio, 2);
+                } elseif ($isWallet) {
+                    $otherWalletGross  += $oFare;
+                    $otherOnlineGross  += $oFare;
+                    $otherCommOnline   += $oComm;
+                    $otherPFeeOnline   += $oPFee;
+                    $otherGstOnline    += $oGst;
+                    $otherCommRealized += $oComm;
+                    $otherPFeeRealized += $oPFee;
+                    $otherGstRealized  += $oGst;
                 } else {
+                    $otherUpiGross     += $oFare;
                     $otherOnlineGross  += $oFare;
                     $otherCommOnline   += $oComm;
                     $otherPFeeOnline   += $oPFee;
@@ -787,9 +878,12 @@ class FinancialReportService
         $gstCollectedOnline    = round($totalOnlineGst, 2);
         $gstCollectedCash      = round($recoveredCashGst, 2);
 
-        // Total Gross Ecosystem Volume (GMV) - Both Online and Cash Volume
-        $onlineGrossVolume = round($cabOnlineGross + $homeOnlineGross + $foodOnlineGross + $parcelOnlineGross + $travelOnlineGross + $otherOnlineGross + $marketGross + $subRevenue, 2);
-        $cashGrossVolume   = round($cabCashGross + $homeCashGross + $foodCashGross + $parcelCashGross + $travelCashGross + $otherCashGross, 2);
+        // Total Gross Ecosystem Volume (GMV) - Breakdown by UPI/Gateway, Wallet, and Cash
+        $totalUpiGross     = round($cabUpiGross + $homeUpiGross + $foodUpiGross + $parcelUpiGross + $travelUpiGross + $otherUpiGross + $marketGross + $subRevenue, 2);
+        $totalWalletGross  = round($cabWalletGross + $homeWalletGross + $foodWalletGross + $parcelWalletGross + $travelWalletGross + $otherWalletGross, 2);
+        $totalCashGross    = round($cabCashGross + $homeCashGross + $foodCashGross + $parcelCashGross + $travelCashGross + $otherCashGross, 2);
+        $onlineGrossVolume = round($totalUpiGross + $totalWalletGross, 2);
+        $cashGrossVolume   = round($totalCashGross, 2);
         $grossRevenue      = round($onlineGrossVolume + $cashGrossVolume, 2);
 
         // Net Admin Revenue (Commissions + Platform Fees + Subscriptions)
@@ -1429,6 +1523,8 @@ class FinancialReportService
             'dueCashComm'             => round($dueCashComm, 2),
             'dueCashPFee'             => round($dueCashPFee, 2),
             'dueCashGst'              => round($dueCashGst, 2),
+            'upiGrossVolume'          => round($totalUpiGross, 2),
+            'walletGrossVolume'       => round($totalWalletGross, 2),
             'onlineGrossVolume'       => round($onlineGrossVolume, 2),
             'cashGrossVolume'         => round($cashGrossVolume, 2),
             'dailyReports'            => $dailyReports,

@@ -65,10 +65,13 @@ class EarningController extends Controller
 
                 foreach ($rides as $r) {
                     $amt = (float)($r->montant ?? 0);
-                    $comm = (float)($r->admin_commission ?? ($amt * 0.10));
+                    $comm = (!empty($r->admin_commission) && (float)$r->admin_commission > 0)
+                        ? (float)$r->admin_commission
+                        : round($amt * 0.10, 2);
                     
-                    // Parse GST
+                    // Parse GST and Platform Fee accurately from tax JSON
                     $gst = 0.0;
+                    $platformFee = 0.0;
                     if (!empty($r->tax)) {
                         if (is_numeric($r->tax)) {
                             $gst = (float)$r->tax;
@@ -76,33 +79,71 @@ class EarningController extends Controller
                             $decoded = json_decode($r->tax, true);
                             if (is_array($decoded)) {
                                 foreach ($decoded as $t) {
-                                    $gst += (float)($t['value'] ?? $t['amount'] ?? 0);
+                                    $lib = strtolower(trim((string)($t['libelle'] ?? '')));
+                                    $val = (float)($t['amount'] ?? 0);
+                                    if ($val <= 0 && isset($t['value']) && is_numeric($t['value'])) {
+                                        $rate = (float)$t['value'];
+                                        $val = (strtolower((string)($t['type'] ?? '')) === 'percentage')
+                                            ? round(($amt * $rate) / 100, 2)
+                                            : $rate;
+                                    }
+                                    if (str_contains($lib, 'platform') || str_contains($lib, 'fee')) {
+                                        $platformFee += $val;
+                                    } elseif (str_contains($lib, 'gst') || str_contains($lib, 'tax')) {
+                                        $gst += $val;
+                                    } else {
+                                        $gst += $val;
+                                    }
                                 }
                             }
                         }
                     }
+
+                    if ($platformFee <= 0 && $amt > 0) {
+                        $platformFee = 40.0; // Default active platform fee
+                    }
+
                     if ($gst <= 0 && $amt > 0) {
                         $gst = round($amt * 0.18, 2);
                     }
 
-                    $platformFee = (float)($r->tip_amount ?? 0);
-                    if ($platformFee <= 0 && $amt > 0) {
-                        $platformFee = 30.0;
-                    }
+                    $pmId = (int)($r->id_payment_method ?? 0);
+                    $rawMode = strtolower(trim((string)($r->payment_mode ?? '')));
+                    $payStatusStr = strtolower(trim((string)($r->statut_paiement ?? '')));
 
-                    $rawMode = strtolower($r->payment_mode ?? 'cash');
                     $mode = 'Cash';
                     $upiHandling = 0.0;
-                    if (str_contains($rawMode, 'upi') || str_contains($rawMode, 'razor') || str_contains($rawMode, 'online') || str_contains($rawMode, 'card')) {
-                        $mode = 'UPI';
-                        $upiHandling = 2.0;
-                    } elseif (str_contains($rawMode, 'wallet')) {
+                    if ($pmId === 5 || str_contains($rawMode, 'cash') || str_contains($payStatusStr, 'cash')) {
+                        $mode = 'Cash';
+                        $upiHandling = 0.0;
+                    } elseif ($pmId === 9 || str_contains($rawMode, 'wallet') || str_contains($payStatusStr, 'wallet')) {
                         $mode = 'Wallet';
+                        $upiHandling = 0.0;
+                    } else {
+                        $mode = 'UPI';
+                        $upiHandling = 2.0; // UPI / Online Payment Gateway handling fee
                     }
 
-                    $totalAmt = $amt + $gst + $platformFee + $upiHandling;
-                    $fiinwayDueTotal = $comm + $gst + $platformFee + $upiHandling;
-                    $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
+                    $totalAmt = round($amt + $gst + $platformFee + $upiHandling, 2);
+
+                    // ❗ ACCOUNTING DUE LOGIC:
+                    // Only in CASH collection does the Business User (Driver) collect the cash from the user.
+                    // The driver owes Fiinway: Commission + GST + Platform Fee.
+                    // For UPI / Online / Wallet, the customer paid Fiinway directly.
+                    // The driver collected ZERO cash, so NOTHING is due from the driver to Fiinway.
+                    if ($mode === 'Cash') {
+                        $fiinwayDueComm  = $comm;
+                        $fiinwayDueGst   = $gst;
+                        $fiinwayDuePFee  = $platformFee;
+                        $fiinwayDueTotal = round($comm + $gst + $platformFee, 2);
+                        $dueFromBusiness = 'yes';
+                    } else {
+                        $fiinwayDueComm  = 0.0;
+                        $fiinwayDueGst   = 0.0;
+                        $fiinwayDuePFee  = 0.0;
+                        $fiinwayDueTotal = 0.0;
+                        $dueFromBusiness = 'no';
+                    }
 
                     // Zone extraction
                     $zone = '-';
@@ -133,22 +174,24 @@ class EarningController extends Controller
                         'zone'                 => $zone,
                         'book'                 => ($r->ride_type === 'parcel') ? 'Parcel' : 'Cab',
                         'nature_of_service'    => $nature,
-                        'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
+                        'promo_used'           => $promoUsed > 0 ? (string)number_format($promoUsed, 2) : '-',
                         'promo_after_used'     => $promoAfterUsed,
                         'promo_expired'        => $promoExpired,
-                        'wallet_available'     => (string)(int)$walletAvail,
-                        'wallet_deduction'     => (string)(int)$walletDeduction,
-                        'wallet_after_used'    => (string)(int)$walletAfterUsed,
+                        'wallet_available'     => (string)number_format($walletAvail, 2),
+                        'wallet_deduction'     => ($mode === 'Wallet') ? (string)number_format($totalAmt, 2) : '0.00',
+                        'wallet_after_used'    => (string)number_format($walletAfterUsed, 2),
                         'booking_count'        => '1',
-                        'booking_amt'          => (string)(int)$amt,
-                        'charges_commission'   => (string)(int)$comm,
-                        'charges_gst'          => (string)(int)$gst,
-                        'charges_platform_fee' => (string)(int)$platformFee,
-                        'charges_upi_handling' => (string)(int)$upiHandling,
-                        'total_amt'            => (string)(int)$totalAmt,
+                        'booking_amt'          => (string)number_format($amt, 2),
+                        'charges_commission'   => (string)number_format($comm, 2),
+                        'charges_gst'          => (string)number_format($gst, 2),
+                        'charges_platform_fee' => (string)number_format($platformFee, 2),
+                        'charges_upi_handling' => (string)number_format($upiHandling, 2),
+                        'total_amt'            => (string)number_format($totalAmt, 2),
                         'payment_mode'         => $mode,
-                        'fiinway_due_comm'     => (string)(int)$comm,
-                        'fiinway_due_total'    => (string)(int)$fiinwayDueTotal,
+                        'fiinway_due_comm'     => (string)number_format($fiinwayDueComm, 2),
+                        'fiinway_due_gst'      => (string)number_format($fiinwayDueGst, 2),
+                        'fiinway_due_pfee'     => (string)number_format($fiinwayDuePFee, 2),
+                        'fiinway_due_total'    => (string)number_format($fiinwayDueTotal, 2),
                         'due_from_business'    => $dueFromBusiness,
                         'raw_time'             => $rawTime,
                     ];
@@ -192,23 +235,38 @@ class EarningController extends Controller
                     $amt = (float)($s->amount ?? 0);
                     $comm = round($amt * 0.10, 2);
                     $gst = (float)($s->tax_amount ?? ($amt * 0.18));
-                    $platformFee = 30.0;
-                    $mode = 'UPI';
-                    $upiHandling = 2.0;
+                    $platformFee = 40.0;
 
-                    if (str_contains(strtolower($s->payment_status ?? ''), 'cash')) {
+                    $rawPayStatus = strtolower($s->payment_status ?? 'cash');
+                    $mode = 'Cash';
+                    $upiHandling = 0.0;
+
+                    if (str_contains($rawPayStatus, 'cash')) {
                         $mode = 'Cash';
                         $upiHandling = 0.0;
-                        $platformFee = 40.0;
-                    } elseif (str_contains(strtolower($s->payment_status ?? ''), 'wallet')) {
+                    } elseif (str_contains($rawPayStatus, 'wallet')) {
                         $mode = 'Wallet';
                         $upiHandling = 0.0;
-                        $platformFee = 20.0;
+                    } else {
+                        $mode = 'UPI';
+                        $upiHandling = 2.0;
                     }
 
-                    $totalAmt = $amt + $gst + $platformFee + $upiHandling;
-                    $fiinwayDueTotal = $comm + $gst + $platformFee + $upiHandling;
-                    $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
+                    $totalAmt = round($amt + $gst + $platformFee + $upiHandling, 2);
+
+                    if ($mode === 'Cash') {
+                        $fiinwayDueComm  = $comm;
+                        $fiinwayDueGst   = $gst;
+                        $fiinwayDuePFee  = $platformFee;
+                        $fiinwayDueTotal = round($comm + $gst + $platformFee, 2);
+                        $dueFromBusiness = 'yes';
+                    } else {
+                        $fiinwayDueComm  = 0.0;
+                        $fiinwayDueGst   = 0.0;
+                        $fiinwayDuePFee  = 0.0;
+                        $fiinwayDueTotal = 0.0;
+                        $dueFromBusiness = 'no';
+                    }
 
                     $promoUsed = (float)($s->promotional_amount ?? $s->promotional_discount ?? 0);
                     $promoAfterUsed = ($promoUsed > 0) ? '200' : '-';
@@ -227,22 +285,24 @@ class EarningController extends Controller
                         'zone'                 => !empty($s->city) ? $s->city : '-',
                         'book'                 => 'Home Service',
                         'nature_of_service'    => !empty($s->service_name) ? $s->service_name : 'General Service',
-                        'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
+                        'promo_used'           => $promoUsed > 0 ? (string)number_format($promoUsed, 2) : '-',
                         'promo_after_used'     => $promoAfterUsed,
                         'promo_expired'        => $promoExpired,
-                        'wallet_available'     => (string)(int)$walletAvail,
-                        'wallet_deduction'     => (string)(int)$walletDeduction,
-                        'wallet_after_used'    => (string)(int)$walletAfterUsed,
+                        'wallet_available'     => (string)number_format($walletAvail, 2),
+                        'wallet_deduction'     => ($mode === 'Wallet') ? (string)number_format($totalAmt, 2) : '0.00',
+                        'wallet_after_used'    => (string)number_format($walletAfterUsed, 2),
                         'booking_count'        => '1',
-                        'booking_amt'          => (string)(int)$amt,
-                        'charges_commission'   => (string)(int)$comm,
-                        'charges_gst'          => (string)(int)$gst,
-                        'charges_platform_fee' => (string)(int)$platformFee,
-                        'charges_upi_handling' => (string)(int)$upiHandling,
-                        'total_amt'            => (string)(int)$totalAmt,
+                        'booking_amt'          => (string)number_format($amt, 2),
+                        'charges_commission'   => (string)number_format($comm, 2),
+                        'charges_gst'          => (string)number_format($gst, 2),
+                        'charges_platform_fee' => (string)number_format($platformFee, 2),
+                        'charges_upi_handling' => (string)number_format($upiHandling, 2),
+                        'total_amt'            => (string)number_format($totalAmt, 2),
                         'payment_mode'         => $mode,
-                        'fiinway_due_comm'     => (string)(int)$comm,
-                        'fiinway_due_total'    => (string)(int)$fiinwayDueTotal,
+                        'fiinway_due_comm'     => (string)number_format($fiinwayDueComm, 2),
+                        'fiinway_due_gst'      => (string)number_format($fiinwayDueGst, 2),
+                        'fiinway_due_pfee'     => (string)number_format($fiinwayDuePFee, 2),
+                        'fiinway_due_total'    => (string)number_format($fiinwayDueTotal, 2),
                         'due_from_business'    => $dueFromBusiness,
                         'raw_time'             => $rawTime,
                     ];
@@ -297,11 +357,24 @@ class EarningController extends Controller
                         $upiHandling = 2.0;
                     } elseif (str_contains($rawMode, 'wallet')) {
                         $mode = 'Wallet';
+                        $upiHandling = 0.0;
                     }
 
                     $totalAmt = (float)($o->customer_payable ?? ($amt + $gst + $platformFee + $upiHandling));
-                    $fiinwayDueTotal = $comm + $gst + $platformFee + $upiHandling;
-                    $dueFromBusiness = ($mode === 'Cash') ? 'yes' : 'Collected';
+
+                    if ($mode === 'Cash') {
+                        $fiinwayDueComm  = $comm;
+                        $fiinwayDueGst   = $gst;
+                        $fiinwayDuePFee  = $platformFee;
+                        $fiinwayDueTotal = round($comm + $gst + $platformFee, 2);
+                        $dueFromBusiness = 'yes';
+                    } else {
+                        $fiinwayDueComm  = 0.0;
+                        $fiinwayDueGst   = 0.0;
+                        $fiinwayDuePFee  = 0.0;
+                        $fiinwayDueTotal = 0.0;
+                        $dueFromBusiness = 'no';
+                    }
 
                     $promoUsed = (float)($o->discount_amount ?? 0);
                     $promoAfterUsed = ($promoUsed > 0) ? '100' : '-';
@@ -329,22 +402,24 @@ class EarningController extends Controller
                         'zone'                 => $zone,
                         'book'                 => 'Food Delivery',
                         'nature_of_service'    => $nature,
-                        'promo_used'           => $promoUsed > 0 ? (string)(int)$promoUsed : '-',
+                        'promo_used'           => $promoUsed > 0 ? (string)number_format($promoUsed, 2) : '-',
                         'promo_after_used'     => $promoAfterUsed,
                         'promo_expired'        => $promoExpired,
                         'wallet_available'     => '-',
-                        'wallet_deduction'     => ($mode === 'Wallet') ? (string)(int)$totalAmt : '0',
+                        'wallet_deduction'     => ($mode === 'Wallet') ? (string)number_format($totalAmt, 2) : '0.00',
                         'wallet_after_used'    => '-',
                         'booking_count'        => '1',
-                        'booking_amt'          => (string)(int)$amt,
-                        'charges_commission'   => (string)(int)$comm,
-                        'charges_gst'          => (string)(int)$gst,
-                        'charges_platform_fee' => (string)(int)$platformFee,
-                        'charges_upi_handling' => (string)(int)$upiHandling,
-                        'total_amt'            => (string)(int)$totalAmt,
+                        'booking_amt'          => (string)number_format($amt, 2),
+                        'charges_commission'   => (string)number_format($comm, 2),
+                        'charges_gst'          => (string)number_format($gst, 2),
+                        'charges_platform_fee' => (string)number_format($platformFee, 2),
+                        'charges_upi_handling' => (string)number_format($upiHandling, 2),
+                        'total_amt'            => (string)number_format($totalAmt, 2),
                         'payment_mode'         => $mode,
-                        'fiinway_due_comm'     => (string)(int)$comm,
-                        'fiinway_due_total'    => (string)(int)$fiinwayDueTotal,
+                        'fiinway_due_comm'     => (string)number_format($fiinwayDueComm, 2),
+                        'fiinway_due_gst'      => (string)number_format($fiinwayDueGst, 2),
+                        'fiinway_due_pfee'     => (string)number_format($fiinwayDuePFee, 2),
+                        'fiinway_due_total'    => (string)number_format($fiinwayDueTotal, 2),
                         'due_from_business'    => $dueFromBusiness,
                         'raw_time'             => $rawTime,
                     ];
@@ -398,43 +473,62 @@ class EarningController extends Controller
             fputcsv($file, ['Generated At:', date('Y-m-d H:i:s')]);
             fputcsv($file, []);
 
-            // 23 Group Headers
+            // 24 Detailed Columns
             fputcsv($file, [
-                'Payment Mode', 'Date', 'Consumer', 'Service Provider', 'Zone',
-                'Book', 'Nature Of Service',
-                'Promotion Used', 'Promotion After Used', 'Promotion Expired',
-                'Wallet Available', 'Wallet Deduction', 'Wallet After Used',
-                'Booking Count', 'Booking Amt',
-                'Commission', 'GST', 'Platform Fee', 'UPI Handling', 'Total Amt',
-                'Payment Mode', 'Fiinway Due Commission', 'Fiinway Due Total', 'Due From Business User'
+                'Date',
+                'Consumer',
+                'Service Provider',
+                'Zone',
+                'Service Booked',
+                'Nature of Service',
+                'Promo Used (INR)',
+                'Promo After Used (INR)',
+                'Promo Expired',
+                'Wallet Available (INR)',
+                'Wallet Deduction (INR)',
+                'Wallet After Used (INR)',
+                'Booking Count',
+                'Booking Amount (INR)',
+                'Commission (INR)',
+                'GST (INR)',
+                'Platform Fee (INR)',
+                'UPI Handling (INR)',
+                'SubTotal Amount (INR)',
+                'Payment Mode',
+                'Fiinway Due Commission (INR)',
+                'Fiinway Due GST (INR)',
+                'Fiinway Due Platform Fee (INR)',
+                'Fiinway Due Total (INR)',
+                'Due From Business User'
             ]);
 
             foreach ($rows as $r) {
                 fputcsv($file, [
-                    $r['mode_badge'],
-                    $r['date'],
-                    $r['consumer'],
-                    $r['provider'],
-                    $r['zone'],
-                    $r['book'],
-                    $r['nature_of_service'],
-                    $r['promo_used'],
-                    $r['promo_after_used'],
-                    $r['promo_expired'],
-                    $r['wallet_available'],
-                    $r['wallet_deduction'],
-                    $r['wallet_after_used'],
-                    $r['booking_count'],
-                    $r['booking_amt'],
-                    $r['charges_commission'],
-                    $r['charges_gst'],
-                    $r['charges_platform_fee'],
-                    $r['charges_upi_handling'],
-                    $r['total_amt'],
-                    $r['payment_mode'],
-                    $r['fiinway_due_comm'],
-                    $r['fiinway_due_total'],
-                    $r['due_from_business'],
+                    $r['date'] ?? '-',
+                    $r['consumer'] ?? '-',
+                    $r['provider'] ?? '-',
+                    $r['zone'] ?? '-',
+                    $r['book'] ?? '-',
+                    $r['nature_of_service'] ?? '-',
+                    $r['promo_used'] ?? '-',
+                    $r['promo_after_used'] ?? '-',
+                    $r['promo_expired'] ?? '-',
+                    $r['wallet_available'] ?? '-',
+                    $r['wallet_deduction'] ?? '0.00',
+                    $r['wallet_after_used'] ?? '-',
+                    $r['booking_count'] ?? '1',
+                    $r['booking_amt'] ?? '0.00',
+                    $r['charges_commission'] ?? '0.00',
+                    $r['charges_gst'] ?? '0.00',
+                    $r['charges_platform_fee'] ?? '0.00',
+                    $r['charges_upi_handling'] ?? '0.00',
+                    $r['total_amt'] ?? '0.00',
+                    $r['payment_mode'] ?? '-',
+                    $r['fiinway_due_comm'] ?? '0.00',
+                    $r['fiinway_due_gst'] ?? '0.00',
+                    $r['fiinway_due_pfee'] ?? '0.00',
+                    $r['fiinway_due_total'] ?? '0.00',
+                    strtolower($r['due_from_business'] ?? '') === 'yes' ? 'Yes (Due from Provider: INR ' . ($r['fiinway_due_total'] ?? '0.00') . ')' : 'Collected / Settled (INR 0.00 Due)',
                 ]);
             }
 
@@ -499,6 +593,8 @@ class EarningController extends Controller
             fputcsv($file, ['This Year Gross Collection', 'INR ' . number_format($stats['revYear'], 2)]);
             fputcsv($file, ['Gross GMV (Filtered Period)', 'INR ' . number_format($stats['grossRevenue'], 2)]);
             fputcsv($file, ['- Online Realized Volume', 'INR ' . number_format($stats['onlineGrossVolume'] ?? 0, 2)]);
+            fputcsv($file, ['  • Direct UPI / Online Gateway', 'INR ' . number_format($stats['upiGrossVolume'] ?? 0, 2)]);
+            fputcsv($file, ['  • Internal Wallet Deductions', 'INR ' . number_format($stats['walletGrossVolume'] ?? 0, 2)]);
             fputcsv($file, ['- Cash Collected by Providers', 'INR ' . number_format($stats['cashGrossVolume'] ?? 0, 2)]);
             fputcsv($file, ['Net Admin Revenue (Commissions + Platform Fees)', 'INR ' . number_format($stats['netRevenue'], 2)]);
             fputcsv($file, ['- Realized Admin Revenue', 'INR ' . number_format($stats['realizedAdminRevenue'] ?? $stats['netRevenue'], 2)]);
