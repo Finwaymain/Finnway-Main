@@ -243,6 +243,27 @@ class RequeteRegisterController extends Controller
 
                         $id_conducteur = $closestDriver ? $closestDriver->id : 0;
                     }
+
+                    // Tier 3 Fallback: If no driver matched distance/radius, pick closest online verified driver with valid FCM
+                    if (empty($id_conducteur) || $id_conducteur == 0) {
+                        $fallbackDriver = DB::table("tj_conducteur")
+                            ->where('statut', 'yes')
+                            ->where('online', '!=', 'no')
+                            ->whereNotNull('fcm_id')
+                            ->where('fcm_id', '!=', '')
+                            ->where('is_verified', '=', '1')
+                            ->where(function($q) {
+                                $q->whereNull('driver_on_ride')
+                                  ->orWhere('driver_on_ride', '!=', 'yes');
+                            })
+                            ->orderBy('id', 'desc')
+                            ->first();
+
+                        if ($fallbackDriver) {
+                            $id_conducteur = $fallbackDriver->id;
+                            \Log::info("RequeteRegister: Assigned fallback online driver #{$id_conducteur} for ride booking.");
+                        }
+                    }
                 $baseFare = floatval($cout ?? 0);
                 $promoCalc = \App\Services\PromotionalService::calculatePromoFare((int)$user_id, 'customer', $baseFare);
                 $isPromoApplied = false;

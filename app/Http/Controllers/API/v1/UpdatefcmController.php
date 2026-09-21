@@ -41,7 +41,10 @@ class UpdatefcmController extends Controller
         }
 
         // Determine if target is driver or customer
-        $isDriver = ($user_cat === 'driver');
+        $isDriver = ($user_cat === 'driver' || $request->filled('driver_id') || $request->filled('id_driver'));
+        if (!$isDriver && !empty($user_id) && !UserApp::where('id', (int)$user_id)->exists() && Driver::where('id', (int)$user_id)->exists()) {
+            $isDriver = true;
+        }
 
         if ($isDriver) {
             // ── DRIVER FLOW ──────────────────────────────────────────────────────────

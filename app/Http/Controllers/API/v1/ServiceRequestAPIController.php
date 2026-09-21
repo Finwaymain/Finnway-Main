@@ -1041,6 +1041,22 @@ class ServiceRequestAPIController extends Controller
                 $notifiedCount++;
             }
 
+            // Fallback: If strict category/keyword matching found 0 providers, broadcast to online drivers
+            // so service requests are never dropped silently
+            if ($notifiedCount === 0 && $allDrivers->isNotEmpty()) {
+                \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') had 0 strict keyword matches. Broadcasting fallback to online providers.");
+                foreach ($allDrivers as $drv) {
+                    $this->sendServiceNotification(
+                        (int) $drv->id,
+                        'driver',
+                        $title,
+                        $body,
+                        $customData
+                    );
+                    $notifiedCount++;
+                }
+            }
+
             \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') notified {$notifiedCount} matching online providers.");
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error("notifyMatchingServiceProviders error: " . $e->getMessage());

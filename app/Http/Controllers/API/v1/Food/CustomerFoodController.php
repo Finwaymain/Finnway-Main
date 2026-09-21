@@ -175,18 +175,49 @@ class CustomerFoodController extends Controller
 
         $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
 
-        // Customer resolution for wallet balance & MPIN
-        $userId = $request->get('customer_id') ?: $request->get('user_id');
+        // Customer or Driver resolution for wallet balance & MPIN
+        $userId = $request->get('customer_id') ?: ($request->get('user_id') ?: $request->get('driver_id'));
         $phone = $request->get('customer_phone') ?: $request->get('phone');
+        $userType = $request->get('user_type', 'customer');
+        $isDriver = ($userType === 'driver' || $request->has('driver_id'));
         $user = null;
-        if ($userId) {
-            $user = UserApp::find($userId);
-        }
-        if (!$user && $phone) {
-            $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
-            $last10 = substr($cleanPhone, -10);
-            if ($last10) {
-                $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+
+        if ($isDriver) {
+            if ($userId) {
+                $user = \App\Models\Driver::find($userId);
+            }
+            if (!$user && $phone) {
+                $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                $last10 = substr($cleanPhone, -10);
+                if ($last10) {
+                    $user = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                }
+            }
+        } else {
+            if ($userId) {
+                $user = UserApp::find($userId);
+            }
+            if (!$user && $phone) {
+                $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                $last10 = substr($cleanPhone, -10);
+                if ($last10) {
+                    $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+                }
+            }
+            // Fallback: If not found in UserApp, check Driver
+            if (!$user) {
+                if ($userId) {
+                    $user = \App\Models\Driver::find($userId);
+                    if ($user) $isDriver = true;
+                }
+                if (!$user && $phone) {
+                    $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                    $last10 = substr($cleanPhone, -10);
+                    if ($last10) {
+                        $user = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                        if ($user) $isDriver = true;
+                    }
+                }
             }
         }
 
@@ -246,7 +277,7 @@ class CustomerFoodController extends Controller
         DB::transaction(function () use (
             &$order, $restaurant, $request, $foodAmount, $markupAmount, $foodSubtotal, $discount,
             $platform, $deliveryCharge, $customerPayable, $commission, $restaurantNet, $companyDue,
-            $paymentMethod, $paymentStatus, $distance, $lineRows, $user
+            $paymentMethod, $paymentStatus, $distance, $lineRows, $user, $isDriver
         ) {
             $order = FoodOrder::create([
                 'order_number' => 'FIIN-FOOD-' . time() . random_int(10, 99),
@@ -277,20 +308,31 @@ class CustomerFoodController extends Controller
                 'order_status' => 'pending',
                 'settlement_status' => 'pending',
                 'delivery_otp' => (string) random_int(1000, 9999),
-                'charges_breakdown' => $platform['breakdown'],
+                'charges_breakdown' => $platform['breakdown'] ?? [],
                 'is_test' => (bool) $request->get('is_test', false),
             ]);
 
             foreach ($lineRows as $row) {
-                $row['order_id'] = $order->id;
-                FoodOrderItem::create($row);
+                FoodOrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $row['product_id'],
+                    'product_name' => $row['product_name'],
+                    'quantity' => $row['quantity'],
+                    'restaurant_unit_price' => $row['restaurant_unit_price'],
+                    'markup_unit' => $row['markup_unit'],
+                    'customer_unit_price' => $row['customer_unit_price'],
+                    'addons_total' => $row['addons_total'],
+                    'line_total' => $row['line_total'],
+                    'variant_name' => $row['variant_name'],
+                    'addons_json' => $row['addons_json'],
+                    'instructions' => $row['instructions'],
+                ]);
             }
 
             FoodDuePayment::create([
-                'restaurant_id' => $restaurant->id,
                 'order_id' => $order->id,
-                'party_type' => 'restaurant',
-                'due_type' => 'commission',
+                'payer_type' => 'restaurant',
+                'payer_id' => $restaurant->id,
                 'amount' => $commission['amount'],
                 'paid_amount' => 0,
                 'status' => 'pending',
@@ -302,7 +344,7 @@ class CustomerFoodController extends Controller
 
                 DB::table('tj_transaction')->insert([
                     'id_user_app'     => $user->id,
-                    'user_type'       => 'customer',
+                    'user_type'       => $isDriver ? 'driver' : 'customer',
                     'amount'          => '-' . $customerPayable,
                     'type'            => 'debit',
                     'deduction_type'  => 0,
@@ -350,17 +392,48 @@ class CustomerFoodController extends Controller
 
     public function getWallet(Request $request)
     {
-        $userId = $request->get('user_id') ?: $request->get('id_user');
+        $userType = $request->get('user_type', 'customer');
+        $userId = $request->get('user_id') ?: ($request->get('id_user') ?: $request->get('driver_id'));
         $phone = $request->get('customer_phone') ?: $request->get('phone');
+        $isDriver = ($userType === 'driver' || $request->has('driver_id'));
         $user = null;
-        if ($userId) {
-            $user = UserApp::find($userId);
-        }
-        if (!$user && $phone) {
-            $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
-            $last10 = substr($cleanPhone, -10);
-            if ($last10) {
-                $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+
+        if ($isDriver) {
+            if ($userId) {
+                $user = \App\Models\Driver::find($userId);
+            }
+            if (!$user && $phone) {
+                $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                $last10 = substr($cleanPhone, -10);
+                if ($last10) {
+                    $user = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                }
+            }
+        } else {
+            if ($userId) {
+                $user = UserApp::find($userId);
+            }
+            if (!$user && $phone) {
+                $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                $last10 = substr($cleanPhone, -10);
+                if ($last10) {
+                    $user = UserApp::where('phone', 'like', "%{$last10}%")->first();
+                }
+            }
+            // Fallback: If not found in UserApp, check Driver
+            if (!$user) {
+                if ($userId) {
+                    $user = \App\Models\Driver::find($userId);
+                    if ($user) $isDriver = true;
+                }
+                if (!$user && $phone) {
+                    $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                    $last10 = substr($cleanPhone, -10);
+                    if ($last10) {
+                        $user = \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                        if ($user) $isDriver = true;
+                    }
+                }
             }
         }
 
@@ -371,6 +444,7 @@ class CustomerFoodController extends Controller
                 'data' => [
                     'wallet_balance' => 0.0,
                     'has_mpin' => false,
+                    'user_type' => $userType,
                 ]
             ]);
         }
@@ -383,6 +457,7 @@ class CustomerFoodController extends Controller
                 'phone' => $user->phone,
                 'wallet_balance' => floatval($user->amount ?? 0),
                 'has_mpin' => !empty($user->m_pin) || !empty($user->mdp),
+                'user_type' => $isDriver ? 'driver' : 'customer',
             ]
         ]);
     }
