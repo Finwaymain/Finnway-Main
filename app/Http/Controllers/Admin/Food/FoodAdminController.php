@@ -688,4 +688,218 @@ class FoodAdminController extends Controller
             ->get(['id', 'name', 'slug', 'icon']);
         return response()->json(['success' => true, 'data' => $cuisines]);
     }
+
+    // ── Order Deletion & Management ──────────────────────────────────────────────
+
+    public function deleteOrder($id)
+    {
+        $order = FoodOrder::find($id);
+        if (!$order) {
+            return back()->with('error', 'Order not found.');
+        }
+
+        $orderNum = $order->order_number ?: "#{$order->id}";
+
+        DB::transaction(function () use ($id, $order) {
+            if (Schema::hasTable('food_order_items')) {
+                DB::table('food_order_items')->where('order_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_disputes')) {
+                DB::table('food_disputes')->where('order_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_due_payments')) {
+                DB::table('food_due_payments')->where('order_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_transactions')) {
+                DB::table('food_transactions')->where('order_id', $id)->delete();
+            }
+            if (Schema::hasTable('food_notifications')) {
+                DB::table('food_notifications')->where('ref_id', $id)->where('type', 'order')->delete();
+            }
+            $order->delete();
+        });
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => "Order {$orderNum} deleted."]);
+        }
+
+        return redirect()->route('admin.food.orders')->with('success', "Order {$orderNum} deleted successfully.");
+    }
+
+    public function bulkDeleteOrders(Request $request)
+    {
+        $ids = $request->input('order_ids');
+        if (is_string($ids)) {
+            $ids = explode(',', $ids);
+        }
+        $ids = array_filter(array_map('intval', (array)$ids));
+
+        if (empty($ids)) {
+            return back()->with('error', 'No orders selected for deletion.');
+        }
+
+        DB::transaction(function () use ($ids) {
+            if (Schema::hasTable('food_order_items')) {
+                DB::table('food_order_items')->whereIn('order_id', $ids)->delete();
+            }
+            if (Schema::hasTable('food_disputes')) {
+                DB::table('food_disputes')->whereIn('order_id', $ids)->delete();
+            }
+            if (Schema::hasTable('food_due_payments')) {
+                DB::table('food_due_payments')->whereIn('order_id', $ids)->delete();
+            }
+            if (Schema::hasTable('food_transactions')) {
+                DB::table('food_transactions')->whereIn('order_id', $ids)->delete();
+            }
+            if (Schema::hasTable('food_notifications')) {
+                DB::table('food_notifications')->whereIn('ref_id', $ids)->where('type', 'order')->delete();
+            }
+            FoodOrder::whereIn('id', $ids)->delete();
+        });
+
+        return redirect()->route('admin.food.orders')->with('success', count($ids) . ' orders deleted successfully.');
+    }
+
+    public function clearAllOrders(Request $request)
+    {
+        $confirmation = trim($request->get('confirmation', ''));
+        if ($confirmation !== 'CLEAR' && $confirmation !== 'RESET') {
+            return back()->with('error', 'Confirmation failed. Please type CLEAR or RESET to confirm clearing all orders.');
+        }
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        foreach ([
+            'food_order_items',
+            'food_orders',
+            'food_disputes',
+            'food_due_payments',
+            'food_transactions',
+            'food_settlements',
+            'food_reviews'
+        ] as $tbl) {
+            if (Schema::hasTable($tbl)) {
+                DB::table($tbl)->truncate();
+            }
+        }
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        return redirect()->route('admin.food.orders')->with('success', 'All food orders, order histories, items, and transactions cleared.');
+    }
+
+    // ── Table Reset Administration ───────────────────────────────────────────────
+
+    public function resetTables(Request $request)
+    {
+        $scope = $request->get('scope', 'all');
+        $confirmation = trim($request->get('confirmation', ''));
+
+        if ($confirmation !== 'RESET') {
+            return back()->with('error', 'Confirmation failed. Please type RESET in capital letters to confirm this action.');
+        }
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+        if ($scope === 'orders') {
+            foreach ([
+                'food_order_items',
+                'food_orders',
+                'food_disputes',
+                'food_due_payments',
+                'food_transactions',
+                'food_settlements',
+                'food_reviews',
+                'food_support_tickets'
+            ] as $tbl) {
+                if (Schema::hasTable($tbl)) {
+                    DB::table($tbl)->truncate();
+                }
+            }
+            $msg = 'All food orders, order history, transactions, and reviews have been completely reset.';
+        } elseif ($scope === 'restaurants') {
+            foreach ([
+                'food_order_items',
+                'food_orders',
+                'food_product_addons',
+                'food_product_variants',
+                'food_products',
+                'food_categories',
+                'food_restaurants',
+                'food_owners',
+                'food_onboarding_payments',
+                'food_premium_deals',
+                'food_offers',
+                'food_disputes',
+                'food_due_payments',
+                'food_transactions',
+                'food_settlements',
+                'food_reviews'
+            ] as $tbl) {
+                if (Schema::hasTable($tbl)) {
+                    DB::table($tbl)->truncate();
+                }
+            }
+            $msg = 'All restaurants, partner owners, menus, products, and related records have been completely reset.';
+        } else {
+            // Full Reset (Clean Slate)
+            $allTables = [
+                'food_order_items',
+                'food_orders',
+                'food_product_addons',
+                'food_product_variants',
+                'food_products',
+                'food_categories',
+                'food_restaurants',
+                'food_owners',
+                'food_onboarding_payments',
+                'food_premium_deals',
+                'food_offers',
+                'food_disputes',
+                'food_due_payments',
+                'food_transactions',
+                'food_settlements',
+                'food_reviews',
+                'food_support_tickets',
+                'food_notifications',
+            ];
+            foreach ($allTables as $tbl) {
+                if (Schema::hasTable($tbl)) {
+                    DB::table($tbl)->truncate();
+                }
+            }
+
+            // Ensure baseline restaurant types exist so registration works immediately
+            if (Schema::hasTable('food_restaurant_types') && DB::table('food_restaurant_types')->count() === 0) {
+                DB::table('food_restaurant_types')->insert([
+                    [
+                        'code' => 'cloud_kitchen',
+                        'name' => 'Cloud Kitchen / Takeaway',
+                        'description' => 'Delivery and pickup only kitchen without public dine-in.',
+                        'is_active' => true,
+                        'onboarding_fee' => 0.00,
+                        'approval_mode' => 'auto',
+                        'sort_order' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                    [
+                        'code' => 'actual_restaurant',
+                        'name' => 'Dine-In Restaurant',
+                        'description' => 'Full-service dine-in restaurant with delivery options.',
+                        'is_active' => true,
+                        'onboarding_fee' => 0.00,
+                        'approval_mode' => 'auto',
+                        'sort_order' => 2,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ]);
+            }
+
+            $msg = 'Complete system reset successful: all food and restaurant tables have been cleanly reinitialized.';
+        }
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        return redirect()->route('admin.food.dashboard')->with('success', $msg);
+    }
 }

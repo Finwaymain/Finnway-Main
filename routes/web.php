@@ -1260,6 +1260,11 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::post('/settings', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveSettings'])->name('settings.save');
     Route::get('/orders', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'orders'])->name('orders');
     Route::post('/orders/test', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'createTestOrder'])->name('orders.test');
+    Route::delete('/orders/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'deleteOrder'])->name('orders.delete');
+    Route::post('/orders/{id}/delete', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'deleteOrder'])->name('orders.destroy');
+    Route::post('/orders/bulk-delete', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'bulkDeleteOrders'])->name('orders.bulkDelete');
+    Route::post('/orders/clear-all', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'clearAllOrders'])->name('orders.clearAll');
+    Route::post('/reset', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'resetTables'])->name('reset');
     Route::get('/settlements', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'settlements'])->name('settlements');
     Route::get('/disputes', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'disputes'])->name('disputes');
     Route::post('/disputes/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'resolveDispute'])->name('disputes.resolve');
