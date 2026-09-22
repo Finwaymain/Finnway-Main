@@ -17,21 +17,57 @@ class RiderFoodController extends Controller
 {
     /**
      * Strictly verifies whether the driver is qualified for Food Delivery.
-     * Only drivers registered with Food Delivery (subcategory 12889 or label 'Food Delivery')
-     * are allowed to view, accept, and deliver food orders.
+     * Drivers with Food Delivery, Delivery & Logistics, Bike Rider, or Parcel Delivery categories,
+     * or active delivery drivers without assigned subcategories are qualified.
      */
     private function isFoodDeliveryRider($riderId): bool
     {
         if (!$riderId) return false;
-        return DB::table('tj_conducteur')
-            ->leftJoin('tj_conducteur_categories', 'tj_conducteur.id', '=', 'tj_conducteur_categories.driver_id')
-            ->leftJoin('tj_categorie_user', 'tj_conducteur_categories.subcategory_id', '=', 'tj_categorie_user.id')
-            ->where('tj_conducteur.id', $riderId)
-            ->where(function ($query) {
-                $query->where('tj_categorie_user.libelle', '=', 'Food Delivery')
-                    ->orWhere('tj_conducteur_categories.subcategory_id', '=', 12889);
+
+        $driver = DB::table('tj_conducteur')->where('id', $riderId)->first();
+        if (!$driver) return false;
+
+        // Must be an active driver
+        if ($driver->statut !== 'yes') return false;
+
+        $foodCategoryIds = [12889, 12888, 12882, 12890]; // Food Delivery, Delivery & Logistics, Bike Rider, Parcel Delivery
+
+        // 1. Direct category on tj_conducteur
+        if (in_array((int)$driver->category_id, $foodCategoryIds, true)) {
+            return true;
+        }
+
+        // 2. Parcel/delivery enabled flag
+        if (strtolower((string)$driver->parcel_delivery) === 'yes') {
+            return true;
+        }
+
+        // 3. Category mapping table check (checking category_id and subcategory_id)
+        $hasCat = DB::table('tj_conducteur_categories')
+            ->leftJoin('tj_categorie_user as cu_cat', 'tj_conducteur_categories.category_id', '=', 'cu_cat.id')
+            ->leftJoin('tj_categorie_user as cu_sub', 'tj_conducteur_categories.subcategory_id', '=', 'cu_sub.id')
+            ->where('tj_conducteur_categories.driver_id', $riderId)
+            ->where(function ($query) use ($foodCategoryIds) {
+                $query->whereIn('tj_conducteur_categories.category_id', $foodCategoryIds)
+                    ->orWhereIn('tj_conducteur_categories.subcategory_id', $foodCategoryIds)
+                    ->orWhere('cu_cat.libelle', 'like', '%food%')
+                    ->orWhere('cu_cat.libelle', 'like', '%delivery%')
+                    ->orWhere('cu_cat.libelle', 'like', '%bike%')
+                    ->orWhere('cu_sub.libelle', 'like', '%food%')
+                    ->orWhere('cu_sub.libelle', 'like', '%delivery%')
+                    ->orWhere('cu_sub.libelle', 'like', '%bike%');
             })
             ->exists();
+
+        if ($hasCat) return true;
+
+        // If driver has no categories assigned yet, allow verified active drivers
+        $totalCats = DB::table('tj_conducteur_categories')->where('driver_id', $riderId)->count();
+        if ($totalCats === 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -71,7 +107,7 @@ class RiderFoodController extends Controller
     public function incoming(Request $request)
     {
         $riderId = $request->get('rider_id');
-        // Strictly filter out non-food delivery drivers
+        // Filter out non-food delivery drivers
         if ($riderId && !$this->isFoodDeliveryRider($riderId)) {
             return response()->json([
                 'success' => true,
@@ -82,10 +118,11 @@ class RiderFoodController extends Controller
 
         $lat = (float) $request->get('latitude');
         $lng = (float) $request->get('longitude');
-        $radius = (float) $request->get('radius_km', 5);
+        $radius = (float) $request->get('radius_km', 15);
+        if ($radius <= 0) $radius = 15;
 
         $orders = FoodOrder::with('restaurant', 'items')
-            ->where('order_status', 'ready_for_pickup')
+            ->whereIn('order_status', ['restaurant_accepted', 'preparing', 'ready_for_pickup'])
             ->whereNull('rider_id')
             ->orderByDesc('id')
             ->limit(50)
@@ -122,7 +159,10 @@ class RiderFoodController extends Controller
             ]);
         }
 
-        $order = FoodOrder::where('id', $id)->where('order_status', 'ready_for_pickup')->whereNull('rider_id')->first();
+        $order = FoodOrder::where('id', $id)
+            ->whereIn('order_status', ['restaurant_accepted', 'preparing', 'ready_for_pickup'])
+            ->whereNull('rider_id')
+            ->first();
         if (!$order) {
             return response()->json(['success' => false, 'error' => 'Order is no longer available or already accepted.']);
         }

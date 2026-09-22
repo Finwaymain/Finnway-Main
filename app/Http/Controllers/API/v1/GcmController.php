@@ -46,7 +46,9 @@ class GcmController extends Controller
                               (($fcmData['type'] ?? '') === 'homeservice' && ($fcmData['statut'] ?? '') === 'new');
 
         $isFoodAlert = ($fcmData['tag'] ?? '') === 'food_delivery' || 
-                       (($fcmData['order_type'] ?? '') === 'food' && ($fcmData['statut'] ?? '') === 'ready_for_pickup');
+                       ($fcmData['tag'] ?? '') === 'food_incoming' ||
+                       ($fcmData['type'] ?? '') === 'food_delivery' ||
+                       (($fcmData['order_type'] ?? '') === 'food' && in_array(($fcmData['statut'] ?? ''), ['restaurant_accepted', 'preparing', 'ready_for_pickup', 'new', 'pending']));
 
         $isIncomingAlert = $isRideRequest || $isHomeServiceAlert || $isFoodAlert;
         $channelId = $isIncomingAlert ? 'ride_requests' : 'high_importance_channel';
