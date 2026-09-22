@@ -314,15 +314,7 @@ class CustomerFoodController extends Controller
         }
 
         $platform = $engine->calculatePlatformCharges($foodSubtotal);
-        $discount = (float) $request->get('discount_amount', 0);
-
-        // Home Service Standard Promo Bonus discount
-        $applyPromo = filter_var($request->get('apply_promotional', false), FILTER_VALIDATE_BOOLEAN);
-        $promoDiscount = 0.0;
-        if ($applyPromo) {
-            $promoDiscount = min(50.0, round($foodSubtotal * 0.20, 2)); // 20% discount up to ₹50
-        }
-        $discount = max($discount, $promoDiscount);
+        $discount = 0.0; // Promotional bonuses are completely disabled in food ordering
 
         $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
 
@@ -341,12 +333,22 @@ class CustomerFoodController extends Controller
             $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
             $normMethod = ($paymentMethod === 'wallet') ? 'wallet' : 'upi';
             foreach ($activeTaxes as $t) {
+                $libelle = strtolower($t->libelle ?? '');
+                // If wallet payment, strictly exclude UPI Handling or payment gateway charges
+                if ($normMethod === 'wallet' && (str_contains($libelle, 'upi') || str_contains($libelle, 'gateway'))) {
+                    continue;
+                }
+                // If UPI payment, strictly exclude wallet charges
+                if ($normMethod === 'upi' && str_contains($libelle, 'wallet')) {
+                    continue;
+                }
+
                 $applicable = strtolower($t->applicable_on ?? '');
                 $methods = array_map('trim', explode(',', $applicable));
                 $isApplicable = empty($applicable)
                     || in_array($normMethod, $methods)
                     || in_array('all', $methods)
-                    || in_array('online', $methods);
+                    || ($normMethod === 'upi' && in_array('online', $methods));
 
                 if ($isApplicable) {
                     $val = floatval($t->value ?? 0);
@@ -690,12 +692,22 @@ class CustomerFoodController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
             $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
             foreach ($activeTaxes as $t) {
+                $libelle = strtolower($t->libelle ?? '');
+                // If wallet payment, strictly exclude UPI Handling or payment gateway charges
+                if ($normMethod === 'wallet' && (str_contains($libelle, 'upi') || str_contains($libelle, 'gateway'))) {
+                    continue;
+                }
+                // If UPI payment, strictly exclude wallet charges
+                if ($normMethod === 'upi' && str_contains($libelle, 'wallet')) {
+                    continue;
+                }
+
                 $applicable = strtolower($t->applicable_on ?? '');
                 $methods = array_map('trim', explode(',', $applicable));
                 $isApplicable = empty($applicable)
                     || in_array($normMethod, $methods)
                     || in_array('all', $methods)
-                    || in_array('online', $methods);
+                    || ($normMethod === 'upi' && in_array('online', $methods));
 
                 if ($isApplicable) {
                     $val = floatval($t->value ?? 0);
