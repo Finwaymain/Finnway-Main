@@ -125,6 +125,10 @@ class UserApp extends Authenticatable
         'earn_amount',
         'm_pin',
         'referral_code',
+        'latitude',
+        'longitude',
+        'city',
+        'address',
     ];
 
 

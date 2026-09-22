@@ -29,13 +29,35 @@ class CustomerFoodController extends Controller
             $radius = 25.0;
         }
 
+        $userId = $request->get('user_id');
+        $phone = $request->get('phone');
+        $userType = $request->get('user_type', 'customer');
+        $city = $request->get('city');
+        $address = $request->get('address');
+
+        // 1. If coordinates provided, persist them in user table (or driver table)
+        if ($lat && $lng) {
+            $this->saveUserLocation($userId, $phone, $userType, $lat, $lng, $city, $address);
+        } elseif ($userId || $phone) {
+            // 2. If coordinates not provided in request, look up user's saved location
+            $saved = $this->getUserLocation($userId, $phone, $userType);
+            if ($saved && !empty($saved['latitude']) && !empty($saved['longitude'])) {
+                $lat = (float) $saved['latitude'];
+                $lng = (float) $saved['longitude'];
+                if (!$city && !empty($saved['city'])) {
+                    $city = $saved['city'];
+                }
+            }
+        }
+
+        // 3. Query open restaurants and calculate distance from user's lat & long
         $restaurants = FoodRestaurant::query()
             ->where('operational_status', 'open')
             ->where('delivery_available', true)
             ->get()
             ->map(function ($r) use ($lat, $lng) {
                 $r->distance_km = ($lat && $lng && $r->latitude && $r->longitude)
-                    ? round(FoodPricingEngine::haversineKm($lat, $lng, (float) $r->latitude, (float) $r->longitude), 1)
+                    ? round(FoodPricingEngine::haversineKm($lat, $lng, (float) $r->latitude, (float) $r->longitude), 2)
                     : null;
                 $r->logo_url = $r->logo ? (str_starts_with($r->logo, 'http') ? $r->logo : asset('storage/' . ltrim($r->logo, '/'))) : null;
                 $r->cover_url = $r->cover_image ? (str_starts_with($r->cover_image, 'http') ? $r->cover_image : asset('storage/' . ltrim($r->cover_image, '/'))) : null;
@@ -48,10 +70,144 @@ class CustomerFoodController extends Controller
                 $allowedRadius = max($radius, (float) ($r->delivery_radius_km ?: 25));
                 return $r->distance_km <= $allowedRadius;
             })
-            ->sortBy('distance_km')
+            ->sort(function ($a, $b) {
+                if ($a->distance_km === null && $b->distance_km === null) return 0;
+                if ($a->distance_km === null) return 1;
+                if ($b->distance_km === null) return -1;
+                return $a->distance_km <=> $b->distance_km;
+            })
             ->values();
 
-        return response()->json(['success' => true, 'data' => $restaurants, 'radius_km' => $radius]);
+        return response()->json([
+            'success' => true,
+            'data' => $restaurants,
+            'radius_km' => $radius,
+            'user_lat' => $lat ?: null,
+            'user_lng' => $lng ?: null,
+            'city' => $city ?: null,
+        ]);
+    }
+
+    public function saveUserLocation($userId, $phone, $userType, float $lat, float $lng, ?string $city = null, ?string $address = null): bool
+    {
+        if (!$lat || !$lng) {
+            return false;
+        }
+
+        $isDriver = ($userType === 'driver');
+        $updated = false;
+
+        // If driver, update tj_conducteur
+        if ($isDriver && ($userId || $phone)) {
+            $q = DB::table('tj_conducteur');
+            if ($userId) {
+                $q->where('id', $userId);
+            } elseif ($phone) {
+                $cleanPhone = preg_replace('/\D/', '', $phone);
+                $q->where(function ($sq) use ($phone, $cleanPhone) {
+                    $sq->where('phone', $phone)
+                       ->orWhere('phone', 'LIKE', '%' . substr($cleanPhone, -10));
+                });
+            }
+            $updateData = ['latitude' => $lat, 'longitude' => $lng, 'modifier' => now()];
+            $updated = (bool) $q->update($updateData);
+        }
+
+        // Update tj_user_app
+        if (!$updated && ($userId || $phone)) {
+            $q = DB::table('tj_user_app');
+            if ($userId) {
+                $q->where('id', $userId);
+            } elseif ($phone) {
+                $cleanPhone = preg_replace('/\D/', '', $phone);
+                $q->where(function ($sq) use ($phone, $cleanPhone) {
+                    $sq->where('phone', $phone)
+                       ->orWhere('phone', 'LIKE', '%' . substr($cleanPhone, -10));
+                });
+            }
+            $updateData = [
+                'latitude' => $lat,
+                'longitude' => $lng,
+                'modifier' => now(),
+            ];
+            if ($city) {
+                $updateData['city'] = $city;
+            }
+            if ($address) {
+                $updateData['address'] = $address;
+            }
+            $updated = (bool) $q->update($updateData);
+        }
+
+        return $updated;
+    }
+
+    public function getUserLocation($userId, $phone, $userType = 'customer'): ?array
+    {
+        if ($userType === 'driver' && ($userId || $phone)) {
+            $q = DB::table('tj_conducteur');
+            if ($userId) $q->where('id', $userId);
+            elseif ($phone) $q->where('phone', 'LIKE', '%' . substr(preg_replace('/\D/', '', $phone), -10));
+            $driver = $q->first(['latitude', 'longitude']);
+            if ($driver && $driver->latitude && $driver->longitude) {
+                return [
+                    'latitude' => (float) $driver->latitude,
+                    'longitude' => (float) $driver->longitude,
+                    'city' => null,
+                    'address' => null,
+                ];
+            }
+        }
+
+        if ($userId || $phone) {
+            $q = DB::table('tj_user_app');
+            if ($userId) $q->where('id', $userId);
+            elseif ($phone) $q->where('phone', 'LIKE', '%' . substr(preg_replace('/\D/', '', $phone), -10));
+            $user = $q->first(['latitude', 'longitude', 'city', 'address']);
+            if ($user && $user->latitude && $user->longitude) {
+                return [
+                    'latitude' => (float) $user->latitude,
+                    'longitude' => (float) $user->longitude,
+                    'city' => $user->city ?? null,
+                    'address' => $user->address ?? null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    public function updateLocation(Request $request)
+    {
+        $lat = (float) $request->get('latitude', $request->get('lat'));
+        $lng = (float) $request->get('longitude', $request->get('lng'));
+        $userId = $request->get('user_id');
+        $phone = $request->get('phone');
+        $userType = $request->get('user_type', 'customer');
+        $city = $request->get('city');
+        $address = $request->get('address');
+
+        if (!$lat || !$lng) {
+            return response()->json(['success' => false, 'error' => 'Latitude and longitude are required.'], 422);
+        }
+
+        if (!$userId && !$phone) {
+            return response()->json(['success' => false, 'error' => 'user_id or phone is required.'], 422);
+        }
+
+        $saved = $this->saveUserLocation($userId, $phone, $userType, $lat, $lng, $city, $address);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User location saved successfully.',
+            'data' => [
+                'latitude' => $lat,
+                'longitude' => $lng,
+                'city' => $city,
+                'address' => $address,
+                'persisted' => $saved,
+            ],
+        ]);
     }
 
     public function restaurantMenu(Request $request, $id)
@@ -311,6 +467,14 @@ class CustomerFoodController extends Controller
                 'charges_breakdown' => $platform['breakdown'] ?? [],
                 'is_test' => (bool) $request->get('is_test', false),
             ]);
+
+            // Persist customer's latest delivery coordinates and address in user table
+            $delLat = (float) $request->get('delivery_lat');
+            $delLng = (float) $request->get('delivery_lng');
+            $delAddr = (string) $request->get('delivery_address', '');
+            if ($delLat && $delLng && $user) {
+                $this->saveUserLocation($user->id, $user->phone, $isDriver ? 'driver' : 'customer', $delLat, $delLng, null, $delAddr);
+            }
 
             foreach ($lineRows as $row) {
                 FoodOrderItem::create([
