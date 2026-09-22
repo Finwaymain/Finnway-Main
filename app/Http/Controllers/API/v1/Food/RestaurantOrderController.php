@@ -40,8 +40,8 @@ class RestaurantOrderController extends Controller
         $totalOrders = (clone $base)->count();
         $pending = (clone $base)->where('order_status', 'pending')->count();
         $preparing = (clone $base)->whereIn('order_status', ['restaurant_accepted', 'preparing'])->count();
-        $ready = (clone $base)->where('order_status', 'ready_for_pickup')->count();
-        $outForDelivery = (clone $base)->whereIn('order_status', ['rider_assigned', 'rider_at_restaurant', 'food_picked_up', 'out_for_delivery', 'rider_at_location'])->count();
+        $ready = (clone $base)->whereIn('order_status', ['ready_for_pickup', 'rider_assigned', 'rider_at_restaurant'])->count();
+        $outForDelivery = (clone $base)->whereIn('order_status', ['food_picked_up', 'out_for_delivery', 'rider_at_location'])->count();
         $delivered = (clone $base)->whereIn('order_status', ['delivered', 'completed'])->count();
         $cancelled = (clone $base)->whereIn('order_status', ['rejected', 'cancelled'])->count();
         $todaySales = (float) (clone $base)->whereIn('order_status', ['delivered', 'completed'])->sum('food_amount');
