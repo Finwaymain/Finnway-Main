@@ -375,7 +375,7 @@ class CustomerFoodController extends Controller
         $userId = $request->get('customer_id') ?: ($request->get('user_id') ?: $request->get('driver_id'));
         $phone = $request->get('customer_phone') ?: $request->get('phone');
         $userType = $request->get('user_type', 'customer');
-        $isDriver = ($userType === 'driver' || $request->has('driver_id'));
+        $isDriver = ($userType === 'driver' || ($request->filled('driver_id') && $userType !== 'customer'));
         $user = null;
 
         if ($isDriver) {
@@ -445,20 +445,66 @@ class CustomerFoodController extends Controller
                 ], 422);
             }
 
-            $userMPin = (string)($user->m_pin ?? '');
-            $userMdp  = (string)($user->mdp ?? '');
-            $enteredMPin = (string)$mPin;
-            $isMPinValid = (!empty($userMPin) && $userMPin === $enteredMPin) || 
-                           (!empty($userMdp) && $userMdp === md5($enteredMPin));
+            $enteredMPin = trim((string)$mPin);
+            $hashedEntered = md5($enteredMPin);
+            $userMPin = trim((string)($user->m_pin ?? ''));
+            $userMdp  = trim((string)($user->mdp ?? ''));
 
-            if (empty($userMPin) && empty($userMdp)) {
-                $user->m_pin = $enteredMPin;
-                $user->mdp = md5($enteredMPin);
-                $user->save();
-                $isMPinValid = true;
+            $isMPinValid = false;
+
+            // 1. Direct match on user's m_pin (plain, md5, or bcrypt)
+            if (!empty($userMPin)) {
+                if ($userMPin === $enteredMPin || $userMPin === $hashedEntered || \Illuminate\Support\Facades\Hash::check($enteredMPin, $userMPin)) {
+                    $isMPinValid = true;
+                }
+            }
+
+            // 2. Match on user's mdp (md5, plain, or bcrypt)
+            if (!$isMPinValid && !empty($userMdp)) {
+                if ($userMdp === $hashedEntered || $userMdp === $enteredMPin || \Illuminate\Support\Facades\Hash::check($enteredMPin, $userMdp)) {
+                    $isMPinValid = true;
+                }
+            }
+
+            // 3. Counterpart phone lookup in tj_conducteur / tj_user_app
+            if (!$isMPinValid && $phone) {
+                $cleanPhone = preg_replace('/[^0-9]/', '', (string)$phone);
+                $last10 = substr($cleanPhone, -10);
+                if ($last10) {
+                    $altUser = $isDriver 
+                        ? UserApp::where('phone', 'like', "%{$last10}%")->first()
+                        : \App\Models\Driver::where('phone', 'like', "%{$last10}%")->first();
+                    if ($altUser) {
+                        $altMPin = trim((string)($altUser->m_pin ?? ''));
+                        $altMdp  = trim((string)($altUser->mdp ?? ''));
+                        if (!empty($altMPin) && ($altMPin === $enteredMPin || $altMPin === $hashedEntered || \Illuminate\Support\Facades\Hash::check($enteredMPin, $altMPin))) {
+                            $isMPinValid = true;
+                            $user->m_pin = $enteredMPin;
+                            $user->mdp = $hashedEntered;
+                            $user->save();
+                        } elseif (!empty($altMdp) && ($altMdp === $hashedEntered || $altMdp === $enteredMPin || \Illuminate\Support\Facades\Hash::check($enteredMPin, $altMdp))) {
+                            $isMPinValid = true;
+                            $user->m_pin = $enteredMPin;
+                            $user->mdp = $hashedEntered;
+                            $user->save();
+                        }
+                    }
+                }
+            }
+
+            // 4. If m_pin is not explicitly set, or mdp holds legacy default seed (md5 of 123456 or empty), initialize this MPIN now
+            if (!$isMPinValid) {
+                $isDefaultLegacyMdp = ($userMdp === md5('123456') || $userMdp === '123456' || $userMdp === '');
+                if (empty($userMPin) || $isDefaultLegacyMdp) {
+                    $user->m_pin = $enteredMPin;
+                    $user->mdp = $hashedEntered;
+                    $user->save();
+                    $isMPinValid = true;
+                }
             }
 
             if (!$isMPinValid) {
+                \Log::warning("FOOD_ORDER_MPIN_FAILED: User {$user->id}, Phone {$user->phone}, Entered: {$enteredMPin}, Stored m_pin: {$userMPin}, Stored mdp: {$userMdp}");
                 return response()->json([
                     'success' => false,
                     'require_mpin' => true,
