@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/join-fiinway/layout,_N_T_/join-fiinway/page,_N_T_/join-fiinway"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/join-fiinway/__PAGE__",
+    "/join-fiinway",
+    "/_index",
+    "/_head"
+  ]
+}

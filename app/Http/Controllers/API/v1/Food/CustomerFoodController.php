@@ -586,6 +586,46 @@ class CustomerFoodController extends Controller
                 'ref_id' => $order->id,
                 'is_read' => false,
             ]);
+
+            // High-Priority FCM Push Notification with Alarm Sound to Restaurant Partner
+            try {
+                $fcmTokens = [];
+                $owner = $restaurant->owner ?: \App\Models\Food\FoodOwner::find($restaurant->owner_id);
+                if ($owner && !empty($owner->fcm_token)) {
+                    $fcmTokens[] = $owner->fcm_token;
+                }
+
+                $checkPhones = array_filter([$owner->phone ?? null, $restaurant->phone ?? null]);
+                foreach ($checkPhones as $ph) {
+                    $variants = \App\Services\PhoneService::getVariants($ph);
+                    $uTokens = DB::table('tj_user_app')->whereIn('phone', $variants)->whereNotNull('fcm_id')->where('fcm_id', '!=', '')->pluck('fcm_id')->toArray();
+                    $dTokens = DB::table('tj_conducteur')->whereIn('phone', $variants)->whereNotNull('fcm_id')->where('fcm_id', '!=', '')->pluck('fcm_id')->toArray();
+                    $fcmTokens = array_merge($fcmTokens, $uTokens, $dTokens);
+                }
+                $fcmTokens = array_unique(array_filter($fcmTokens));
+
+                if (!empty($fcmTokens)) {
+                    $notifPayload = [
+                        'id' => (string) $order->id,
+                        'order_id' => (string) $order->id,
+                        'order_number' => (string) $order->order_number,
+                        'title' => '🔔 New Food Order Received!',
+                        'message' => 'Order #' . $order->order_number . ' (₹' . $order->customer_payable . ') incoming. Accept now!',
+                        'body' => 'Order #' . $order->order_number . ' (₹' . $order->customer_payable . ') incoming. Accept now!',
+                        'sound' => 'alert',
+                        'sound_type' => 'order_alarm',
+                        'type' => 'food_new_order',
+                        'android_channel_id' => 'food_orders_channel',
+                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    ];
+
+                    foreach ($fcmTokens as $token) {
+                        \App\Http\Controllers\API\v1\GcmController::sendNotification($token, $notifPayload);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Food restaurant push notification error: ' . $e->getMessage());
+            }
         });
 
         return response()->json([
@@ -738,17 +778,35 @@ class CustomerFoodController extends Controller
     public function myOrders(Request $request)
     {
         $q = FoodOrder::with('items', 'restaurant')->orderByDesc('id');
-        if ($request->filled('customer_id')) {
-            $q->where('customer_id', $request->get('customer_id'));
-        } elseif ($request->filled('customer_phone')) {
-            $q->where('customer_phone', $request->get('customer_phone'));
+        $customerId = $request->get('customer_id') ?: $request->get('user_id');
+        $phone = $request->get('customer_phone') ?: $request->get('phone');
+
+        if ($customerId || $phone) {
+            $q->where(function ($sub) use ($customerId, $phone) {
+                if ($customerId) {
+                    $sub->where('customer_id', $customerId);
+                }
+                if ($phone) {
+                    $clean = preg_replace('/[^0-9]/', '', (string)$phone);
+                    $last10 = substr($clean, -10);
+                    if ($last10) {
+                        $sub->orWhere('customer_phone', 'like', "%{$last10}");
+                    }
+                }
+            });
         } else {
-            return response()->json(['success' => false, 'error' => 'customer_id or customer_phone required.']);
+            return response()->json(['success' => false, 'error' => 'customer_id or phone required.']);
         }
+
         if ($request->filled('status')) {
             $q->where('order_status', $request->get('status'));
         }
-        return response()->json(['success' => true, 'data' => $q->paginate(20)]);
+
+        $orders = ($request->get('all') == '1' || $request->get('paginate') === '0')
+            ? $q->get()
+            : $q->paginate(25);
+
+        return response()->json(['success' => true, 'data' => $orders]);
     }
 
     public function rate(Request $request, $id)

@@ -107,7 +107,11 @@ class RestaurantOrderController extends Controller
             });
         }
         $perPage = (int) $request->get('per_page', 25);
-        $orders = $q->orderByDesc('id')->paginate($perPage);
+        if ($request->get('paginate') === '0' || $request->get('all') === '1') {
+            $orders = $q->orderByDesc('id')->get();
+        } else {
+            $orders = $q->orderByDesc('id')->paginate($perPage);
+        }
         return response()->json(['success' => true, 'data' => $orders]);
     }
 
