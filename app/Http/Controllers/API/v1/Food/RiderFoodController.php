@@ -294,6 +294,9 @@ class RiderFoodController extends Controller
 
         // Milestone: Rider arrived at restaurant
         if ($status === 'arrived_restaurant') {
+            if (empty($order->pickup_otp)) {
+                $order->pickup_otp = (string) random_int(1000, 9999);
+            }
             FoodNotification::create([
                 'restaurant_id' => $order->restaurant_id,
                 'title' => 'Rider Arrived',

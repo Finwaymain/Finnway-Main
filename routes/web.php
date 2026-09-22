@@ -55,12 +55,6 @@ Route::get('/onboarding/marketplace.html', function () {
 
 // Food & Restaurant Partner Route Handler
 $serveFoodRoute = function (\Illuminate\Http\Request $request) {
-    if (file_exists(public_path('onboarding-assets/food.html'))) {
-        return response()->file(public_path('onboarding-assets/food.html'));
-    }
-    if (file_exists(public_path('onboarding-assets/food/index.html'))) {
-        return response()->file(public_path('onboarding-assets/food/index.html'));
-    }
     return OnboardingAccess::renderView('food');
 };
 
