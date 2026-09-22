@@ -268,9 +268,14 @@ class RiderFoodController extends Controller
         // Handshake 1: Pickup from restaurant with Pickup OTP
         if ($status === 'picked_up') {
             $otp = (string) $request->get('pickup_otp');
-            if ($order->pickup_otp && $otp && $otp !== (string)$order->pickup_otp) {
-                return response()->json(['success' => false, 'error' => 'Invalid pickup OTP. Please verify with restaurant.']);
+            // If the restaurant hasn't already confirmed handover, verify with the restaurant's code
+            if ($order->order_status !== 'food_picked_up') {
+                if ($order->pickup_otp && $otp && $otp !== (string)$order->pickup_otp) {
+                    return response()->json(['success' => false, 'error' => 'Invalid pickup code. Please enter the 4-digit code shown on the restaurant screen.']);
+                }
             }
+            $order->order_status = 'food_picked_up';
+            $order->rider_status = 'picked_up';
             $order->picked_up_at = now();
             $this->notifyCustomer(
                 $order,

@@ -317,14 +317,36 @@ class RestaurantOrderController extends Controller
         if (!$order) {
             return response()->json(['success' => false, 'error' => 'Order not found.']);
         }
-        $otp = (string) $request->get('pickup_otp');
-        if ($order->pickup_otp && $otp && $otp !== $order->pickup_otp) {
-            return response()->json(['success' => false, 'error' => 'Invalid pickup OTP.']);
-        }
+        
+        // Restaurant is confirming handover. As the issuer holding the food parcel,
+        // the restaurant does not need an OTP barrier to release the order.
         $order->order_status = 'food_picked_up';
         $order->picked_up_at = now();
         $order->rider_status = 'picked_up';
         $order->save();
+
+        // Notify Rider via FCM that restaurant confirmed handover
+        if ($order->rider_id) {
+            try {
+                $driver = DB::table('tj_conducteur')->where('id', $order->rider_id)->first();
+                if ($driver && !empty($driver->fcm_id)) {
+                    GcmController::sendNotification($driver->fcm_id, [
+                        'title' => 'Food Handed Over!',
+                        'body' => "Order #{$order->order_number} handed over by restaurant. Head to delivery location!",
+                        'sound' => 'default',
+                        'tag' => 'food_delivery',
+                        'type' => 'food_delivery',
+                        'order_type' => 'food',
+                        'statut' => 'food_picked_up',
+                        'order_id' => (string) $order->id,
+                        'order_number' => (string) $order->order_number,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error("Food handover notification error: " . $e->getMessage());
+            }
+        }
+
         return response()->json(['success' => true, 'data' => $order]);
     }
 
