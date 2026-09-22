@@ -136,11 +136,25 @@ class FoodPricingEngine
 
     public function customerUnitPrice(FoodProduct $product, FoodRestaurant $restaurant): array
     {
-        $base = (float) ($product->discount_price ?: $product->restaurant_price);
+        $restPrice = (float) ($product->restaurant_price ?? 0);
+        $discPrice = !is_null($product->discount_price) ? (float) $product->discount_price : null;
+
+        // If discount_price is set and is LOWER than restaurant_price, it is an offer discount.
+        // If discount_price is higher or equal to restaurant_price, it represents the Original MRP,
+        // so the base customer selling price is restaurant_price!
+        if ($discPrice !== null && $discPrice > 0 && $discPrice < $restPrice) {
+            $base = $discPrice;
+            $mrp = $restPrice;
+        } else {
+            $base = $restPrice;
+            $mrp = ($discPrice !== null && $discPrice > $restPrice) ? $discPrice : null;
+        }
+
         $markup = $this->resolveMarkup($product, $restaurant);
         return [
-            'restaurant_price' => (float) $product->restaurant_price,
+            'restaurant_price' => $restPrice,
             'base_price' => $base,
+            'mrp' => $mrp,
             'markup' => $markup['amount'],
             'customer_price' => round($base + $markup['amount'], 2),
             'markup_meta' => $markup,

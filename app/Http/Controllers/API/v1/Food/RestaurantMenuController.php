@@ -90,6 +90,7 @@ class RestaurantMenuController extends Controller
             $price = $engine->customerUnitPrice($p, $restaurant);
             $p->customer_price = $price['customer_price'];
             $p->markup_amount = $price['markup'];
+            $p->mrp = $price['mrp'];
             $p->image_url = $p->image_url;
             return $p;
         });

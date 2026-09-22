@@ -231,6 +231,7 @@ class CustomerFoodController extends Controller
                 $price = $engine->customerUnitPrice($p, $restaurant);
                 $p->customer_price = $price['customer_price'];
                 $p->markup_amount = $price['markup'];
+                $p->mrp = $price['mrp'];
                 $p->image_url = $p->image_url;
                 return $p;
             });
@@ -323,13 +324,52 @@ class CustomerFoodController extends Controller
         }
         $discount = max($discount, $promoDiscount);
 
+        $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
+
+        // COD is explicitly disabled - only Wallet or UPI / Online allowed
+        if ($paymentMethod === 'cod' || str_contains($paymentMethod, 'cash')) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Cash on Delivery is not available. Please pay via Fiinway Wallet or UPI / Online Payment.',
+            ], 422);
+        }
+
+        // Calculate dynamic taxes applied by admin from tj_tax
+        $taxAmount = 0.0;
+        $taxesBreakdown = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+            $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+            $normMethod = ($paymentMethod === 'wallet') ? 'wallet' : 'upi';
+            foreach ($activeTaxes as $t) {
+                $applicable = strtolower($t->applicable_on ?? '');
+                $methods = array_map('trim', explode(',', $applicable));
+                $isApplicable = empty($applicable)
+                    || in_array($normMethod, $methods)
+                    || in_array('all', $methods)
+                    || in_array('online', $methods);
+
+                if ($isApplicable) {
+                    $val = floatval($t->value ?? 0);
+                    $isPercent = (strtolower($t->type ?? '') === 'percentage' || str_contains(strtolower($t->type ?? ''), 'percent'));
+                    $amt = $isPercent ? round(($foodSubtotal * $val) / 100, 2) : round($val, 2);
+                    $taxAmount += $amt;
+                    $taxesBreakdown[] = [
+                        'id' => $t->id,
+                        'name' => $t->libelle,
+                        'type' => $t->type,
+                        'rate' => $val,
+                        'amount' => $amt,
+                        'label' => $isPercent ? "{$t->libelle} ({$val}%)" : "{$t->libelle} (₹{$val})",
+                    ];
+                }
+            }
+        }
+
         $deliveryCharge = $delivery['amount'];
-        $customerPayable = max(0, round($foodSubtotal + $platform['total'] + $deliveryCharge - $discount, 2));
+        $customerPayable = max(0, round($foodSubtotal + $platform['total'] + $deliveryCharge + $taxAmount - $discount, 2));
         $commission = $engine->resolveCommission($restaurant, $foodAmount);
         $restaurantNet = round($foodAmount - $commission['amount'], 2);
-        $companyDue = round($commission['amount'] + $markupAmount + $platform['total'], 2);
-
-        $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
+        $companyDue = round($commission['amount'] + $markupAmount + $platform['total'] + $taxAmount, 2);
 
         // Customer or Driver resolution for wallet balance & MPIN
         $userId = $request->get('customer_id') ?: ($request->get('user_id') ?: $request->get('driver_id'));
@@ -433,7 +473,7 @@ class CustomerFoodController extends Controller
         DB::transaction(function () use (
             &$order, $restaurant, $request, $foodAmount, $markupAmount, $foodSubtotal, $discount,
             $platform, $deliveryCharge, $customerPayable, $commission, $restaurantNet, $companyDue,
-            $paymentMethod, $paymentStatus, $distance, $lineRows, $user, $isDriver
+            $paymentMethod, $paymentStatus, $distance, $lineRows, $user, $isDriver, $taxAmount, $taxesBreakdown
         ) {
             $order = FoodOrder::create([
                 'order_number' => 'FIIN-FOOD-' . time() . random_int(10, 99),
@@ -454,7 +494,7 @@ class CustomerFoodController extends Controller
                 'platform_charges' => $platform['total'],
                 'other_charges' => 0,
                 'delivery_charge' => $deliveryCharge,
-                'tax_amount' => 0,
+                'tax_amount' => $taxAmount,
                 'customer_payable' => $customerPayable,
                 'commission_amount' => $commission['amount'],
                 'restaurant_net_amount' => $restaurantNet,
@@ -464,7 +504,7 @@ class CustomerFoodController extends Controller
                 'order_status' => 'pending',
                 'settlement_status' => 'pending',
                 'delivery_otp' => (string) random_int(1000, 9999),
-                'charges_breakdown' => $platform['breakdown'] ?? [],
+                'charges_breakdown' => $taxesBreakdown,
                 'is_test' => (bool) $request->get('is_test', false),
             ]);
 
@@ -552,6 +592,43 @@ class CustomerFoodController extends Controller
             'success' => true,
             'message' => 'Order placed successfully.',
             'data' => $order->load('items'),
+        ]);
+    }
+
+    public function getTaxes(Request $request)
+    {
+        $paymentMethod = strtolower($request->get('payment_method', 'wallet'));
+        $normMethod = ($paymentMethod === 'wallet') ? 'wallet' : 'upi';
+
+        $taxes = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_tax')) {
+            $activeTaxes = DB::table('tj_tax')->where('statut', 'yes')->get();
+            foreach ($activeTaxes as $t) {
+                $applicable = strtolower($t->applicable_on ?? '');
+                $methods = array_map('trim', explode(',', $applicable));
+                $isApplicable = empty($applicable)
+                    || in_array($normMethod, $methods)
+                    || in_array('all', $methods)
+                    || in_array('online', $methods);
+
+                if ($isApplicable) {
+                    $val = floatval($t->value ?? 0);
+                    $isPercent = (strtolower($t->type ?? '') === 'percentage' || str_contains(strtolower($t->type ?? ''), 'percent'));
+                    $taxes[] = [
+                        'id' => $t->id,
+                        'name' => $t->libelle,
+                        'value' => $val,
+                        'type' => $isPercent ? 'percentage' : 'flat',
+                        'label' => $isPercent ? "{$t->libelle} ({$val}%)" : "{$t->libelle} (₹{$val})",
+                        'applicable_on' => $t->applicable_on ?? 'wallet,upi,online',
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $taxes,
         ]);
     }
 

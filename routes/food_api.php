@@ -24,6 +24,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::get('customer/nearby', [CustomerFoodController::class, 'nearby']);
     Route::post('customer/location', [CustomerFoodController::class, 'updateLocation']);
     Route::get('customer/wallet', [CustomerFoodController::class, 'getWallet']);
+    Route::get('customer/taxes', [CustomerFoodController::class, 'getTaxes']);
     Route::get('customer/restaurants/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
     Route::get('customer/restaurant/{id}/menu', [CustomerFoodController::class, 'restaurantMenu']);
     Route::post('customer/orders', [CustomerFoodController::class, 'placeOrder']);
