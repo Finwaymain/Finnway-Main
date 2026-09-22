@@ -20,6 +20,10 @@ class RestaurantOrderController extends Controller
     protected function restaurant(Request $request): ?FoodRestaurant
     {
         $owner = $request->attributes->get('food_owner');
+        if (!$owner) {
+            $restaurantId = $request->get('restaurant_id') ?: $request->attributes->get('restaurant_id');
+            return $restaurantId ? FoodRestaurant::find($restaurantId) : null;
+        }
         return FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
     }
 
@@ -164,9 +168,9 @@ class RestaurantOrderController extends Controller
             'ready_for_pickup' => ['ready_for_pickup'],
         ];
         $current = $order->order_status;
-        if ($status === 'preparing' && in_array($current, ['restaurant_accepted', 'preparing'], true)) {
+        if ($status === 'preparing' && in_array($current, ['pending', 'restaurant_accepted', 'preparing'], true)) {
             $order->order_status = 'preparing';
-        } elseif ($status === 'ready_for_pickup' && in_array($current, ['restaurant_accepted', 'preparing', 'ready_for_pickup'], true)) {
+        } elseif ($status === 'ready_for_pickup' && in_array($current, ['pending', 'restaurant_accepted', 'preparing', 'ready_for_pickup'], true)) {
             $order->order_status = 'ready_for_pickup';
             $order->ready_at = now();
             $order->pickup_otp = $order->pickup_otp ?: (string) random_int(1000, 9999);
@@ -197,12 +201,8 @@ class RestaurantOrderController extends Controller
                         ->where('tj_conducteur.online', '!=', 'no')
                         ->where('tj_conducteur.is_verified', '=', '1')
                         ->where(function ($query) {
-                            $query->whereIn('tj_categorie_user.libelle', [
-                                'Bike Rider', 'Food Delivery', 'Pickup & Drop (Personal runner)', 
-                                'Parcel Delivery', 'Logistics Partner'
-                            ])
-                            ->orWhereIn('tj_conducteur_categories.subcategory_id', [12882, 12889, 12890, 12891, 12892])
-                            ->orWhereIn('tj_conducteur_categories.category_id', [12880, 12888]);
+                            $query->where('tj_categorie_user.libelle', '=', 'Food Delivery')
+                                ->orWhere('tj_conducteur_categories.subcategory_id', '=', 12889);
                         })
                         ->distinct()
                         ->get();

@@ -41,6 +41,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::post('rider/orders/{id}/accept', [RiderFoodController::class, 'accept']);
     Route::get('rider/active', [RiderFoodController::class, 'active']);
     Route::post('rider/orders/{id}/status', [RiderFoodController::class, 'updateStatus']);
+    Route::post('rider/location', [RiderFoodController::class, 'updateLocation']);
     Route::get('rider/dues', [RiderFoodController::class, 'dues']);
     Route::post('rider/dues/pay', [RiderFoodController::class, 'payDue']);
 

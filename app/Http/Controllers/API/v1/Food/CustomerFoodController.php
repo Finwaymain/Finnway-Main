@@ -331,8 +331,9 @@ class CustomerFoodController extends Controller
 
             FoodDuePayment::create([
                 'order_id' => $order->id,
-                'payer_type' => 'restaurant',
-                'payer_id' => $restaurant->id,
+                'party_type' => 'restaurant',
+                'restaurant_id' => $restaurant->id,
+                'due_type' => 'commission',
                 'amount' => $commission['amount'],
                 'paid_amount' => 0,
                 'status' => 'pending',
@@ -471,6 +472,25 @@ class CustomerFoodController extends Controller
         if ($request->filled('customer_id') && (int) $order->customer_id !== (int) $request->get('customer_id')) {
             return response()->json(['success' => false, 'error' => 'Unauthorized.']);
         }
+
+        $riderData = null;
+        if ($order->rider_id) {
+            $driver = \App\Models\Driver::find($order->rider_id);
+            if ($driver) {
+                $riderData = [
+                    'id' => (int) $driver->id,
+                    'name' => trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? '')),
+                    'phone' => $driver->phone,
+                    'photo' => $driver->photo_path,
+                    'latitude' => $driver->latitude ? (float) $driver->latitude : null,
+                    'longitude' => $driver->longitude ? (float) $driver->longitude : null,
+                    'online' => $driver->online,
+                    'vehicle_number' => $driver->statut_vehicule,
+                ];
+            }
+        }
+        $order->rider = $riderData;
+
         return response()->json(['success' => true, 'data' => $order]);
     }
 
