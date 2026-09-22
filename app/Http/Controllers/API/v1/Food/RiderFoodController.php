@@ -233,6 +233,13 @@ class RiderFoodController extends Controller
             ->orderBy('id')
             ->get();
 
+        foreach ($orders as $o) {
+            if (empty($o->pickup_otp)) {
+                $o->pickup_otp = (string) random_int(1000, 9999);
+                FoodOrder::where('id', $o->id)->update(['pickup_otp' => $o->pickup_otp]);
+            }
+        }
+
         return response()->json(['success' => true, 'data' => $orders]);
     }
 

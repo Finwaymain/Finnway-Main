@@ -80,6 +80,12 @@ class RestaurantOrderController extends Controller
             ->where('order_status', 'pending')
             ->orderByDesc('id')
             ->get();
+        foreach ($orders as $o) {
+            if (empty($o->pickup_otp)) {
+                $o->pickup_otp = (string) random_int(1000, 9999);
+                FoodOrder::where('id', $o->id)->update(['pickup_otp' => $o->pickup_otp]);
+            }
+        }
         return response()->json(['success' => true, 'data' => $orders]);
     }
 
@@ -111,8 +117,20 @@ class RestaurantOrderController extends Controller
         $perPage = (int) $request->get('per_page', 25);
         if ($request->get('paginate') === '0' || $request->get('all') === '1') {
             $orders = $q->orderByDesc('id')->get();
+            foreach ($orders as $o) {
+                if (empty($o->pickup_otp)) {
+                    $o->pickup_otp = (string) random_int(1000, 9999);
+                    FoodOrder::where('id', $o->id)->update(['pickup_otp' => $o->pickup_otp]);
+                }
+            }
         } else {
             $orders = $q->orderByDesc('id')->paginate($perPage);
+            foreach ($orders->items() as $o) {
+                if (empty($o->pickup_otp)) {
+                    $o->pickup_otp = (string) random_int(1000, 9999);
+                    FoodOrder::where('id', $o->id)->update(['pickup_otp' => $o->pickup_otp]);
+                }
+            }
         }
         return response()->json(['success' => true, 'data' => $orders]);
     }
@@ -123,6 +141,10 @@ class RestaurantOrderController extends Controller
         $order = FoodOrder::with('items')->where('restaurant_id', $restaurant->id)->where('id', $id)->first();
         if (!$order) {
             return response()->json(['success' => false, 'error' => 'Order not found.']);
+        }
+        if (empty($order->pickup_otp)) {
+            $order->pickup_otp = (string) random_int(1000, 9999);
+            $order->save();
         }
         return response()->json(['success' => true, 'data' => $order]);
     }
@@ -137,6 +159,7 @@ class RestaurantOrderController extends Controller
         $order->order_status = 'restaurant_accepted';
         $order->prep_minutes = (int) $request->get('prep_minutes', $restaurant->avg_prep_minutes ?? 20);
         $order->accepted_at = now();
+        $order->pickup_otp = $order->pickup_otp ?: (string) random_int(1000, 9999);
         $order->save();
         $this->notify($restaurant, 'Order Accepted', 'Order #' . $order->order_number . ' accepted.', 'order', $order->id);
 

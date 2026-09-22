@@ -551,6 +551,7 @@ class CustomerFoodController extends Controller
                 'payment_status' => $paymentStatus,
                 'order_status' => 'pending',
                 'settlement_status' => 'pending',
+                'pickup_otp' => (string) random_int(1000, 9999),
                 'delivery_otp' => (string) random_int(1000, 9999),
                 'charges_breakdown' => $taxesBreakdown,
                 'is_test' => (bool) $request->get('is_test', false),
