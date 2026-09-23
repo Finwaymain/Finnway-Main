@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Image;
 use Validator;
@@ -1107,8 +1108,8 @@ class UserController extends Controller
         $selectedSearch = $request->input('selected_search');
         $userTypeFilter = $request->input('user_type_filter');
 
-        $hasConsumerZone = Schema::hasTable('tj_user_app') && Schema::hasColumn('tj_user_app', 'zone_id');
-        $hasDriverZone   = Schema::hasTable('tj_conducteur') && Schema::hasColumn('tj_conducteur', 'zone_id');
+        $hasConsumerZone = \Illuminate\Support\Facades\Schema::hasTable('tj_user_app') && \Illuminate\Support\Facades\Schema::hasColumn('tj_user_app', 'zone_id');
+        $hasDriverZone   = \Illuminate\Support\Facades\Schema::hasTable('tj_conducteur') && \Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'zone_id');
 
         // Base Query for Consumers
         $consumersQuery = DB::table('tj_user_app')
