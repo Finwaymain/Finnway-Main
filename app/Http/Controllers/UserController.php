@@ -1107,14 +1107,17 @@ class UserController extends Controller
         $selectedSearch = $request->input('selected_search');
         $userTypeFilter = $request->input('user_type_filter');
 
+        $hasConsumerZone = Schema::hasTable('tj_user_app') && Schema::hasColumn('tj_user_app', 'zone_id');
+        $hasDriverZone   = Schema::hasTable('tj_conducteur') && Schema::hasColumn('tj_conducteur', 'zone_id');
+
         // Base Query for Consumers
         $consumersQuery = DB::table('tj_user_app')
-            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'consumer' as user_type"), DB::raw("NULL as business_name"), 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', 'consumer_plan as active_plan', 'm_pin as mpin', 'ac_no', 'creer')
+            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'consumer' as user_type"), DB::raw("NULL as business_name"), 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', 'consumer_plan as active_plan', 'm_pin as mpin', 'ac_no', $hasConsumerZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
             ->whereNull('deleted_at');
 
         // Base Query for Drivers
         $driversQuery = DB::table('tj_conducteur')
-            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'driver' as user_type"), 'business_name', 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', DB::raw("'Vehicle Docs' as active_plan"), 'm_pin as mpin', 'ac_no', 'creer')
+            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'driver' as user_type"), 'business_name', 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', DB::raw("'Vehicle Docs' as active_plan"), 'm_pin as mpin', 'ac_no', $hasDriverZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
             ->whereNull('deleted_at');
 
         if ($search != '') {
@@ -1491,7 +1494,6 @@ class UserController extends Controller
 
         // 3. Zones Map
         $allZones = \Illuminate\Support\Facades\Schema::hasTable('zones') ? DB::table('zones')->pluck('name', 'id')->toArray() : [];
-        $defaultZone = !empty($allZones) ? reset($allZones) : 'All';
 
         // 4. Ratings
         $driverRatingsKeyed = collect();
@@ -1713,9 +1715,20 @@ class UserController extends Controller
             $u->rating = $rateObj ? round((float)$rateObj->avg_rating, 1) : 5.0;
 
             // 6. Zone
-            $zoneName = $defaultZone;
-            if ($isDriver && !empty($u->zone_id) && isset($allZones[$u->zone_id])) {
-                $zoneName = $allZones[$u->zone_id];
+            $zoneName = null;
+            if (!empty($u->zone_id) && (string)$u->zone_id !== '0' && strtolower((string)$u->zone_id) !== 'null') {
+                $rawZoneIds = array_filter(array_map('trim', explode(',', (string)$u->zone_id)));
+                $matchedZoneNames = [];
+                foreach ($rawZoneIds as $zId) {
+                    if (isset($allZones[$zId])) {
+                        $matchedZoneNames[] = $allZones[$zId];
+                    } elseif (in_array($zId, $allZones, true)) {
+                        $matchedZoneNames[] = $zId;
+                    }
+                }
+                if (!empty($matchedZoneNames)) {
+                    $zoneName = implode(', ', array_unique($matchedZoneNames));
+                }
             }
             $u->zone_name = $zoneName;
 

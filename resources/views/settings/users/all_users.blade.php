@@ -183,7 +183,11 @@
                                             </td>
                                             {{-- Zone --}}
                                             <td>
-                                                <span class="badge badge-light border text-dark badge-compact">{{ $user->zone_name ?? 'All' }}</span>
+                                                @if(!empty($user->zone_name))
+                                                    <span class="badge badge-light border text-dark badge-compact">{{ $user->zone_name }}</span>
+                                                @else
+                                                    <span class="text-muted small">null</span>
+                                                @endif
                                             </td>
                                             {{-- Rating --}}
                                             <td class="text-center">
