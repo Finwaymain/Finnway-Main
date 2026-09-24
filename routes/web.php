@@ -1215,6 +1215,9 @@ Route::get('/driver-kits/invoice/{id}', [App\Http\Controllers\DriverKitControlle
 Route::get('/onboarding/kit-purchase', [App\Http\Controllers\DriverKitWebController::class, 'showCheckout'])->name('driver-kits.webCheckout');
 Route::post('/onboarding/kit-purchase/submit', [App\Http\Controllers\DriverKitWebController::class, 'submitCheckout'])->name('driver-kits.webSubmit');
 
+// ── Loans & Credit Webview Routes ───────────────────────────────────────────
+Route::get('/loans/coming-soon', [App\Http\Controllers\LoanWebviewController::class, 'comingSoon'])->name('loans.comingSoon');
+
 // ── Terms & Privacy Direct URL Aliases ─────────────────────────────────────
 Route::get('/terms_condition', [App\Http\Controllers\TermsAndConditionsController::class, 'index']);
 Route::put('/terms_condition/update/{id}', [App\Http\Controllers\TermsAndConditionsController::class, 'update']);
