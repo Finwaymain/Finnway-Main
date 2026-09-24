@@ -4,11 +4,11 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">🏷️ Restaurant Types & Onboarding Fees</h3>
+            <h3 class="font-weight-bold mb-1">Restaurant Types & Onboarding Fees</h3>
             <p class="text-muted mb-0">Configure partner business categories, onboarding fees, approval workflows, and ordering rules.</p>
         </div>
         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addTypeModal">
-            <i class="fa fa-plus-circle mr-1"></i> Add New Category Type
+            Add New Category Type
         </button>
     </div>
 
@@ -16,15 +16,12 @@
     <div class="row">
         @foreach($types as $t)
             <div class="col-md-6 mb-4">
-                <div class="card shadow-sm border-0 h-100 {{ $t->is_active ? 'border-left border-primary' : 'border-left border-secondary' }}" style="border-left-width: 4px !important;">
-                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                <div class="card h-100">
+                    <div class="card-header pt-3 pb-0 d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
-                            <span class="mr-2" style="font-size: 24px;">
-                                @if($t->code === 'cloud_kitchen') 🍳 @elseif($t->code === 'actual_restaurant') 🍽️ @else 🏪 @endif
-                            </span>
                             <div>
-                                <h5 class="font-weight-bold text-dark mb-0">{{ $t->name }}</h5>
-                                <code class="small text-muted">{{ $t->code }}</code>
+                                <h5 class="font-weight-bold mb-0">{{ $t->name }}</h5>
+                                <span class="badge badge-light">{{ $t->code }}</span>
                             </div>
                         </div>
                         <div>

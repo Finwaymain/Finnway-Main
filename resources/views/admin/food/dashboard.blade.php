@@ -2,156 +2,153 @@
 
 @section("food")
 <div class="mb-4">
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">🍽️ Food Command Dashboard</h3>
-            <p class="text-muted mb-0">High-level operational overview, live orders, active restaurant partners, and database controls.</p>
+            <h3 class="mb-1 font-weight-bold">Food Operations Dashboard</h3>
+            <p class="text-muted mb-0">Operational metrics, live dispatch status, partner onboarding, and system controls.</p>
         </div>
         <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0">
-            <a href="{{ route('admin.food.live') }}" class="btn btn-danger mr-2">
-                <i class="fa fa-satellite-dish mr-1"></i> Open Live Radar
+            <a href="{{ route('admin.food.live') }}" class="btn btn-primary mr-2">
+                Live Operations Radar
             </a>
-            <a href="{{ route('admin.food.orders') }}" class="btn btn-primary mr-2">
-                <i class="fa fa-receipt mr-1"></i> Orders Hub
+            <a href="{{ route('admin.food.orders') }}" class="btn btn-outline-secondary mr-2">
+                Orders Hub
             </a>
-            <a href="{{ route('admin.food.restaurants', ['status' => 'pending_approval']) }}" class="btn btn-warning mr-2">
-                <i class="fa fa-clock mr-1"></i> Pending Approvals ({{ $pendingApprovals }})
+            <a href="{{ route('admin.food.restaurants', ['status' => 'pending_approval']) }}" class="btn btn-outline-secondary mr-2">
+                Pending Approvals ({{ $pendingApprovals }})
             </a>
             <button type="button" class="btn btn-outline-danger" data-toggle="modal" data-target="#resetTablesModal">
-                <i class="fa fa-trash-alt mr-1"></i> Reset Tables
+                Database Reset
             </button>
         </div>
     </div>
 
-    <!-- KPI Metric Cards -->
+    <!-- Metric Cards -->
     <div class="row">
         @foreach([
-            ["Live Orders", $liveOrders, "danger", "fa fa-fire", route('admin.food.live')],
-            ["Open Kitchens", $activeRestaurants, "success", "fa fa-store", route('admin.food.restaurants')],
-            ["Pending Approvals", $pendingApprovals, "warning", "fa fa-user-clock", route('admin.food.restaurants', ['status' => 'pending_approval'])],
-            ["Open Disputes", $openDisputes, "info", "fa fa-balance-scale", route('admin.food.disputes')],
-            ["Today Orders", $todayOrders, "primary", "fa fa-shopping-bag", route('admin.food.orders')],
-            ["Today Gross Sales", "₹" . number_format($todaySales, 2), "dark", "fa fa-rupee-sign", route('admin.food.orders')],
+            ["Live In-Flight Orders", $liveOrders, route('admin.food.live')],
+            ["Open Kitchens", $activeRestaurants, route('admin.food.restaurants')],
+            ["Pending Approvals", $pendingApprovals, route('admin.food.restaurants', ['status' => 'pending_approval'])],
+            ["Open Disputes", $openDisputes, route('admin.food.disputes')],
+            ["Today Orders", $todayOrders, route('admin.food.orders')],
+            ["Today Gross Sales", "₹" . number_format($todaySales, 2), route('admin.food.orders')],
         ] as $c)
         <div class="col-xl-4 col-md-6 mb-3">
-            <a href="{{ $c[4] }}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 border-left-{{ $c[2] }}" style="border-left: 4px solid !important;">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="text-muted small text-uppercase font-weight-bold">{{ $c[0] }}</span>
-                            <h2 class="font-weight-bold text-dark mb-0 mt-1">{{ $c[1] }}</h2>
-                        </div>
-                        <div class="p-3 rounded-circle bg-light text-{{ $c[2] }}">
-                            <i class="{{ $c[3] }} fa-2x"></i>
-                        </div>
-                    </div>
+            <a href="{{ $c[2] }}" class="text-decoration-none">
+                <div class="metric-card">
+                    <div class="metric-title">{{ $c[0] }}</div>
+                    <div class="metric-value">{{ $c[1] }}</div>
                 </div>
             </a>
         </div>
         @endforeach
     </div>
 
-    <!-- Quick Navigation Matrix -->
-    <div class="card shadow-sm border-0 mb-4 mt-2">
-        <div class="card-header bg-white py-3">
-            <h5 class="font-weight-bold text-dark mb-0">Management Portals</h5>
+    <!-- Management Portals -->
+    <div class="card mb-4 mt-2">
+        <div class="card-header py-3">
+            <h5 class="mb-0 font-weight-bold">Management Modules</h5>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-3 col-sm-6 mb-3">
                     <a href="{{ route('admin.food.restaurants') }}" class="btn btn-outline-secondary btn-block text-left py-3">
-                        <i class="fa fa-utensils text-primary mr-2 fa-lg"></i>
-                        <strong>All Restaurants</strong>
-                        <small class="d-block text-muted">View, edit, onboard, & manage outlets</small>
+                        <div class="font-weight-bold mb-1">Restaurants & Outlets</div>
+                        <div class="small text-muted font-weight-normal">Manage outlets, menus, and onboarding</div>
                     </a>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">
                     <a href="{{ route('admin.food.orders') }}" class="btn btn-outline-secondary btn-block text-left py-3">
-                        <i class="fa fa-receipt text-success mr-2 fa-lg"></i>
-                        <strong>Orders Hub</strong>
-                        <small class="d-block text-muted">Search, monitor, & delete meal orders</small>
+                        <div class="font-weight-bold mb-1">Customer Orders</div>
+                        <div class="small text-muted font-weight-normal">Search, monitor, and audit orders</div>
                     </a>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">
                     <a href="{{ route('admin.food.types') }}" class="btn btn-outline-secondary btn-block text-left py-3">
-                        <i class="fa fa-layer-group text-info mr-2 fa-lg"></i>
-                        <strong>Kitchen Types</strong>
-                        <small class="d-block text-muted">Cloud kitchens, dine-in & fees</small>
+                        <div class="font-weight-bold mb-1">Kitchen Types & Fees</div>
+                        <div class="small text-muted font-weight-normal">Cloud kitchen and restaurant tiers</div>
                     </a>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">
                     <a href="{{ route('admin.food.commissions') }}" class="btn btn-outline-secondary btn-block text-left py-3">
-                        <i class="fa fa-percentage text-warning mr-2 fa-lg"></i>
-                        <strong>Commission & Markup</strong>
-                        <small class="d-block text-muted">Platform commissions & pricing engine</small>
+                        <div class="font-weight-bold mb-1">Commissions & Markup</div>
+                        <div class="small text-muted font-weight-normal">Platform rates and pricing calculations</div>
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <a href="{{ route('admin.food.charges') }}" class="btn btn-outline-secondary btn-block text-left py-3">
+                        <div class="font-weight-bold mb-1">Charges & Delivery</div>
+                        <div class="small text-muted font-weight-normal">Base fare, distance slabs, and surges</div>
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <a href="{{ route('admin.food.settings') }}" class="btn btn-outline-secondary btn-block text-left py-3">
+                        <div class="font-weight-bold mb-1">Delivery Settings</div>
+                        <div class="small text-muted font-weight-normal">Radius, SLAs, and concurrency limits</div>
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <a href="{{ route('admin.food.settlements') }}" class="btn btn-outline-secondary btn-block text-left py-3">
+                        <div class="font-weight-bold mb-1">Settlements & Payouts</div>
+                        <div class="small text-muted font-weight-normal">Merchant payouts and financial statements</div>
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <a href="{{ route('admin.food.disputes') }}" class="btn btn-outline-secondary btn-block text-left py-3">
+                        <div class="font-weight-bold mb-1">Disputes & Tickets</div>
+                        <div class="small text-muted font-weight-normal">Customer complaints and resolutions</div>
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Danger Zone: Admin Reset Center -->
-    <div class="card shadow-sm border-danger mb-4">
-        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-3">
-            <h5 class="font-weight-bold mb-0">
-                <i class="fa fa-exclamation-triangle mr-1"></i> Admin Danger Zone: Food & Restaurant Database Reset
-            </h5>
-            <span class="badge badge-light text-danger font-weight-bold">Super Admin Authority</span>
+    <!-- Administrative Controls -->
+    <div class="card mb-4" style="border: 1px solid #fecaca !important;">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center" style="background-color: #fef2f2 !important; border-bottom: 1px solid #fecaca !important;">
+            <h5 class="mb-0 font-weight-bold text-danger">Database Maintenance & Test Data Cleanup</h5>
+            <span class="badge badge-danger">Super Admin</span>
         </div>
         <div class="card-body">
-            <p class="text-muted">
-                These tools allow super administrators to cleanly wipe test data, remove orphaned database records, or reset all food tables back to a fresh factory state.
+            <p class="text-muted mb-3">
+                Wipe test records, remove orphaned test items, or reset food delivery data for fresh testing.
             </p>
 
             <div class="row">
-                <!-- Option 1: Reset Orders Only -->
                 <div class="col-md-4 mb-3">
-                    <div class="card h-100 border-warning">
-                        <div class="card-body d-flex flex-column justify-content-between">
-                            <div>
-                                <h6 class="font-weight-bold text-dark"><i class="fa fa-receipt text-warning mr-1"></i> 1. Reset Orders & History</h6>
-                                <p class="small text-muted mb-3">
-                                    Truncates all customer food orders, order items, delivery records, settlements, transactions, and disputes. Restaurants and menu products are preserved.
-                                </p>
-                            </div>
-                            <button type="button" class="btn btn-outline-warning btn-block font-weight-bold" onclick="openResetModal('orders', 'Reset All Food Orders & History')">
-                                Reset Orders Only
-                            </button>
-                        </div>
+                    <div class="card h-100 p-3">
+                        <h6 class="font-weight-bold mb-2">1. Reset Orders & History</h6>
+                        <p class="small text-muted mb-3">
+                            Truncates all customer orders, items, milestones, transactions, and disputes. Restaurants and menus are preserved.
+                        </p>
+                        <button type="button" class="btn btn-outline-secondary btn-block mt-auto" onclick="openResetModal('orders', 'Reset All Orders & History')">
+                            Reset Orders Only
+                        </button>
                     </div>
                 </div>
 
-                <!-- Option 2: Reset Restaurants & Menus -->
                 <div class="col-md-4 mb-3">
-                    <div class="card h-100 border-danger">
-                        <div class="card-body d-flex flex-column justify-content-between">
-                            <div>
-                                <h6 class="font-weight-bold text-dark"><i class="fa fa-store-slash text-danger mr-1"></i> 2. Reset Restaurants & Menus</h6>
-                                <p class="small text-muted mb-3">
-                                    Deletes all registered restaurants, partner owners, menu items, categories, product variants, and all associated food orders.
-                                </p>
-                            </div>
-                            <button type="button" class="btn btn-outline-danger btn-block font-weight-bold" onclick="openResetModal('restaurants', 'Reset All Restaurants & Menus')">
-                                Reset Restaurants & Menus
-                            </button>
-                        </div>
+                    <div class="card h-100 p-3">
+                        <h6 class="font-weight-bold mb-2">2. Reset Restaurants & Menus</h6>
+                        <p class="small text-muted mb-3">
+                            Deletes all registered restaurants, owner accounts, menus, categories, and associated orders.
+                        </p>
+                        <button type="button" class="btn btn-outline-secondary btn-block mt-auto" onclick="openResetModal('restaurants', 'Reset All Restaurants & Menus')">
+                            Reset Restaurants Only
+                        </button>
                     </div>
                 </div>
 
-                <!-- Option 3: Full Factory Reset -->
                 <div class="col-md-4 mb-3">
-                    <div class="card h-100 border-danger bg-light">
-                        <div class="card-body d-flex flex-column justify-content-between">
-                            <div>
-                                <h6 class="font-weight-bold text-danger"><i class="fa fa-bomb text-danger mr-1"></i> 3. Full Factory Reset (All Tables)</h6>
-                                <p class="small text-muted mb-3">
-                                    Completely truncates all food tables (restaurants, owners, products, orders, payments, reviews) and seeds clean baseline types. 100% fresh start.
-                                </p>
-                            </div>
-                            <button type="button" class="btn btn-danger btn-block font-weight-bold shadow-xs" onclick="openResetModal('all', 'Full Factory Reset (All Food Tables)')">
-                                Factory Reset Everything
-                            </button>
-                        </div>
+                    <div class="card h-100 p-3" style="background-color: #fafafa !important;">
+                        <h6 class="font-weight-bold text-danger mb-2">3. Factory Reset All Tables</h6>
+                        <p class="small text-muted mb-3">
+                            Completely truncates all food tables (outlets, owners, products, orders, charges, settlements) and resets defaults.
+                        </p>
+                        <button type="button" class="btn btn-danger btn-block mt-auto" onclick="openResetModal('all', 'Full Factory Reset (All Food Tables)')">
+                            Factory Reset All
+                        </button>
                     </div>
                 </div>
             </div>
@@ -162,37 +159,33 @@
 <!-- Modal: Database Table Reset Confirmation -->
 <div class="modal fade" id="resetTablesModal" tabindex="-1" role="dialog" aria-labelledby="resetTablesModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content border-0 shadow">
+        <div class="modal-content border-0">
             <form method="post" action="{{ route('admin.food.reset') }}">
                 @csrf
                 <input type="hidden" name="scope" id="resetScopeInput" value="all">
 
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title font-weight-bold" id="resetTablesModalLabel">
-                        <i class="fa fa-radiation mr-1"></i> Confirm Food Database Reset
-                    </h5>
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                <div class="modal-header">
+                    <h5 class="modal-title font-weight-bold" id="resetTablesModalLabel">Confirm Database Reset</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="alert alert-danger font-weight-bold mb-3">
-                        <span id="resetModalDescription">Warning: This operation will permanently wipe selected food and restaurant data from MySQL.</span>
+                    <div class="alert alert-danger mb-3" style="background-color: #fef2f2; border: 1px solid #fecaca; color: #991b1b;">
+                        <span id="resetModalDescription">This operation will permanently delete records from MySQL.</span>
                     </div>
 
                     <p class="text-muted small mb-2">
-                        Affected tables will be truncated immediately. To prevent accidental data loss, please type <strong class="text-danger">RESET</strong> in capital letters to authorize this action:
+                        To authorize this operation, type <strong>RESET</strong> in capital letters below:
                     </p>
 
                     <div class="form-group mb-0">
-                        <input type="text" name="confirmation" id="resetConfirmationField" class="form-control form-control-lg text-center font-weight-bold" placeholder="Type RESET to confirm" required autocomplete="off">
+                        <input type="text" name="confirmation" id="resetConfirmationField" class="form-control text-center font-weight-bold" placeholder="Type RESET to confirm" required autocomplete="off">
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger font-weight-bold">
-                        <i class="fa fa-trash-alt mr-1"></i> Execute Table Reset
-                    </button>
+                <div class="modal-footer" style="background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Execute Reset</button>
                 </div>
             </form>
         </div>
@@ -202,7 +195,7 @@
 <script>
 function openResetModal(scope, title) {
     document.getElementById('resetScopeInput').value = scope;
-    document.getElementById('resetTablesModalLabel').innerHTML = '<i class="fa fa-radiation mr-1"></i> ' + title;
+    document.getElementById('resetTablesModalLabel').textContent = title;
     var desc = document.getElementById('resetModalDescription');
     if (scope === 'orders') {
         desc.textContent = 'Warning: This will permanently delete ALL food orders, order items, delivery milestones, transactions, and disputes.';

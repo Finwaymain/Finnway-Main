@@ -4,18 +4,18 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
         <div class="mb-2 mb-md-0">
-            <h3 class="font-weight-bold text-dark mb-1">📦 Food Orders Hub</h3>
-            <p class="text-muted mb-0">Track customer meal orders, live preparation milestones, rider dispatches, and delete/manage test orders.</p>
+            <h3 class="font-weight-bold mb-1">Food Orders Hub</h3>
+            <p class="text-muted mb-0">Customer orders, preparation milestones, courier assignments, and order lifecycle management.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <button type="button" class="btn btn-outline-danger mr-2 mb-1" data-toggle="modal" data-target="#clearAllOrdersModal">
-                <i class="fa fa-trash mr-1"></i> Clear All Orders
+                Clear All Orders
             </button>
-            <a href="{{ route('admin.food.live') }}" class="btn btn-outline-danger mr-2 mb-1">
-                <i class="fa fa-radar mr-1"></i> Live Kitchens Radar
+            <a href="{{ route('admin.food.live') }}" class="btn btn-outline-secondary mr-2 mb-1">
+                Live Operations Radar
             </a>
-            <a href="{{ route('admin.food.restaurants') }}" class="btn btn-outline-primary mb-1">
-                <i class="fa fa-store mr-1"></i> Manage Restaurants
+            <a href="{{ route('admin.food.restaurants') }}" class="btn btn-outline-secondary mb-1">
+                Manage Restaurants
             </a>
         </div>
     </div>

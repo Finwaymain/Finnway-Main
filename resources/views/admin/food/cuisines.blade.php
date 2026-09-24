@@ -6,11 +6,11 @@
   {{-- Page Header --}}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h4 class="mb-0 font-weight-bold"><i class="fas fa-utensils text-warning mr-2"></i>Cuisine Types</h4>
-      <small class="text-muted">Master list shown to restaurant partners as multi-select dropdown during registration.</small>
+      <h4 class="mb-0 font-weight-bold">Cuisine Types</h4>
+      <small class="text-muted">Master list shown to restaurant partners during registration and search filters.</small>
     </div>
-    <button class="btn btn-warning" data-toggle="modal" data-target="#addCuisineModal">
-      <i class="fas fa-plus mr-1"></i> Add Cuisine
+    <button class="btn btn-primary" data-toggle="modal" data-target="#addCuisineModal">
+      Add Cuisine
     </button>
   </div>
 
@@ -40,7 +40,7 @@
           @forelse($cuisines as $cuisine)
           <tr>
             <td>{{ $cuisine->id }}</td>
-            <td class="text-center" style="font-size:22px;">{{ $cuisine->icon ?: '🍽️' }}</td>
+            <td class="text-center">{{ $cuisine->icon ?: '—' }}</td>
             <td class="font-weight-bold">{{ $cuisine->name }}</td>
             <td><code>{{ $cuisine->slug }}</code></td>
             <td>{{ $cuisine->sort_order }}</td>
@@ -103,8 +103,8 @@
             <input type="text" name="name" class="form-control" placeholder="e.g. Chettinad" required>
           </div>
           <div class="form-group">
-            <label class="font-weight-bold">Icon (emoji)</label>
-            <input type="text" name="icon" class="form-control" placeholder="e.g. 🍛" maxlength="10">
+            <label class="font-weight-bold">Icon Code</label>
+            <input type="text" name="icon" class="form-control" placeholder="Optional icon tag" maxlength="20">
           </div>
           <div class="form-group">
             <label class="font-weight-bold">Sort Order</label>

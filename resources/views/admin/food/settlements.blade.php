@@ -4,8 +4,8 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">🏦 Restaurant Settlements & Payouts</h3>
-            <p class="text-muted mb-0">Review automated daily bank settlement batches, commission withholdings, and payout proofs.</p>
+            <h3 class="font-weight-bold mb-1">Restaurant Settlements & Payouts</h3>
+            <p class="text-muted mb-0">Daily bank settlement batches, commission withholdings, and merchant payouts.</p>
         </div>
     </div>
 

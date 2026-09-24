@@ -4,15 +4,15 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">💰 Platform Commissions & Price Markups</h3>
-            <p class="text-muted mb-0">Configure global and restaurant-specific commissions, pricing markups, and promotional deals.</p>
+            <h3 class="font-weight-bold mb-1">Platform Commissions & Price Markups</h3>
+            <p class="text-muted mb-0">Configure platform commissions, restaurant rate overrides, and pricing markups.</p>
         </div>
         <div>
             <button type="button" class="btn btn-primary mr-2" data-toggle="modal" data-target="#addCommissionModal">
-                <i class="fa fa-plus mr-1"></i> Add Commission Rule
+                Add Commission Rule
             </button>
-            <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#addMarkupModal">
-                <i class="fa fa-tag mr-1"></i> Add Markup Rule
+            <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#addMarkupModal">
+                Add Markup Rule
             </button>
         </div>
     </div>

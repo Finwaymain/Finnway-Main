@@ -4,15 +4,15 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">⚡ Platform Charges & Delivery Fees</h3>
-            <p class="text-muted mb-0">Manage customer convenience fees, packaging rules, and dynamic distance-based delivery slabs.</p>
+            <h3 class="font-weight-bold mb-1">Platform Charges & Delivery Fees</h3>
+            <p class="text-muted mb-0">Customer convenience fees, packaging rules, and dynamic distance-based delivery slabs.</p>
         </div>
         <div>
             <button type="button" class="btn btn-primary mr-2" data-toggle="modal" data-target="#addChargeModal">
-                <i class="fa fa-plus mr-1"></i> Add Fee / Surcharge
+                Add Fee / Surcharge
             </button>
-            <button type="button" class="btn btn-outline-primary" data-toggle="modal" data-target="#addDeliveryModal">
-                <i class="fa fa-motorcycle mr-1"></i> Add Delivery Slab
+            <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#addDeliveryModal">
+                Add Delivery Slab
             </button>
         </div>
     </div>

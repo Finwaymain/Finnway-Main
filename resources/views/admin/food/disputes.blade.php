@@ -4,8 +4,8 @@
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="font-weight-bold text-dark mb-1">⚖️ Disputes & Support Tickets</h3>
-            <p class="text-muted mb-0">Handle customer meal complaints, missing items, spilled food, and rider transit issues.</p>
+            <h3 class="font-weight-bold mb-1">Disputes & Support Tickets</h3>
+            <p class="text-muted mb-0">Customer meal complaints, missing items, spilled food, and rider transit issues.</p>
         </div>
     </div>
 

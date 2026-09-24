@@ -61,10 +61,10 @@
                                     <span class="input-group-text font-weight-bold bg-light">Ops Status</span>
                                 </div>
                                 <select name="operational_status" class="custom-select custom-select-sm" onchange="this.form.submit()">
-                                    <option value="open" @selected($restaurant->operational_status=='open')>🟢 Open</option>
-                                    <option value="busy" @selected($restaurant->operational_status=='busy')>🟡 Busy</option>
-                                    <option value="temporarily_closed" @selected($restaurant->operational_status=='temporarily_closed')>🟠 Paused</option>
-                                    <option value="closed" @selected($restaurant->operational_status=='closed')>🔴 Closed</option>
+                                    <option value="open" @selected($restaurant->operational_status=='open')>Open</option>
+                                    <option value="busy" @selected($restaurant->operational_status=='busy')>Busy</option>
+                                    <option value="temporarily_closed" @selected($restaurant->operational_status=='temporarily_closed')>Paused</option>
+                                    <option value="closed" @selected($restaurant->operational_status=='closed')>Closed</option>
                                 </select>
                             </div>
                         </form>
@@ -93,10 +93,10 @@
                             <button class="btn btn-sm btn-primary" title="Place a test order for verification"><i class="fa fa-vial mr-1"></i> Test Order</button>
                         </form>
 
-                        <form method="post" action="{{ route('admin.food.restaurants.destroy', $restaurant->id) }}" class="d-inline mb-2 ml-1" onsubmit="return confirm('⚠️ Are you sure you want to PERMANENTLY DELETE restaurant \'{{ addslashes($restaurant->name) }}\' (ID: #{{ $restaurant->id }})? This will delete all related products, categories, reviews, and data. This action CANNOT be undone!');">
+                        <form method="post" action="{{ route('admin.food.restaurants.destroy', $restaurant->id) }}" class="d-inline mb-2 ml-1" onsubmit="return confirm('Are you sure you want to PERMANENTLY DELETE restaurant \'{{ addslashes($restaurant->name) }}\' (ID: #{{ $restaurant->id }})? This will delete all related products, categories, reviews, and data. This action CANNOT be undone!');">
                             @csrf
-                            <button type="submit" class="btn btn-sm btn-danger" title="Permanently Delete Restaurant">
-                                <i class="fa fa-trash mr-1"></i> Delete
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Permanently Delete Restaurant">
+                                Delete
                             </button>
                         </form>
                     </div>
@@ -206,9 +206,9 @@
                                     <div class="d-flex align-items-center mb-2">
                                         <h5 class="font-weight-bold text-dark mb-0 mr-3">
                                             @if($restaurant->business_type === 'cloud_kitchen' || optional($restaurant->type)->code === 'cloud_kitchen')
-                                                🍳 Cloud Kitchen Partner
+                                                Cloud Kitchen Partner
                                             @else
-                                                🍽️ Actual Restaurant Partner
+                                                Restaurant Partner
                                             @endif
                                         </h5>
                                         <span class="badge badge-primary px-2 py-1">
@@ -302,7 +302,7 @@
                                     <label class="font-weight-bold small text-muted">Cuisines Served (Multi-Select)</label>
                                     <div>
                                         @foreach($restaurant->cuisines as $c)
-                                            <span class="badge badge-info px-2 py-1 mr-1 mb-1 font-weight-normal" style="font-size: 13px;">🍽️ {{ $c }}</span>
+                                            <span class="badge badge-light border px-2 py-1 mr-1 mb-1 font-weight-normal" style="font-size: 13px;">{{ $c }}</span>
                                         @endforeach
                                     </div>
                                 </div>
@@ -671,11 +671,11 @@
                                         </td>
                                         <td>
                                             @if($p->food_type === 'veg')
-                                                <span class="badge badge-success">Veg 🟢</span>
+                                                <span class="badge badge-success">Veg</span>
                                             @elseif($p->food_type === 'egg')
-                                                <span class="badge badge-warning">Egg 🟡</span>
+                                                <span class="badge badge-warning">Egg</span>
                                             @else
-                                                <span class="badge badge-danger">Non-Veg 🔴</span>
+                                                <span class="badge badge-danger">Non-Veg</span>
                                             @endif
                                         </td>
                                         <td class="font-weight-bold text-dark">₹{{ number_format($p->price, 2) }}</td>
@@ -1032,9 +1032,9 @@
                         <div class="col-6 form-group">
                             <label class="font-weight-bold small text-muted">Food Type</label>
                             <select name="food_type" class="form-control custom-select" required>
-                                <option value="veg">Veg 🟢</option>
-                                <option value="non_veg">Non-Veg 🔴</option>
-                                <option value="egg">Contains Egg 🟡</option>
+                                <option value="veg">Veg</option>
+                                <option value="non_veg">Non-Veg</option>
+                                <option value="egg">Contains Egg</option>
                             </select>
                         </div>
                     </div>
