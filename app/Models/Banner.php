@@ -14,6 +14,9 @@ class Banner extends Authenticatable
     protected $table = 'banners';
     protected $fillable = [
         'title',
+        'alt',
+        'link',
+        'target_app',
         'description',
         'image',
         'status'

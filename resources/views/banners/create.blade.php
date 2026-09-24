@@ -47,43 +47,64 @@
                                         <legend>{{trans('lang.create_banner')}}</legend>
 
                                         <div class="form-group row width-100">
-                                            <label class="col-3 control-label">{{trans('lang.title')}}</label>
+                                            <label class="col-3 control-label">Alt Text / Name <span class="text-danger">*</span></label>
                                             <div class="col-7">
-                                                <input type="text" class="form-control title" name="title">
-
+                                                <input type="text" class="form-control" name="alt" value="{{ old('alt') }}" placeholder="e.g. Summer Special Cashback Offer" required>
+                                                <small class="form-text text-muted">Accessibility alt text and display label for the banner.</small>
                                             </div>
                                         </div>
+
                                         <div class="form-group row width-100">
-                                            <label class="col-3 control-label">{{trans('lang.description')}}</label>
+                                            <label class="col-3 control-label">Redirect Link (URL)</label>
                                             <div class="col-7">
-                                                <textarea rows="10" class="form-control description" name="description"></textarea>
-
+                                                <input type="url" class="form-control" name="link" value="{{ old('link') }}" placeholder="https://example.com/offer">
+                                                <small class="form-text text-muted">When clicked, user will be redirected to this link with their details (e.g. <code>?phone=...</code>) automatically attached.</small>
                                             </div>
                                         </div>
-                                        <div class="form-group row width-50">
-                                            <label class="col-3 control-label">{{trans('lang.photo')}}</label>
+
+                                        <div class="form-group row width-100">
+                                            <label class="col-3 control-label">Target App <span class="text-danger">*</span></label>
                                             <div class="col-7">
-                                                <input type="file" class="form-control" name="image" value=""
-                                                    onchange="readURL(this);">
-                                                <div id="image_preview" style="display: none; padding-left: 15px;">
-                                                    <img class="rounded" style="width:50px" id="uploding_image" src="#"
-                                                        alt="image">
+                                                <select name="target_app" class="form-control" required>
+                                                    <option value="both" {{ old('target_app') == 'both' ? 'selected' : '' }}>Both (User & Driver App)</option>
+                                                    <option value="user" {{ old('target_app') == 'user' ? 'selected' : '' }}>User App Only</option>
+                                                    <option value="driver" {{ old('target_app') == 'driver' ? 'selected' : '' }}>Driver App Only</option>
+                                                </select>
+                                                <small class="form-text text-muted">Choose which app should display this sliding banner.</small>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row width-100">
+                                            <label class="col-3 control-label">Banner Image <span class="text-danger">*</span></label>
+                                            <div class="col-7">
+                                                <input type="file" class="form-control" name="image" required onchange="readURL(this);">
+                                                <small class="form-text text-muted">Recommended aspect ratio: 16:7 or 2:1 (e.g. 800x350 px, JPG/PNG/WebP).</small>
+                                                <div id="image_preview" style="display: none; padding-top: 10px;">
+                                                    <img class="rounded" style="max-height: 120px; max-width: 100%; border: 1px solid #ddd;" id="uploding_image" src="#" alt="image">
                                                 </div>
                                             </div>
                                         </div>
 
-
-
                                         <div class="form-group row width-100">
-                                            <div class="form-check">
-                                                <input type="checkbox" class="user_active" id="status" name="status">
-                                                <label class="col-3 control-label"
-                                                    for="status">{{trans('lang.status')}}</label>
-
+                                            <label class="col-3 control-label">{{trans('lang.title')}} (Optional)</label>
+                                            <div class="col-7">
+                                                <input type="text" class="form-control title" name="title" value="{{ old('title') }}" placeholder="Internal banner title">
                                             </div>
                                         </div>
 
-                                </div>
+                                        <div class="form-group row width-100">
+                                            <label class="col-3 control-label">{{trans('lang.description')}} (Optional)</label>
+                                            <div class="col-7">
+                                                <textarea rows="3" class="form-control description" name="description" placeholder="Optional notes or details">{{ old('description') }}</textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row width-100">
+                                            <div class="form-check">
+                                                <input type="checkbox" class="user_active" id="status" name="status" checked value="1">
+                                                <label class="col-3 control-label" for="status">{{trans('lang.status')}} (Active)</label>
+                                            </div>
+                                        </div>
 
 
 

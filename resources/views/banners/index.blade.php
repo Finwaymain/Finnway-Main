@@ -98,8 +98,9 @@
                                                                                                    href="javascript:void(0)"><i
                                                             class="fa fa-trash"></i> All</a></label></th>
                                         <th>{{trans('lang.photo')}}</th>
-                                        <th>{{trans('lang.title')}}</th>
-                                        <th>{{trans('lang.description')}}</th>
+                                        <th>Alt / Title</th>
+                                        <th>Target Link</th>
+                                        <th>Target App</th>
                                         <th>{{trans('lang.status')}}</th>
                                         <th>{{trans('lang.actions')}}</th>
 
@@ -120,20 +121,42 @@
                                                 @if (file_exists(public_path('assets/images/banners'.'/'.$value->image))
                                                 &&
                                                 !empty($value->image))
-                                                    <td><img class="rounded" style="width:50px"
+                                                    <td><img class="rounded" style="width:70px; height:35px; object-fit:cover;"
                                                              src="{{asset('assets/images/banners').'/'.$value->image}}"
-                                                             alt="image"></td>
+                                                             alt="{{ $value->alt ?? 'image' }}"></td>
                                                 @else
-                                                    <td><img class="rounded" style="width:50px"
+                                                    <td><img class="rounded" style="width:70px; height:35px; object-fit:cover;"
                                                              src="{{ asset('assets/images/placeholder_image.jpg')}}"
                                                              alt="image">
                                                     </td>
                                                 @endif
 
-                                                <td><a href="{{route('banners.edit', ['id' => $value->id])}}">{{
-                                                $value->title}}</a></td>
-                                                
-                                                <td>{{$value->description}}</td>
+                                                <td>
+                                                    <strong>{{ $value->alt ?: $value->title }}</strong>
+                                                    @if($value->title && $value->title !== $value->alt)
+                                                        <br><small class="text-muted">{{ $value->title }}</small>
+                                                    @endif
+                                                </td>
+
+                                                <td>
+                                                    @if($value->link)
+                                                        <a href="{{ $value->link }}" target="_blank" class="text-primary text-truncate d-inline-block" style="max-width: 220px;" title="{{ $value->link }}">
+                                                            <i class="fa fa-external-link mr-1"></i>{{ $value->link }}
+                                                        </a>
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
+
+                                                <td>
+                                                    @if($value->target_app == 'user')
+                                                        <span class="badge badge-info px-2 py-1"><i class="fa fa-user mr-1"></i>User App</span>
+                                                    @elseif($value->target_app == 'driver')
+                                                        <span class="badge badge-success px-2 py-1"><i class="fa fa-car mr-1"></i>Driver App</span>
+                                                    @else
+                                                        <span class="badge badge-primary px-2 py-1"><i class="fa fa-users mr-1"></i>Both</span>
+                                                    @endif
+                                                </td>
 
                                                 <td>
                                                     @if ($value->status=="yes")

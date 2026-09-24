@@ -39,20 +39,20 @@ class BannersController extends Controller
     }
     public function store(Request $request)
     {
-
-        $validator = Validator::make($request->all(), $rules = [
-            'title' => 'required',
-            'description'=>'required',
-            'image'=>'required|file|mimes:jpg,jpeg,png'
-        ], $messages = [
-                'title.required' =>  trans("lang.setting_title_error"),
-                'description.required' => trans("lang.description_required"),
-                'image.required' => trans("lang.image_required"),
-            ]);
+        $validator = Validator::make($request->all(), [
+            'image' => 'required|file|mimes:jpg,jpeg,png,webp',
+            'alt' => 'nullable|string|max:255',
+            'title' => 'nullable|string|max:255',
+            'link' => 'nullable|string|max:2048',
+            'target_app' => 'nullable|in:user,driver,both',
+            'description' => 'nullable|string',
+        ], [
+            'image.required' => trans("lang.image_required") ?? 'Please upload a banner image',
+        ]);
 
         if ($validator->fails()) {
             return redirect()->back()
-                ->withErrors($validator)->with(['message' => $messages])
+                ->withErrors($validator)
                 ->withInput();
         }
 
@@ -66,19 +66,22 @@ class BannersController extends Controller
             $destinationPath = public_path() . '/assets/images/banners';
 
             $compressedImage = Helper::compressFile($file->getPathName(), $destinationPath.'/'.$filename, 8);
-            /*$file->move($destinationPath, $filename);*/
         }
 
+        $title = $request->input('title') ?: ($request->input('alt') ?: 'Banner');
+        $alt = $request->input('alt') ?: ($request->input('title') ?: '');
+
         Banner::create([
-            'title' => $request->input('title'),
+            'title' => $title,
+            'alt' => $alt,
+            'link' => $request->input('link'),
+            'target_app' => $request->input('target_app', 'both') ?: 'both',
             'status' => $request->input('status') ? 'yes' : 'no',
             'image' => $filename,
-            'description'=> $request->input('description')
-
+            'description' => $request->input('description') ?? ''
         ]);
 
-        return redirect('banners')->with('message', trans('lang.banner_created'));
-
+        return redirect('banners')->with('message', trans('lang.banner_created') ?? 'Banner created successfully');
     }
 
     public function edit(Request $request, $id)
@@ -89,27 +92,33 @@ class BannersController extends Controller
 
     public function update($id, Request $request)
     {
-        $validator = Validator::make($request->all(), $rules = [
-            'title' => 'required',
-            'description' => 'required',
-            'image'=>'nullable|image|mimes:jpeg,png,jpg'
-        ], $messages = [
-            'title.required' => trans("lang.setting_title_error"),
-            'description.required' => trans("lang.description_required"),
+        $validator = Validator::make($request->all(), [
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp',
+            'alt' => 'nullable|string|max:255',
+            'title' => 'nullable|string|max:255',
+            'link' => 'nullable|string|max:2048',
+            'target_app' => 'nullable|in:user,driver,both',
+            'description' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return redirect('banners/edit/' . $id)
-                ->withErrors($validator)->with(['message' => $messages])
+                ->withErrors($validator)
                 ->withInput();
         }
 
         $banner = Banner::find($id);
+        if (!$banner) {
+            return redirect('banners')->with('error', 'Banner not found');
+        }
+
         $filename = $banner->image;
 
-        $title = $request->input('title');
-        $description = $request->input('description');
+        $title = $request->input('title') ?: ($request->input('alt') ?: $banner->title);
+        $alt = $request->input('alt') ?: ($request->input('title') ?: $banner->alt);
+        $description = $request->input('description') ?? ($banner->description ?? '');
         $status = $request->input('status') ? 'yes' : 'no';
+
         if ($request->hasfile('image')) {
             if (File::exists(public_path() . '/assets/images/banners/' . $filename)) {
                 File::delete(public_path() . '/assets/images/banners/' . $filename);
@@ -119,18 +128,18 @@ class BannersController extends Controller
             $destinationPath = public_path() . '/assets/images/banners';
             
             $compressedImage = Helper::compressFile($file->getPathName(), $destinationPath.'/'.$filename, 8);
-            /*$file->move($destinationPath, $filename);*/
         }
 
-        if ($banner) {
-            $banner->title = $title;
-            $banner->status = $status;
-            $banner->image = $filename;
-            $banner->description = $description;
-            $banner->save();
-        }
+        $banner->title = $title;
+        $banner->alt = $alt;
+        $banner->link = $request->input('link');
+        $banner->target_app = $request->input('target_app', 'both') ?: 'both';
+        $banner->status = $status;
+        $banner->image = $filename;
+        $banner->description = $description;
+        $banner->save();
 
-        return redirect('banners')->with('message', trans('lang.banner_updated'));
+        return redirect('banners')->with('message', trans('lang.banner_updated') ?? 'Banner updated successfully');
     }
 
 

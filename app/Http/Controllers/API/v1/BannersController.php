@@ -22,38 +22,52 @@ class BannersController extends Controller
 
     public function getData(Request $request)
     {
-
         $output = [];
-        $banner = Banner::where('status', '=', 'yes')->get();
+        $targetApp = $request->query('app');
 
-        if (count($banner) > 0) {
-            foreach ($banner as $row) {
+        $query = Banner::where('status', '=', 'yes');
+
+        if ($targetApp && in_array($targetApp, ['user', 'driver'])) {
+            $query->where(function ($q) use ($targetApp) {
+                $q->where('target_app', $targetApp)
+                  ->orWhere('target_app', 'both')
+                  ->orWhereNull('target_app');
+            });
+        }
+
+        $banners = $query->orderBy('id', 'desc')->get();
+
+        if (count($banners) > 0) {
+            foreach ($banners as $row) {
                 $row->id = (string) $row->id;
+                $row->title = (string) ($row->title ?? $row->alt ?? 'Banner');
+                $row->alt = (string) ($row->alt ?? $row->title ?? '');
+                $row->link = (string) ($row->link ?? '');
+                $row->target_app = (string) ($row->target_app ?? 'both');
+                $row->description = (string) ($row->description ?? '');
+
                 if ($row->image != '') {
                     if (file_exists(public_path('assets/images/banners' . '/' . $row->image))) {
                         $row->image = asset('assets/images/banners') . '/' . $row->image;
                     } else {
                         $row->image = asset('assets/images/placeholder_image.jpg');
-
                     }
-
+                } else {
+                    $row->image = asset('assets/images/placeholder_image.jpg');
                 }
+
                 $output[] = $row;
             }
-            //$output[]=$row;
-            if (! empty($output)) {
-                $response['success'] = 'success';
-                $response['error'] = null;
-                $response['message'] = 'banners fetch successfully';
-                $response['data'] = $output;
-            } else {
-                $response['success'] = 'Failed';
-                $response['error'] = 'Error while fetch data';
-            }
+
+            $response['success'] = 'success';
+            $response['error'] = null;
+            $response['message'] = 'banners fetch successfully';
+            $response['data'] = $output;
         } else {
-            $response['success'] = 'Failed';
-            $response['error'] = 'No Data Found';
-            $response['message'] = null;
+            $response['success'] = 'success';
+            $response['error'] = null;
+            $response['message'] = 'No banners found';
+            $response['data'] = [];
         }
 
         return response()->json($response);
