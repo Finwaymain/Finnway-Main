@@ -260,8 +260,8 @@ class FoodAdminController extends Controller
         }
 
         // Approve
-        $type = FoodRestaurantType::find($restaurant->type_id);
-        $fee = (float) ($type->onboarding_fee ?? 0);
+        $type = $restaurant->type_id ? FoodRestaurantType::find($restaurant->type_id) : null;
+        $fee = (float) (optional($type)->onboarding_fee ?? 0);
         $restaurant->onboarding_fee_paid = $fee;
         $restaurant->onboarding_status = 'active';
         $restaurant->operational_status = 'closed';

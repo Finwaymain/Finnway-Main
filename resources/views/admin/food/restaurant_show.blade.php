@@ -244,33 +244,43 @@
                                 </div>
                                 <div class="col-md-5 text-md-right mt-3 mt-md-0">
                                     <div class="d-flex justify-content-md-end align-items-center flex-wrap">
-                                        <!-- Approve Onboarding Fee -->
-                                        <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Verify and mark onboarding fee as paid? Partner will be activated.');">
-                                            @csrf
-                                            <input type="hidden" name="action" value="approve">
-                                            <button class="btn btn-sm btn-success">
-                                                <i class="fa fa-check-circle mr-1"></i> Verify & Approve Fee
-                                            </button>
-                                        </form>
-
-                                        <!-- Waive Onboarding Fee -->
-                                        <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Waive the onboarding fee for this partner? They will be activated with ₹0 fee.');">
-                                            @csrf
-                                            <input type="hidden" name="action" value="waive">
-                                            <button class="btn btn-sm btn-outline-secondary">
-                                                <i class="fa fa-gift mr-1"></i> Waive Fee
-                                            </button>
-                                        </form>
-
-                                        @if($restaurant->onboarding_payment_id && $restaurant->onboarding_status === 'payment_pending')
-                                            <!-- Reject Payment Proof -->
-                                            <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mb-1" onsubmit="return confirm('Reject this payment submission?');">
+                                        @if($restaurant->onboarding_status === 'active' && $restaurant->onboarding_fee_paid > 0)
+                                            <span class="badge badge-success px-3 py-2" style="font-size:13px;">
+                                                <i class="fa fa-check-circle mr-1"></i> Fee Verified &amp; Partner Active
+                                            </span>
+                                        @elseif($restaurant->onboarding_status === 'active')
+                                            <span class="badge badge-info px-3 py-2" style="font-size:13px;">
+                                                <i class="fa fa-gift mr-1"></i> Fee Waived — Partner Active
+                                            </span>
+                                        @else
+                                            <!-- Approve Onboarding Fee -->
+                                            <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Verify and mark onboarding fee as paid? Partner will be activated.');">
                                                 @csrf
-                                                <input type="hidden" name="action" value="reject">
-                                                <button class="btn btn-sm btn-outline-danger">
-                                                    <i class="fa fa-times-circle mr-1"></i> Reject Proof
+                                                <input type="hidden" name="action" value="approve">
+                                                <button type="submit" class="btn btn-sm btn-success">
+                                                    <i class="fa fa-check-circle mr-1"></i> Verify &amp; Approve Fee
                                                 </button>
                                             </form>
+
+                                            <!-- Waive Onboarding Fee -->
+                                            <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mr-2 mb-1" onsubmit="return confirm('Waive the onboarding fee for this partner? They will be activated with ₹0 fee.');">
+                                                @csrf
+                                                <input type="hidden" name="action" value="waive">
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="fa fa-gift mr-1"></i> Waive Fee
+                                                </button>
+                                            </form>
+
+                                            @if($restaurant->onboarding_payment_id && $restaurant->onboarding_status === 'payment_pending')
+                                                <!-- Reject Payment Proof -->
+                                                <form method="post" action="{{ route('admin.food.restaurants.verifyOnboardingFee', $restaurant->id) }}" class="d-inline mb-1" onsubmit="return confirm('Reject this payment submission?');">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="reject">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        <i class="fa fa-times-circle mr-1"></i> Reject Proof
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @endif
                                     </div>
                                 </div>
