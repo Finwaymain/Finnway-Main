@@ -559,17 +559,49 @@ class FoodAdminController extends Controller
         return view('admin.food.orders', compact('orders'));
     }
 
-    public function live()
+    public function live(Request $request)
     {
-        $orders = FoodOrder::with('restaurant')
+        $orders = FoodOrder::with(['restaurant', 'items'])
             ->whereNotIn('order_status', ['delivered', 'completed', 'cancelled', 'rejected'])
             ->orderByDesc('id')
             ->limit(100)
             ->get();
+
+        $stageNew = $orders->filter(function ($o) {
+            return in_array($o->order_status, ['pending', 'placed']);
+        });
+
+        $stagePrep = $orders->filter(function ($o) {
+            return in_array($o->order_status, ['restaurant_accepted', 'preparing']);
+        });
+
+        $stageReady = $orders->filter(function ($o) {
+            return in_array($o->order_status, ['ready_for_pickup', 'rider_assigned', 'rider_at_restaurant']);
+        });
+
+        $stageOnTheWay = $orders->filter(function ($o) {
+            return in_array($o->order_status, ['food_picked_up', 'out_for_delivery', 'rider_at_location']);
+        });
+
         $restaurants = FoodRestaurant::where('onboarding_status', 'active')
             ->where('operational_status', 'open')
-            ->get(['id', 'name', 'latitude', 'longitude', 'city', 'operational_status']);
-        return view('admin.food.live', compact('orders', 'restaurants'));
+            ->get(['id', 'name', 'latitude', 'longitude', 'city', 'operational_status', 'business_type']);
+
+        $recentDelivered = FoodOrder::with('restaurant')
+            ->whereIn('order_status', ['delivered', 'completed'])
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get();
+
+        return view('admin.food.live', compact(
+            'orders',
+            'stageNew',
+            'stagePrep',
+            'stageReady',
+            'stageOnTheWay',
+            'restaurants',
+            'recentDelivered'
+        ));
     }
 
     public function createTestOrder(Request $request)

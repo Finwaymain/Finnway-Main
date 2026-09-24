@@ -9,7 +9,7 @@
         </div>
         <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0">
             <a href="{{ route('admin.food.live') }}" class="btn btn-danger mr-2">
-                <i class="fa fa-radar mr-1"></i> Open Live Radar
+                <i class="fa fa-satellite-dish mr-1"></i> Open Live Radar
             </a>
             <a href="{{ route('admin.food.orders') }}" class="btn btn-primary mr-2">
                 <i class="fa fa-receipt mr-1"></i> Orders Hub
@@ -26,7 +26,7 @@
     <!-- KPI Metric Cards -->
     <div class="row">
         @foreach([
-            ["Live Orders", $liveOrders, "danger", "fa fa-fire", route('admin.food.orders')],
+            ["Live Orders", $liveOrders, "danger", "fa fa-fire", route('admin.food.live')],
             ["Open Kitchens", $activeRestaurants, "success", "fa fa-store", route('admin.food.restaurants')],
             ["Pending Approvals", $pendingApprovals, "warning", "fa fa-user-clock", route('admin.food.restaurants', ['status' => 'pending_approval'])],
             ["Open Disputes", $openDisputes, "info", "fa fa-balance-scale", route('admin.food.disputes')],
