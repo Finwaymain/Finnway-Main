@@ -50,8 +50,9 @@ class CustomerFoodController extends Controller
             }
         }
 
-        // 3. Query open restaurants and calculate distance from user's lat & long
+        // 3. Query active & open restaurants and calculate distance from user's lat & long
         $restaurants = FoodRestaurant::query()
+            ->where('onboarding_status', 'active')
             ->where('operational_status', 'open')
             ->where('delivery_available', true)
             ->get()
@@ -212,9 +213,11 @@ class CustomerFoodController extends Controller
 
     public function restaurantMenu(Request $request, $id)
     {
-        $restaurant = FoodRestaurant::where('id', $id)->first();
+        $restaurant = FoodRestaurant::where('id', $id)
+            ->where('onboarding_status', 'active')
+            ->first();
         if (!$restaurant) {
-            return response()->json(['success' => false, 'error' => 'Restaurant not found.']);
+            return response()->json(['success' => false, 'error' => 'Restaurant not found or not active.']);
         }
         $restaurant->logo_url = $restaurant->logo ? (str_starts_with($restaurant->logo, 'http') ? $restaurant->logo : asset('storage/' . ltrim($restaurant->logo, '/'))) : null;
         $restaurant->cover_url = $restaurant->cover_image ? (str_starts_with($restaurant->cover_image, 'http') ? $restaurant->cover_image : asset('storage/' . ltrim($restaurant->cover_image, '/'))) : null;
@@ -248,6 +251,7 @@ class CustomerFoodController extends Controller
     public function placeOrder(Request $request)
     {
         $restaurant = FoodRestaurant::where('id', $request->get('restaurant_id'))
+            ->where('onboarding_status', 'active')
             ->where('operational_status', 'open')
             ->first();
         if (!$restaurant) {
