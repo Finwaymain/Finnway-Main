@@ -82,7 +82,7 @@ class LoanWebviewController extends Controller
             $selectedProduct = $products['Interest Free Loan'];
         }
 
-        return view('loans.coming_soon', compact(
+        return view('finance.portal', compact(
             'cardType',
             'title',
             'name',
@@ -91,5 +91,10 @@ class LoanWebviewController extends Controller
             'amount',
             'selectedProduct'
         ));
+    }
+
+    public function portal(Request $request)
+    {
+        return $this->comingSoon($request);
     }
 }

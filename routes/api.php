@@ -1003,6 +1003,9 @@ Route::post('v1/driver/kit-purchase/record', [\App\Http\Controllers\API\DriverKi
 // ── Fiinway Food Delivery APIs ──────────────────────────────────────────────
 require __DIR__ . '/food_api.php';
 
+// ── Fiinway Finance & Loan APIs ────────────────────────────────────────────
+require __DIR__ . '/finance_api.php';
+
 
 
 

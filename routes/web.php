@@ -1217,6 +1217,8 @@ Route::post('/onboarding/kit-purchase/submit', [App\Http\Controllers\DriverKitWe
 
 // ── Loans & Credit Webview Routes ───────────────────────────────────────────
 Route::get('/loans/coming-soon', [App\Http\Controllers\LoanWebviewController::class, 'comingSoon'])->name('loans.comingSoon');
+Route::get('/finance', [App\Http\Controllers\LoanWebviewController::class, 'portal'])->name('finance.portal');
+Route::get('/finance/portal', [App\Http\Controllers\LoanWebviewController::class, 'portal']);
 
 // ── Terms & Privacy Direct URL Aliases ─────────────────────────────────────
 Route::get('/terms_condition', [App\Http\Controllers\TermsAndConditionsController::class, 'index']);
@@ -1284,4 +1286,20 @@ Route::middleware(['auth'])->prefix('admin/marketing-vendors')->name('admin.mark
     Route::post('/{id}/payout', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'settlePayout'])->name('payout');
     Route::delete('/{id}/delete', [\App\Http\Controllers\Admin\MarketingVendorAdminController::class, 'destroy'])->name('delete');
 });
+
+// ── Finance & Credit Ecosystem Admin ──────────────────────────────────────
+Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'dashboard'])->name('dashboard');
+    Route::get('/customers', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'customers'])->name('customers');
+    Route::get('/customers/{id}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'customerDetails'])->name('customer-details');
+    Route::get('/applications', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'applications'])->name('applications');
+    Route::get('/applications/{id}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'applicationDetails'])->name('application-details');
+    Route::post('/documents/{id}/review', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'reviewDocument'])->name('document-review');
+    Route::post('/applications/{id}/status', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'updateApplicationStatus'])->name('application-status');
+    Route::get('/lenders', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'lenderPartners'])->name('lenders');
+    Route::post('/lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveLenderPartner'])->name('lenders.save');
+    Route::get('/recovery', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'recoveryCenter'])->name('recovery');
+    Route::post('/customers/{id}/toggle-lock', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'toggleUsageLock'])->name('toggle-lock');
+});
+
 

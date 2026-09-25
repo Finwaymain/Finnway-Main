@@ -171,6 +171,24 @@
         </li>
         @endif
 
+        <!-- 5.5. Finance & Credit Ecosystem -->
+        @if($authUser && ($authUser->isAdmin() || $authUser->isSubAdmin()))
+        <li class="{{ request()->is('admin/finance*') ? 'active' : '' }}">
+            <a class="has-arrow waves-effect waves-dark" href="#" aria-expanded="false">
+                <i class="mdi mdi-bank text-primary"></i>
+                <span class="hide-menu font-weight-bold">Finance & Credit</span>
+            </a>
+            <ul aria-expanded="false" class="collapse">
+                <li><a href="{!! route('admin.finance.dashboard') !!}">Finance Overview</a></li>
+                <li><a href="{!! route('admin.finance.customers') !!}">Customer 360 & Vault</a></li>
+                <li><a href="{!! route('admin.finance.applications') !!}">Loan Applications</a></li>
+                <li><a href="{!! route('admin.finance.recovery') !!}">Daily Recovery & Locks</a></li>
+                <li><a href="{!! route('admin.finance.lenders') !!}">Lender Partners</a></li>
+            </ul>
+        </li>
+        @endif
+
+
         <!-- 6. Referral Engine -->
         @if($authUser && ($authUser->isAdmin() || $authUser->hasPermission('referral_engine')))
         <li>
