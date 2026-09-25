@@ -19,6 +19,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::post('auth/login-password', [RestaurantAuthController::class, 'loginPassword']);
     Route::get('types', [RestaurantAuthController::class, 'types']);
     Route::get('cuisines', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'cuisinesApi']);
+    Route::post('test-notification', [RestaurantAuthController::class, 'sendTestNotification']);
 
     // Customer discovery / order (Public within food module, user token optional; phone/id in body)
     Route::get('customer/nearby', [CustomerFoodController::class, 'nearby']);

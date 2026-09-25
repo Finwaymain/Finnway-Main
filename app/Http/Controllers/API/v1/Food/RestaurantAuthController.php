@@ -203,6 +203,11 @@ class RestaurantAuthController extends Controller
             return response()->json(['success' => false, 'error' => 'Invalid MPIN.']);
         }
 
+        if ($request->filled('fcm_token')) {
+            $owner->fcm_token = $request->input('fcm_token');
+            $owner->save();
+        }
+
         $token = $this->issueToken($owner);
         return response()->json([
             'success' => true,
@@ -232,6 +237,9 @@ class RestaurantAuthController extends Controller
         if ($request->filled('email')) {
             $owner->email = $request->input('email');
         }
+        if ($request->filled('fcm_token')) {
+            $owner->fcm_token = $request->input('fcm_token');
+        }
         $owner->save();
 
         $token = $this->issueToken($owner);
@@ -252,6 +260,10 @@ class RestaurantAuthController extends Controller
         }
         if ($owner->status !== 'active') {
             return response()->json(['success' => false, 'error' => 'Account blocked. Contact support.']);
+        }
+        if ($request->filled('fcm_token')) {
+            $owner->fcm_token = $request->input('fcm_token');
+            $owner->save();
         }
         $token = $this->issueToken($owner);
         return response()->json([
@@ -369,5 +381,91 @@ class RestaurantAuthController extends Controller
             'has_restaurant' => $restaurants->count() > 0,
             'onboarding_required' => $restaurants->where('onboarding_status', 'active')->count() === 0,
         ];
+    }
+
+    public function sendTestNotification(Request $request)
+    {
+        $restaurantId = $request->input('restaurant_id', 8);
+        $phone = $request->input('phone', '9669454554');
+
+        $restaurant = null;
+        if ($restaurantId) {
+            $restaurant = FoodRestaurant::find($restaurantId);
+        }
+
+        $owner = null;
+        if ($restaurant && $restaurant->owner_id) {
+            $owner = FoodOwner::find($restaurant->owner_id);
+        }
+
+        if (!$owner && $phone) {
+            $owner = $this->findOwnerByPhone($phone);
+        }
+
+        if (!$restaurant && $owner) {
+            $restaurant = FoodRestaurant::where('owner_id', $owner->id)->first();
+        }
+
+        $tokens = [];
+        if ($owner && !empty($owner->fcm_token)) {
+            $tokens[] = ['source' => 'food_owners table (Restaurant App)', 'token' => $owner->fcm_token];
+        }
+
+        $checkPhones = array_filter([$phone, $owner->phone ?? null, $restaurant->owner_phone ?? null]);
+        foreach ($checkPhones as $ph) {
+            $variants = PhoneService::getVariants($ph);
+            $uTokens = DB::table('tj_user_app')->whereIn('phone', $variants)->whereNotNull('fcm_id')->where('fcm_id', '!=', '')->pluck('fcm_id')->toArray();
+            foreach ($uTokens as $ut) {
+                $tokens[] = ['source' => 'tj_user_app (User App)', 'token' => $ut];
+            }
+            $dTokens = DB::table('tj_conducteur')->whereIn('phone', $variants)->whereNotNull('fcm_id')->where('fcm_id', '!=', '')->pluck('fcm_id')->toArray();
+            foreach ($dTokens as $dt) {
+                $tokens[] = ['source' => 'tj_conducteur (Driver App)', 'token' => $dt];
+            }
+        }
+
+        $uniqueTokens = [];
+        $seen = [];
+        foreach ($tokens as $item) {
+            if (!isset($seen[$item['token']])) {
+                $seen[$item['token']] = true;
+                $uniqueTokens[] = $item;
+            }
+        }
+
+        $testPayload = [
+            'id' => 'test_' . time(),
+            'order_id' => '8888',
+            'order_number' => 'FIIN-TEST-' . rand(1000, 9999),
+            'title' => '🔔 Test Order Alert for ' . ($restaurant ? $restaurant->name : 'Restaurant'),
+            'message' => 'Test Notification: Order FIIN-TEST incoming. Ringtone & alert check!',
+            'body' => 'Test Notification: Order FIIN-TEST incoming. Ringtone & alert check!',
+            'sound' => 'alert',
+            'sound_type' => 'order_alarm',
+            'type' => 'food_new_order',
+            'android_channel_id' => 'food_orders_channel',
+            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+        ];
+
+        $results = [];
+        foreach ($uniqueTokens as $t) {
+            $res = \App\Http\Controllers\API\v1\GcmController::sendNotification($t['token'], $testPayload);
+            $results[] = [
+                'source' => $t['source'],
+                'token' => substr($t['token'], 0, 25) . '...',
+                'response' => ($res instanceof \Illuminate\Http\JsonResponse) ? $res->getData() : $res,
+            ];
+        }
+
+        return response()->json([
+            'success' => count($results) > 0,
+            'restaurant' => $restaurant ? ['id' => $restaurant->id, 'name' => $restaurant->name, 'status' => $restaurant->onboarding_status] : null,
+            'owner' => $owner ? ['id' => $owner->id, 'name' => $owner->name, 'phone' => $owner->phone, 'has_fcm' => !empty($owner->fcm_token)] : null,
+            'tokens_found_count' => count($uniqueTokens),
+            'dispatches' => $results,
+            'note' => empty($uniqueTokens)
+                ? 'No FCM token is currently registered for Mohammed in food_owners table. Mohammed needs to launch the updated Restaurant App on his phone so the app registers his device FCM token with the server.'
+                : 'Notification dispatched to registered device token(s).'
+        ]);
     }
 }
