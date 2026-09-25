@@ -252,7 +252,7 @@ class RestaurantOnboardingController extends Controller
         $restaurant->onboarding_payment_id = $gatewayPaymentId;
         $restaurant->onboarding_status = (($type->approval_mode ?? 'manual') === 'auto') ? 'active' : 'pending_approval';
         if ($restaurant->onboarding_status === 'active') {
-            $restaurant->operational_status = 'closed';
+            $restaurant->operational_status = 'open';
             $restaurant->approved_at = now();
         }
         $restaurant->save();

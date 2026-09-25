@@ -58,6 +58,6 @@ class FoodRestaurant extends Model
 
     public function isActivePartner(): bool
     {
-        return $this->onboarding_status === 'active';
+        return in_array(strtolower((string) $this->onboarding_status), ['active', 'approved', 'verified']);
     }
 }

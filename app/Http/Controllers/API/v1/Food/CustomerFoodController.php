@@ -50,11 +50,19 @@ class CustomerFoodController extends Controller
             }
         }
 
-        // 3. Query active & open restaurants and calculate distance from user's lat & long
+        // 3. Query active & approved restaurants and calculate distance from user's lat & long
         $restaurants = FoodRestaurant::query()
-            ->where('onboarding_status', 'active')
-            ->where('operational_status', 'open')
-            ->where('delivery_available', true)
+            ->whereIn('onboarding_status', ['active', 'approved', 'verified'])
+            ->where(function ($q) {
+                $q->whereIn('operational_status', ['open', 'busy', 'closed'])
+                  ->orWhereNull('operational_status')
+                  ->orWhere('operational_status', '');
+            })
+            ->where(function ($q) {
+                $q->where('delivery_available', true)
+                  ->orWhere('delivery_available', 1)
+                  ->orWhereNull('delivery_available');
+            })
             ->get()
             ->map(function ($r) use ($lat, $lng) {
                 $r->distance_km = ($lat && $lng && $r->latitude && $r->longitude)
@@ -64,7 +72,10 @@ class CustomerFoodController extends Controller
                 $r->cover_url = $r->cover_image ? (str_starts_with($r->cover_image, 'http') ? $r->cover_image : asset('storage/' . ltrim($r->cover_image, '/'))) : null;
                 return $r;
             })
-            ->filter(function ($r) use ($radius) {
+            ->filter(function ($r) use ($radius, $city) {
+                if ($city && $r->city && strcasecmp(trim($city), trim($r->city)) === 0) {
+                    return true;
+                }
                 if ($r->distance_km === null) {
                     return true;
                 }
@@ -214,7 +225,7 @@ class CustomerFoodController extends Controller
     public function restaurantMenu(Request $request, $id)
     {
         $restaurant = FoodRestaurant::where('id', $id)
-            ->where('onboarding_status', 'active')
+            ->whereIn('onboarding_status', ['active', 'approved', 'verified'])
             ->first();
         if (!$restaurant) {
             return response()->json(['success' => false, 'error' => 'Restaurant not found or not active.']);
@@ -223,11 +234,22 @@ class CustomerFoodController extends Controller
         $restaurant->cover_url = $restaurant->cover_image ? (str_starts_with($restaurant->cover_image, 'http') ? $restaurant->cover_image : asset('storage/' . ltrim($restaurant->cover_image, '/'))) : null;
 
         $engine = new FoodPricingEngine();
-        $categories = FoodCategory::where('restaurant_id', $restaurant->id)->where('is_active', true)->orderBy('sort_order')->get();
+        $categories = FoodCategory::where('restaurant_id', $restaurant->id)
+            ->where(function ($q) {
+                $q->where('is_active', true)->orWhere('is_active', 1)->orWhereNull('is_active');
+            })
+            ->orderBy('sort_order')
+            ->get();
         $products = FoodProduct::with(['addons', 'variants'])
             ->where('restaurant_id', $restaurant->id)
-            ->where('is_active', true)
-            ->where('availability', 'available')
+            ->where(function ($q) {
+                $q->where('is_active', true)->orWhere('is_active', 1)->orWhereNull('is_active');
+            })
+            ->where(function ($q) {
+                $q->whereIn('availability', ['available', 'in_stock', ''])
+                  ->orWhereNull('availability')
+                  ->orWhere('availability', '!=', 'out_of_stock');
+            })
             ->orderBy('sort_order')
             ->get()
             ->map(function ($p) use ($engine, $restaurant) {
@@ -251,11 +273,13 @@ class CustomerFoodController extends Controller
     public function placeOrder(Request $request)
     {
         $restaurant = FoodRestaurant::where('id', $request->get('restaurant_id'))
-            ->where('onboarding_status', 'active')
-            ->where('operational_status', 'open')
+            ->whereIn('onboarding_status', ['active', 'approved', 'verified'])
             ->first();
         if (!$restaurant) {
             return response()->json(['success' => false, 'error' => 'Restaurant not available.']);
+        }
+        if ($restaurant->operational_status === 'closed') {
+            return response()->json(['success' => false, 'error' => 'Restaurant is currently closed and not accepting orders.']);
         }
 
         $items = $request->get('items', []);

@@ -118,7 +118,7 @@ class FoodAdminController extends Controller
     {
         $restaurant = FoodRestaurant::findOrFail($id);
         $restaurant->onboarding_status = 'active';
-        $restaurant->operational_status = 'closed';
+        $restaurant->operational_status = 'open';
         $restaurant->approved_at = now();
         $restaurant->approved_by = auth()->id();
         $restaurant->rejection_reason = null;
@@ -237,7 +237,7 @@ class FoodAdminController extends Controller
             $restaurant->onboarding_fee_paid = 0;
             $restaurant->onboarding_payment_id = 'WAIVED_BY_ADMIN_' . auth()->id();
             $restaurant->onboarding_status = 'active';
-            $restaurant->operational_status = 'closed';
+            $restaurant->operational_status = 'open';
             $restaurant->approved_at = now();
             $restaurant->approved_by = auth()->id();
             $restaurant->save();
@@ -264,7 +264,7 @@ class FoodAdminController extends Controller
         $fee = (float) (optional($type)->onboarding_fee ?? 0);
         $restaurant->onboarding_fee_paid = $fee;
         $restaurant->onboarding_status = 'active';
-        $restaurant->operational_status = 'closed';
+        $restaurant->operational_status = 'open';
         $restaurant->approved_at = now();
         $restaurant->approved_by = auth()->id();
         $restaurant->rejection_reason = null;
