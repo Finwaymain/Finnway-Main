@@ -71,11 +71,16 @@
                 <p style="font-size:11px;color:var(--gray3);margin:2px 0 0;">All major Indian banks</p>
             </div>
         </label>
-    </div>
 </div>
+
+@include('finance.partials.razorpay')
+
 @endsection
 
 @section('sticky-bottom')
-<a href="{{ route('finance.virtual_loan.s04_pending', ['phone' => request('phone'), 'amount' => $amount]) }}"
-   class="fw-btn fw-btn-accent">Pay ₹{{ number_format($totalFee, 2) }} &amp; Activate →</a>
+<button type="button"
+        onclick="triggerRazorpayCheckout({ amount: {{ $totalFee }}, phone: '{{ $phone }}', application_id: '{{ $application->id ?? '' }}', next_url: '{{ route('finance.virtual_loan.s04_pending', ['phone' => request('phone'), 'amount' => $amount]) }}' })"
+        class="fw-btn fw-btn-accent">
+    Pay ₹{{ number_format($totalFee, 2) }} via Razorpay →
+</button>
 @endsection

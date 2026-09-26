@@ -9,6 +9,7 @@ use App\Models\Finance\FinanceDocumentRequest;
 use App\Models\Finance\FinanceLenderPartner;
 use App\Models\Finance\FinanceLoanApplication;
 use App\Models\Finance\FinanceLoanProduct;
+use App\Models\Finance\FinanceTransaction;
 use App\Models\Finance\FinanceWallet;
 use Illuminate\Http\Request;
 
@@ -67,22 +68,60 @@ class FinanceWebController extends Controller
         $totalRepayment = $monthlyEmi * $tenure;
         $totalInterest = max(0, $totalRepayment - $amount);
 
-        // Dynamic fee calculation (2% of amount, min 999, max 2500, unless overridden by admin)
-        $baseFee = max(999, min(2500, round($amount * 0.02, 2)));
+        // Product category resolution
+        $productCategory = $application->loan_category ?? $request->query('category', $request->query('loan_type', 'low_cibil_cash'));
+
+        // Dynamic fee resolution directly from Admin Loan Product Policy or Application Override
+        $product = null;
+        if ($application && $application->loan_product_id) {
+            $product = FinanceLoanProduct::find($application->loan_product_id);
+        }
+        if (!$product) {
+            $categoryMap = [
+                'zero_cibil' => 'zero_cibil_daily',
+                'zero_cibil_micro' => 'zero_cibil_daily',
+                'low_cibil' => 'cash_loan_low_cibil',
+                'low_cibil_cash' => 'cash_loan_low_cibil',
+                'good_cibil' => 'cash_loan_good_cibil',
+                'prime_cash' => 'cash_loan_good_cibil',
+                'virtual_loan' => 'virtual_loan',
+                'virtual_credit' => 'virtual_loan',
+                'business_loan' => 'business_loan',
+                'business_msme' => 'business_loan',
+                'student_credit' => 'student_credit_domestic',
+            ];
+            $targetCode = $categoryMap[$productCategory] ?? $productCategory;
+            $product = FinanceLoanProduct::where('code', $targetCode)
+                ->orWhere('category', $productCategory)
+                ->first();
+        }
+
+        $baseFee = 999.0;
         if ($application && $application->processing_fee_base > 0) {
             $baseFee = floatval($application->processing_fee_base);
+        } elseif ($application && $application->processing_fee_amount > 0) {
+            $baseFee = floatval($application->processing_fee_amount);
+        } elseif ($product) {
+            if ($product->processing_fee_type === 'percentage') {
+                $baseFee = round($amount * (floatval($product->processing_fee_value) / 100), 2);
+            } else {
+                $baseFee = floatval($product->processing_fee_value);
+            }
+        } else {
+            $baseFee = max(999, min(2500, round($amount * 0.02, 2)));
         }
+
         $feeTax = round($baseFee * 0.18, 2);
         $totalFee = $baseFee + $feeTax;
 
-        // Product category & Lender existence check: Flow A has lender, Flow B does NOT have lender
-        $productCategory = $application->loan_category ?? $request->query('category', 'low_cibil_cash');
+        // Flow A has lender, Flow B does NOT have lender
         $hasLender = in_array($productCategory, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
 
         return [
             'customer' => $customer,
             'phone' => $phone,
             'application' => $application,
+            'product' => $product,
             'amount' => $amount,
             'tenure' => $tenure,
             'loanType' => $loanType,
@@ -261,6 +300,30 @@ class FinanceWebController extends Controller
             return redirect()->route('finance.cash_loan.s06_emi', $queryParams);
         }
 
+        if ($step === 's07') {
+            $docTypes = ['pan_card', 'aadhaar_front', 'aadhaar_back', 'address_proof', 'income_proof'];
+            foreach ($docTypes as $docType) {
+                if ($request->hasFile($docType) && $customer) {
+                    $file = $request->file($docType);
+                    $path = $file->store('finance_docs', 'public');
+                    FinanceDocument::updateOrCreate(
+                        [
+                            'customer_id' => $customer->id,
+                            'document_type' => $docType,
+                        ],
+                        [
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+            }
+            $queryParams['amount'] = $application ? $application->requested_amount : 25000;
+            $queryParams['tenure'] = $application ? $application->tenure_months : 12;
+            return redirect()->route('finance.cash_loan.s08_ready', $queryParams);
+        }
+
         if ($step === 's09') {
             if ($application) {
                 $application->update([
@@ -273,6 +336,134 @@ class FinanceWebController extends Controller
         }
 
         return redirect()->route('finance.hub', $queryParams);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ZERO-CIBIL & FEE PAYMENT HANDLERS
+    // ─────────────────────────────────────────────────────────────
+
+    public function saveZeroCibilKyc(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $name = $request->input('applicant_name', 'Customer');
+        $pan = strtoupper($request->input('pan_number', ''));
+        $aadhaar = $request->input('aadhaar_number', '');
+
+        $customer = null;
+        if ($phone) {
+            $customer = FinanceCustomer::firstOrCreate(
+                ['phone' => $phone],
+                [
+                    'name' => $name,
+                    'pan' => $pan,
+                    'aadhaar' => $aadhaar,
+                    'user_type' => 'customer',
+                    'status' => 'active',
+                ]
+            );
+            $customer->update([
+                'name' => $name,
+                'pan' => $pan,
+                'aadhaar' => $aadhaar,
+            ]);
+
+            $docTypes = ['aadhaar_front', 'aadhaar_back', 'pan_card'];
+            foreach ($docTypes as $dt) {
+                if ($request->hasFile($dt)) {
+                    $file = $request->file($dt);
+                    $path = $file->store('finance_docs', 'public');
+                    FinanceDocument::updateOrCreate(
+                        [
+                            'customer_id' => $customer->id,
+                            'document_type' => $dt,
+                        ],
+                        [
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+            }
+        }
+
+        return redirect()->route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]);
+    }
+
+    public function saveZeroCibilAmount(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $amount = floatval($request->input('amount', 25000));
+        if ($amount <= 0) $amount = 25000;
+
+        $customer = $phone ? FinanceCustomer::where('phone', $phone)->first() : null;
+        if ($customer) {
+            $product = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
+            $baseFee = $product ? floatval($product->processing_fee_value) : 2500.00;
+            $tax = round($baseFee * 0.18, 2);
+
+            FinanceLoanApplication::create([
+                'customer_id' => $customer->id,
+                'loan_product_id' => $product->id ?? 1,
+                'application_number' => 'FIIN-ZC-' . strtoupper(uniqid()),
+                'applicant_name' => $customer->name ?? 'Applicant',
+                'applicant_phone' => $customer->phone,
+                'loan_category' => 'zero_cibil_micro',
+                'requested_amount' => $amount,
+                'tenure_months' => 1,
+                'application_status' => 'DRAFT',
+                'partner_lock_status' => 'unlocked',
+                'processing_fee_base' => $baseFee,
+                'processing_fee_tax' => $tax,
+                'processing_fee_total' => $baseFee + $tax,
+                'fee_payment_status' => 'pending',
+            ]);
+        }
+
+        return redirect()->route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]);
+    }
+
+    public function verifyFeePayment(Request $request)
+    {
+        $phone = $request->input('phone');
+        $paymentId = $request->input('payment_id', $request->input('razorpay_payment_id', 'PAY-' . time()));
+        $amount = floatval($request->input('amount', 0));
+        $nextUrl = $request->input('next_url');
+
+        $customer = $phone ? FinanceCustomer::where('phone', $phone)->first() : null;
+        $application = null;
+        if ($customer) {
+            $application = FinanceLoanApplication::where('customer_id', $customer->id)->latest('id')->first();
+        }
+
+        if ($application) {
+            $application->update([
+                'fee_payment_status' => 'paid',
+                'processing_fee_status' => 'paid',
+                'processing_fee_payment_method' => 'razorpay',
+                'processing_fee_txn_id' => $paymentId,
+                'application_status' => 'UNDERWRITING',
+            ]);
+
+            FinanceTransaction::create([
+                'customer_id' => $customer->id,
+                'application_id' => $application->id,
+                'txn_number' => $paymentId,
+                'txn_type' => 'fee_payment',
+                'amount' => $application->processing_fee_total ?: $amount,
+                'direction' => 'debit',
+                'payment_method' => 'razorpay',
+                'payment_gateway_ref' => $paymentId,
+                'status' => 'success',
+                'notes' => 'Razorpay Fee Payment verified for ' . $application->application_number,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Processing fee payment verified successfully.',
+            'redirect' => $nextUrl,
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -347,6 +538,13 @@ class FinanceWebController extends Controller
             $customer = FinanceCustomer::where('phone', $phone)->first();
             if ($customer) {
                 $wallet = FinanceWallet::where('customer_id', $customer->id)->where('status', 'active')->first();
+                $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                    ->where('loan_category', 'zero_cibil_micro')
+                    ->latest('id')
+                    ->first();
+                if (!$wallet && (!$application || !in_array($application->application_status, ['LOAN_APPROVED', 'DISBURSED']))) {
+                    return redirect()->route('finance.zero_cibil.s05_pending', ['phone' => $phone]);
+                }
             }
         }
         return view('finance.zero_cibil.s06_wallet_active', array_merge($this->resolveContext($request), ['wallet' => $wallet]));

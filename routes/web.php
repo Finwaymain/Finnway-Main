@@ -1398,8 +1398,13 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/final-status',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanFinalStatus'])->name('s20_final_status');
     });
 
+    // Shared Fee Payment Verification
+    Route::post('/fee-payment/verify', [\App\Http\Controllers\Finance\FinanceWebController::class, 'verifyFeePayment'])->name('verify_fee_payment');
+
     // Zero-CIBIL (7 screens)
     Route::prefix('zero-cibil')->name('zero_cibil.')->group(function () {
+        Route::post('/save-kyc',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveZeroCibilKyc'])->name('save_kyc');
+        Route::post('/save-amount',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveZeroCibilAmount'])->name('save_amount');
         Route::get('/intro',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilIntro'])->name('s01_intro');
         Route::get('/kyc',           [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilKyc'])->name('s02_kyc');
         Route::get('/amount-select', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilAmountSelect'])->name('s03_amount_select');

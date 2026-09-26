@@ -27,19 +27,19 @@
         <ul style="list-style:none; padding:0; margin:0; font-size:14px;">
             <li class="d-flex justify-content-between mb-2 pb-1">
                 <span class="text-muted">Indicative Loan Amount</span>
-                <strong>₹ 2,00,000</strong>
+                <strong>₹ {{ number_format($amount) }}</strong>
             </li>
             <li class="d-flex justify-content-between mb-2 pb-1">
                 <span class="text-muted">Selected Tenure</span>
-                <strong>18 Months</strong>
+                <strong>{{ $tenure }} Months</strong>
             </li>
             <li class="d-flex justify-content-between mb-2 pb-1">
                 <span class="text-muted">Estimated EMI</span>
-                <strong>₹ 11,900 - ₹ 12,500</strong>
+                <strong>₹ {{ number_format($emi) }} / mo</strong>
             </li>
             <li class="d-flex justify-content-between mb-1 pb-1" style="border-top:1px dashed #ccc; padding-top:10px; margin-top:5px;">
                 <span class="text-muted">Processing Fee</span>
-                <strong>Applicable</strong>
+                <strong>₹ {{ number_format($totalFee, 2) }}</strong>
             </li>
         </ul>
     </div>
@@ -52,6 +52,6 @@
 
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s09_fee_payment', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">Proceed to Fee Payment</a>
+    <a href="{{ route('finance.cash_loan.s09_fee_payment', ['phone' => request('phone'), 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">Proceed to Fee Payment (₹{{ number_format($totalFee, 2) }}) →</a>
 </div>
 @endsection

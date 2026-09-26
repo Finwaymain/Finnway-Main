@@ -90,9 +90,15 @@
         </label>
     </div>
 </div>
+
+@include('finance.partials.razorpay')
+
 @endsection
 
 @section('sticky-bottom')
-<a href="{{ route('finance.student_credit.s04_pending', ['phone' => request('phone')]) }}"
-   class="fw-btn fw-btn-accent">Pay Now &amp; Continue →</a>
+<button type="button"
+        onclick="triggerRazorpayCheckout({ amount: {{ $totalFee }}, phone: '{{ $phone }}', application_id: '{{ $application->id ?? '' }}', next_url: '{{ route('finance.student_credit.s04_pending', ['phone' => request('phone'), 'amount' => $amount]) }}' })"
+        class="fw-btn fw-btn-accent">
+    Pay ₹{{ number_format($totalFee, 2) }} via Razorpay →
+</button>
 @endsection

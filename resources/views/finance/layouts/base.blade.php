@@ -29,26 +29,26 @@
         /* Header */
         .fw-header {
             background: var(--navy);
-            padding: env(safe-area-inset-top, 0px) 16px 0;
-            min-height: calc(64px + env(safe-area-inset-top, 0px));
+            padding: 6px 14px;
+            min-height: 42px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
         }
-        .fw-header-brand { display: flex; align-items: center; gap: 10px; }
-        .fw-header-logo { color: var(--white); font-size: 19px; font-weight: 800; letter-spacing: 0.5px; }
+        .fw-header-brand { display: flex; align-items: center; gap: 8px; }
+        .fw-header-logo { color: var(--white); font-size: 15px; font-weight: 800; letter-spacing: 0.3px; }
         .fw-header-logo span { color: var(--accent); }
-        .fw-header-sub { color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 1px; }
+        .fw-header-sub { color: #94a3b8; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* Progress bar */
-        .fw-progress { background: var(--navy2); padding: 10px 18px; border-bottom: 1px solid var(--slate); }
-        .fw-progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .fw-progress-label span { color: var(--gray2); font-size: 12px; font-weight: 600; }
-        .fw-progress-track { height: 5px; background: var(--slate); border-radius: 4px; overflow: hidden; }
+        .fw-progress { background: var(--navy2); padding: 5px 14px; border-bottom: 1px solid var(--slate); }
+        .fw-progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+        .fw-progress-label span { color: var(--gray2); font-size: 11px; font-weight: 600; }
+        .fw-progress-track { height: 4px; background: var(--slate); border-radius: 4px; overflow: hidden; }
         .fw-progress-fill { height: 100%; background: linear-gradient(90deg, #1a5fa8, #1976d2); border-radius: 4px; transition: width 0.3s ease; }
 
         /* Back link */
@@ -136,14 +136,37 @@
         .fw-alert-error { background: #fef2f2; border-left: 4px solid var(--red); color: #991b1b; }
 
         /* Upload area */
-        .fw-upload-box { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 22px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s; }
+        .fw-upload-box {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 16px 14px;
+            text-align: center;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
         .fw-upload-box:hover { border-color: var(--blue); background: #f0f7ff; }
         .fw-upload-box input[type=file] { display: none; }
-        .fw-upload-box .fw-upload-icon { font-size: 30px; color: #64748b; margin-bottom: 6px; }
-        .fw-upload-box p { font-size: 13px; color: #64748b; }
-        .fw-upload-box strong { font-size: 14px; color: var(--navy); display: block; margin-bottom: 4px; }
-        .fw-upload-done { border-color: var(--green); background: #ecfdf5; }
+        .fw-upload-box .fw-upload-icon { font-size: 24px; color: #64748b; margin-bottom: 4px; }
+        .fw-upload-box p { font-size: 12px; color: #64748b; margin: 0; }
+        .fw-upload-box strong { font-size: 13px; color: var(--navy); display: block; margin-bottom: 2px; }
+        .fw-upload-done { border-color: var(--green); background: #ecfdf5; border-style: solid; }
         .fw-upload-done p { color: var(--green); }
+        .fw-preview-thumb { width: 68px; height: 68px; border-radius: 8px; object-fit: cover; border: 2px solid var(--green); margin: 8px auto 4px; display: block; }
+
+        /* Wallet stats */
+        .fw-wallet-stats {
+            background: #0f172a;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 16px;
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+        }
 
         /* Doc list */
         .fw-doc-item { display: flex; align-items: center; justify-content: space-between; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: var(--white); box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
