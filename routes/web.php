@@ -1296,6 +1296,7 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::get('/applications/{id}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'applicationDetails'])->name('application-details');
     Route::post('/documents/{id}/review', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'reviewDocument'])->name('document-review');
     Route::post('/applications/{id}/status', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'updateApplicationStatus'])->name('application-status');
+    Route::post('/applications/{id}/request-document', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'requestDocument'])->name('applications.request-document');
     Route::get('/lenders', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'lenderPartners'])->name('lenders');
     Route::post('/lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveLenderPartner'])->name('lenders.save');
     Route::get('/recovery', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'recoveryCenter'])->name('recovery');
@@ -1303,3 +1304,97 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
 });
 
 
+
+// ── Finance Portal (User-Facing WebView) ────────────────────────────────────
+Route::prefix('finance')->name('finance.')->group(function () {
+
+    // Hub
+    Route::get('/', [\App\Http\Controllers\Finance\FinanceWebController::class, 'hub'])->name('hub');
+
+    // Cash Loan (26 screens)
+    Route::prefix('cash-loan')->name('cash_loan.')->group(function () {
+        Route::get('/apply',             [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApply'])->name('s01_apply');
+        Route::get('/type-consent',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanTypeConsent'])->name('s02_type_consent');
+        Route::get('/applicant-details', [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApplicantDetails'])->name('s03_applicant_details');
+        Route::get('/eligibility',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanEligibility'])->name('s04_eligibility');
+        Route::get('/amount-tenure',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAmountTenure'])->name('s05_amount_tenure');
+        Route::get('/emi',               [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanEmi'])->name('s06_emi');
+        Route::get('/documents',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDocuments'])->name('s07_documents');
+        Route::get('/ready-processing',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanReadyProcessing'])->name('s08_ready_processing');
+        Route::get('/fee-payment',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanFeePayment'])->name('s09_fee_payment');
+        Route::get('/application-gen',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApplicationGen'])->name('s10_application_gen');
+        Route::get('/partner-dashboard', [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanPartnerDashboard'])->name('s11_partner_dashboard');
+        Route::get('/partner-verify',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanPartnerVerify'])->name('s12_partner_verify');
+        Route::get('/partner-redirect',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanPartnerRedirect'])->name('s13_partner_redirect');
+        Route::get('/lender-webview',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanLenderWebview'])->name('s14_lender_webview');
+        Route::get('/proof-upload',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanProofUpload'])->name('s15_proof_upload');
+        Route::get('/validation',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanValidation'])->name('s16_validation');
+        Route::get('/selfie-agent',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanSelfieAgent'])->name('s17_selfie_agent');
+        Route::get('/tracking',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanTracking'])->name('s18_tracking');
+        Route::get('/lender-review',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanLenderReview'])->name('s19_lender_review');
+        Route::get('/processing-window', [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanProcessingWindow'])->name('s20_processing_window');
+        Route::get('/approved',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApproved'])->name('s21_approved');
+        Route::get('/bank-details',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanBankDetails'])->name('s22_bank_details');
+        Route::get('/disbursement',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDisbursement'])->name('s23_disbursement');
+        Route::get('/additional-docs',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAdditionalDocs'])->name('s24_additional_docs');
+        Route::get('/docs-submitted',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDocsSubmitted'])->name('s25_docs_submitted');
+        Route::get('/final-result',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanFinalResult'])->name('s26_final_result');
+    });
+
+    // Business Loan (20 screens)
+    Route::prefix('business-loan')->name('business_loan.')->group(function () {
+        Route::get('/apply',             [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApply'])->name('s01_apply');
+        Route::get('/business-details',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanDetails'])->name('s02_business_details');
+        Route::get('/loan-requirement',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanRequirement'])->name('s03_loan_requirement');
+        Route::get('/eligibility',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanEligibility'])->name('s04_eligibility');
+        Route::get('/amount-tenure',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanAmountTenure'])->name('s05_amount_tenure');
+        Route::get('/emi',               [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanEmi'])->name('s06_emi');
+        Route::get('/documents',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanDocuments'])->name('s07_documents');
+        Route::get('/verification',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanVerification'])->name('s08_verification');
+        Route::get('/ready-processing',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanReadyProcessing'])->name('s09_ready_processing');
+        Route::get('/fee-payment',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanFeePayment'])->name('s10_fee_payment');
+        Route::get('/application-gen',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApplicationGen'])->name('s11_application_gen');
+        Route::get('/partner-dashboard', [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanPartnerDashboard'])->name('s12_partner_dashboard');
+        Route::get('/partner-select',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanPartnerSelect'])->name('s13_partner_select');
+        Route::get('/lender-webview',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanLenderWebview'])->name('s14_lender_webview');
+        Route::get('/lender-processing', [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanLenderProcessing'])->name('s15_lender_processing');
+        Route::get('/additional-docs',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanAdditionalDocs'])->name('s16_additional_docs');
+        Route::get('/approved',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApproved'])->name('s17_approved');
+        Route::get('/bank-details',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanBankDetails'])->name('s18_bank_details');
+        Route::get('/disbursement',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanDisbursement'])->name('s19_disbursement');
+        Route::get('/final-status',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanFinalStatus'])->name('s20_final_status');
+    });
+
+    // Zero-CIBIL (7 screens)
+    Route::prefix('zero-cibil')->name('zero_cibil.')->group(function () {
+        Route::get('/intro',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilIntro'])->name('s01_intro');
+        Route::get('/kyc',           [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilKyc'])->name('s02_kyc');
+        Route::get('/amount-select', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilAmountSelect'])->name('s03_amount_select');
+        Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilFeePayment'])->name('s04_fee_payment');
+        Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilPending'])->name('s05_pending');
+        Route::get('/wallet-active', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilWalletActive'])->name('s06_wallet_active');
+        Route::get('/qr-pay',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilQrPay'])->name('s07_qr_pay');
+    });
+
+    // Virtual Loan (5 screens)
+    Route::prefix('virtual-loan')->name('virtual_loan.')->group(function () {
+        Route::get('/apply',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanApply'])->name('s01_apply');
+        Route::get('/kyc',           [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanKyc'])->name('s02_kyc');
+        Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanFeePayment'])->name('s03_fee_payment');
+        Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanPending'])->name('s04_pending');
+        Route::get('/dashboard',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanDashboard'])->name('s05_dashboard');
+    });
+
+    // Student Credit (9 screens)
+    Route::prefix('student-credit')->name('student_credit.')->group(function () {
+        Route::get('/apply',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditApply'])->name('s01_apply');
+        Route::get('/kyc',            [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditKyc'])->name('s02_kyc');
+        Route::get('/fee-payment',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditFeePayment'])->name('s03_fee_payment');
+        Route::get('/pending',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditPending'])->name('s04_pending');
+        Route::get('/additional-docs',[\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditAdditionalDocs'])->name('s05_additional_docs');
+        Route::get('/mgmt-approval',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditMgmtApproval'])->name('s06_mgmt_approval');
+        Route::get('/approved',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditApproved'])->name('s07_approved');
+        Route::get('/dashboard',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditDashboard'])->name('s08_dashboard');
+        Route::get('/qr-pay',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditQrPay'])->name('s09_qr_pay');
+    });
+});

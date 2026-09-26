@@ -209,6 +209,56 @@
                         </button>
                     </form>
                 </div>
+
+                <!-- Document Request Console (Disbursement Stage Bank Docs) -->
+                <div class="card border-0 p-4 mt-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+                    <h5 class="mb-2" style="font-size: 16px; font-weight: 700; color: #0f172a;">Request Documents</h5>
+                    <p style="font-size: 12px; color: #64748b; margin-bottom: 14px;">
+                        Request bank passbook, statement, or cancelled cheque from borrower at disbursement stage.
+                    </p>
+
+                    <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
+                        @csrf
+                        <div class="mb-3">
+                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Document Type</label>
+                            <select name="document_type" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
+                                <option value="bank_passbook">Bank Passbook (First Page with Account & IFSC)</option>
+                                <option value="bank_statement">Bank Statement (Last 6 Months)</option>
+                                <option value="cancelled_cheque">Cancelled Cheque</option>
+                                <option value="salary_slips">Salary Slips (Recent)</option>
+                                <option value="gst_certificate">GST Certificate</option>
+                                <option value="bonafide_certificate">Bonafide / Enrollment Certificate</option>
+                                <option value="other">Other Supporting Document</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Request Reason / Instructions</label>
+                            <textarea name="admin_remark" rows="2" class="form-control form-control-sm" placeholder="Please upload bank passbook or statement to confirm disbursement bank account..." style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-sm w-100" style="background: #1a5fa8; color: #ffffff; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 10px;">
+                            📩 Send Document Request
+                        </button>
+                    </form>
+
+                    @if($application->documentRequests && $application->documentRequests->count() > 0)
+                    <div class="mt-3 pt-3" style="border-top: 1px solid #e2e8f0;">
+                        <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">Requested Documents</div>
+                        @foreach($application->documentRequests as $req)
+                        <div class="p-2 mb-2" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px;">
+                            <div class="d-flex justify-content-between">
+                                <strong style="color: #0f172a;">{{ is_array($req->requested_documents) ? implode(', ', $req->requested_documents) : $req->requested_documents }}</strong>
+                                <span class="badge" style="background: {{ $req->status === 'verified' ? '#ecfdf5' : '#fef3c7' }}; color: {{ $req->status === 'verified' ? '#065f46' : '#92400e' }};">
+                                    {{ ucfirst($req->status) }}
+                                </span>
+                            </div>
+                            <div style="color: #64748b; margin-top: 2px;">{{ $req->admin_remark }}</div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @endif
+                </div>
             </div>
         </div>
 

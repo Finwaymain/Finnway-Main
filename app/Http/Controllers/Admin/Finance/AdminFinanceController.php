@@ -220,4 +220,33 @@ class AdminFinanceController extends Controller
 
         return back()->with('error', 'Virtual credit wallet not found.');
     }
+
+    public function requestDocument(Request $request, $id)
+    {
+        $application = FinanceLoanApplication::findOrFail($id);
+
+        $request->validate([
+            'document_type' => 'required',
+            'admin_remark' => 'nullable|string',
+        ]);
+
+        $docTypes = is_array($request->input('document_type'))
+            ? $request->input('document_type')
+            : [$request->input('document_type')];
+
+        FinanceDocumentRequest::create([
+            'customer_id' => $application->customer_id,
+            'application_id' => $application->id,
+            'requested_documents' => $docTypes,
+            'admin_remark' => $request->input('admin_remark', 'Disbursement stage verification document requested by administration.'),
+            'status' => 'pending',
+            'created_by' => auth()->id() ?? 1,
+        ]);
+
+        $application->application_status = 'ADDITIONAL_DOCS_REQUESTED';
+        $application->save();
+
+        return back()->with('success', 'Document request sent to applicant successfully.');
+    }
 }
+
