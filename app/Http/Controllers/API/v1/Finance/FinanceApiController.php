@@ -27,7 +27,7 @@ class FinanceApiController extends Controller
      */
     protected function resolveCustomer(Request $request): ?FinanceCustomer
     {
-        $rawPhone = $request->input('phone', $request->input('mobile', $request->query('phone', $request->query('mobile'))));
+        $rawPhone = $request->input('phone', $request->input('mobile', $request->input('applicant_phone', $request->query('phone', $request->query('mobile')))));
         $userType = strtolower($request->input('user_type', $request->query('user_type', 'customer')));
         $userId = $request->input('user_id', $request->query('user_id'));
         $driverId = $request->input('driver_id', $request->query('driver_id'));
@@ -298,14 +298,18 @@ class FinanceApiController extends Controller
             $inputPhone = $request->input('applicant_phone', $request->input('phone', $request->input('mobile')));
             $normalizedPhone = PhoneService::normalize((string) $inputPhone);
             if (!empty($normalizedPhone)) {
-                $customer = FinanceCustomer::create([
-                    'user_type' => $request->input('user_type', 'customer'),
-                    'phone' => $normalizedPhone,
-                    'name' => $request->input('applicant_name', 'Valued Customer'),
-                    'pan' => $request->input('pan') ? strtoupper($request->input('pan')) : null,
-                    'account_status' => 'active',
-                    'kyc_status' => 'pending',
-                ]);
+                $variants = PhoneService::getVariants($normalizedPhone);
+                $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+                if (!$customer) {
+                    $customer = FinanceCustomer::create([
+                        'user_type' => $request->input('user_type', 'customer'),
+                        'phone' => $normalizedPhone,
+                        'name' => $request->input('applicant_name', 'Valued Customer'),
+                        'pan' => $request->input('pan') ? strtoupper($request->input('pan')) : null,
+                        'account_status' => 'active',
+                        'kyc_status' => 'pending',
+                    ]);
+                }
             }
         }
 
@@ -960,11 +964,12 @@ class FinanceApiController extends Controller
         }
 
         $uploadedPaths = [];
+        $docType = is_array($docRequest->requested_documents) ? ($docRequest->requested_documents[0] ?? 'additional_doc') : ($docRequest->document_type ?? 'additional_doc');
         foreach ($request->file('files') as $file) {
             $path = $file->store('finance/additional-docs/' . $customer->id, 'public');
             FinanceDocument::create([
                 'customer_id'    => $customer->id,
-                'document_type'  => $docRequest->document_type,
+                'document_type'  => $docType,
                 'file_path'      => $path,
                 'file_name'      => $file->getClientOriginalName(),
                 'status'         => 'pending',
@@ -974,7 +979,6 @@ class FinanceApiController extends Controller
         }
 
         $docRequest->status = 'submitted';
-        $docRequest->submitted_at = now();
         $docRequest->save();
 
         return response()->json([

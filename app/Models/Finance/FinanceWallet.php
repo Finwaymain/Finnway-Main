@@ -48,4 +48,9 @@ class FinanceWallet extends Model
         $remainingToday = max(0, $this->daily_usage_limit - $this->used_today);
         return $amount <= $remainingToday;
     }
+
+    public function getCreditLimitAttribute() { return $this->approved_limit; }
+    public function getAvailableLimitAttribute() { return $this->available_balance; }
+    public function getDailyLimitAttribute() { return $this->daily_usage_limit; }
+    public function getUsedLimitAttribute() { return $this->used_amount; }
 }
