@@ -1335,6 +1335,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
 
     // Cash Loan (26 screens)
     Route::prefix('cash-loan')->name('cash_loan.')->group(function () {
+        Route::post('/save-step',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveCashLoanStep'])->name('save_step');
         Route::get('/apply',             [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApply'])->name('s01_apply');
         Route::get('/type-consent',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanTypeConsent'])->name('s02_type_consent');
         Route::get('/applicant-details', [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApplicantDetails'])->name('s03_applicant_details');

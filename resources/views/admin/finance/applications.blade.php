@@ -108,12 +108,21 @@
                                 @endif
                             </td>
                             <td style="padding: 12px 16px;">
-                                @if($app->lender)
-                                    <span class="badge" style="background: #f1f5f9; color: #0f172a; font-weight: 600; border: 1px solid #cbd5e1;">
-                                        🔒 {{ $app->lender->name }}
-                                    </span>
+                                @php
+                                    $isExternalLender = in_array($app->loan_category, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
+                                @endphp
+                                @if($isExternalLender)
+                                    @if($app->lender)
+                                        <span class="badge" style="background: #f1f5f9; color: #0f172a; font-weight: 600; border: 1px solid #cbd5e1;">
+                                            🔒 {{ $app->lender->name }}
+                                        </span>
+                                    @else
+                                        <span class="badge" style="background: #eff6ff; color: #1e40af; font-size: 11px;">External Lender</span>
+                                    @endif
                                 @else
-                                    <span style="color: #94a3b8; font-size: 12px;">None</span>
+                                    <span class="badge" style="background: #ecfdf5; color: #065f46; font-size: 11px; border: 1px solid #a7f3d0;">
+                                        ⚡ Direct Credit (No Lender)
+                                    </span>
                                 @endif
                             </td>
                             <td style="padding: 12px 16px; font-size: 12px;">

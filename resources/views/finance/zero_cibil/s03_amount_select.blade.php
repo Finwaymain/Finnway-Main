@@ -59,38 +59,56 @@
     <p style="font-size:11px; color:var(--gray3)">Min ₹20,000 · Max ₹2,00,000</p>
 </div>
 
-<input type="hidden" id="chosen-amount" name="loan_amount" value="">
+<input type="hidden" id="chosen-amount" name="loan_amount" value="{{ $amount }}">
 
 @endsection
 
 @section('sticky-bottom')
-<a href="{{ route('finance.zero_cibil.s04_fee_payment', ['phone' => request('phone')]) }}"
-   class="fw-btn fw-btn-primary" id="continue-btn">Continue →</a>
+<a href="{{ route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]) }}"
+   class="fw-btn fw-btn-primary" id="continue-btn">Continue &rarr;</a>
 @endsection
 
 @push('scripts')
 <script>
-var selected = null;
+var baseRoute = "{{ route('finance.zero_cibil.s04_fee_payment') }}";
+var userPhone = "{{ $phone }}";
+
+function updateContinueUrl(val) {
+    var btn = document.getElementById('continue-btn');
+    if (btn) {
+        btn.href = baseRoute + '?phone=' + encodeURIComponent(userPhone) + '&amount=' + encodeURIComponent(val);
+    }
+}
 
 function selectChip(el) {
     document.querySelectorAll('#amount-chips .fw-tenure-chip').forEach(function(c){
         c.classList.remove('active');
+        c.style.borderColor = 'var(--gray2)';
+        c.style.background = 'var(--white)';
+        c.style.color = 'var(--navy)';
     });
     el.classList.add('active');
-    selected = el.dataset.val;
+    el.style.borderColor = 'var(--blue2)';
+    el.style.background = '#ddeeff';
+    el.style.color = 'var(--blue)';
+    var val = el.dataset.val;
     document.getElementById('custom-amount').value = '';
-    document.getElementById('chosen-amount').value = selected;
+    document.getElementById('chosen-amount').value = val;
     showSelected(el.textContent.trim());
+    updateContinueUrl(val);
 }
 
 function selectCustom(val) {
     document.querySelectorAll('#amount-chips .fw-tenure-chip').forEach(function(c){
         c.classList.remove('active');
+        c.style.borderColor = 'var(--gray2)';
+        c.style.background = 'var(--white)';
+        c.style.color = 'var(--navy)';
     });
-    selected = val;
     document.getElementById('chosen-amount').value = val;
     if (val >= 20000 && val <= 200000) {
         showSelected('₹' + Number(val).toLocaleString('en-IN'));
+        updateContinueUrl(val);
     } else {
         document.getElementById('selected-display').style.display = 'none';
     }

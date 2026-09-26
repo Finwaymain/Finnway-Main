@@ -4,46 +4,61 @@
 
 @section('progress')
 <div class="fw-progress">
-    <div class="fw-progress-label"><span style="float:left;">Step 8 of 12</span><span style="float:right;">66%</span><div style="clear:both;"></div></div>
-    <div class="fw-progress-track" style="background:#e0e0e0; height:6px; border-radius:3px; margin-top:5px;"><div class="fw-progress-fill" style="width:66%; background:#002147; height:100%; border-radius:3px;"></div></div>
+    <div class="fw-progress-label"><span>Step 8 of 12</span><span>66%</span></div>
+    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:66%;"></div></div>
 </div>
 @endsection
 
 @section('back')
-<a href="{{ route('finance.cash_loan.s08_ready', ['phone' => request('phone')]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s08_ready', ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-back">← Back</a>
 @endsection
 
 @section('content')
-<div class="fw-card mt-3 mb-4">
-    <h3 class="fw-h3 mb-3">Processing Fee Payment</h3>
-    <p class="text-muted small mb-4">Complete your payment to activate the loan processing dashboard.</p>
-    
-    <div class="p-3 border rounded mb-4" style="background:#fff;">
-        <h5 style="color:#002147; font-size:16px; margin-bottom:15px; font-weight:600;">Loan Processing Service</h5>
-        
-        <div class="d-flex justify-content-between mb-3 text-muted" style="font-size:14px;">
-            <span>Processing Fee</span>
-            <span>₹ {{ $ctx['fee'] ?? '1,499.00' }}</span>
-        </div>
-        <div class="d-flex justify-content-between mb-3 text-muted" style="font-size:14px;">
-            <span>Applicable Tax (GST @ 18%)</span>
-            <span>₹ {{ $ctx['tax'] ?? '269.82' }}</span>
-        </div>
-        <div class="d-flex justify-content-between pt-3 mt-2" style="border-top:1px dashed #ccc; font-weight:bold; font-size:18px; color:#002147;">
-            <span>Total Payable</span>
-            <span>₹ {{ $ctx['total'] ?? '1,768.82' }}</span>
-        </div>
-    </div>
+<form id="feeForm" method="POST" action="{{ route('finance.cash_loan.save_step') }}">
+    @csrf
+    <input type="hidden" name="step" value="s09">
+    <input type="hidden" name="phone" value="{{ $phone }}">
+    <input type="hidden" name="amount" value="{{ $amount }}">
+    <input type="hidden" name="tenure" value="{{ $tenure }}">
 
-    <div class="p-3 rounded" style="background:#f8f9fa; border:1px solid #eee; text-align:center;">
-        <span class="small text-muted d-block mb-2">Secure payment powered by Razorpay</span>
-        <div style="color:#ccc; font-size:24px;">&#128274;</div>
+    <div class="fw-card mt-2 mb-4">
+        <h3 class="fw-section-title mb-1">Underwriting & Processing Fee</h3>
+        <p class="fw-section-sub">Payment activates your partner loan underwriting and verification dossier.</p>
+        
+        <div class="p-3 border rounded mb-4" style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1.5px solid #f1f5f9; padding-bottom:10px;">
+                <span style="color:var(--navy); font-size:15px; font-weight:700;">Loan Amount</span>
+                <span style="color:var(--blue); font-size:16px; font-weight:800;">₹ {{ number_format($amount) }}</span>
+            </div>
+            
+            <div class="d-flex justify-content-between mb-3 text-muted" style="font-size:14px;">
+                <span>Base Processing Fee (2%)</span>
+                <span style="font-weight:600; color:var(--navy);">₹ {{ number_format($baseFee, 2) }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-3 text-muted" style="font-size:14px;">
+                <span>Mandatory Tax (GST @ 18%)</span>
+                <span style="font-weight:600; color:var(--navy);">₹ {{ number_format($feeTax, 2) }}</span>
+            </div>
+            <div class="d-flex justify-content-between pt-3 mt-2" style="border-top:1.5px dashed #cbd5e1; font-weight:800; font-size:18px; color:var(--navy);">
+                <span>Total Amount Due</span>
+                <span style="color:var(--blue);">₹ {{ number_format($totalFee, 2) }}</span>
+            </div>
+        </div>
+
+        <div class="p-3 rounded" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; text-align:center;">
+            <div style="font-size:18px; margin-bottom:4px;">🔒</div>
+            <span class="small text-muted d-block" style="font-size:12px; font-weight:500;">
+                256-bit encrypted checkout via Razorpay Payment Gateway
+            </span>
+        </div>
     </div>
-</div>
+</form>
 @endsection
 
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s10_app_generated', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">Pay Now</a>
+    <button type="submit" form="feeForm" class="fw-btn fw-btn-primary">
+        Pay ₹ {{ number_format($totalFee, 2) }} & Proceed &rarr;
+    </button>
 </div>
 @endsection

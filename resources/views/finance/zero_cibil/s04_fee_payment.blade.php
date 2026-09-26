@@ -19,24 +19,24 @@
     <div class="fw-card-title">Fee Breakdown</div>
     <div class="fw-info-row">
         <span class="fw-info-label">Requested Credit Limit</span>
-        <span class="fw-info-value">{{ $ctx['amount_display'] ?? '—' }}</span>
+        <span class="fw-info-value">₹{{ number_format($amount) }}</span>
     </div>
     <div class="fw-info-row">
         <span class="fw-info-label">Processing / Admin Fee</span>
-        <span class="fw-info-value">As Applicable</span>
+        <span class="fw-info-value">₹{{ number_format($baseFee, 2) }}</span>
     </div>
     <div class="fw-info-row">
-        <span class="fw-info-label">GST</span>
-        <span class="fw-info-value">As Applicable</span>
+        <span class="fw-info-label">GST (18%)</span>
+        <span class="fw-info-value">₹{{ number_format($feeTax, 2) }}</span>
     </div>
     <div class="fw-info-row" style="margin-top:4px; padding-top:12px; border-top:2px solid var(--gray2); border-bottom:none">
         <span class="fw-info-label" style="font-weight:700; color:var(--navy)">Total Payable</span>
-        <span class="fw-info-value" style="font-size:17px; color:var(--blue)">As Applicable</span>
+        <span class="fw-info-value" style="font-size:17px; color:var(--blue)">₹{{ number_format($totalFee, 2) }}</span>
     </div>
 </div>
 
 <div class="fw-alert fw-alert-info">
-    The processing fee is set by Fiinway admin and will be displayed at the time of payment. No hidden charges.
+    The processing fee is set by Fiinway admin and transparently calculated. No hidden charges.
 </div>
 
 {{-- Payment methods note --}}
@@ -53,13 +53,13 @@
 </div>
 
 <div class="fw-consent">
-    <input type="checkbox" id="consent" required>
-    <label for="consent">I agree to pay the applicable processing fee to activate my Zero-CIBIL credit wallet.</label>
+    <input type="checkbox" id="consent" required checked>
+    <label for="consent">I agree to pay the processing fee of ₹{{ number_format($totalFee, 2) }} to activate my Zero-CIBIL credit wallet.</label>
 </div>
 
 @endsection
 
 @section('sticky-bottom')
-<a href="{{ route('finance.zero_cibil.s05_pending', ['phone' => request('phone')]) }}"
-   class="fw-btn fw-btn-accent">Pay Now →</a>
+<a href="{{ route('finance.zero_cibil.s05_pending', ['phone' => request('phone'), 'amount' => $amount]) }}"
+   class="fw-btn fw-btn-accent">Pay Now (₹{{ number_format($totalFee, 2) }}) →</a>
 @endsection

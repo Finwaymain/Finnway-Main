@@ -62,11 +62,22 @@
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div style="font-size: 12px; color: #64748b;">Selected Lender Partner</div>
+                            <div style="font-size: 12px; color: #64748b;">Lender Workflow</div>
                             <div style="font-weight: 600; color: #0f172a; margin-top: 4px;">
-                                {{ $application->lender->name ?? 'None' }} 
-                                @if($application->lender_partner_id)
-                                    <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 10px;">🔒 Locked</span>
+                                @php
+                                    $isExternalLender = in_array($application->loan_category, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
+                                @endphp
+                                @if($isExternalLender)
+                                    @if($application->lender)
+                                        {{ $application->lender->name }}
+                                        <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 10px;">🔒 Locked</span>
+                                    @else
+                                        <span class="badge" style="background: #eff6ff; color: #1e40af; font-size: 11px;">External Lender Required</span>
+                                    @endif
+                                @else
+                                    <span class="badge" style="background: #ecfdf5; color: #065f46; font-size: 11px; border: 1px solid #a7f3d0;">
+                                        ⚡ Direct Credit (No External Lender)
+                                    </span>
                                 @endif
                             </div>
                         </div>

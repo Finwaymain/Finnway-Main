@@ -19,9 +19,7 @@
 
     <div class="fw-info-row">
         <span class="fw-info-label">Requested Credit Amount</span>
-        <span class="fw-info-value">{{ isset($ctx['credit_amount'])
-            ? '₹'.number_format($ctx['credit_amount'])
-            : '—' }}</span>
+        <span class="fw-info-value">₹{{ number_format($amount) }}</span>
     </div>
     <div class="fw-info-row">
         <span class="fw-info-label">Student Type</span>
@@ -30,7 +28,7 @@
     <div class="fw-info-row">
         <span class="fw-info-label">College / University</span>
         <span class="fw-info-value" style="text-align:right;max-width:60%;">
-            {{ $ctx['college_name'] ?? '—' }}
+            {{ $ctx['college_name'] ?? 'Fiinway Academic Network' }}
         </span>
     </div>
 </div>
@@ -41,15 +39,13 @@
 
     <div class="fw-amount-big" style="padding:16px 0 10px;">
         <p class="label">Amount Due</p>
-        <p class="amount">
-            @if(isset($ctx['processing_fee']))
-                ₹{{ number_format($ctx['processing_fee']) }}
-            @else
-                As Applicable
-            @endif
-        </p>
+        <p class="amount">₹{{ number_format($totalFee, 2) }}</p>
     </div>
 
+    <div class="fw-info-row">
+        <span class="fw-info-label">Fee Breakdown</span>
+        <span class="fw-info-value">Base: ₹{{ number_format($baseFee, 2) }} + 18% GST: ₹{{ number_format($feeTax, 2) }}</span>
+    </div>
     <div class="fw-info-row">
         <span class="fw-info-label">Fee Type</span>
         <span class="fw-info-value">One-time, Non-refundable</span>

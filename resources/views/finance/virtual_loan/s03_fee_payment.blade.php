@@ -18,7 +18,7 @@
 
     <div class="fw-info-row">
         <span class="fw-info-label">Booked Loan Limit</span>
-        <span class="fw-info-value" style="font-weight:700;color:var(--navy);">₹30,000</span>
+        <span class="fw-info-value" style="font-weight:700;color:var(--navy);">₹{{ number_format($amount) }}</span>
     </div>
     <div class="fw-info-row">
         <span class="fw-info-label">Wallet Type</span>
@@ -35,16 +35,16 @@
 
     <div class="fw-amount-big" style="padding:14px 0 10px;">
         <p class="label">Amount Payable</p>
-        <p class="amount">₹3,000</p>
+        <p class="amount">₹{{ number_format($totalFee, 2) }}</p>
     </div>
 
     <div class="fw-info-row">
         <span class="fw-info-label">Fee Description</span>
-        <span class="fw-info-value">Loan Processing / Service Fee</span>
+        <span class="fw-info-value">Processing Fee (₹{{ number_format($baseFee, 2) }})</span>
     </div>
     <div class="fw-info-row">
         <span class="fw-info-label">Taxes</span>
-        <span class="fw-info-value">18% GST Included</span>
+        <span class="fw-info-value">18% GST (₹{{ number_format($feeTax, 2) }})</span>
     </div>
 
     <div class="fw-alert fw-alert-info" style="margin-top:12px;margin-bottom:0;">
@@ -76,6 +76,6 @@
 @endsection
 
 @section('sticky-bottom')
-<a href="{{ route('finance.virtual_loan.s04_pending', ['phone' => request('phone')]) }}"
-   class="fw-btn fw-btn-accent">Pay ₹3,000 &amp; Activate →</a>
+<a href="{{ route('finance.virtual_loan.s04_pending', ['phone' => request('phone'), 'amount' => $amount]) }}"
+   class="fw-btn fw-btn-accent">Pay ₹{{ number_format($totalFee, 2) }} &amp; Activate →</a>
 @endsection
