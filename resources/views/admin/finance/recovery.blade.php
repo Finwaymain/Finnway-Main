@@ -80,9 +80,17 @@
                                 </span>
                             </td>
                             <td style="padding: 12px 16px; text-align: right;">
+                                @if($sch->status !== 'paid')
+                                <form method="POST" action="{{ route('admin.finance.recovery.mark-paid', $sch->id) }}" style="display: inline-block;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-success mr-1" onclick="return confirm('Record cash/offline payment of ₹{{ number_format($sch->total_due, 2) }}?');" style="font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 8px;">
+                                        ✓ Record Paid
+                                    </button>
+                                </form>
+                                @endif
                                 @if($sch->customer)
                                 <a href="{{ route('admin.finance.customer-details', $sch->customer->id) }}" class="btn btn-sm" style="background: #0f172a; color: #ffffff; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 10px;">
-                                    Inspect &amp; Manage Lock
+                                    Inspect &amp; Lock
                                 </a>
                                 @endif
                             </td>
@@ -148,6 +156,12 @@
                                 </span>
                             </td>
                             <td style="padding: 12px 16px; text-align: right;">
+                                <form method="POST" action="{{ route('admin.finance.recovery.mark-paid', $overdue->id) }}" style="display: inline-block;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-success mr-1" onclick="return confirm('Record recovery payment of ₹{{ number_format($overdue->total_due - $overdue->paid_amount, 2) }}?');" style="font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 8px;">
+                                        ✓ Record Paid
+                                    </button>
+                                </form>
                                 @if($overdue->customer)
                                 <a href="{{ route('admin.finance.customer-details', $overdue->customer->id) }}" class="btn btn-sm" style="background: #0f172a; color: #ffffff; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 10px;">
                                     Recover &amp; Review

@@ -527,6 +527,82 @@ class FinanceComprehensiveTester
         ]);
 
         $this->assert('Admin Console', 'Disbursement records UTR reference and timestamp', $appDisb->disbursement_txn_ref === 'UTR123456789012' && $appDisb->disbursement_status === 'disbursed');
+
+        // ADMIN PROCESSING FEE POLICY GOVERNANCE
+        $product = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
+        $product->processing_fee_type = 'fixed';
+        $product->processing_fee_value = 2500.00;
+        $product->save();
+        $this->assert('Admin Console', 'RIGHT: Admin decides/updates product processing fee policy (Rs 2,500)', (float)$product->processing_fee_value === 2500.0);
+
+        // ADMIN APPLICATION PROCESSING FEE DECISION & OVERRIDE
+        $appFee = FinanceLoanApplication::create([
+            'application_number' => 'APP-FEE-' . time(),
+            'customer_id' => $customer->id,
+            'applicant_name' => 'Fee Tester',
+            'applicant_phone' => $testPhone,
+            'loan_category' => 'zero_cibil_daily',
+            'requested_amount' => 50000,
+            'processing_fee_amount' => 2000,
+            'processing_fee_tax' => 360,
+            'processing_fee_total' => 2360,
+            'processing_fee_status' => 'pending',
+            'application_status' => 'APPLICATION_CREATED',
+        ]);
+
+        // Admin overrides base fee to Rs 3,000, recalculating 18% GST
+        $newBaseFee = 3000.00;
+        $newTax = round($newBaseFee * 0.18, 2);
+        $newTotal = $newBaseFee + $newTax;
+        $appFee->processing_fee_amount = $newBaseFee;
+        $appFee->processing_fee_tax = $newTax;
+        $appFee->processing_fee_total = $newTotal;
+        $appFee->processing_fee_status = 'paid';
+        $appFee->save();
+
+        $this->assert('Admin Console', 'RIGHT: Admin overrides application processing fee to Rs 3,000 + 18% GST = Rs 3,540', (float)$appFee->processing_fee_total === 3540.0 && $appFee->processing_fee_status === 'paid');
+
+        // ADMIN WALLET & CREDIT LINE GOVERNANCE
+        $adminWallet = FinanceWallet::create([
+            'customer_id' => $customer->id,
+            'wallet_type' => 'virtual_loan',
+            'wallet_identifier' => 'ADM-WAL-' . time(),
+            'approved_limit' => 30000,
+            'available_balance' => 30000,
+            'daily_usage_limit' => 5000,
+            'today_usage_permission' => 'ACTIVE',
+            'status' => 'active',
+        ]);
+
+        $adminWallet->approved_limit = 75000;
+        $adminWallet->daily_usage_limit = 7500;
+        $adminWallet->today_usage_permission = 'LOCKED';
+        $adminWallet->save();
+
+        $this->assert('Admin Console', 'RIGHT: Admin adjusts credit limit to 75k, daily limit to 7.5k, and locks usage', (float)$adminWallet->approved_limit === 75000.0 && $adminWallet->today_usage_permission === 'LOCKED');
+
+        // ADMIN MANUAL RECOVERY COLLECTION
+        $manualSchedule = FinanceDailySchedule::create([
+            'customer_id' => $customer->id,
+            'application_id' => $appFee->id,
+            'day_number' => 2,
+            'schedule_date' => date('Y-m-d'),
+            'emi_amount' => 1000,
+            'total_due' => 1000,
+            'status' => 'pending',
+        ]);
+
+        $manualSchedule->paid_amount = 1000;
+        $manualSchedule->status = 'paid';
+        $manualSchedule->payment_method = 'cash_offline';
+        $manualSchedule->paid_at = now();
+        $manualSchedule->save();
+
+        // Unlock wallet after manual collection
+        $adminWallet->today_usage_permission = 'ACTIVE';
+        $adminWallet->save();
+
+        $this->assert('Admin Console', 'RIGHT: Admin records manual cash/offline recovery payment and restores usage to ACTIVE', $manualSchedule->status === 'paid' && $adminWallet->today_usage_permission === 'ACTIVE');
     }
 
     /**

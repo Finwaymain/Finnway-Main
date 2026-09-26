@@ -1301,6 +1301,11 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveLenderPartner'])->name('lenders.save');
     Route::get('/recovery', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'recoveryCenter'])->name('recovery');
     Route::post('/customers/{id}/toggle-lock', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'toggleUsageLock'])->name('toggle-lock');
+    Route::get('/products', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'products'])->name('products');
+    Route::post('/products/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveProduct'])->name('products.save');
+    Route::post('/applications/{id}/update-fee', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'updateApplicationFee'])->name('applications.update-fee');
+    Route::post('/wallets/{id}/adjust', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'adjustWallet'])->name('wallets.adjust');
+    Route::post('/recovery/{id}/mark-paid', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'markRecoveryPaid'])->name('recovery.mark-paid');
 });
 
 

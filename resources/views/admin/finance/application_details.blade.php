@@ -72,11 +72,14 @@
                         </div>
                         <div class="col-md-4">
                             <div style="font-size: 12px; color: #64748b;">Processing Fee</div>
-                            <div style="font-weight: 600; color: #0f172a; margin-top: 4px;">
-                                ₹{{ number_format($application->processing_fee_paid, 2) }}
-                                <span class="badge" style="background: {{ $application->fee_payment_status === 'paid' ? '#ecfdf5' : '#fef2f2' }}; color: {{ $application->fee_payment_status === 'paid' ? '#065f46' : '#991b1b' }};">
-                                    {{ ucfirst($application->fee_payment_status) }}
+                            <div style="font-weight: 700; color: #0284c7; margin-top: 4px;">
+                                ₹{{ number_format($application->processing_fee_total ?: ($application->processing_fee_amount ? $application->processing_fee_amount * 1.18 : 0), 2) }}
+                                <span class="badge" style="background: {{ $application->processing_fee_status === 'paid' ? '#ecfdf5' : ($application->processing_fee_status === 'waived' ? '#ede9fe' : '#fef2f2') }}; color: {{ $application->processing_fee_status === 'paid' ? '#065f46' : ($application->processing_fee_status === 'waived' ? '#5b21b6' : '#991b1b') }}; font-size: 11px;">
+                                    {{ ucfirst($application->processing_fee_status ?: 'Pending') }}
                                 </span>
+                            </div>
+                            <div style="font-size: 11px; color: #64748b;">
+                                Base: ₹{{ number_format($application->processing_fee_amount ?: 0, 2) }} + 18% GST: ₹{{ number_format($application->processing_fee_tax ?: 0, 2) }}
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -210,6 +213,48 @@
                     </form>
                 </div>
 
+                <!-- Processing Fee Decision Console (Admin Rights) -->
+                <div class="card border-0 p-4 mt-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h5 class="mb-0" style="font-size: 16px; font-weight: 700; color: #0f172a;">⚙️ Processing Fee Decision</h5>
+                        <span class="badge" style="background: {{ $application->processing_fee_status === 'paid' ? '#ecfdf5' : ($application->processing_fee_status === 'waived' ? '#ede9fe' : '#fef2f2') }}; color: {{ $application->processing_fee_status === 'paid' ? '#065f46' : ($application->processing_fee_status === 'waived' ? '#5b21b6' : '#991b1b') }}; font-size: 11px;">
+                            {{ strtoupper($application->processing_fee_status ?: 'PENDING') }}
+                        </span>
+                    </div>
+                    <p style="font-size: 12px; color: #64748b; margin-bottom: 14px;">
+                        Admin can decide, adjust, waive, or confirm payment of the processing fee for this application.
+                    </p>
+
+                    <form method="POST" action="{{ route('admin.finance.applications.update-fee', $application->id) }}">
+                        @csrf
+                        <div class="mb-3">
+                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Base Processing Fee (₹)</label>
+                            <input type="number" step="0.01" name="processing_fee_amount" id="adminFeeInput" value="{{ $application->processing_fee_amount ?: 2000.00 }}" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
+                            <div id="feeBreakdownPreview" style="font-size: 11px; color: #0284c7; margin-top: 4px;">
+                                + 18% GST (₹<span id="taxPreview">{{ number_format(($application->processing_fee_amount ?: 2000.00) * 0.18, 2) }}</span>) = Total: ₹<span id="totalPreview">{{ number_format(($application->processing_fee_amount ?: 2000.00) * 1.18, 2) }}</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Fee Status</label>
+                            <select name="processing_fee_status" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
+                                <option value="pending" {{ $application->processing_fee_status === 'pending' ? 'selected' : '' }}>Pending (Applicant to Pay Online)</option>
+                                <option value="paid" {{ $application->processing_fee_status === 'paid' ? 'selected' : '' }}>Mark as Paid (Admin Approved / Offline)</option>
+                                <option value="waived" {{ $application->processing_fee_status === 'waived' ? 'selected' : '' }}>Waive Fee (₹0 Total Fee)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Fee Remarks / Reference</label>
+                            <input type="text" name="remarks" placeholder="e.g. Approved promotional rate or offline cash receipt" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+                        </div>
+
+                        <button type="submit" class="btn btn-sm w-100" style="background: #0284c7; color: #ffffff; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 9px;">
+                            Save Processing Fee Decision
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Document Request Console (Disbursement Stage Bank Docs) -->
                 <div class="card border-0 p-4 mt-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
                     <h5 class="mb-2" style="font-size: 16px; font-weight: 700; color: #0f172a;">Request Documents</h5>
@@ -264,4 +309,22 @@
 
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const feeInput = document.getElementById('adminFeeInput');
+    const taxPreview = document.getElementById('taxPreview');
+    const totalPreview = document.getElementById('totalPreview');
+
+    if (feeInput && taxPreview && totalPreview) {
+        feeInput.addEventListener('input', function() {
+            const val = parseFloat(this.value) || 0;
+            const tax = Math.round(val * 0.18 * 100) / 100;
+            const total = Math.round((val + tax) * 100) / 100;
+            taxPreview.textContent = tax.toFixed(2);
+            totalPreview.textContent = total.toFixed(2);
+        });
+    }
+});
+</script>
 @endsection

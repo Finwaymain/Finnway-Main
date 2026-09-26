@@ -288,6 +288,124 @@
             </div>
         </div>
 
+        <!-- Section: Wallets & Credit Lines Governance (Admin Rights) -->
+        <div class="card border-0 mb-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+            <div class="p-3 d-flex align-items-center justify-content-between" style="border-bottom: 1px solid #e2e8f0;">
+                <div>
+                    <h5 class="mb-0" style="font-size: 16px; font-weight: 700; color: #0f172a;">💳 Active Credit Lines &amp; Wallets</h5>
+                    <div style="font-size: 12px; color: #64748b;">Admin can adjust credit limit, available balance, daily spend cap, and usage permission lock.</div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" style="font-size: 13px;">
+                    <thead>
+                        <tr style="background: #f8fafc; color: #475569; font-weight: 600; font-size: 12px;">
+                            <th style="padding: 12px 16px;">Wallet Type</th>
+                            <th style="padding: 12px 16px;">Credit Limit</th>
+                            <th style="padding: 12px 16px;">Available Balance</th>
+                            <th style="padding: 12px 16px;">Daily Usage Cap</th>
+                            <th style="padding: 12px 16px;">Today Permission</th>
+                            <th style="padding: 12px 16px;">Wallet Status</th>
+                            <th style="padding: 12px 16px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($customer->wallets as $w)
+                        <tr>
+                            <td style="padding: 12px 16px;">
+                                <strong style="color: #0f172a;">{{ ucwords(str_replace('_', ' ', $w->wallet_type)) }}</strong>
+                                <div style="font-size: 11px; color: #64748b;">ID: {{ $w->wallet_identifier ?: '#' . $w->id }}</div>
+                            </td>
+                            <td style="padding: 12px 16px; font-weight: 700; color: #0f172a;">
+                                ₹{{ number_format($w->approved_limit, 2) }}
+                            </td>
+                            <td style="padding: 12px 16px; font-weight: 700; color: #059669;">
+                                ₹{{ number_format($w->available_balance, 2) }}
+                            </td>
+                            <td style="padding: 12px 16px; font-weight: 600; color: #0284c7;">
+                                ₹{{ number_format($w->daily_usage_limit, 2) }}
+                            </td>
+                            <td style="padding: 12px 16px;">
+                                <span class="badge" style="background: {{ $w->today_usage_permission === 'ACTIVE' ? '#ecfdf5' : '#fef2f2' }}; color: {{ $w->today_usage_permission === 'ACTIVE' ? '#065f46' : '#991b1b' }}; font-weight: 700;">
+                                    {{ $w->today_usage_permission }}
+                                </span>
+                            </td>
+                            <td style="padding: 12px 16px;">
+                                <span class="badge" style="background: {{ $w->status === 'active' ? '#ecfdf5' : '#f1f5f9' }}; color: {{ $w->status === 'active' ? '#065f46' : '#64748b' }};">
+                                    {{ ucfirst($w->status) }}
+                                </span>
+                            </td>
+                            <td style="padding: 12px 16px; text-align: right;">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#walletModal{{ $w->id }}" style="font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 10px;">
+                                    Adjust Limit &amp; Lock
+                                </button>
+
+                                <!-- Wallet Adjustment Modal -->
+                                <div class="modal fade" id="walletModal{{ $w->id }}" tabindex="-1" role="dialog" aria-hidden="true" style="text-align: left;">
+                                    <div class="modal-dialog modal-dialog-centered" role="document">
+                                        <div class="modal-content border-0" style="border-radius: 8px;">
+                                            <div class="modal-header" style="background: #0f172a; color: #fff;">
+                                                <h6 class="modal-title font-weight-bold" style="color: #fff;">Adjust Credit Line: {{ ucwords(str_replace('_', ' ', $w->wallet_type)) }}</h6>
+                                                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                                                    <span aria-hidden="true">&times;</span>
+                                                </button>
+                                            </div>
+                                            <form method="POST" action="{{ route('admin.finance.wallets.adjust', $w->id) }}">
+                                                @csrf
+                                                <div class="modal-body p-4">
+                                                    <div class="mb-3">
+                                                        <label class="form-label" style="font-size: 12px; font-weight: 600;">Sanctioned Credit Limit (₹)</label>
+                                                        <input type="number" step="0.01" name="approved_limit" class="form-control form-control-sm" value="{{ $w->approved_limit }}" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label" style="font-size: 12px; font-weight: 600;">Available Balance (₹)</label>
+                                                        <input type="number" step="0.01" name="available_balance" class="form-control form-control-sm" value="{{ $w->available_balance }}" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label" style="font-size: 12px; font-weight: 600;">Daily Usage Cap (₹)</label>
+                                                        <input type="number" step="0.01" name="daily_usage_limit" class="form-control form-control-sm" value="{{ $w->daily_usage_limit }}" required>
+                                                    </div>
+                                                    <div class="row g-2 mb-3">
+                                                        <div class="col-6">
+                                                            <label class="form-label" style="font-size: 12px; font-weight: 600;">Today Usage Lock</label>
+                                                            <select name="today_usage_permission" class="form-control form-control-sm" required>
+                                                                <option value="ACTIVE" {{ $w->today_usage_permission === 'ACTIVE' ? 'selected' : '' }}>ACTIVE (Unlocked)</option>
+                                                                <option value="LOCKED" {{ $w->today_usage_permission === 'LOCKED' ? 'selected' : '' }}>LOCKED (Disabled)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <label class="form-label" style="font-size: 12px; font-weight: 600;">Wallet Status</label>
+                                                            <select name="status" class="form-control form-control-sm" required>
+                                                                <option value="active" {{ $w->status === 'active' ? 'selected' : '' }}>Active</option>
+                                                                <option value="frozen" {{ $w->status === 'frozen' ? 'selected' : '' }}>Frozen</option>
+                                                                <option value="closed" {{ $w->status === 'closed' ? 'selected' : '' }}>Closed</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer" style="background: #f8fafc;">
+                                                    <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary" style="background: #0f172a; border-color: #0f172a;">Save Changes</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="7" class="text-center py-3 text-muted">
+                                No credit wallets provisioned for this customer.
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Section 3: Daily Repayment Schedule (Doc 5 Engine) -->
         <div class="card border-0 mb-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
             <div class="p-3" style="border-bottom: 1px solid #e2e8f0;">

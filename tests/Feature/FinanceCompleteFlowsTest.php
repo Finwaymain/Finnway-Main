@@ -495,6 +495,108 @@ class FinanceCompleteFlowsTest extends TestCase
     }
 
     /**
+     * ADMIN GOVERNANCE: Admin controls processing fee policy, application fee overrides, and wallet adjustments
+     */
+    public function test_admin_processing_fee_governance_and_wallet_controls(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        // 1. Admin configures product processing fee
+        $prod = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
+        $resProd = $this->post("/admin/finance/products/save/{$prod->id}", [
+            'name' => $prod->name,
+            'code' => $prod->code,
+            'category' => $prod->category,
+            'min_amount' => 20000,
+            'max_amount' => 200000,
+            'interest_rate_p_a' => 0.0,
+            'is_interest_free' => '1',
+            'processing_fee_type' => 'fixed',
+            'processing_fee_value' => 2500.00,
+            'daily_repayment_amount' => 1000.00,
+            'daily_usage_limit' => 5000.00,
+            'is_active' => '1',
+        ]);
+        $resProd->assertStatus(302);
+        $prod->refresh();
+        $this->assertEquals(2500.00, (float)$prod->processing_fee_value);
+
+        // 2. Admin overrides processing fee on a specific application
+        $phone = '99880' . rand(10000, 99999);
+        $customer = FinanceCustomer::create(['phone' => '+91' . $phone, 'name' => 'Gov Customer']);
+        $app = FinanceLoanApplication::create([
+            'application_number' => 'APP-GOV-' . time(),
+            'customer_id' => $customer->id,
+            'applicant_name' => 'Gov Customer',
+            'applicant_phone' => '+91' . $phone,
+            'loan_category' => 'zero_cibil_daily',
+            'requested_amount' => 50000,
+            'processing_fee_amount' => 2000,
+            'processing_fee_tax' => 360,
+            'processing_fee_total' => 2360,
+            'processing_fee_status' => 'pending',
+            'application_status' => 'APPLICATION_CREATED',
+        ]);
+
+        $resFee = $this->post("/admin/finance/applications/{$app->id}/update-fee", [
+            'processing_fee_amount' => 3000.00,
+            'processing_fee_status' => 'paid',
+            'remarks' => 'Admin manual approval and fee setting',
+        ]);
+        $resFee->assertStatus(302);
+        $app->refresh();
+        $this->assertEquals(3000.00, (float)$app->processing_fee_amount);
+        $this->assertEquals(540.00, (float)$app->processing_fee_tax);
+        $this->assertEquals(3540.00, (float)$app->processing_fee_total);
+        $this->assertEquals('paid', $app->processing_fee_status);
+
+        // 3. Admin adjusts wallet limit and usage lock
+        $wallet = FinanceWallet::create([
+            'customer_id' => $customer->id,
+            'wallet_type' => 'virtual_loan',
+            'wallet_identifier' => 'WAL-' . time(),
+            'approved_limit' => 30000,
+            'available_balance' => 30000,
+            'daily_usage_limit' => 5000,
+            'today_usage_permission' => 'ACTIVE',
+            'status' => 'active',
+        ]);
+
+        $resWallet = $this->post("/admin/finance/wallets/{$wallet->id}/adjust", [
+            'approved_limit' => 60000,
+            'available_balance' => 60000,
+            'daily_usage_limit' => 8000,
+            'today_usage_permission' => 'LOCKED',
+            'status' => 'active',
+        ]);
+        $resWallet->assertStatus(302);
+        $wallet->refresh();
+        $this->assertEquals(60000.00, (float)$wallet->approved_limit);
+        $this->assertEquals(8000.00, (float)$wallet->daily_usage_limit);
+        $this->assertEquals('LOCKED', $wallet->today_usage_permission);
+
+        // 4. Admin records manual daily recovery collection
+        $schedule = FinanceDailySchedule::create([
+            'customer_id' => $customer->id,
+            'application_id' => $app->id,
+            'day_number' => 1,
+            'schedule_date' => date('Y-m-d'),
+            'emi_amount' => 1000,
+            'total_due' => 1000,
+            'status' => 'pending',
+        ]);
+
+        $resRec = $this->post("/admin/finance/recovery/{$schedule->id}/mark-paid");
+        $resRec->assertStatus(302);
+        $schedule->refresh();
+        $this->assertEquals('paid', $schedule->status);
+        $this->assertEquals(1000.00, (float)$schedule->paid_amount);
+
+        $wallet->refresh();
+        $this->assertEquals('ACTIVE', $wallet->today_usage_permission);
+    }
+
+    /**
      * WEB PORTAL — Tests every screen in every flow renders HTTP 200 OK
      */
     public function test_all_web_portal_blade_routes_render(): void

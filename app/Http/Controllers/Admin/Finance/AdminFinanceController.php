@@ -248,5 +248,194 @@ class AdminFinanceController extends Controller
 
         return back()->with('success', 'Document request sent to applicant successfully.');
     }
+
+    /**
+     * Loan Products Master & Processing Fee Configuration
+     */
+    public function products()
+    {
+        if (FinanceLoanProduct::count() === 0) {
+            try {
+                (new \Database\Seeders\FinanceProductSeeder())->run();
+            } catch (\Throwable $e) {}
+        }
+
+        $products = FinanceLoanProduct::orderBy('sort_order')->get();
+        return view('admin.finance.products', compact('products'));
+    }
+
+    /**
+     * Save / Update Loan Product & Processing Fee Configuration
+     */
+    public function saveProduct(Request $request, $id = null)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'code' => 'required|string|max:50',
+            'category' => 'required|string|max:50',
+            'min_amount' => 'required|numeric|min:0',
+            'max_amount' => 'required|numeric|min:0',
+            'min_tenure_months' => 'nullable|integer|min:1',
+            'max_tenure_months' => 'nullable|integer|min:1',
+            'interest_rate_p_a' => 'required|numeric|min:0',
+            'processing_fee_type' => 'required|in:fixed,percentage',
+            'processing_fee_value' => 'required|numeric|min:0',
+            'processing_fee_slabs' => 'nullable|string',
+            'daily_repayment_amount' => 'nullable|numeric|min:0',
+            'daily_usage_limit' => 'nullable|numeric|min:0',
+            'sort_order' => 'nullable|integer',
+        ]);
+
+        $product = $id ? FinanceLoanProduct::findOrFail($id) : new FinanceLoanProduct();
+
+        $product->name = $validated['name'];
+        $product->code = $validated['code'];
+        $product->category = $validated['category'];
+        $product->min_amount = $validated['min_amount'];
+        $product->max_amount = $validated['max_amount'];
+        $product->min_tenure_months = $validated['min_tenure_months'] ?? 1;
+        $product->max_tenure_months = $validated['max_tenure_months'] ?? 60;
+        $product->interest_rate_p_a = $validated['interest_rate_p_a'];
+        $product->is_interest_free = $request->has('is_interest_free') || floatval($validated['interest_rate_p_a']) == 0.0;
+        $product->processing_fee_type = $validated['processing_fee_type'];
+        $product->processing_fee_value = $validated['processing_fee_value'];
+
+        // Slabs JSON parsing
+        if (!empty($validated['processing_fee_slabs'])) {
+            $decoded = json_decode($validated['processing_fee_slabs'], true);
+            $product->processing_fee_slabs = is_array($decoded) ? $decoded : null;
+        }
+
+        $product->daily_repayment_amount = $validated['daily_repayment_amount'] ?? null;
+        $product->daily_usage_limit = $validated['daily_usage_limit'] ?? null;
+        $product->is_active = $request->has('is_active') ? true : false;
+        $product->sort_order = $validated['sort_order'] ?? 0;
+        $product->save();
+
+        return redirect()->route('admin.finance.products')->with('success', "Loan Product '{$product->name}' and Processing Fee settings updated successfully.");
+    }
+
+    /**
+     * Admin Decides / Overrides Processing Fee for a Loan Application
+     */
+    public function updateApplicationFee(Request $request, $id)
+    {
+        $application = FinanceLoanApplication::findOrFail($id);
+
+        $validated = $request->validate([
+            'processing_fee_amount' => 'required|numeric|min:0',
+            'processing_fee_status' => 'required|in:pending,paid,waived',
+            'remarks' => 'nullable|string|max:255',
+        ]);
+
+        $baseFee = floatval($validated['processing_fee_amount']);
+        $status = $validated['processing_fee_status'];
+
+        if ($status === 'waived') {
+            $tax = 0.00;
+            $totalFee = 0.00;
+        } else {
+            $tax = round($baseFee * 0.18, 2);
+            $totalFee = $baseFee + $tax;
+        }
+
+        $application->processing_fee_amount = $baseFee;
+        $application->processing_fee_tax = $tax;
+        $application->processing_fee_total = $totalFee;
+        $application->processing_fee_status = $status;
+
+        if ($status === 'paid') {
+            $application->processing_fee_payment_method = $request->input('payment_method', 'admin_approved');
+            $application->processing_fee_txn_id = $request->input('txn_id', 'ADM-FEE-' . time());
+
+            if ($application->application_status === 'APPLICATION_CREATED') {
+                $application->application_status = 'FEE_PAID';
+            }
+
+            FinanceTransaction::create([
+                'customer_id' => $application->customer_id,
+                'application_id' => $application->id,
+                'txn_number' => $application->processing_fee_txn_id,
+                'txn_type' => 'fee_payment',
+                'amount' => $totalFee,
+                'direction' => 'debit',
+                'payment_method' => $application->processing_fee_payment_method,
+                'payment_gateway_ref' => 'Admin Decision',
+                'status' => 'success',
+                'notes' => 'Fee set by Admin: ' . ($validated['remarks'] ?? 'Processing fee confirmed'),
+            ]);
+        }
+
+        $application->save();
+
+        return back()->with('success', 'Application processing fee updated successfully.');
+    }
+
+    /**
+     * Admin Adjusts Customer Credit Line / Wallet
+     */
+    public function adjustWallet(Request $request, $walletId)
+    {
+        $wallet = FinanceWallet::findOrFail($walletId);
+
+        $validated = $request->validate([
+            'approved_limit' => 'required|numeric|min:0',
+            'available_balance' => 'required|numeric|min:0',
+            'daily_usage_limit' => 'required|numeric|min:0',
+            'today_usage_permission' => 'required|in:ACTIVE,LOCKED',
+            'status' => 'required|in:active,frozen,closed',
+        ]);
+
+        $wallet->approved_limit = $validated['approved_limit'];
+        $wallet->available_balance = $validated['available_balance'];
+        $wallet->daily_usage_limit = $validated['daily_usage_limit'];
+        $wallet->today_usage_permission = $validated['today_usage_permission'];
+        $wallet->status = $validated['status'];
+        $wallet->save();
+
+        return back()->with('success', 'Customer wallet and credit limits adjusted successfully.');
+    }
+
+    /**
+     * Admin Records Manual Daily Recovery Payment
+     */
+    public function markRecoveryPaid(Request $request, $scheduleId)
+    {
+        $schedule = FinanceDailySchedule::findOrFail($scheduleId);
+
+        $schedule->paid_amount = $schedule->total_due;
+        $schedule->status = 'paid';
+        $schedule->paid_at = now();
+        $schedule->payment_method = 'cash_offline';
+        $schedule->txn_id = 'REC-MANUAL-' . time();
+        $schedule->save();
+
+        // Check if customer has any pending schedule left for today or earlier
+        $hasPending = FinanceDailySchedule::where('customer_id', $schedule->customer_id)
+            ->where('schedule_date', '<=', date('Y-m-d'))
+            ->where('status', '!=', 'paid')
+            ->exists();
+
+        if (!$hasPending) {
+            FinanceWallet::where('customer_id', $schedule->customer_id)
+                ->where('wallet_type', 'virtual_loan')
+                ->update(['today_usage_permission' => 'ACTIVE']);
+        }
+
+        FinanceTransaction::create([
+            'customer_id' => $schedule->customer_id,
+            'application_id' => $schedule->application_id,
+            'txn_number' => $schedule->txn_id,
+            'txn_type' => 'daily_repayment',
+            'amount' => $schedule->total_due,
+            'direction' => 'credit',
+            'payment_method' => 'cash_offline',
+            'payment_gateway_ref' => 'Admin Offline Collection',
+            'status' => 'success',
+            'notes' => 'Manual collection recorded by Admin for ' . $schedule->schedule_date,
+        ]);
+
+        return back()->with('success', 'Daily EMI marked as collected and paid. Usage permission refreshed.');
+    }
 }
 
