@@ -11,7 +11,9 @@ use App\Models\Finance\FinanceLoanApplication;
 use App\Models\Finance\FinanceLoanProduct;
 use App\Models\Finance\FinanceTransaction;
 use App\Models\Finance\FinanceWallet;
+use App\Models\PaymentSettings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * FinanceWebController
@@ -117,6 +119,25 @@ class FinanceWebController extends Controller
         // Flow A has lender, Flow B does NOT have lender
         $hasLender = in_array($productCategory, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
 
+        // Resolve Razorpay Key configured by Admin in Admin Panel (PaymentSettings id_payment_method=13)
+        $paymentSetting = PaymentSettings::where('id_payment_method', 13)->first();
+        $razorpayKey = null;
+        if ($paymentSetting && !empty($paymentSetting->key)) {
+            $razorpayKey = trim($paymentSetting->key);
+        }
+        if (!$razorpayKey) {
+            $apiSetting = DB::table('api_key_settings')
+                ->where('provider', 'razorpay')
+                ->where('is_active', 1)
+                ->first();
+            if ($apiSetting && !empty($apiSetting->key_value)) {
+                $razorpayKey = trim($apiSetting->key_value);
+            }
+        }
+        if (!$razorpayKey) {
+            $razorpayKey = env('RAZORPAY_KEY', 'rzp_test_fiinway');
+        }
+
         return [
             'customer' => $customer,
             'phone' => $phone,
@@ -132,6 +153,7 @@ class FinanceWebController extends Controller
             'feeTax' => $feeTax,
             'totalFee' => $totalFee,
             'hasLender' => $hasLender,
+            'razorpayKey' => $razorpayKey,
         ];
     }
 

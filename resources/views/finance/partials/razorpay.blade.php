@@ -2,7 +2,7 @@
 <script>
 function triggerRazorpayCheckout(config) {
     var totalAmountPaise = Math.round(Number(config.amount) * 100);
-    var key = config.key || "{{ env('RAZORPAY_KEY', 'rzp_test_fiinway') }}";
+    var key = config.key || "{{ $razorpayKey ?? '' }}" || "{{ env('RAZORPAY_KEY', 'rzp_test_fiinway') }}";
     
     var options = {
         "key": key,
