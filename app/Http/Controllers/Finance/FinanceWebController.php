@@ -29,7 +29,7 @@ class FinanceWebController extends Controller
 
     private function resolveContext(Request $request): array
     {
-        $phone = $request->query('phone');
+        $phone = $request->query('phone', $request->query('mobile', $request->input('phone', $request->input('mobile'))));
         $customer = null;
         if ($phone) {
             $customer = FinanceCustomer::where('phone', $phone)->first();
@@ -48,6 +48,26 @@ class FinanceWebController extends Controller
 
     public function hub(Request $request)
     {
+        $cardType = strtolower(trim($request->query('card_type', '')));
+        if ($cardType) {
+            $params = $request->all();
+            if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
+                return redirect()->route('finance.zero_cibil.s01_intro', $params);
+            }
+            if (in_array($cardType, ['low_cibil', 'low cibil loan', 'cash', 'cash loan', 'cash_loan'])) {
+                return redirect()->route('finance.cash_loan.s01_apply', $params);
+            }
+            if (in_array($cardType, ['business', 'business loan', 'business_loan'])) {
+                return redirect()->route('finance.business_loan.s01_apply', $params);
+            }
+            if (in_array($cardType, ['virtual', 'virtual loan', 'virtual_loan'])) {
+                return redirect()->route('finance.virtual_loan.s01_apply', $params);
+            }
+            if (in_array($cardType, ['student', 'student credit', 'student_credit'])) {
+                return redirect()->route('finance.student_credit.s01_apply', $params);
+            }
+        }
+
         $products = FinanceLoanProduct::where('is_active', true)->get();
         $ctx = $this->resolveContext($request);
         return view('finance.hub', array_merge($ctx, ['products' => $products]));

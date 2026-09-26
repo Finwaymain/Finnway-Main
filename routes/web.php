@@ -1310,6 +1310,23 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
 
 
 
+// ── Legacy Loans URL Redirects (Backward Compatibility for Mobile Apps) ──────
+Route::get('/loans/coming-soon', function (\Illuminate\Http\Request $request) {
+    $cardType = strtolower(trim($request->query('card_type', '')));
+    if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
+        return redirect()->route('finance.zero_cibil.s01_intro', $request->all());
+    } elseif (in_array($cardType, ['low_cibil', 'low cibil loan', 'cash', 'cash loan', 'cash_loan'])) {
+        return redirect()->route('finance.cash_loan.s01_apply', $request->all());
+    } elseif (in_array($cardType, ['business', 'business loan', 'business_loan'])) {
+        return redirect()->route('finance.business_loan.s01_apply', $request->all());
+    } elseif (in_array($cardType, ['virtual', 'virtual loan', 'virtual_loan'])) {
+        return redirect()->route('finance.virtual_loan.s01_apply', $request->all());
+    } elseif (in_array($cardType, ['student', 'student credit', 'student_credit'])) {
+        return redirect()->route('finance.student_credit.s01_apply', $request->all());
+    }
+    return redirect('/finance?' . http_build_query($request->all()));
+});
+
 // ── Finance Portal (User-Facing WebView) ────────────────────────────────────
 Route::prefix('finance')->name('finance.')->group(function () {
 
