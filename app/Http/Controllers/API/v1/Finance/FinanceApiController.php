@@ -138,6 +138,12 @@ class FinanceApiController extends Controller
      */
     public function getProducts(Request $request)
     {
+        if (FinanceLoanProduct::count() === 0) {
+            try {
+                (new \Database\Seeders\FinanceProductSeeder())->run();
+            } catch (\Throwable $e) {}
+        }
+
         $category = $request->query('category');
         $query = FinanceLoanProduct::where('is_active', true)->orderBy('sort_order');
         if ($category) {
@@ -161,6 +167,13 @@ class FinanceApiController extends Controller
         $tenureMonths = intval($request->input('tenure_months', 24));
 
         $product = FinanceLoanProduct::where('code', $productCode)->first();
+        if (!$product && FinanceLoanProduct::count() === 0) {
+            try {
+                (new \Database\Seeders\FinanceProductSeeder())->run();
+                $product = FinanceLoanProduct::where('code', $productCode)->first();
+            } catch (\Throwable $e) {}
+        }
+
         if (!$product) {
             return response()->json(['success' => false, 'error' => 'Invalid product code.'], 404);
         }

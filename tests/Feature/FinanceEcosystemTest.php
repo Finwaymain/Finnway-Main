@@ -19,6 +19,10 @@ class FinanceEcosystemTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+
+        if (FinanceLoanProduct::count() === 0) {
+            $this->seed(\Database\Seeders\FinanceProductSeeder::class);
+        }
     }
 
     /**
@@ -44,6 +48,10 @@ class FinanceEcosystemTest extends TestCase
      */
     public function test_product_listing_and_eligibility_calculator(): void
     {
+        if (!FinanceLoanProduct::where('code', 'zero_cibil_daily')->exists()) {
+            $this->seed(\Database\Seeders\FinanceProductSeeder::class);
+        }
+
         // 1. Products
         $prodRes = $this->getJson('/api/v1/finance/products');
         $prodRes->assertStatus(200)
