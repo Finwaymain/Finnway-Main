@@ -282,15 +282,67 @@ class FinanceApiController extends Controller
     {
         $customer = $this->resolveCustomer($request);
         if (!$customer) {
-            return response()->json(['success' => false, 'error' => 'Customer profile required.'], 422);
+            $inputPhone = $request->input('applicant_phone', $request->input('phone', $request->input('mobile')));
+            $normalizedPhone = PhoneService::normalize((string) $inputPhone);
+            if (!empty($normalizedPhone)) {
+                $customer = FinanceCustomer::create([
+                    'user_type' => $request->input('user_type', 'customer'),
+                    'phone' => $normalizedPhone,
+                    'name' => $request->input('applicant_name', 'Valued Customer'),
+                    'pan' => $request->input('pan') ? strtoupper($request->input('pan')) : null,
+                    'account_status' => 'active',
+                    'kyc_status' => 'pending',
+                ]);
+            }
+        }
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'error' => 'Please provide a valid 10-digit mobile number.'], 422);
+        }
+
+        // Update customer details if provided
+        if ($request->filled('pan')) {
+            $customer->pan = strtoupper($request->input('pan'));
+        }
+        if ($request->filled('applicant_name') && ($customer->name === 'Valued Customer' || empty($customer->name))) {
+            $customer->name = $request->input('applicant_name');
+        }
+        $customer->save();
+
+        // Process uploaded KYC documents (Aadhaar Front, Aadhaar Back, PAN Card, Bank Passbook)
+        $docMap = [
+            'aadhaar_front' => 'Aadhaar Card Front',
+            'aadhaar_back' => 'Aadhaar Card Back',
+            'pan_card' => 'PAN Card Front',
+            'bank_passbook' => 'Bank Passbook Front',
+        ];
+
+        foreach ($docMap as $field => $label) {
+            if ($request->hasFile($field)) {
+                $file = $request->file($field);
+                $path = $file->store('finance/docs/' . $customer->id, 'public');
+                FinanceDocument::create([
+                    'customer_id' => $customer->id,
+                    'document_type' => $field,
+                    'file_path' => $path,
+                    'file_name' => $file->getClientOriginalName(),
+                    'status' => 'verified',
+                    'verified_at' => now(),
+                    'is_reusable' => true,
+                    'reuse_valid_until' => now()->addDays(5),
+                ]);
+            }
         }
 
         // Check 3-day reapply lock (Doc 2 & 3)
-        $latestApp = FinanceLoanApplication::where('customer_id', $customer->id)->latest('id')->first();
+        $latestApp = FinanceLoanApplication::where('customer_id', $customer->id)
+            ->where('application_status', 'REJECTED')
+            ->latest('id')
+            ->first();
         if ($latestApp && $latestApp->reapply_locked_until && $latestApp->reapply_locked_until->isFuture()) {
             return response()->json([
                 'success' => false,
-                'error' => 'Your previous application was reviewed. You can reapply after ' . $latestApp->reapply_locked_until->diffForHumans() . '.',
+                'error' => 'Your previous application was rejected. You can reapply after ' . $latestApp->reapply_locked_until->diffForHumans() . '.',
             ], 422);
         }
 
@@ -341,6 +393,7 @@ class FinanceApiController extends Controller
             'data' => $application,
         ]);
     }
+
 
     /**
      * Confirm Processing Fee Payment

@@ -166,13 +166,13 @@
         <section id="step1Container" class="space-y-4">
             <div>
                 <h2 class="text-base font-bold text-slate-900">Select Credit Product</h2>
-                <p class="text-xs text-slate-500 mt-0.5">Pre-approved limits based on your linked profile.</p>
+                <p class="text-xs text-slate-500 mt-0.5">Select a pre-configured loan package below, or choose custom required amount.</p>
             </div>
 
             <!-- Product Cards -->
             <div class="space-y-2.5" id="productsListContainer">
                 <!-- 1. Zero CIBIL Daily -->
-                <div onclick="selectProduct('zero_cibil_daily', 'Zero-CIBIL Loan', 20000, 200000, 0, 1000)" 
+                <div onclick="selectPresetProduct('zero_cibil_daily', 'Zero-CIBIL Loan', 30000, 24, 0, 1000)" 
                      id="prod_zero_cibil_daily"
                      class="product-card cursor-pointer bg-white rounded-xl p-3.5 border-2 border-slate-900 shadow-xs transition-all">
                     <div class="flex items-start justify-between">
@@ -182,16 +182,17 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Daily Repayment</span>
                             </div>
                             <h3 class="text-sm font-bold text-slate-900 mt-1.5">Zero-CIBIL &amp; Interest-Free Loan</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Micro-credit up to ₹2,00,000 with daily repayments.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Preset: ₹30,000 • ₹1,000/day EMI</p>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-extrabold text-slate-900">₹20K – ₹2L</span>
+                            <span class="text-sm font-extrabold text-slate-900">₹30,000</span>
+                            <span class="text-[10px] text-slate-500 block">24 Months</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 2. Low CIBIL Cash Loan -->
-                <div onclick="selectProduct('cash_loan_low_cibil', 'Low CIBIL Cash Loan', 50000, 400000, 11.5, 2499)" 
+                <div onclick="selectPresetProduct('cash_loan_low_cibil', 'Low CIBIL Cash Loan', 100000, 24, 11.5, 2499)" 
                      id="prod_cash_loan_low_cibil"
                      class="product-card cursor-pointer bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs transition-all">
                     <div class="flex items-start justify-between">
@@ -201,16 +202,17 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Bank Transfer</span>
                             </div>
                             <h3 class="text-sm font-bold text-slate-900 mt-1.5">Low CIBIL Cash Loan</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Personal emergency loans up to ₹4,00,000.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Preset: ₹1,00,000 • Personal emergency funds</p>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-extrabold text-slate-900">Up to ₹4L</span>
+                            <span class="text-sm font-extrabold text-slate-900">₹1,00,000</span>
+                            <span class="text-[10px] text-slate-500 block">24 Months</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 3. Prime Cash Loan -->
-                <div onclick="selectProduct('cash_loan_good_cibil', 'Good CIBIL Cash Loan', 200000, 5000000, 9.5, 3999)" 
+                <div onclick="selectPresetProduct('cash_loan_good_cibil', 'Good CIBIL Cash Loan', 500000, 36, 9.5, 3999)" 
                      id="prod_cash_loan_good_cibil"
                      class="product-card cursor-pointer bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs transition-all">
                     <div class="flex items-start justify-between">
@@ -220,16 +222,17 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Bank Partner</span>
                             </div>
                             <h3 class="text-sm font-bold text-slate-900 mt-1.5">Good CIBIL Cash Loan</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">High-limit personal loans up to ₹50,00,000.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Preset: ₹5,00,000 • Premier banking rates</p>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-extrabold text-slate-900">Up to ₹50L</span>
+                            <span class="text-sm font-extrabold text-slate-900">₹5,00,000</span>
+                            <span class="text-[10px] text-slate-500 block">36 Months</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 4. Virtual Credit Line -->
-                <div onclick="selectProduct('virtual_loan', 'App Virtual Credit', 15000, 45000, 0, 2000)" 
+                <div onclick="selectPresetProduct('virtual_loan', 'App Virtual Credit', 25000, 6, 0, 2000)" 
                      id="prod_virtual_loan"
                      class="product-card cursor-pointer bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs transition-all">
                     <div class="flex items-start justify-between">
@@ -239,38 +242,73 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Merchant QR</span>
                             </div>
                             <h3 class="text-sm font-bold text-slate-900 mt-1.5">App-to-App Virtual Credit Line</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Closed-loop line for instant QR merchant payments.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Preset: ₹25,000 • Closed-loop merchant line</p>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-extrabold text-slate-900">₹15K – ₹45K</span>
+                            <span class="text-sm font-extrabold text-slate-900">₹25,000</span>
+                            <span class="text-[10px] text-slate-500 block">6 Months</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 5. Business / Fleet Loan -->
-                <div onclick="selectProduct('business_loan', 'Business / Fleet Loan', 500000, 20000000, 10.5, 5999)" 
+                <div onclick="selectPresetProduct('business_loan', 'Business / Fleet Loan', 1000000, 48, 10.5, 5999)" 
                      id="prod_business_loan"
                      class="product-card cursor-pointer bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs transition-all">
                     <div class="flex items-start justify-between">
                         <div>
                             <div class="flex items-center space-x-1.5">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">MSME &amp; Fleet</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Expansion</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">Scaling</span>
                             </div>
                             <h3 class="text-sm font-bold text-slate-900 mt-1.5">Business &amp; Fleet Expansion Loan</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Capital funding for vehicle purchases and fleet scaling.</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Preset: ₹10,00,000 • Cab purchase &amp; business</p>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-extrabold text-slate-900">Up to ₹2 Cr</span>
+                            <span class="text-sm font-extrabold text-slate-900">₹10,00,000</span>
+                            <span class="text-[10px] text-slate-500 block">48 Months</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 6. Custom Loan Amount Option (Toggles Required Amount Section) -->
+                <div onclick="selectCustomAmountMode()" 
+                     id="prod_custom_amount"
+                     class="product-card cursor-pointer bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs transition-all">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm">
+                                ✎
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">Custom Loan Amount</h3>
+                                <p class="text-xs text-slate-500">Need a different amount or tenure? Configure here.</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-700" id="customToggleArrow">Configure ↓</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Amount & Calculator Card -->
-            <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-4">
+            <!-- Selected Preset Summary Banner (Shown when a preset card is selected) -->
+            <div id="presetSelectedBanner" class="bg-slate-900 text-white rounded-xl p-3.5 shadow-xs flex items-center justify-between text-xs">
+                <div>
+                    <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">Selected Package</span>
+                    <span class="font-bold text-white text-sm" id="presetSummaryTitle">Zero-CIBIL Loan (₹30,000)</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] text-slate-400 block" id="presetSummaryTenure">24 Months</span>
+                    <span class="font-extrabold text-emerald-400 text-sm" id="presetSummaryEmi">₹1,000 / day</span>
+                </div>
+            </div>
+
+            <!-- Required Amount Section (ONLY OPEN IF NO PRESET CARD IS SELECTED OR CUSTOM IS CHOSEN) -->
+            <div id="customAmountSection" class="hidden bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-4">
                 <div class="flex items-center justify-between">
-                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Required Amount</label>
+                    <div>
+                        <label class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Custom Required Amount</label>
+                        <span class="text-[11px] text-slate-500">Adjust the slider to choose desired borrowing limit</span>
+                    </div>
                     <span class="text-xl font-extrabold text-slate-900 font-mono" id="selectedAmountDisplay">₹30,000</span>
                 </div>
                 <input type="range" id="loanAmountSlider" min="20000" max="200000" step="5000" value="30000" 
@@ -279,7 +317,7 @@
 
                 <!-- Modern Segmented Tenure Buttons -->
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Tenure</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Select Tenure</label>
                     <div class="grid grid-cols-4 gap-1.5" id="tenureSegmentedContainer">
                         <button type="button" onclick="selectTenure(12)" class="tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors" data-tenure="12">12M</button>
                         <button type="button" onclick="selectTenure(24)" class="tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-900 text-white bg-slate-900 transition-colors" data-tenure="24">24M</button>
@@ -291,7 +329,7 @@
                 <!-- Estimated Repayment & Fee -->
                 <div class="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
                     <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span class="text-slate-500 block text-[11px]">Estimated EMI</span>
+                        <span class="text-slate-500 block text-[11px]">Estimated Repayment</span>
                         <span class="font-bold text-slate-900 text-sm" id="estimatedRepaymentDisplay">₹1,000 / day</span>
                     </div>
                     <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
@@ -317,33 +355,44 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- STEP 2: APPLICANT DETAILS & KYC VAULT -->
+        <!-- STEP 2: APPLICANT DETAILS & 4 KYC DOCS -->
         <!-- ========================================== -->
         <section id="step2Container" class="hidden space-y-4">
             <div>
-                <h2 class="text-base font-bold text-slate-900">Personal &amp; KYC Details</h2>
-                <p class="text-xs text-slate-500 mt-0.5">Enter official details matching your government identity.</p>
+                <h2 class="text-base font-bold text-slate-900">Personal &amp; KYC Verification</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Enter details and upload all 4 required KYC verification documents.</p>
             </div>
 
             <!-- Smart Document Reuse Banner -->
             <div id="vaultReuseAlert" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span class="font-semibold">KYC Vault: Documents reused from last 5 days</span>
+                    <span class="font-semibold">KYC Vault: Previously verified documents auto-mapped</span>
                 </div>
-                <span class="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">Auto-Filled</span>
+                <span class="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">Vault Ready</span>
             </div>
 
             <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3.5">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Full Legal Name</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Full Legal Name <span class="text-rose-500">*</span></label>
                     <input type="text" id="applicantFullName" placeholder="As per PAN card" 
                            class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white transition-colors">
                 </div>
 
+                <!-- Dedicated Mobile Number Input -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Mobile Phone Number <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 font-semibold text-sm">+91</span>
+                        <input type="tel" id="applicantPhone" placeholder="9876543210" maxlength="10" 
+                               class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-12 pr-3.5 py-2.5 text-sm text-slate-900 font-medium focus:outline-none focus:border-slate-900 focus:bg-white transition-colors"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 10) updateApplicantPhone(this.value);">
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">PAN Number</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">PAN Number <span class="text-rose-500">*</span></label>
                         <input type="text" id="applicantPan" placeholder="ABCDE1234F" maxlength="10" 
                                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 uppercase font-mono tracking-wider focus:outline-none focus:border-slate-900 focus:bg-white transition-colors"
                                oninput="this.value = this.value.toUpperCase()">
@@ -367,7 +416,7 @@
 
                 <div class="grid grid-cols-3 gap-2">
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">City</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">City <span class="text-rose-500">*</span></label>
                         <input type="text" id="applicantCity" placeholder="Ujjain" 
                                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white">
                     </div>
@@ -377,9 +426,10 @@
                                class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">PIN Code</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">PIN Code <span class="text-rose-500">*</span></label>
                         <input type="text" id="applicantPincode" placeholder="456001" maxlength="6" 
-                               class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white">
+                               class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                 </div>
 
@@ -395,18 +445,71 @@
                 </div>
             </div>
 
-            <!-- KYC Documents -->
+            <!-- ALL 4 MANDATORY KYC DOCUMENTS -->
             <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">KYC Documents</label>
-                
-                <div class="border border-dashed border-slate-300 rounded-lg p-3 text-center bg-slate-50 hover:bg-slate-100/60 transition-colors">
-                    <p class="text-xs font-semibold text-slate-800">Aadhaar or Voter ID Card</p>
-                    <input type="file" id="idProofFile" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white">
+                <div class="flex items-center justify-between">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Mandatory KYC Documents</label>
+                    <span class="text-[11px] text-rose-600 font-semibold">All 4 Required</span>
                 </div>
 
-                <div class="border border-dashed border-slate-300 rounded-lg p-3 text-center bg-slate-50 hover:bg-slate-100/60 transition-colors">
-                    <p class="text-xs font-semibold text-slate-800">Bank Statement / Passbook</p>
-                    <input type="file" id="bankStatementFile" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white">
+                <!-- Doc 1: Aadhaar Front Image -->
+                <div class="border border-dashed border-slate-300 rounded-xl p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors" id="box_aadhaar_front">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-slate-900 block">1. Aadhaar Card Front <span class="text-rose-500">*</span></span>
+                            <span class="text-[11px] text-slate-500" id="status_aadhaar_front">Clear photo showing name &amp; photo</span>
+                        </div>
+                        <span id="badge_aadhaar_front" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Pending</span>
+                    </div>
+                    <input type="file" accept="image/*" id="aadhaarFrontFile" onchange="handleDocSelected('aadhaar_front', this)" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white cursor-pointer">
+                    <div id="preview_container_aadhaar_front" class="hidden mt-2">
+                        <img id="preview_img_aadhaar_front" class="h-20 w-auto rounded border border-slate-300 object-cover">
+                    </div>
+                </div>
+
+                <!-- Doc 2: Aadhaar Back Image -->
+                <div class="border border-dashed border-slate-300 rounded-xl p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors" id="box_aadhaar_back">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-slate-900 block">2. Aadhaar Card Back <span class="text-rose-500">*</span></span>
+                            <span class="text-[11px] text-slate-500" id="status_aadhaar_back">Clear photo showing address details</span>
+                        </div>
+                        <span id="badge_aadhaar_back" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Pending</span>
+                    </div>
+                    <input type="file" accept="image/*" id="aadhaarBackFile" onchange="handleDocSelected('aadhaar_back', this)" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white cursor-pointer">
+                    <div id="preview_container_aadhaar_back" class="hidden mt-2">
+                        <img id="preview_img_aadhaar_back" class="h-20 w-auto rounded border border-slate-300 object-cover">
+                    </div>
+                </div>
+
+                <!-- Doc 3: PAN Card Image -->
+                <div class="border border-dashed border-slate-300 rounded-xl p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors" id="box_pan_card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-slate-900 block">3. PAN Card Front <span class="text-rose-500">*</span></span>
+                            <span class="text-[11px] text-slate-500" id="status_pan_card">Clear photo showing PAN number</span>
+                        </div>
+                        <span id="badge_pan_card" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Pending</span>
+                    </div>
+                    <input type="file" accept="image/*" id="panCardFile" onchange="handleDocSelected('pan_card', this)" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white cursor-pointer">
+                    <div id="preview_container_pan_card" class="hidden mt-2">
+                        <img id="preview_img_pan_card" class="h-20 w-auto rounded border border-slate-300 object-cover">
+                    </div>
+                </div>
+
+                <!-- Doc 4: Bank Passbook Front Image -->
+                <div class="border border-dashed border-slate-300 rounded-xl p-3 bg-slate-50 hover:bg-slate-100/70 transition-colors" id="box_bank_passbook">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-slate-900 block">4. Bank Passbook / Cheque Front <span class="text-rose-500">*</span></span>
+                            <span class="text-[11px] text-slate-500" id="status_bank_passbook">Showing account number &amp; IFSC code</span>
+                        </div>
+                        <span id="badge_bank_passbook" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600">Pending</span>
+                    </div>
+                    <input type="file" accept="image/*" id="bankPassbookFile" onchange="handleDocSelected('bank_passbook', this)" class="mt-2 text-xs text-slate-600 block w-full file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white cursor-pointer">
+                    <div id="preview_container_bank_passbook" class="hidden mt-2">
+                        <img id="preview_img_bank_passbook" class="h-20 w-auto rounded border border-slate-300 object-cover">
+                    </div>
                 </div>
             </div>
 
@@ -637,11 +740,11 @@
             <div class="bg-white rounded-xl p-4 border border-emerald-200 shadow-xs flex items-center justify-between">
                 <div>
                     <span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">SANCTION APPROVED</span>
-                    <h3 class="text-base font-extrabold text-slate-900 mt-1">₹30,000 Credit Limit</h3>
+                    <h3 class="text-base font-extrabold text-slate-900 mt-1" id="finalApprovedLimitDisplay">₹30,000 Credit Limit</h3>
                 </div>
                 <div class="text-right">
                     <span class="text-xs text-slate-400 block text-[11px]">Daily Limit</span>
-                    <span class="text-xs font-bold text-slate-900">₹5,000 / day</span>
+                    <span class="text-xs font-bold text-slate-900" id="finalDailyLimitDisplay">₹5,000 / day</span>
                 </div>
             </div>
 
@@ -676,7 +779,7 @@
 
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">IFSC Code</label>
-                    <input type="text" id="bankIfsc" placeholder="SBIN0001234" uppercase 
+                    <input type="text" id="bankIfsc" placeholder="SBIN0001234" 
                            class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 uppercase font-mono tracking-wider focus:outline-none focus:border-slate-900 focus:bg-white"
                            oninput="this.value = this.value.toUpperCase()">
                 </div>
@@ -717,23 +820,31 @@
         // State
         let currentStep = 1;
         let maxUnlockedStep = 1; // Strict step guard
+        let isCustomAmountMode = false;
         let selectedProductCode = 'zero_cibil_daily';
+        let selectedAmount = 30000;
         let selectedTenure = 24;
         let selectedGender = 'Male';
         let currentAppId = null;
         let customerContext = null;
+        let uploadedDocFiles = {
+            aadhaar_front: null,
+            aadhaar_back: null,
+            pan_card: null,
+            bank_passbook: null,
+        };
 
         // Step definitions for clean navigation
         const stepTitles = {
             1: 'Step 1 of 6: Choose Loan',
-            2: 'Step 2 of 6: Personal Details',
+            2: 'Step 2 of 6: Personal Details & KYC',
             3: 'Step 3 of 6: Review & Fee',
             4: 'Step 4 of 6: Select Lender',
             5: 'Step 5 of 6: Verification',
             6: 'Step 6 of 6: Disbursement'
         };
 
-        // Modern Floating Snackbar / Toast System (Replaces ugly browser alert())
+        // Modern Floating Snackbar / Toast System (Replaces browser alert())
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             if (!container) return;
@@ -771,24 +882,26 @@
             }, 3500);
         }
 
-        // URL Parameters
+        // Read URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const paramPhone = urlParams.get('mobile') || urlParams.get('phone') || '';
-        const paramName = urlParams.get('name') || '';
-        const paramUserType = urlParams.get('user_type') || 'customer';
+        let activePhone = urlParams.get('mobile') || urlParams.get('phone') || '';
+        let activeName = urlParams.get('name') || '';
+        let activeUserType = urlParams.get('user_type') || 'customer';
         const paramCardType = urlParams.get('card_type') || '';
 
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
-            if (paramName) {
-                document.getElementById('applicantNameDisplay').innerText = paramName;
-                document.getElementById('applicantFullName').value = paramName;
-                document.getElementById('applicantAvatar').innerText = paramName.charAt(0).toUpperCase();
+            if (activeName) {
+                document.getElementById('applicantNameDisplay').innerText = activeName;
+                document.getElementById('applicantFullName').value = activeName;
+                document.getElementById('applicantAvatar').innerText = activeName.charAt(0).toUpperCase();
             }
-            if (paramPhone) {
-                document.getElementById('applicantPhoneDisplay').innerText = '+91 ' + paramPhone.slice(-10);
+            if (activePhone) {
+                const cleanPhone = activePhone.replace(/[^0-9]/g, '').slice(-10);
+                document.getElementById('applicantPhone').value = cleanPhone;
+                document.getElementById('applicantPhoneDisplay').innerText = '+91 ' + cleanPhone;
             }
-            if (paramUserType === 'driver') {
+            if (activeUserType === 'driver') {
                 document.getElementById('headerUserType').innerText = 'Driver Partner';
                 document.getElementById('headerSubtext').innerText = 'Driver Partner Finance';
                 document.getElementById('applicantEmployment').value = 'Driver Partner';
@@ -796,13 +909,148 @@
 
             // Pre-select based on card_type
             if (paramCardType.toLowerCase().includes('zero') || paramCardType.toLowerCase().includes('interest')) {
-                selectProduct('zero_cibil_daily', 'Zero-CIBIL Loan', 20000, 200000, 0, 1000);
+                selectPresetProduct('zero_cibil_daily', 'Zero-CIBIL Loan', 30000, 24, 0, 1000);
             } else if (paramCardType.toLowerCase().includes('low')) {
-                selectProduct('cash_loan_low_cibil', 'Low CIBIL Cash Loan', 50000, 400000, 11.5, 2499);
+                selectPresetProduct('cash_loan_low_cibil', 'Low CIBIL Cash Loan', 100000, 24, 11.5, 2499);
+            } else if (paramCardType.toLowerCase().includes('good') || paramCardType.toLowerCase().includes('prime')) {
+                selectPresetProduct('cash_loan_good_cibil', 'Good CIBIL Cash Loan', 500000, 36, 9.5, 3999);
+            } else if (paramCardType.toLowerCase().includes('virtual')) {
+                selectPresetProduct('virtual_loan', 'App Virtual Credit', 25000, 6, 0, 2000);
+            } else if (paramCardType.toLowerCase().includes('business')) {
+                selectPresetProduct('business_loan', 'Business / Fleet Loan', 1000000, 48, 10.5, 5999);
             }
 
             fetchContext();
         });
+
+        function updateApplicantPhone(val) {
+            activePhone = val;
+            document.getElementById('applicantPhoneDisplay').innerText = '+91 ' + val;
+        }
+
+        // STEP 1: PRESET SELECTION (Hides Required Amount Section)
+        function selectPresetProduct(code, name, amount, tenure, rate, fee) {
+            isCustomAmountMode = false;
+            selectedProductCode = code;
+            selectedAmount = amount;
+            selectedTenure = tenure;
+
+            // Highlight chosen preset card
+            document.querySelectorAll('.product-card').forEach(c => {
+                c.classList.remove('border-2', 'border-slate-900');
+                c.classList.add('border', 'border-slate-200');
+            });
+            const activeCard = document.getElementById(`prod_${code}`);
+            if (activeCard) {
+                activeCard.classList.remove('border', 'border-slate-200');
+                activeCard.classList.add('border-2', 'border-slate-900');
+            }
+
+            // HIDE Required Amount Section
+            document.getElementById('customAmountSection').classList.add('hidden');
+            document.getElementById('customToggleArrow').innerText = 'Configure ↓';
+
+            // SHOW Selected Preset Banner
+            const banner = document.getElementById('presetSelectedBanner');
+            banner.classList.remove('hidden');
+            document.getElementById('presetSummaryTitle').innerText = `${name} (₹${amount.toLocaleString('en-IN')})`;
+            document.getElementById('presetSummaryTenure').innerText = `${tenure} Months`;
+
+            let emiText = '';
+            if (code === 'zero_cibil_daily') {
+                emiText = '₹1,000 / day';
+            } else {
+                const emi = Math.round((amount / tenure) * 1.09);
+                emiText = `₹${emi.toLocaleString('en-IN')} / mo`;
+            }
+            document.getElementById('presetSummaryEmi').innerText = emiText;
+
+            // Update internal calculator values
+            const slider = document.getElementById('loanAmountSlider');
+            if (slider) slider.value = amount;
+            updateCalculator();
+        }
+
+        // STEP 1: CUSTOM REQUIRED AMOUNT (Opens Required Amount Section & Unselects Presets)
+        function selectCustomAmountMode() {
+            isCustomAmountMode = true;
+
+            // Unhighlight all preset cards
+            document.querySelectorAll('.product-card').forEach(c => {
+                c.classList.remove('border-2', 'border-slate-900');
+                c.classList.add('border', 'border-slate-200');
+            });
+            const customCard = document.getElementById('prod_custom_amount');
+            if (customCard) {
+                customCard.classList.remove('border', 'border-slate-200');
+                customCard.classList.add('border-2', 'border-slate-900');
+            }
+
+            // HIDE Preset Banner & SHOW Required Amount Section
+            document.getElementById('presetSelectedBanner').classList.add('hidden');
+            const customSection = document.getElementById('customAmountSection');
+            customSection.classList.remove('hidden');
+            document.getElementById('customToggleArrow').innerText = 'Active ↑';
+
+            // Update calculator
+            updateCalculator();
+        }
+
+        // Tenure Segmented Button
+        function selectTenure(months) {
+            selectedTenure = months;
+            document.querySelectorAll('.tenure-btn').forEach(b => {
+                if (parseInt(b.dataset.tenure) === months) {
+                    b.className = 'tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-900 text-white bg-slate-900 transition-colors';
+                } else {
+                    b.className = 'tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors';
+                }
+            });
+            updateCalculator();
+        }
+
+        // Gender Segmented Button
+        function selectGender(gender) {
+            selectedGender = gender;
+            document.querySelectorAll('.gender-btn').forEach(b => {
+                if (b.dataset.gender === gender) {
+                    b.className = 'gender-btn py-2 text-xs font-semibold rounded-lg border border-slate-900 text-white bg-slate-900 transition-colors';
+                } else {
+                    b.className = 'gender-btn py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors';
+                }
+            });
+        }
+
+        // Calculator Update
+        function updateCalculator() {
+            if (isCustomAmountMode) {
+                selectedAmount = parseInt(document.getElementById('loanAmountSlider').value);
+            }
+            document.getElementById('selectedAmountDisplay').innerText = '₹' + selectedAmount.toLocaleString('en-IN');
+            
+            let dailyEmi = Math.round(selectedAmount / 30);
+            if (selectedProductCode === 'zero_cibil_daily') {
+                dailyEmi = Math.max(500, Math.round(selectedAmount / 100));
+                document.getElementById('estimatedRepaymentDisplay').innerText = '₹' + dailyEmi.toLocaleString('en-IN') + ' / day';
+            } else {
+                const emi = Math.round(selectedAmount / selectedTenure * 1.09);
+                document.getElementById('estimatedRepaymentDisplay').innerText = '₹' + emi.toLocaleString('en-IN') + ' / mo';
+            }
+
+            let baseFee = 2000;
+            if (selectedAmount <= 20000) baseFee = 1500;
+            else if (selectedAmount <= 50000) baseFee = 2500;
+            else if (selectedAmount <= 100000) baseFee = 3500;
+            else baseFee = 4999;
+
+            const gst = Math.round(baseFee * 0.18);
+            const total = baseFee + gst;
+
+            document.getElementById('processingFeeDisplay').innerText = `₹${total.toLocaleString('en-IN')}`;
+            document.getElementById('feeBaseDisplay').innerText = `₹${baseFee.toFixed(2)}`;
+            document.getElementById('feeGstDisplay').innerText = `₹${gst.toFixed(2)}`;
+            document.getElementById('feeTotalDisplay').innerText = `₹${total.toFixed(2)}`;
+        }
 
         // Step Tab Click Guard (Prevents skipping ahead without filling)
         function handleStepTabClick(targetStep) {
@@ -845,95 +1093,70 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Product Selection
-        function selectProduct(code, name, min, max, rate, fee) {
-            selectedProductCode = code;
-            document.querySelectorAll('.product-card').forEach(c => {
-                c.classList.remove('border-2', 'border-slate-900');
-                c.classList.add('border', 'border-slate-200');
-            });
-            const activeCard = document.getElementById(`prod_${code}`);
-            if (activeCard) {
-                activeCard.classList.remove('border', 'border-slate-200');
-                activeCard.classList.add('border-2', 'border-slate-900');
-            }
-
-            const slider = document.getElementById('loanAmountSlider');
-            slider.min = min;
-            slider.max = max;
-            slider.value = Math.min(Math.max(30000, min), max);
-            updateCalculator();
-        }
-
-        // Tenure Segmented Button
-        function selectTenure(months) {
-            selectedTenure = months;
-            document.querySelectorAll('.tenure-btn').forEach(b => {
-                if (parseInt(b.dataset.tenure) === months) {
-                    b.className = 'tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-900 text-white bg-slate-900 transition-colors';
-                } else {
-                    b.className = 'tenure-btn py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors';
-                }
-            });
-            updateCalculator();
-        }
-
-        // Gender Segmented Button
-        function selectGender(gender) {
-            selectedGender = gender;
-            document.querySelectorAll('.gender-btn').forEach(b => {
-                if (b.dataset.gender === gender) {
-                    b.className = 'gender-btn py-2 text-xs font-semibold rounded-lg border border-slate-900 text-white bg-slate-900 transition-colors';
-                } else {
-                    b.className = 'gender-btn py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors';
-                }
-            });
-        }
-
-        // Calculator Update
-        function updateCalculator() {
-            const amount = parseInt(document.getElementById('loanAmountSlider').value);
-            document.getElementById('selectedAmountDisplay').innerText = '₹' + amount.toLocaleString('en-IN');
-            
-            let dailyEmi = Math.round(amount / 30);
-            if (selectedProductCode === 'zero_cibil_daily') {
-                dailyEmi = Math.max(500, Math.round(amount / 100));
-                document.getElementById('estimatedRepaymentDisplay').innerText = '₹' + dailyEmi.toLocaleString('en-IN') + ' / day';
-            } else {
-                const emi = Math.round(amount / selectedTenure * 1.09);
-                document.getElementById('estimatedRepaymentDisplay').innerText = '₹' + emi.toLocaleString('en-IN') + ' / mo';
-            }
-
-            let baseFee = 2000;
-            if (amount <= 20000) baseFee = 1500;
-            else if (amount <= 50000) baseFee = 2500;
-            else if (amount <= 100000) baseFee = 3500;
-            else baseFee = 4999;
-
-            const gst = Math.round(baseFee * 0.18);
-            const total = baseFee + gst;
-
-            document.getElementById('processingFeeDisplay').innerText = `₹${total.toLocaleString('en-IN')}`;
-            document.getElementById('feeBaseDisplay').innerText = `₹${baseFee.toFixed(2)}`;
-            document.getElementById('feeGstDisplay').innerText = `₹${gst.toFixed(2)}`;
-            document.getElementById('feeTotalDisplay').innerText = `₹${total.toFixed(2)}`;
-        }
-
         // Fetch User Context
         async function fetchContext() {
             try {
-                const res = await fetch(`/api/v1/finance/context?phone=${paramPhone}&name=${encodeURIComponent(paramName)}&user_type=${paramUserType}`);
+                const res = await fetch(`/api/v1/finance/context?phone=${activePhone}&name=${encodeURIComponent(activeName)}&user_type=${activeUserType}`);
                 const json = await res.json();
                 if (json.success && json.data) {
                     customerContext = json.data.customer;
-                    if (customerContext.name) {
+                    if (customerContext.name && !document.getElementById('applicantFullName').value) {
                         document.getElementById('applicantNameDisplay').innerText = customerContext.name;
+                        document.getElementById('applicantFullName').value = customerContext.name;
+                    }
+                    if (customerContext.phone && !document.getElementById('applicantPhone').value) {
+                        const cleanP = customerContext.phone.replace(/[^0-9]/g, '').slice(-10);
+                        document.getElementById('applicantPhone').value = cleanP;
+                        document.getElementById('applicantPhoneDisplay').innerText = '+91 ' + cleanP;
+                    }
+                    if (customerContext.pan) {
+                        document.getElementById('applicantPan').value = customerContext.pan;
                     }
                     if (json.data.reusable_documents && json.data.reusable_documents.length > 0) {
                         document.getElementById('vaultReuseAlert').classList.remove('hidden');
+                        json.data.reusable_documents.forEach(doc => {
+                            if (uploadedDocFiles.hasOwnProperty(doc.document_type)) {
+                                uploadedDocFiles[doc.document_type] = 'VAULT_REUSED';
+                                const badge = document.getElementById(`badge_${doc.document_type}`);
+                                if (badge) {
+                                    badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800';
+                                    badge.innerText = '✓ Reused';
+                                }
+                            }
+                        });
                     }
                 }
             } catch (_) {}
+        }
+
+        // Handle File Selection with Instant Preview
+        function handleDocSelected(field, input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                uploadedDocFiles[field] = file;
+
+                const badge = document.getElementById(`badge_${field}`);
+                if (badge) {
+                    badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800';
+                    badge.innerText = '✓ Ready';
+                }
+                const status = document.getElementById(`status_${field}`);
+                if (status) {
+                    status.innerText = file.name;
+                }
+
+                // Show thumbnail preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewContainer = document.getElementById(`preview_container_${field}`);
+                    const previewImg = document.getElementById(`preview_img_${field}`);
+                    if (previewContainer && previewImg) {
+                        previewImg.src = e.target.result;
+                        previewContainer.classList.remove('hidden');
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
         }
 
         // STEP 1 VALIDATION & PROCEED
@@ -949,9 +1172,10 @@
             goToStep(2);
         }
 
-        // STEP 2 VALIDATION & PROCEED
+        // STEP 2 VALIDATION & PROCEED (Enforces all 4 KYC documents + Phone + Details)
         async function validateStep2AndProceed() {
             const fullName = document.getElementById('applicantFullName').value.trim();
+            const phone = document.getElementById('applicantPhone').value.trim();
             const pan = document.getElementById('applicantPan').value.trim();
             const city = document.getElementById('applicantCity').value.trim();
             const pincode = document.getElementById('applicantPincode').value.trim();
@@ -959,6 +1183,11 @@
             if (!fullName) {
                 showToast('Please enter your full legal name.', 'warning');
                 document.getElementById('applicantFullName').focus();
+                return;
+            }
+            if (!phone || phone.length < 10) {
+                showToast('Please enter a valid 10-digit mobile number.', 'warning');
+                document.getElementById('applicantPhone').focus();
                 return;
             }
             if (!pan || pan.length < 10) {
@@ -977,44 +1206,88 @@
                 return;
             }
 
+            // ENFORCE ALL 4 MANDATORY KYC DOCUMENTS
+            if (!uploadedDocFiles.aadhaar_front) {
+                showToast('Please upload Document 1: Aadhaar Card Front.', 'warning');
+                document.getElementById('box_aadhaar_front').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+            if (!uploadedDocFiles.aadhaar_back) {
+                showToast('Please upload Document 2: Aadhaar Card Back.', 'warning');
+                document.getElementById('box_aadhaar_back').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+            if (!uploadedDocFiles.pan_card) {
+                showToast('Please upload Document 3: PAN Card Front.', 'warning');
+                document.getElementById('box_pan_card').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+            if (!uploadedDocFiles.bank_passbook) {
+                showToast('Please upload Document 4: Bank Passbook Front.', 'warning');
+                document.getElementById('box_bank_passbook').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
             const btn = document.getElementById('submitAppBtn');
-            btn.innerHTML = '<span>Saving Profile...</span>';
+            btn.innerHTML = '<span>Uploading Documents &amp; Saving...</span>';
             btn.disabled = true;
 
-            const amount = parseInt(document.getElementById('loanAmountSlider').value);
+            // Prepare Multipart Form Data to ensure files + profile are submitted
+            const formData = new FormData();
+            formData.append('phone', phone);
+            formData.append('applicant_phone', phone);
+            formData.append('applicant_name', fullName);
+            formData.append('user_type', activeUserType);
+            formData.append('product_code', selectedProductCode);
+            formData.append('requested_amount', selectedAmount);
+            formData.append('tenure_months', selectedTenure);
+            formData.append('pan', pan);
+            formData.append('dob', document.getElementById('applicantDob').value);
+            formData.append('city', city);
+            formData.append('state', document.getElementById('applicantState').value);
+            formData.append('pincode', pincode);
+            formData.append('gender', selectedGender);
+            formData.append('employment', document.getElementById('applicantEmployment').value);
+
+            // Append 4 KYC files if uploaded
+            if (uploadedDocFiles.aadhaar_front instanceof File) {
+                formData.append('aadhaar_front', uploadedDocFiles.aadhaar_front);
+            }
+            if (uploadedDocFiles.aadhaar_back instanceof File) {
+                formData.append('aadhaar_back', uploadedDocFiles.aadhaar_back);
+            }
+            if (uploadedDocFiles.pan_card instanceof File) {
+                formData.append('pan_card', uploadedDocFiles.pan_card);
+            }
+            if (uploadedDocFiles.bank_passbook instanceof File) {
+                formData.append('bank_passbook', uploadedDocFiles.bank_passbook);
+            }
 
             try {
                 const res = await fetch('/api/v1/finance/applications/initiate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({
-                        phone: paramPhone,
-                        applicant_name: fullName,
-                        user_type: paramUserType,
-                        product_code: selectedProductCode,
-                        requested_amount: amount,
-                        tenure_months: selectedTenure,
-                        pan: pan,
-                        city: city,
-                        pincode: pincode,
-                        gender: selectedGender,
-                        employment: document.getElementById('applicantEmployment').value
-                    })
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
                 });
                 const json = await res.json();
                 if (json.success && json.data) {
                     currentAppId = json.data.id;
                     document.getElementById('appNumberDisplay').innerText = json.data.application_number;
                     document.getElementById('summaryProductName').innerText = selectedProductCode.replace(/_/g, ' ').toUpperCase();
-                    document.getElementById('summaryAmount').innerText = '₹' + amount.toLocaleString('en-IN');
+                    document.getElementById('summaryAmount').innerText = '₹' + selectedAmount.toLocaleString('en-IN');
                     document.getElementById('summaryTenure').innerText = selectedTenure + ' Months';
+                    document.getElementById('finalApprovedLimitDisplay').innerText = '₹' + selectedAmount.toLocaleString('en-IN') + ' Credit Limit';
+
+                    // Update borrower display
+                    document.getElementById('applicantNameDisplay').innerText = fullName;
+                    document.getElementById('applicantPhoneDisplay').innerText = '+91 ' + phone;
 
                     // Unlock Step 3
                     maxUnlockedStep = Math.max(maxUnlockedStep, 3);
-                    showToast('Details saved successfully.', 'success');
+                    showToast('Application & KYC documents saved successfully!', 'success');
                     goToStep(3);
                 } else {
-                    showToast(json.error || 'Failed to save application.', 'error');
+                    showToast(json.error || 'Failed to save application. Please verify details.', 'error');
                 }
             } catch (e) {
                 showToast('Connection error: ' + e.message, 'error');
@@ -1055,7 +1328,7 @@
             } catch (e) {
                 showToast('Payment error: ' + e.message, 'error');
             } finally {
-                btn.innerHTML = '<span>Pay Fee & Unlock Partners</span><span>→</span>';
+                btn.innerHTML = '<span>Pay Fee &amp; Unlock Partners</span><span>→</span>';
                 btn.disabled = false;
             }
         }
@@ -1237,7 +1510,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({
-                        phone: paramPhone,
+                        phone: activePhone,
                         payment_amount: 1000.00
                     })
                 });
