@@ -3,7 +3,7 @@
 use App\Http\Controllers\API\v1\Finance\FinanceApiController;
 use Illuminate\Support\Facades\Route;
 
-Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/finance'], function () {
+Route::group(['prefix' => 'v1/finance'], function () {
     Route::get('context', [FinanceApiController::class, 'getContext']);
     Route::get('products', [FinanceApiController::class, 'getProducts']);
     Route::post('calculate-eligibility', [FinanceApiController::class, 'calculateEligibility']);

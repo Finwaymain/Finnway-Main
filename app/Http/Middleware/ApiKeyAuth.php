@@ -21,8 +21,9 @@ class ApiKeyAuth
 
     public function handle($request, Closure $next, $guard = null)
     {
-        // Public customer food routes (nearby, menu, order tracking) do not require internal key
-        if ($request->is('api/v1/food/customer/*') || $request->is('*/v1/food/customer/*')) {
+        // Public customer food routes and webview finance portal routes do not require internal key
+        if ($request->is('api/v1/food/customer/*') || $request->is('*/v1/food/customer/*') ||
+            $request->is('api/v1/finance/*') || $request->is('*/v1/finance/*')) {
             return $next($request);
         }
 
