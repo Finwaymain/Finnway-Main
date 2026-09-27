@@ -271,17 +271,7 @@
         </div>
     </div>
 
-    @hasSection('progress')
-    <div class="fw-progress">
-        <div class="fw-progress-label">
-            <span>@yield('progress-label', 'Step 1')</span>
-            <span>@yield('progress-pct', '0')%</span>
-        </div>
-        <div class="fw-progress-track">
-            <div class="fw-progress-fill" style="width: @yield('progress-pct', '0')%"></div>
-        </div>
-    </div>
-    @endif
+    @yield('progress')
 
     @yield('back')
 

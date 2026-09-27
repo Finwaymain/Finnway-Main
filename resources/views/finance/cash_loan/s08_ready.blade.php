@@ -4,8 +4,8 @@
 
 @section('progress')
 <div class="fw-progress">
-    <div class="fw-progress-label"><span style="float:left;">Step 7 of 12</span><span style="float:right;">58%</span><div style="clear:both;"></div></div>
-    <div class="fw-progress-track" style="background:#e0e0e0; height:6px; border-radius:3px; margin-top:5px;"><div class="fw-progress-fill" style="width:58%; background:#002147; height:100%; border-radius:3px;"></div></div>
+    <div class="fw-progress-label"><span>Step 7 of 12</span><span>58%</span></div>
+    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:58%;"></div></div>
 </div>
 @endsection
 
