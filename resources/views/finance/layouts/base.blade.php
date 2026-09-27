@@ -292,7 +292,9 @@
     </div>
 
     @hasSection('sticky-bottom')
+    <div class="fw-sticky-bottom">
         @yield('sticky-bottom')
+    </div>
     @endif
 
     @stack('scripts')

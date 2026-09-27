@@ -41,7 +41,7 @@ class FinanceWebController extends Controller
             $customer = FinanceCustomer::whereIn('phone', $variants)->first();
             if ($customer) {
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
-                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN', 'DRAFT', 'APPLICATION_CREATED'])
+                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
                     ->orderBy('id', 'desc')
                     ->first();
             }
@@ -199,7 +199,7 @@ class FinanceWebController extends Controller
                 'FEE_PAID'       => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
                 'ACTIVE'         => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
             ];
-            return $stepMap[$status] ?? route('finance.zero_cibil.s01_intro', ['phone' => $phone]);
+            return $stepMap[$status] ?? null;
         }
 
         $stepMap = [
@@ -254,7 +254,10 @@ class FinanceWebController extends Controller
             $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
 
             if ($targetFamily === $activeFamily) {
-                return $resumeUrl ? redirect($resumeUrl) : null;
+                if ($resumeUrl && $resumeUrl !== $request->fullUrl() && $resumeUrl !== $request->url()) {
+                    return redirect($resumeUrl);
+                }
+                return null;
             }
 
             $errorMsg = "You already have an active {$currentName} application (#{$application->application_number}) in progress. You cannot start a new process for {$targetTitle} until your current application is completed or withdrawn.";
