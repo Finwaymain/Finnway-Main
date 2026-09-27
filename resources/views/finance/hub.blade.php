@@ -24,7 +24,7 @@
                     </a>
                     @endif
                     @if(!empty($application) && (empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid'))
-                    <a href="javascript:void(0)" onclick="confirmWithdraw();" style="color:#b91c1c; font-size:12px; font-weight:600; text-decoration:underline;">
+                    <a href="{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}" style="color:#b91c1c; font-size:12px; font-weight:600; text-decoration:underline;">
                         Cancel &amp; Withdraw Application
                     </a>
                     @endif
@@ -67,7 +67,7 @@
 
         @if(empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid')
         <div style="text-align:center; margin-top:12px; border-top:1px solid #1e293b; padding-top:10px;">
-            <a href="javascript:void(0)" onclick="confirmWithdraw();" style="color:#f87171; font-size:12px; font-weight:600; text-decoration:none;">
+            <a href="{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}" style="color:#f87171; font-size:12px; font-weight:600; text-decoration:none;">
                 ✕ Cancel &amp; Withdraw Application
             </a>
         </div>
@@ -232,20 +232,12 @@
 
 @push('scripts')
 <script>
-function confirmWithdraw() {
-    if (confirm('Are you sure you want to cancel and withdraw this application ({{ $application->application_number ?? '' }})?\n\nOnce withdrawn, you can choose and start any other loan process freely.')) {
-        window.location.href = "{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}";
-    }
-}
-
 function handleCardClick(event, targetFamily, targetTitle) {
     @if(!empty($isRunning) && !empty($application))
     const activeFamily = "{{ $activeFamily ?? 'cash_loan' }}";
     if (targetFamily !== activeFamily) {
         event.preventDefault();
-        if (confirm("You already have an active {{ $activeFamilyName ?? 'Loan' }} application (#{{ $application->application_number ?? '' }}) in progress.\n\nYou cannot start a new process for " + targetTitle + " until your current application is completed or withdrawn.\n\nClick OK to resume your active application.")) {
-            window.location.href = "{{ $resumeUrl ?? '#' }}";
-        }
+        window.location.href = "{{ route('finance.hub', ['phone' => request('phone') ?? ($phone ?? '')]) }}?card_type=" + encodeURIComponent(targetFamily);
         return false;
     }
     @endif

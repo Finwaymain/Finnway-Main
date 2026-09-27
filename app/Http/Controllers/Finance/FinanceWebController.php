@@ -41,7 +41,7 @@ class FinanceWebController extends Controller
             $customer = FinanceCustomer::whereIn('phone', $variants)->first();
             if ($customer) {
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
-                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
+                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN', 'DRAFT', 'APPLICATION_CREATED'])
                     ->orderBy('id', 'desc')
                     ->first();
             }
@@ -189,15 +189,17 @@ class FinanceWebController extends Controller
             $params['hide_header'] = '1';
         }
 
-        if ($cat === 'zero_cibil') {
+        if (in_array($cat, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
             $stepMap = [
                 'KYC_PENDING'    => route('finance.zero_cibil.s02_kyc', ['phone' => $phone]),
-                'AMOUNT_PENDING' => route('finance.zero_cibil.s03_amount', ['phone' => $phone]),
+                'AMOUNT_PENDING' => route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]),
                 'SANCTIONED'     => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
-                'FEE_PAID'       => route('finance.zero_cibil.s05_contract', ['phone' => $phone]),
-                'ACTIVE'         => route('finance.zero_cibil.s07_active_dashboard', ['phone' => $phone]),
+                'FEE_PENDING'    => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'UNDERWRITING'   => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'FEE_PAID'       => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'ACTIVE'         => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
             ];
-            return $stepMap[$status] ?? null;
+            return $stepMap[$status] ?? route('finance.zero_cibil.s01_intro', ['phone' => $phone]);
         }
 
         $stepMap = [
@@ -227,7 +229,7 @@ class FinanceWebController extends Controller
         $phone = $ctx['phone'];
         $application = $ctx['application'];
 
-        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])) {
+        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN', 'DRAFT', 'APPLICATION_CREATED'])) {
             $activeCategory = $application->loan_category ?? '';
             $activeFamily = 'cash_loan';
             if (in_array($activeCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
@@ -283,7 +285,7 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $phone = $ctx['phone'];
         $application = $ctx['application'];
-        $isRunning = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN']));
+        $isRunning = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN', 'DRAFT', 'APPLICATION_CREATED']));
 
         // Map active loan category to family
         $activeCategory = $application->loan_category ?? '';
@@ -947,10 +949,23 @@ class FinanceWebController extends Controller
     public function withdrawApplication(Request $request)
     {
         $ctx = $this->resolveContext($request);
-        $application = $ctx['application'];
         $phone = $ctx['phone'];
+        $customer = $ctx['customer'];
 
-        if ($application && (empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid')) {
+        $application = null;
+        if ($customer) {
+            $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
+                ->orderBy('id', 'desc')
+                ->first();
+        }
+
+        if ($application) {
+            if ($application->fee_payment_status === 'paid') {
+                return redirect()->route('finance.hub', ['phone' => $phone])
+                    ->with('error', 'Applications that are already paid or completed cannot be withdrawn.');
+            }
+
             $appNum = $application->application_number;
             $application->update([
                 'application_status' => 'WITHDRAWN',
@@ -962,6 +977,6 @@ class FinanceWebController extends Controller
         }
 
         return redirect()->route('finance.hub', ['phone' => $phone])
-            ->with('error', 'Applications that are already paid or completed cannot be withdrawn.');
+            ->with('success', 'You have no active applications. You can start a new application anytime.');
     }
 }

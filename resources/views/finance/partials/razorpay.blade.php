@@ -52,15 +52,13 @@ function triggerRazorpayCheckout(config) {
 }
 
 function promptSimulation(config) {
-    if (confirm("Initiate processing fee payment of ₹" + Number(config.amount).toLocaleString('en-IN') + "?")) {
-        recordAndProceed({
-            phone: config.phone,
-            application_id: config.application_id,
-            payment_id: "pay_sim_" + Date.now(),
-            amount: config.amount,
-            next_url: config.next_url
-        });
-    }
+    recordAndProceed({
+        phone: config.phone,
+        application_id: config.application_id,
+        payment_id: "pay_sim_" + Date.now(),
+        amount: config.amount,
+        next_url: config.next_url
+    });
 }
 
 function recordAndProceed(payload) {
