@@ -134,6 +134,74 @@ class FinanceApiController extends Controller
     }
 
     /**
+     * Resume Step — returns the correct WebView URL to resume the user's active loan application.
+     * Used by Flutter to route the "Loans" tab to the right point in the flow.
+     */
+    public function resumeStep(Request $request)
+    {
+        $customer = $this->resolveCustomer($request);
+        if (!$customer) {
+            return response()->json(['success' => false, 'error' => 'User not found.'], 422);
+        }
+
+        $phone = $customer->phone;
+
+        // Find the latest non-completed application
+        $application = FinanceLoanApplication::where('customer_id', $customer->id)
+            ->whereNotIn('application_status', ['REJECTED', 'DISBURSED', 'CLOSED'])
+            ->orderByDesc('id')
+            ->first();
+
+        $baseUrl = 'https://api.fiinway.com/finance';
+        $q = '?phone=' . urlencode($phone);
+
+        if (!$application) {
+            // No active application — go to hub
+            return response()->json([
+                'success'     => true,
+                'has_active'  => false,
+                'resume_url'  => $baseUrl . $q,
+                'resume_step' => 'hub',
+            ]);
+        }
+
+        $amount  = $application->requested_amount ?? 25000;
+        $tenure  = $application->tenure_months ?? 12;
+        $aq      = $q . '&amount=' . $amount . '&tenure=' . $tenure;
+        $cat     = $application->loan_category ?? 'low_cibil';
+
+        // Step map: application_status → resume URL
+        $stepMap = [
+            'DRAFT'           => ($cat === 'zero_cibil') ? '/zero-cibil/intro' : '/cash-loan/apply',
+            'KYC_PENDING'     => ($cat === 'zero_cibil') ? '/zero-cibil/kyc'   : '/cash-loan/type-consent',
+            'AMOUNT_PENDING'  => ($cat === 'zero_cibil') ? '/zero-cibil/amount': '/cash-loan/tenure',
+            'DETAILS_SAVED'   => '/cash-loan/applicant-details',
+            'ELIGIBILITY'     => '/cash-loan/eligibility',
+            'TENURE_SELECTED' => '/cash-loan/emi',
+            'DOCS_PENDING'    => '/cash-loan/documents',
+            'DOCS_SUBMITTED'  => '/cash-loan/ready',
+            'SANCTIONED'      => '/cash-loan/sanction-summary',
+            'FEE_PAID'        => '/cash-loan/application-gen',
+            'APP_GENERATED'   => '/cash-loan/partner-dashboard',
+            'PROCESSING'      => '/cash-loan/tracking',
+            'APPROVED'        => '/cash-loan/approval',
+        ];
+
+        $subPath = $stepMap[$application->application_status] ?? '/cash-loan/apply';
+
+        return response()->json([
+            'success'            => true,
+            'has_active'         => true,
+            'resume_url'         => $baseUrl . $subPath . $aq,
+            'resume_step'        => $application->application_status,
+            'loan_category'      => $cat,
+            'amount'             => $amount,
+            'tenure'             => $tenure,
+            'application_number' => $application->application_number ?? null,
+        ]);
+    }
+
+    /**
      * Active Products Master List
      */
     public function getProducts(Request $request)

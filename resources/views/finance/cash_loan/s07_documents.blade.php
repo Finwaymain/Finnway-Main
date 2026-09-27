@@ -132,7 +132,13 @@
 @endsection
 
 @section('sticky-bottom')
-<button type="submit" form="docForm" class="fw-btn fw-btn-primary">
+@if(session('error'))
+<div style="background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;">
+    ⚠ {{ session('error') }}
+</div>
+@endif
+<div id="doc-error" style="color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; display:none; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;"></div>
+<button type="button" onclick="validateAndSubmit()" class="fw-btn fw-btn-primary">
     Submit Documents &amp; Proceed →
 </button>
 @endsection
@@ -164,6 +170,30 @@ function previewDoc(boxId, badgeId, previewId, placeholderId, input) {
         previewEl.style.display = 'block';
         document.getElementById(placeholderId).style.display = 'none';
     }
+}
+
+function validateAndSubmit() {
+    var required = [
+        { name: 'pan_card',      label: 'PAN Card' },
+        { name: 'aadhaar_front', label: 'Aadhaar Front' },
+        { name: 'aadhaar_back',  label: 'Aadhaar Back' },
+    ];
+    var missing = [];
+    required.forEach(function(doc) {
+        var input = document.querySelector('[name="' + doc.name + '"]');
+        if (!input || !input.files || input.files.length === 0) {
+            missing.push(doc.label);
+        }
+    });
+    var errEl = document.getElementById('doc-error');
+    if (missing.length > 0) {
+        errEl.textContent = '⚠ Please upload required documents: ' + missing.join(', ');
+        errEl.style.display = 'block';
+        errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+    errEl.style.display = 'none';
+    document.getElementById('docForm').submit();
 }
 </script>
 @endpush

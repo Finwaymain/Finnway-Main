@@ -323,6 +323,18 @@ class FinanceWebController extends Controller
         }
 
         if ($step === 's07') {
+            // Server-side gate: require the 3 core KYC documents
+            $requiredDocs = ['pan_card', 'aadhaar_front', 'aadhaar_back'];
+            $missingDocs = [];
+            foreach ($requiredDocs as $doc) {
+                if (!$request->hasFile($doc)) {
+                    $missingDocs[] = ucwords(str_replace('_', ' ', $doc));
+                }
+            }
+            if (!empty($missingDocs)) {
+                return redirect()->back()->with('error', 'Please upload required documents: ' . implode(', ', $missingDocs));
+            }
+
             $docTypes = ['pan_card', 'aadhaar_front', 'aadhaar_back', 'address_proof', 'income_proof'];
             foreach ($docTypes as $docType) {
                 if ($request->hasFile($docType) && $customer) {
@@ -500,6 +512,7 @@ class FinanceWebController extends Controller
     public function cashLoanEmi(Request $request)              { return view('finance.cash_loan.s06_emi', $this->resolveContext($request)); }
     public function cashLoanDocuments(Request $request)        { return view('finance.cash_loan.s07_documents', $this->resolveContext($request)); }
     public function cashLoanReadyProcessing(Request $request)  { return view('finance.cash_loan.s08_ready', $this->resolveContext($request)); }
+    public function cashLoanSanctionSummary(Request $request)   { return view('finance.cash_loan.s08b_sanction_summary', $this->resolveContext($request)); }
     public function cashLoanFeePayment(Request $request)       { return view('finance.cash_loan.s09_fee_payment', $this->resolveContext($request)); }
     public function cashLoanApplicationGen(Request $request)   { return view('finance.cash_loan.s10_app_generated', $this->resolveContext($request)); }
     public function cashLoanPartnerDashboard(Request $request) { return view('finance.cash_loan.s11_partner_dashboard', $this->resolveContext($request)); }

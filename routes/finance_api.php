@@ -37,4 +37,7 @@ Route::group(['prefix' => 'v1/finance'], function () {
     // ── Dashboard & Repayment ─────────────────────────────────────────
     Route::get('dashboard', [FinanceApiController::class, 'getDashboard']);
     Route::post('daily-repayment', [FinanceApiController::class, 'repayDailyEmi']);
+
+    // ── Resume Step ───────────────────────────────────────────────────
+    Route::get('resume-step', [FinanceApiController::class, 'resumeStep']);
 });

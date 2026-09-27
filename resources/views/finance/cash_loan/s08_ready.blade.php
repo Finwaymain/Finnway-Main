@@ -52,6 +52,6 @@
 
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s09_fee_payment', ['phone' => request('phone'), 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">Proceed to Fee Payment (₹{{ number_format($totalFee, 2) }}) →</a>
+    <a href="{{ route('finance.cash_loan.s08b_sanction_summary', ['phone' => request('phone'), 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">View Sanction Summary →</a>
 </div>
 @endsection

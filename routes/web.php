@@ -1346,6 +1346,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/documents',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDocuments'])->name('s07_documents');
         Route::get('/ready-processing',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanReadyProcessing'])->name('s08_ready_processing');
         Route::get('/ready',             [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanReadyProcessing'])->name('s08_ready');
+        Route::get('/sanction-summary',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanSanctionSummary'])->name('s08b_sanction_summary');
         Route::get('/fee-payment',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanFeePayment'])->name('s09_fee_payment');
         Route::get('/application-gen',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApplicationGen'])->name('s10_application_gen');
         Route::get('/app-generated',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApplicationGen'])->name('s10_app_generated');
