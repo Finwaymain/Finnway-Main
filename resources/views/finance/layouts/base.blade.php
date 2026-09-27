@@ -96,12 +96,12 @@
         .fw-btn {
             display: block;
             width: 100%;
-            padding: 15px;
-            border-radius: 11px;
+            padding: 10px 14px;
+            border-radius: 8px;
             border: none;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
             cursor: pointer;
             text-align: center;
             text-decoration: none;
@@ -217,7 +217,7 @@
         .fw-consent label { font-size: 12px; color: var(--gray3); line-height: 1.5; }
 
         /* Footer area */
-        .fw-footer-pad { height: 105px; }
+        .fw-footer-pad { height: 75px; }
         .fw-sticky-bottom {
             position: fixed;
             bottom: 0;
@@ -225,11 +225,11 @@
             right: 0;
             background: var(--white);
             border-top: 1px solid #e2e8f0;
-            padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+            padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
             max-width: 480px;
             margin: 0 auto;
             z-index: 50;
-            box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.05);
         }
 
         /* Timer */
