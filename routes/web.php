@@ -1332,6 +1332,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
 
     // Hub
     Route::get('/', [\App\Http\Controllers\Finance\FinanceWebController::class, 'hub'])->name('hub');
+    Route::match(['get', 'post'], '/withdraw-application', [\App\Http\Controllers\Finance\FinanceWebController::class, 'withdrawApplication'])->name('withdraw_application');
 
     // Cash Loan (26 screens)
     Route::prefix('cash-loan')->name('cash_loan.')->group(function () {

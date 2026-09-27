@@ -57,5 +57,12 @@
             class="fw-btn fw-btn-primary">
         Pay ₹ {{ number_format($totalFee, 2) }} via Razorpay →
     </button>
+    @if(empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid')
+    <div style="text-align:center; margin-top:8px;">
+        <a href="javascript:void(0)" onclick="if(confirm('Are you sure you want to cancel and withdraw this application ({{ $application->application_number ?? '' }})?\n\nThis will cancel your current application so you can choose another loan.')) { window.location.href='{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}'; }" style="color:#ef4444; font-size:12.5px; font-weight:600; text-decoration:none; display:inline-block; padding:4px 8px;">
+            ✕ Cancel &amp; Withdraw Application
+        </a>
+    </div>
+    @endif
 </div>
 @endsection

@@ -41,14 +41,9 @@ class FinanceWebController extends Controller
             $customer = FinanceCustomer::whereIn('phone', $variants)->first();
             if ($customer) {
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
-                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED'])
+                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
                     ->orderBy('id', 'desc')
                     ->first();
-                if (!$application) {
-                    $application = FinanceLoanApplication::where('customer_id', $customer->id)
-                        ->orderBy('id', 'desc')
-                        ->first();
-                }
             }
         }
 
@@ -215,6 +210,7 @@ class FinanceWebController extends Controller
             'DOCS_PENDING'    => route('finance.cash_loan.s07_documents', $params),
             'DOCS_SUBMITTED'  => route('finance.cash_loan.s08_ready', $params),
             'SANCTIONED'      => route('finance.cash_loan.s08b_sanction_summary', $params),
+            'FEE_PENDING'     => route('finance.cash_loan.s09_fee_payment', $params),
             'FEE_PAID'        => route('finance.cash_loan.s10_app_generated', ['phone' => $phone, 'amount' => $amount]),
             'UNDERWRITING'    => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
             'APP_GENERATED'   => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
@@ -223,6 +219,53 @@ class FinanceWebController extends Controller
         ];
 
         return $stepMap[$status] ?? null;
+    }
+
+    public function checkActiveApplicationLock(Request $request, string $targetFamily, string $targetTitle)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])) {
+            $activeCategory = $application->loan_category ?? '';
+            $activeFamily = 'cash_loan';
+            if (in_array($activeCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
+                $activeFamily = 'zero_cibil';
+            } elseif (in_array($activeCategory, ['business', 'business_loan', 'business_msme'])) {
+                $activeFamily = 'business_loan';
+            } elseif (in_array($activeCategory, ['virtual', 'virtual_loan', 'virtual_credit'])) {
+                $activeFamily = 'virtual_loan';
+            } elseif (in_array($activeCategory, ['student', 'student_credit'])) {
+                $activeFamily = 'student_credit';
+            }
+
+            $familyNames = [
+                'cash_loan' => 'Cash Loan',
+                'zero_cibil' => 'Zero-CIBIL Credit',
+                'business_loan' => 'Business Loan',
+                'virtual_loan' => 'Virtual Loan',
+                'student_credit' => 'Student Credit',
+            ];
+
+            $currentName = $familyNames[$activeFamily] ?? 'Loan';
+            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+
+            if ($targetFamily === $activeFamily) {
+                return $resumeUrl ? redirect($resumeUrl) : null;
+            }
+
+            $errorMsg = "You already have an active {$currentName} application (#{$application->application_number}) in progress. You cannot start a new process for {$targetTitle} until your current application is completed or withdrawn.";
+
+            return redirect()->route('finance.hub', ['phone' => $phone])
+                ->with('card_error_msg', $errorMsg)
+                ->with('card_error_title', $targetTitle)
+                ->with('active_app_number', $application->application_number)
+                ->with('active_app_family', $currentName)
+                ->with('active_resume_url', $resumeUrl);
+        }
+
+        return null;
     }
 
     private function getApplicationOr404($id): FinanceLoanApplication
@@ -240,15 +283,76 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $phone = $ctx['phone'];
         $application = $ctx['application'];
+        $isRunning = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN']));
+
+        // Map active loan category to family
+        $activeCategory = $application->loan_category ?? '';
+        $activeFamily = 'cash_loan';
+        if (in_array($activeCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
+            $activeFamily = 'zero_cibil';
+        } elseif (in_array($activeCategory, ['business', 'business_loan', 'business_msme'])) {
+            $activeFamily = 'business_loan';
+        } elseif (in_array($activeCategory, ['virtual', 'virtual_loan', 'virtual_credit'])) {
+            $activeFamily = 'virtual_loan';
+        } elseif (in_array($activeCategory, ['student', 'student_credit'])) {
+            $activeFamily = 'student_credit';
+        }
+
+        $familyNames = [
+            'cash_loan' => 'Cash Loan',
+            'zero_cibil' => 'Zero-CIBIL Credit',
+            'business_loan' => 'Business Loan',
+            'virtual_loan' => 'Virtual Loan',
+            'student_credit' => 'Student Credit',
+        ];
 
         if ($cardType) {
             $params = $request->all();
-            if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED'])) {
+            $isViewDetails = in_array($cardType, ['loans & credit', 'loans', 'view_all', 'all', 'view details', 'details']);
+
+            if ($isRunning) {
                 $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
-                if ($resumeUrl) {
-                    return redirect($resumeUrl);
+
+                // 1. "on click view details you have to show same screen which is previously there"
+                if ($isViewDetails) {
+                    return $resumeUrl ? redirect($resumeUrl) : redirect()->route('finance.hub', ['phone' => $phone]);
                 }
+
+                // Identify target family of the clicked card
+                $targetFamily = 'cash_loan';
+                $targetTitle = 'Cash Loan';
+                if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
+                    $targetFamily = 'zero_cibil';
+                    $targetTitle = 'Zero-CIBIL Daily Credit';
+                } elseif (in_array($cardType, ['business', 'business loan', 'business_loan'])) {
+                    $targetFamily = 'business_loan';
+                    $targetTitle = 'Business Loan';
+                } elseif (in_array($cardType, ['virtual', 'virtual loan', 'virtual_loan'])) {
+                    $targetFamily = 'virtual_loan';
+                    $targetTitle = 'Virtual Loan';
+                } elseif (in_array($cardType, ['student', 'student credit', 'student_credit'])) {
+                    $targetFamily = 'student_credit';
+                    $targetTitle = 'Student Credit';
+                }
+
+                // If user tapped the card corresponding to their active loan, resume it
+                if ($targetFamily === $activeFamily) {
+                    return $resumeUrl ? redirect($resumeUrl) : redirect()->route('finance.cash_loan.s01_apply', $params);
+                }
+
+                // 2. "show error on click different card for new process"
+                $currentName = $familyNames[$activeFamily] ?? 'Loan';
+                $errorMsg = "You already have an active {$currentName} application (#{$application->application_number}) in progress. You cannot start a new process for {$targetTitle} until your current application is completed or withdrawn.";
+
+                return redirect()->route('finance.hub', ['phone' => $phone])
+                    ->with('card_error_msg', $errorMsg)
+                    ->with('card_error_title', $targetTitle)
+                    ->with('active_app_number', $application->application_number)
+                    ->with('active_app_family', $currentName)
+                    ->with('active_resume_url', $resumeUrl);
             }
+
+            // If no running application, open requested product
             if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
                 return redirect()->route('finance.zero_cibil.s01_intro', $params);
             }
@@ -267,13 +371,16 @@ class FinanceWebController extends Controller
         }
 
         $products = FinanceLoanProduct::where('is_active', true)->get();
-        $resumeUrl = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT']))
+        $resumeUrl = ($isRunning)
             ? $this->getResumeUrlForApplication($application, $phone)
             : null;
 
         return view('finance.hub', array_merge($ctx, [
             'products' => $products,
             'resumeUrl' => $resumeUrl,
+            'isRunning' => $isRunning,
+            'activeFamily' => $activeFamily,
+            'activeFamilyName' => $familyNames[$activeFamily] ?? 'Loan',
         ]));
     }
 
@@ -314,7 +421,7 @@ class FinanceWebController extends Controller
         $application = null;
         if ($customer) {
             $application = FinanceLoanApplication::where('customer_id', $customer->id)
-                ->whereNotIn('application_status', ['DISBURSED', 'REJECTED'])
+                ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
                 ->orderBy('id', 'desc')
                 ->first();
 
@@ -347,7 +454,7 @@ class FinanceWebController extends Controller
         // 3. Handle step specific saves
         if ($step === 's01') {
             // If already running, do not start new process or overwrite
-            if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
+            if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT', 'WITHDRAWN'])) {
                 $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
                 if ($resumeUrl) {
                     return redirect($resumeUrl);
@@ -624,18 +731,10 @@ class FinanceWebController extends Controller
 
     public function cashLoanApply(Request $request)
     {
+        $lock = $this->checkActiveApplicationLock($request, 'cash_loan', 'Cash Loan');
+        if ($lock) return $lock;
+
         $ctx = $this->resolveContext($request);
-        $phone = $ctx['phone'];
-        $application = $ctx['application'];
-
-        // If the user already has a running application, they CANNOT start a new process
-        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED'])) {
-            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
-            if ($resumeUrl) {
-                return redirect($resumeUrl);
-            }
-        }
-
         return view('finance.cash_loan.s01_apply', $ctx);
     }
 
@@ -703,7 +802,13 @@ class FinanceWebController extends Controller
     // FLOW A — BUSINESS LOAN (20 Screens)
     // ─────────────────────────────────────────────────────────────
 
-    public function businessLoanApply(Request $request)            { return view('finance.business_loan.s01_apply', $this->resolveContext($request)); }
+    public function businessLoanApply(Request $request)
+    {
+        $lock = $this->checkActiveApplicationLock($request, 'business_loan', 'Business Loan');
+        if ($lock) return $lock;
+
+        return view('finance.business_loan.s01_apply', $this->resolveContext($request));
+    }
     public function businessLoanDetails(Request $request)          { return view('finance.business_loan.s02_business_details', $this->resolveContext($request)); }
     public function businessLoanRequirement(Request $request)      { return view('finance.business_loan.s03_loan_requirement', $this->resolveContext($request)); }
     public function businessLoanEligibility(Request $request)      { return view('finance.business_loan.s04_eligibility', $this->resolveContext($request)); }
@@ -728,7 +833,13 @@ class FinanceWebController extends Controller
     // FLOW B — ZERO-CIBIL DAILY (7 Screens)
     // ─────────────────────────────────────────────────────────────
 
-    public function zeroCibilIntro(Request $request)        { return view('finance.zero_cibil.s01_intro', $this->resolveContext($request)); }
+    public function zeroCibilIntro(Request $request)
+    {
+        $lock = $this->checkActiveApplicationLock($request, 'zero_cibil', 'Zero-CIBIL Daily Credit');
+        if ($lock) return $lock;
+
+        return view('finance.zero_cibil.s01_intro', $this->resolveContext($request));
+    }
     public function zeroCibilKyc(Request $request)          { return view('finance.zero_cibil.s02_kyc', $this->resolveContext($request)); }
     public function zeroCibilAmountSelect(Request $request) { return view('finance.zero_cibil.s03_amount_select', $this->resolveContext($request)); }
     public function zeroCibilFeePayment(Request $request)   { return view('finance.zero_cibil.s04_fee_payment', $this->resolveContext($request)); }
@@ -767,7 +878,13 @@ class FinanceWebController extends Controller
     // FLOW B — VIRTUAL LOAN (5 Screens)
     // ─────────────────────────────────────────────────────────────
 
-    public function virtualLoanApply(Request $request)      { return view('finance.virtual_loan.s01_apply', $this->resolveContext($request)); }
+    public function virtualLoanApply(Request $request)
+    {
+        $lock = $this->checkActiveApplicationLock($request, 'virtual_loan', 'Virtual Loan');
+        if ($lock) return $lock;
+
+        return view('finance.virtual_loan.s01_apply', $this->resolveContext($request));
+    }
     public function virtualLoanKyc(Request $request)        { return view('finance.virtual_loan.s02_kyc', $this->resolveContext($request)); }
     public function virtualLoanFeePayment(Request $request) { return view('finance.virtual_loan.s03_fee_payment', $this->resolveContext($request)); }
     public function virtualLoanPending(Request $request)    { return view('finance.virtual_loan.s04_pending', $this->resolveContext($request)); }
@@ -787,7 +904,13 @@ class FinanceWebController extends Controller
     // FLOW B — STUDENT CREDIT (9 Screens)
     // ─────────────────────────────────────────────────────────────
 
-    public function studentCreditApply(Request $request)          { return view('finance.student_credit.s01_apply', $this->resolveContext($request)); }
+    public function studentCreditApply(Request $request)
+    {
+        $lock = $this->checkActiveApplicationLock($request, 'student_credit', 'Student Credit');
+        if ($lock) return $lock;
+
+        return view('finance.student_credit.s01_apply', $this->resolveContext($request));
+    }
     public function studentCreditKyc(Request $request)            { return view('finance.student_credit.s02_kyc', $this->resolveContext($request)); }
     public function studentCreditFeePayment(Request $request)      { return view('finance.student_credit.s03_fee_payment', $this->resolveContext($request)); }
     public function studentCreditPending(Request $request)         { return view('finance.student_credit.s04_pending', $this->resolveContext($request)); }
@@ -815,5 +938,30 @@ class FinanceWebController extends Controller
             }
         }
         return view('finance.student_credit.s09_qr_pay', array_merge($this->resolveContext($request), ['wallet' => $wallet]));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // WITHDRAW / CANCEL APPLICATION
+    // ─────────────────────────────────────────────────────────────
+
+    public function withdrawApplication(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $application = $ctx['application'];
+        $phone = $ctx['phone'];
+
+        if ($application && (empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid')) {
+            $appNum = $application->application_number;
+            $application->update([
+                'application_status' => 'WITHDRAWN',
+                'rejection_reason' => 'Withdrawn by borrower before fee payment',
+            ]);
+
+            return redirect()->route('finance.hub', ['phone' => $phone])
+                ->with('success', "Application #{$appNum} has been withdrawn successfully. You can now choose a new loan product.");
+        }
+
+        return redirect()->route('finance.hub', ['phone' => $phone])
+            ->with('error', 'Applications that are already paid or completed cannot be withdrawn.');
     }
 }
