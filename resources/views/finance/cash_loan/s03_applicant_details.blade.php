@@ -78,8 +78,24 @@
                 3. Desired Loan Requirement
             </h5>
             <div class="fw-input-group">
-                <label class="fw-label">Requested Loan Amount (₹)</label>
-                <input type="number" name="requested_amount" class="fw-input" style="font-size:18px; font-weight:800; color:var(--blue);" value="{{ $amount }}" min="5000" max="2000000" required>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="fw-label mb-0">Requested Loan Amount (₹)</label>
+                    <span class="badge" style="background:#eff6ff; color:#1e40af; font-size:11.5px; font-weight:700; border:1px solid #bfdbfe; border-radius:6px; padding:3px 8px;">
+                        Pre-Sanctioned Max: ₹ {{ number_format($maxLimit) }}
+                    </span>
+                </div>
+                <input type="number" 
+                       id="requested_amount" 
+                       name="requested_amount" 
+                       class="fw-input" 
+                       style="font-size:18px; font-weight:800; color:var(--blue);" 
+                       value="{{ min($amount, $maxLimit) }}" 
+                       min="5000" 
+                       max="{{ $maxLimit }}" 
+                       required>
+                <div id="amountLimitError" class="text-danger mt-1" style="font-size:12px; display:none; font-weight:600;">
+                    ⚠️ Amount cannot exceed your pre-sanctioned limit of ₹ {{ number_format($maxLimit) }}.
+                </div>
             </div>
             <div class="fw-input-group">
                 <label class="fw-label">Primary Loan Purpose</label>
@@ -98,6 +114,51 @@
 
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <button type="submit" form="applicantForm" class="fw-btn fw-btn-primary">Submit & Continue &rarr;</button>
+    <button type="submit" id="applicantSubmitBtn" form="applicantForm" class="fw-btn fw-btn-primary">Submit & Continue &rarr;</button>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const maxLimit = {{ $maxLimit }};
+    const amtInput = document.getElementById('requested_amount');
+    const errBox = document.getElementById('amountLimitError');
+    const submitBtn = document.getElementById('applicantSubmitBtn');
+
+    function checkAmount() {
+        const val = parseFloat(amtInput.value) || 0;
+        if (val > maxLimit) {
+            errBox.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            submitBtn.style.cursor = 'not-allowed';
+        } else {
+            errBox.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+
+    amtInput.addEventListener('input', checkAmount);
+    amtInput.addEventListener('blur', function() {
+        let val = parseFloat(this.value) || 0;
+        if (val > maxLimit) {
+            this.value = maxLimit;
+            checkAmount();
+        }
+    });
+
+    document.getElementById('applicantForm').addEventListener('submit', function(e) {
+        const val = parseFloat(amtInput.value) || 0;
+        if (val > maxLimit) {
+            e.preventDefault();
+            amtInput.value = maxLimit;
+            checkAmount();
+            alert('Requested amount cannot exceed your pre-sanctioned limit of ₹ ' + new Intl.NumberFormat('en-IN').format(maxLimit));
+        }
+    });
+});
+</script>
+@endpush

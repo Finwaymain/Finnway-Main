@@ -4,13 +4,13 @@
 
 @section('progress')
 <div class="fw-progress">
-    <div class="fw-progress-label"><span>Step 6 of 12</span><span>50%</span></div>
-    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:50%;"></div></div>
+    <div class="fw-progress-label"><span>Step 5 of 11</span><span>45%</span></div>
+    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:45%;"></div></div>
 </div>
 @endsection
 
 @section('back')
-<a href="{{ route('finance.cash_loan.s06_emi', ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s05_tenure', ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-back">← Back</a>
 @endsection
 
 @section('content')

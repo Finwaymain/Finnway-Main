@@ -67,6 +67,10 @@ class FinanceWebController extends Controller
         }
 
         $loanType = $request->query('loan_type', $request->input('loan_type', $application->loan_type ?? 'low_cibil'));
+        $maxLimit = in_array($loanType, ['good_cibil', 'prime_cash']) ? 2000000 : 400000;
+        if ($amount > $maxLimit) {
+            $amount = $maxLimit;
+        }
 
         // Mathematical EMI calculation: P * r * (1+r)^n / ((1+r)^n - 1)
         // Standard personal loan indicative rate: 9% p.a. -> monthly r = 0.09 / 12 = 0.0075
@@ -175,6 +179,7 @@ class FinanceWebController extends Controller
             'razorpayKey' => $razorpayKey,
             'documents' => $documents,
             'hideHeader' => $hideHeader,
+            'maxLimit' => $maxLimit,
         ];
     }
 
@@ -185,6 +190,9 @@ class FinanceWebController extends Controller
         $tenure = $application->tenure_months ?: 12;
         $cat = $application->loan_category ?? 'low_cibil';
         $params = ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure];
+        if (session('finance_hide_header') || request('hide_header') == '1' || request('app') == '1') {
+            $params['hide_header'] = '1';
+        }
 
         if ($cat === 'zero_cibil') {
             $stepMap = [
@@ -198,11 +206,12 @@ class FinanceWebController extends Controller
         }
 
         $stepMap = [
+            'DRAFT'           => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
             'KYC_PENDING'     => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
             'DETAILS_SAVED'   => route('finance.cash_loan.s03_applicant_details', ['phone' => $phone]),
             'ELIGIBILITY'     => route('finance.cash_loan.s04_eligibility', ['phone' => $phone, 'amount' => $amount]),
             'AMOUNT_PENDING'  => route('finance.cash_loan.s05_tenure', $params),
-            'TENURE_SELECTED' => route('finance.cash_loan.s06_emi', $params),
+            'TENURE_SELECTED' => route('finance.cash_loan.s07_documents', $params),
             'DOCS_PENDING'    => route('finance.cash_loan.s07_documents', $params),
             'DOCS_SUBMITTED'  => route('finance.cash_loan.s08_ready', $params),
             'SANCTIONED'      => route('finance.cash_loan.s08b_sanction_summary', $params),
@@ -234,16 +243,16 @@ class FinanceWebController extends Controller
 
         if ($cardType) {
             $params = $request->all();
+            if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED'])) {
+                $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+                if ($resumeUrl) {
+                    return redirect($resumeUrl);
+                }
+            }
             if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
                 return redirect()->route('finance.zero_cibil.s01_intro', $params);
             }
             if (in_array($cardType, ['low_cibil', 'low cibil loan', 'cash', 'cash loan', 'cash_loan'])) {
-                if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
-                    $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
-                    if ($resumeUrl) {
-                        return redirect($resumeUrl);
-                    }
-                }
                 return redirect()->route('finance.cash_loan.s01_apply', $params);
             }
             if (in_array($cardType, ['business', 'business loan', 'business_loan'])) {
@@ -337,6 +346,14 @@ class FinanceWebController extends Controller
 
         // 3. Handle step specific saves
         if ($step === 's01') {
+            // If already running, do not start new process or overwrite
+            if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
+                $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+                if ($resumeUrl) {
+                    return redirect($resumeUrl);
+                }
+            }
+
             $loanType = $request->input('loan_type', 'low_cibil');
             $category = $loanType === 'good_cibil' ? 'prime_cash' : 'low_cibil_cash';
             if ($application) {
@@ -362,8 +379,11 @@ class FinanceWebController extends Controller
             $email = $request->input('email', '');
             $dob = $request->input('dob', null);
             $income = floatval($request->input('monthly_income', 0));
+            $loanType = $application ? ($application->loan_type ?? 'low_cibil') : $request->input('loan_type', 'low_cibil');
+            $maxLimit = in_array($loanType, ['good_cibil', 'prime_cash']) ? 2000000 : 400000;
             $reqAmt = floatval($request->input('requested_amount', 25000));
             if ($reqAmt <= 0) $reqAmt = 25000;
+            if ($reqAmt > $maxLimit) $reqAmt = $maxLimit;
 
             if ($customer) {
                 $customer->update([
@@ -387,8 +407,11 @@ class FinanceWebController extends Controller
         }
 
         if ($step === 's05') {
+            $loanType = $application ? ($application->loan_type ?? 'low_cibil') : $request->input('loan_type', 'low_cibil');
+            $maxLimit = in_array($loanType, ['good_cibil', 'prime_cash']) ? 2000000 : 400000;
             $amount = floatval($request->input('amount', 25000));
             if ($amount <= 0) $amount = 25000;
+            if ($amount > $maxLimit) $amount = $maxLimit;
             $tenure = intval($request->input('tenure', 12));
             if ($tenure <= 0) $tenure = 12;
 
@@ -407,7 +430,7 @@ class FinanceWebController extends Controller
             }
             $queryParams['amount'] = $amount;
             $queryParams['tenure'] = $tenure;
-            return redirect()->route('finance.cash_loan.s06_emi', $queryParams);
+            return redirect()->route('finance.cash_loan.s07_documents', $queryParams);
         }
 
         if ($step === 's07') {
@@ -605,8 +628,8 @@ class FinanceWebController extends Controller
         $phone = $ctx['phone'];
         $application = $ctx['application'];
 
-        // Automatically resume in-progress application unless explicitly starting fresh (?new=1)
-        if ($application && !$request->has('new') && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
+        // If the user already has a running application, they CANNOT start a new process
+        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED'])) {
             $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
             if ($resumeUrl) {
                 return redirect($resumeUrl);
@@ -620,7 +643,15 @@ class FinanceWebController extends Controller
     public function cashLoanApplicantDetails(Request $request) { return view('finance.cash_loan.s03_applicant_details', $this->resolveContext($request)); }
     public function cashLoanEligibility(Request $request)      { return view('finance.cash_loan.s04_eligibility', $this->resolveContext($request)); }
     public function cashLoanAmountTenure(Request $request)     { return view('finance.cash_loan.s05_tenure', $this->resolveContext($request)); }
-    public function cashLoanEmi(Request $request)              { return view('finance.cash_loan.s06_emi', $this->resolveContext($request)); }
+    public function cashLoanEmi(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $params = ['phone' => $ctx['phone'], 'amount' => $ctx['amount'], 'tenure' => $ctx['tenure']];
+        if (!empty($ctx['hideHeader'])) {
+            $params['hide_header'] = '1';
+        }
+        return redirect()->route('finance.cash_loan.s05_tenure', $params);
+    }
 
     public function cashLoanDocuments(Request $request)
     {

@@ -4,8 +4,8 @@
 
 @section('progress')
 <div class="fw-progress">
-    <div class="fw-progress-label"><span>Step 3 of 12</span><span>25%</span></div>
-    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:25%;"></div></div>
+    <div class="fw-progress-label"><span>Step 3 of 11</span><span>27%</span></div>
+    <div class="fw-progress-track"><div class="fw-progress-fill" style="width:27%;"></div></div>
 </div>
 @endsection
 
@@ -32,7 +32,7 @@
         </div>
         <div class="fw-info-row">
             <span class="fw-info-label">Pre-Sanction Limit (Max)</span>
-            <span class="fw-info-value" style="color:var(--blue);">₹ {{ ($loanType ?? '') === 'good_cibil' ? '20,00,000' : '4,00,000' }}</span>
+            <span class="fw-info-value" style="color:var(--blue); font-weight:700;">₹ {{ number_format($maxLimit) }}</span>
         </div>
         <div class="fw-info-row">
             <span class="fw-info-label">Credit Profile</span>
