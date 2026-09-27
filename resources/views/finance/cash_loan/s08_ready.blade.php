@@ -14,7 +14,7 @@
 @endsection
 
 @section('content')
-<div class="fw-card mt-4 mb-4 text-center">
+<div class="fw-card mt-2 mb-2 text-center">
     <div style="width:60px; height:60px; background:#e6f4ea; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:15px;">
         <span style="color:#28a745; font-size:30px;">&#10003;</span>
     </div>

@@ -217,7 +217,7 @@
         .fw-consent label { font-size: 12px; color: var(--gray3); line-height: 1.5; }
 
         /* Footer area */
-        .fw-footer-pad { height: 75px; }
+        .fw-footer-pad { height: 62px; }
         .fw-sticky-bottom {
             position: fixed;
             bottom: 0;
@@ -225,11 +225,20 @@
             right: 0;
             background: var(--white);
             border-top: 1px solid #e2e8f0;
-            padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+            padding: 8px 16px 8px;
             max-width: 480px;
             margin: 0 auto;
             z-index: 50;
-            box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.05);
+            box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.05);
+        }
+        .fw-sticky-bottom .fw-sticky-bottom {
+            position: static !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+            width: 100% !important;
         }
 
         /* Timer */
@@ -283,9 +292,7 @@
     </div>
 
     @hasSection('sticky-bottom')
-    <div class="fw-sticky-bottom">
         @yield('sticky-bottom')
-    </div>
     @endif
 
     @stack('scripts')

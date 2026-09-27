@@ -141,22 +141,24 @@
 @endsection
 
 @section('sticky-bottom')
-@if(session('error'))
-<div style="background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;">
-    ⚠ {{ session('error') }}
+<div class="fw-sticky-bottom">
+    @if(session('error'))
+    <div style="background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;">
+        ⚠ {{ session('error') }}
+    </div>
+    @endif
+    <div id="doc-error" style="color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; display:none; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;"></div>
+    <button type="button" onclick="validateAndSubmit()" class="fw-btn fw-btn-primary">
+        Submit Documents &amp; Proceed →
+    </button>
+    @if(!empty($application) && (empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid'))
+    <div style="text-align:center; margin-top:5px; line-height:1;">
+        <a href="javascript:void(0)" onclick="if(confirm('Are you sure you want to cancel and withdraw this application ({{ $application->application_number ?? '' }})?\n\nThis will cancel your existing application so you can choose another loan.')) { window.location.href='{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}'; }" style="color:#ef4444; font-size:11px; font-weight:600; text-decoration:none; display:inline-block; padding:2px 4px;">
+            ✕ Cancel &amp; Withdraw Application
+        </a>
+    </div>
+    @endif
 </div>
-@endif
-<div id="doc-error" style="color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; display:none; padding:10px 16px; font-size:13px; font-weight:600; text-align:center; border-radius:8px; margin-bottom:10px;"></div>
-<button type="button" onclick="validateAndSubmit()" class="fw-btn fw-btn-primary">
-    Submit Documents &amp; Proceed →
-</button>
-@if(!empty($application) && (empty($application->fee_payment_status) || $application->fee_payment_status !== 'paid'))
-<div style="text-align:center; margin-top:5px; line-height:1;">
-    <a href="javascript:void(0)" onclick="if(confirm('Are you sure you want to cancel and withdraw this application ({{ $application->application_number ?? '' }})?\n\nThis will cancel your existing application so you can choose another loan.')) { window.location.href='{{ route('finance.withdraw_application', ['phone' => request('phone') ?? ($phone ?? '')]) }}'; }" style="color:#ef4444; font-size:11px; font-weight:600; text-decoration:none; display:inline-block; padding:2px 4px;">
-        ✕ Cancel &amp; Withdraw Application
-    </a>
-</div>
-@endif
 @endsection
 
 @push('scripts')
