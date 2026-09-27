@@ -37,11 +37,18 @@ class FinanceWebController extends Controller
         $application = null;
 
         if ($phone) {
-            $customer = FinanceCustomer::where('phone', $phone)->first();
+            $variants = \App\Services\PhoneService::getVariants($phone);
+            $customer = FinanceCustomer::whereIn('phone', $variants)->first();
             if ($customer) {
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                    ->whereNotIn('application_status', ['DISBURSED', 'REJECTED'])
                     ->orderBy('id', 'desc')
                     ->first();
+                if (!$application) {
+                    $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                        ->orderBy('id', 'desc')
+                        ->first();
+                }
             }
         }
 
@@ -138,6 +145,13 @@ class FinanceWebController extends Controller
             $razorpayKey = env('RAZORPAY_KEY', 'rzp_test_fiinway');
         }
 
+        $documents = [];
+        if ($customer) {
+            $documents = FinanceDocument::where('customer_id', $customer->id)
+                ->pluck('file_path', 'document_type')
+                ->toArray();
+        }
+
         return [
             'customer' => $customer,
             'phone' => $phone,
@@ -154,7 +168,46 @@ class FinanceWebController extends Controller
             'totalFee' => $totalFee,
             'hasLender' => $hasLender,
             'razorpayKey' => $razorpayKey,
+            'documents' => $documents,
         ];
+    }
+
+    public function getResumeUrlForApplication(FinanceLoanApplication $application, ?string $phone): ?string
+    {
+        $status = $application->application_status;
+        $amount = $application->requested_amount ?: 25000;
+        $tenure = $application->tenure_months ?: 12;
+        $cat = $application->loan_category ?? 'low_cibil';
+        $params = ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure];
+
+        if ($cat === 'zero_cibil') {
+            $stepMap = [
+                'KYC_PENDING'    => route('finance.zero_cibil.s02_kyc', ['phone' => $phone]),
+                'AMOUNT_PENDING' => route('finance.zero_cibil.s03_amount', ['phone' => $phone]),
+                'SANCTIONED'     => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'FEE_PAID'       => route('finance.zero_cibil.s05_contract', ['phone' => $phone]),
+                'ACTIVE'         => route('finance.zero_cibil.s07_active_dashboard', ['phone' => $phone]),
+            ];
+            return $stepMap[$status] ?? null;
+        }
+
+        $stepMap = [
+            'KYC_PENDING'     => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
+            'DETAILS_SAVED'   => route('finance.cash_loan.s03_applicant_details', ['phone' => $phone]),
+            'ELIGIBILITY'     => route('finance.cash_loan.s04_eligibility', ['phone' => $phone, 'amount' => $amount]),
+            'AMOUNT_PENDING'  => route('finance.cash_loan.s05_tenure', $params),
+            'TENURE_SELECTED' => route('finance.cash_loan.s06_emi', $params),
+            'DOCS_PENDING'    => route('finance.cash_loan.s07_documents', $params),
+            'DOCS_SUBMITTED'  => route('finance.cash_loan.s08_ready', $params),
+            'SANCTIONED'      => route('finance.cash_loan.s08b_sanction_summary', $params),
+            'FEE_PAID'        => route('finance.cash_loan.s10_app_generated', ['phone' => $phone, 'amount' => $amount]),
+            'UNDERWRITING'    => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
+            'APP_GENERATED'   => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
+            'PROCESSING'      => route('finance.cash_loan.s18_tracking', ['phone' => $phone]),
+            'APPROVED'        => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+        ];
+
+        return $stepMap[$status] ?? null;
     }
 
     private function getApplicationOr404($id): FinanceLoanApplication
@@ -169,12 +222,22 @@ class FinanceWebController extends Controller
     public function hub(Request $request)
     {
         $cardType = strtolower(trim($request->query('card_type', '')));
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
         if ($cardType) {
             $params = $request->all();
             if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
                 return redirect()->route('finance.zero_cibil.s01_intro', $params);
             }
             if (in_array($cardType, ['low_cibil', 'low cibil loan', 'cash', 'cash loan', 'cash_loan'])) {
+                if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
+                    $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+                    if ($resumeUrl) {
+                        return redirect($resumeUrl);
+                    }
+                }
                 return redirect()->route('finance.cash_loan.s01_apply', $params);
             }
             if (in_array($cardType, ['business', 'business loan', 'business_loan'])) {
@@ -189,8 +252,14 @@ class FinanceWebController extends Controller
         }
 
         $products = FinanceLoanProduct::where('is_active', true)->get();
-        $ctx = $this->resolveContext($request);
-        return view('finance.hub', array_merge($ctx, ['products' => $products]));
+        $resumeUrl = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT']))
+            ? $this->getResumeUrlForApplication($application, $phone)
+            : null;
+
+        return view('finance.hub', array_merge($ctx, [
+            'products' => $products,
+            'resumeUrl' => $resumeUrl,
+        ]));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -206,16 +275,18 @@ class FinanceWebController extends Controller
         // 1. Ensure Customer exists
         $customer = null;
         if ($phone) {
-            $customer = FinanceCustomer::firstOrCreate(
-                ['phone' => $phone],
-                [
+            $variants = \App\Services\PhoneService::getVariants($phone);
+            $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+            if (!$customer) {
+                $customer = FinanceCustomer::create([
+                    'phone' => $phone,
                     'full_name' => $request->input('applicant_name') ?: 'Customer',
                     'email' => $request->input('email'),
                     'pan_number' => $request->input('pan_number'),
                     'user_type' => 'customer',
                     'status' => 'active',
-                ]
-            );
+                ]);
+            }
             if ($request->filled('applicant_name')) {
                 $customer->update(['full_name' => $request->input('applicant_name')]);
             }
@@ -260,13 +331,19 @@ class FinanceWebController extends Controller
             $loanType = $request->input('loan_type', 'low_cibil');
             $category = $loanType === 'good_cibil' ? 'prime_cash' : 'low_cibil_cash';
             if ($application) {
-                $application->update(['loan_category' => $category]);
+                $application->update([
+                    'loan_category' => $category,
+                    'application_status' => 'KYC_PENDING',
+                ]);
             }
             $queryParams['loan_type'] = $loanType;
             return redirect()->route('finance.cash_loan.s02_type_consent', $queryParams);
         }
 
         if ($step === 's02') {
+            if ($application) {
+                $application->update(['application_status' => 'DETAILS_SAVED']);
+            }
             return redirect()->route('finance.cash_loan.s03_applicant_details', $queryParams);
         }
 
@@ -293,6 +370,7 @@ class FinanceWebController extends Controller
                     'applicant_name' => $name,
                     'pan_number' => $pan,
                     'requested_amount' => $reqAmt,
+                    'application_status' => 'ELIGIBILITY',
                 ]);
             }
             $queryParams['amount'] = $reqAmt;
@@ -315,6 +393,7 @@ class FinanceWebController extends Controller
                     'processing_fee_base' => $baseFee,
                     'processing_fee_tax' => $tax,
                     'processing_fee_total' => $baseFee + $tax,
+                    'application_status' => 'TENURE_SELECTED',
                 ]);
             }
             $queryParams['amount'] = $amount;
@@ -323,11 +402,13 @@ class FinanceWebController extends Controller
         }
 
         if ($step === 's07') {
-            // Server-side gate: require the 3 core KYC documents
+            // Check newly uploaded files OR existing in database
             $requiredDocs = ['pan_card', 'aadhaar_front', 'aadhaar_back'];
             $missingDocs = [];
             foreach ($requiredDocs as $doc) {
-                if (!$request->hasFile($doc)) {
+                $hasFile = $request->hasFile($doc);
+                $hasExisting = $customer ? FinanceDocument::where('customer_id', $customer->id)->where('document_type', $doc)->exists() : false;
+                if (!$hasFile && !$hasExisting) {
                     $missingDocs[] = ucwords(str_replace('_', ' ', $doc));
                 }
             }
@@ -352,6 +433,11 @@ class FinanceWebController extends Controller
                         ]
                     );
                 }
+            }
+            if ($application) {
+                $application->update([
+                    'application_status' => 'DOCS_SUBMITTED',
+                ]);
             }
             $queryParams['amount'] = $application ? $application->requested_amount : 25000;
             $queryParams['tenure'] = $application ? $application->tenure_months : 12;
@@ -504,15 +590,56 @@ class FinanceWebController extends Controller
     // FLOW A — CASH LOAN (26 Screens)
     // ─────────────────────────────────────────────────────────────
 
-    public function cashLoanApply(Request $request)            { return view('finance.cash_loan.s01_apply', $this->resolveContext($request)); }
+    public function cashLoanApply(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        // Automatically resume in-progress application unless explicitly starting fresh (?new=1)
+        if ($application && !$request->has('new') && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT'])) {
+            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+            if ($resumeUrl) {
+                return redirect($resumeUrl);
+            }
+        }
+
+        return view('finance.cash_loan.s01_apply', $ctx);
+    }
+
     public function cashLoanTypeConsent(Request $request)      { return view('finance.cash_loan.s02_type_consent', $this->resolveContext($request)); }
     public function cashLoanApplicantDetails(Request $request) { return view('finance.cash_loan.s03_applicant_details', $this->resolveContext($request)); }
     public function cashLoanEligibility(Request $request)      { return view('finance.cash_loan.s04_eligibility', $this->resolveContext($request)); }
     public function cashLoanAmountTenure(Request $request)     { return view('finance.cash_loan.s05_tenure', $this->resolveContext($request)); }
     public function cashLoanEmi(Request $request)              { return view('finance.cash_loan.s06_emi', $this->resolveContext($request)); }
-    public function cashLoanDocuments(Request $request)        { return view('finance.cash_loan.s07_documents', $this->resolveContext($request)); }
-    public function cashLoanReadyProcessing(Request $request)  { return view('finance.cash_loan.s08_ready', $this->resolveContext($request)); }
-    public function cashLoanSanctionSummary(Request $request)   { return view('finance.cash_loan.s08b_sanction_summary', $this->resolveContext($request)); }
+
+    public function cashLoanDocuments(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        if (!empty($ctx['application']) && in_array($ctx['application']->application_status, ['DRAFT', 'KYC_PENDING', 'DETAILS_SAVED', 'ELIGIBILITY', 'AMOUNT_PENDING', 'TENURE_SELECTED'])) {
+            $ctx['application']->update(['application_status' => 'DOCS_PENDING']);
+        }
+        return view('finance.cash_loan.s07_documents', $ctx);
+    }
+
+    public function cashLoanReadyProcessing(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        if (!empty($ctx['application']) && in_array($ctx['application']->application_status, ['DRAFT', 'KYC_PENDING', 'DETAILS_SAVED', 'ELIGIBILITY', 'AMOUNT_PENDING', 'TENURE_SELECTED', 'DOCS_PENDING'])) {
+            $ctx['application']->update(['application_status' => 'DOCS_SUBMITTED']);
+        }
+        return view('finance.cash_loan.s08_ready', $ctx);
+    }
+
+    public function cashLoanSanctionSummary(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        if (!empty($ctx['application']) && in_array($ctx['application']->application_status, ['DRAFT', 'KYC_PENDING', 'DETAILS_SAVED', 'ELIGIBILITY', 'AMOUNT_PENDING', 'TENURE_SELECTED', 'DOCS_PENDING', 'DOCS_SUBMITTED'])) {
+            $ctx['application']->update(['application_status' => 'SANCTIONED']);
+        }
+        return view('finance.cash_loan.s08b_sanction_summary', $ctx);
+    }
+
     public function cashLoanFeePayment(Request $request)       { return view('finance.cash_loan.s09_fee_payment', $this->resolveContext($request)); }
     public function cashLoanApplicationGen(Request $request)   { return view('finance.cash_loan.s10_app_generated', $this->resolveContext($request)); }
     public function cashLoanPartnerDashboard(Request $request) { return view('finance.cash_loan.s11_partner_dashboard', $this->resolveContext($request)); }

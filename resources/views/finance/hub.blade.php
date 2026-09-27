@@ -4,16 +4,38 @@
 
 @section('content')
 <div style="padding-bottom:8px;">
+    @if(!empty($resumeUrl) && !empty($application))
+    <div style="background: #0f172a; border-radius: 12px; padding: 16px; margin-bottom: 20px; color: white; border: 1.5px solid #334155; box-shadow: 0 4px 12px rgba(15,23,42,0.15);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; background: rgba(245, 166, 35, 0.2); color: #f5a623; padding: 3px 8px; border-radius: 4px; font-weight: 700;">Application In Progress</span>
+            <span style="font-size: 11px; color: #94a3b8; font-family: monospace;">{{ $application->application_number ?? '' }}</span>
+        </div>
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">{{ $application->applicant_name ?? 'Loan Applicant' }}</div>
+        <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 12px;">
+            Amount: <strong style="color:#f5a623;">₹{{ number_format($amount) }}</strong> · {{ $tenure }} Months
+        </div>
+        <a href="{{ $resumeUrl }}" style="display: block; text-align: center; background: #f5a623; color: #0f172a; font-weight: 800; font-size: 13px; padding: 10px; border-radius: 8px; text-decoration: none;">
+            Resume Active Loan Application →
+        </a>
+    </div>
+    @endif
+
     <p style="color:var(--gray3);font-size:12px;margin-bottom:16px;">Select a product to begin your application.</p>
 
     {{-- Flow A: Bank/NBFC Loans --}}
     <div class="fw-section-label">Bank & NBFC Loans</div>
 
-    <a href="{{ route('finance.cash_loan.s01_apply', ['phone' => request('phone')]) }}" class="fw-product-card" style="border-left:4px solid var(--blue);">
+    <a href="{{ !empty($resumeUrl) ? $resumeUrl : route('finance.cash_loan.s01_apply', ['phone' => request('phone')]) }}" class="fw-product-card" style="border-left:4px solid var(--blue);">
         <div class="fw-product-icon" style="background:var(--blue);">₹</div>
         <div class="fw-product-body">
             <div class="fw-product-title">Cash Loan — Low CIBIL</div>
-            <div class="fw-product-sub">Up to ₹4,00,000 · Processing fee applicable</div>
+            <div class="fw-product-sub">
+                @if(!empty($resumeUrl))
+                    <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
+                @else
+                    Up to ₹4,00,000 · Processing fee applicable
+                @endif
+            </div>
         </div>
         <div class="fw-product-arrow">›</div>
     </a>

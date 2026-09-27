@@ -12,6 +12,23 @@
     <input type="hidden" name="step" value="s01">
     <input type="hidden" name="phone" value="{{ $phone }}">
 
+@php
+    $activeResumeUrl = (!empty($application) && !in_array($application->application_status ?? '', ['DISBURSED', 'REJECTED', 'CLOSED', 'DRAFT']))
+        ? (new \App\Http\Controllers\Finance\FinanceWebController())->getResumeUrlForApplication($application, $phone)
+        : null;
+@endphp
+
+@if(!empty($activeResumeUrl))
+<div class="fw-alert fw-alert-info mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+    <div>
+        <strong>Application In Progress:</strong> #{{ $application->application_number ?? '' }} (₹{{ number_format($amount) }})
+    </div>
+    <a href="{{ $activeResumeUrl }}" class="btn btn-sm" style="background:#0f172a; color:#fff; font-weight:700; font-size:12px; padding:4px 12px; border-radius:6px; text-decoration:none;">
+        Resume Step →
+    </a>
+</div>
+@endif
+
     <div class="fw-card mb-4">
         <h3 class="fw-section-title mb-2">Select Loan Category</h3>
         <p class="fw-section-sub">Choose the credit line suited to your current CIBIL score.</p>

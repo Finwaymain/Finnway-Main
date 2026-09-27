@@ -10,7 +10,7 @@
 @endsection
 
 @section('back')
-<a href="{{ route('finance.cash_loan.s08_ready', ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s08b_sanction_summary', ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure]) }}" class="fw-back">← Back</a>
 @endsection
 
 @section('content')
