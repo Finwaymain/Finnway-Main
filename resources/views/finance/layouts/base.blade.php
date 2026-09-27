@@ -258,6 +258,7 @@
     @stack('head')
 </head>
 <body>
+    @if(!($hideHeader ?? false) && !request('hide_header') && !request('app') && !session('finance_hide_header'))
     <div class="fw-header">
         <div class="fw-header-brand">
             @yield('header-left')
@@ -270,6 +271,7 @@
             @yield('header-right')
         </div>
     </div>
+    @endif
 
     @yield('progress')
 

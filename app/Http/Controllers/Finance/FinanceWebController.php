@@ -152,6 +152,11 @@ class FinanceWebController extends Controller
                 ->toArray();
         }
 
+        if ($request->has('hide_header') || $request->has('app')) {
+            session(['finance_hide_header' => true]);
+        }
+        $hideHeader = session('finance_hide_header', false) || $request->query('hide_header') == '1' || $request->query('app') == '1';
+
         return [
             'customer' => $customer,
             'phone' => $phone,
@@ -169,6 +174,7 @@ class FinanceWebController extends Controller
             'hasLender' => $hasLender,
             'razorpayKey' => $razorpayKey,
             'documents' => $documents,
+            'hideHeader' => $hideHeader,
         ];
     }
 
@@ -271,6 +277,9 @@ class FinanceWebController extends Controller
         $step = $request->input('step', 's01');
         $phone = $request->input('phone', $request->query('phone', $request->input('mobile')));
         $queryParams = ['phone' => $phone];
+        if ($request->input('hide_header') || $request->query('hide_header') || session('finance_hide_header')) {
+            $queryParams['hide_header'] = '1';
+        }
 
         // 1. Ensure Customer exists
         $customer = null;
