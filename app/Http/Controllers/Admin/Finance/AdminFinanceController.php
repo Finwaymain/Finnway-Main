@@ -240,11 +240,16 @@ class AdminFinanceController extends Controller
             $docTypes = ['Additional Verification Documents'];
         }
 
+        $remark = trim((string)$request->input('admin_remark'));
+        if ($remark === '') {
+            $remark = 'Additional verification document requested by administration.';
+        }
+
         FinanceDocumentRequest::create([
             'customer_id' => $application->customer_id,
             'application_id' => $application->id,
             'requested_documents' => $docTypes,
-            'admin_remark' => $request->input('admin_remark', 'Additional verification document requested by administration.'),
+            'admin_remark' => $remark,
             'status' => 'pending',
             'created_by' => auth()->id() ?? 1,
         ]);

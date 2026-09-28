@@ -401,19 +401,29 @@
                         </div>
                         <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
                             @csrf
-                            <div class="mb-2">
-                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Select Documents Required (Multi-Select):</label>
-                                <div style="font-size: 12px; color: #334155; display: grid; grid-template-columns: 1fr; gap: 5px; max-height: 180px; overflow-y: auto; background: #ffffff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Latest 3 Months Salary Slips"> 📄 Latest 3 Months Salary Slips</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="6 Months Bank Statement (PDF)"> 🏦 6 Months Bank Statement (PDF)</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Bank Passbook (First Page with Account & IFSC)"> 📖 Bank Passbook (Account & IFSC)</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Cancelled Cheque"> 🧾 Cancelled Cheque</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Full Aadhaar Card (Front & Back)"> 🆔 Full Aadhaar Card (Front & Back)</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="PAN Card Copy"> 🪪 PAN Card Copy</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Electricity Bill / Rent Agreement"> 🏠 Electricity Bill / Rent Agreement</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Clear Selfie with ID Card"> 🤳 Clear Selfie with ID Card</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Business GST / ITR Certificate"> 💼 Business GST / ITR Certificate</label>
-                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Bonafide / Enrollment Certificate"> 🎓 Bonafide / Enrollment Certificate</label>
+                            <div class="mb-3">
+                                <label style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px; display: block;">Select Documents Required (Check all that apply):</label>
+                                <div style="display: grid; grid-template-columns: 1fr; gap: 6px;">
+                                    @php
+                                        $availableDocOptions = [
+                                            ['val' => 'Latest 3 Months Salary Slips', 'icon' => '📄', 'label' => 'Latest 3 Months Salary Slips'],
+                                            ['val' => '6 Months Bank Statement (PDF)', 'icon' => '🏦', 'label' => '6 Months Bank Statement (PDF)'],
+                                            ['val' => 'Bank Passbook (First Page with Account & IFSC)', 'icon' => '📖', 'label' => 'Bank Passbook (Account & IFSC)'],
+                                            ['val' => 'Cancelled Cheque', 'icon' => '🧾', 'label' => 'Cancelled Cheque'],
+                                            ['val' => 'Full Aadhaar Card (Front & Back)', 'icon' => '🆔', 'label' => 'Full Aadhaar Card (Front & Back)'],
+                                            ['val' => 'PAN Card Copy', 'icon' => '🪪', 'label' => 'PAN Card Copy'],
+                                            ['val' => 'Electricity Bill / Rent Agreement', 'icon' => '🏠', 'label' => 'Electricity Bill / Rent Agreement'],
+                                            ['val' => 'Clear Selfie with ID Card', 'icon' => '🤳', 'label' => 'Clear Selfie with ID Card'],
+                                            ['val' => 'Business GST / ITR Certificate', 'icon' => '💼', 'label' => 'Business GST / ITR Certificate'],
+                                            ['val' => 'Bonafide / Enrollment Certificate', 'icon' => '🎓', 'label' => 'Bonafide / Enrollment Certificate'],
+                                        ];
+                                    @endphp
+                                    @foreach($availableDocOptions as $i => $opt)
+                                    <label for="doc_opt_{{ $i }}" style="display: flex; align-items: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin: 0; cursor: pointer; font-size: 12px; font-weight: 600; color: #1e293b; user-select: none;">
+                                        <input type="checkbox" id="doc_opt_{{ $i }}" name="document_type[]" value="{{ $opt['val'] }}" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer; accent-color: #2563eb; flex-shrink: 0;">
+                                        <span>{{ $opt['icon'] }} {{ $opt['label'] }}</span>
+                                    </label>
+                                    @endforeach
                                 </div>
                             </div>
                             <div class="mb-2">
