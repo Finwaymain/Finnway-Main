@@ -8,20 +8,18 @@
 <div class="fw-card">
     <h2 class="fw-heading">Lender Connection Review</h2>
     
-    <p><strong>Current Lender:</strong> HDFC Bank</p>
-    <p><strong>Application No.:</strong> FIIN-CL-123456</p>
-    <p><strong>Requested Amount:</strong> ₹50,000</p>
-    <p><strong>Status:</strong> Under Review</p>
+    <p class="mb-2"><strong>Current Lender:</strong> {{ $selectedPartner->name ?? ($application->selected_lender_name ?? 'Lending Partner') }}</p>
+    <p class="mb-2"><strong>Application No.:</strong> <span style="font-family:monospace; font-weight:700;">{{ $appNumber }}</span></p>
+    <p class="mb-2"><strong>Requested Amount:</strong> ₹{{ number_format($amount) }}</p>
+    <p class="mb-3"><strong>Status:</strong> <span class="badge" style="background:#fef3c7; color:#92400e; font-weight:700;">Under Review</span></p>
     
-    <div style="background:#f4f4f4; padding:10px; margin-top:15px; border-radius:5px;">
-        <p>OpenScore Status: Analyzing credit profile...</p>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; margin-top:15px; border-radius:6px;">
+        <p class="mb-0" style="font-size:12px; color:#475569;">Profile Status: Analyzing credit profile and lender eligibility...</p>
     </div>
-    
-    <p style="margin-top:15px;"><a href="#" style="color:#004080; text-decoration:underline;">View Screenshot</a></p>
 </div>
 @endsection
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s20_processing', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary">Continue</a>
+    <a href="{{ route('finance.cash_loan.s20_processing', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">Continue</a>
 </div>
 @endsection

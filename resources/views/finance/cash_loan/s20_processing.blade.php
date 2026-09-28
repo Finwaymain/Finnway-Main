@@ -9,7 +9,7 @@
     <h2 class="fw-heading">Application Processing</h2>
     <p style="color:orange; font-weight:bold;">Status: Processing in Progress</p>
     
-    <p><strong>Application No.:</strong> FIIN-CL-123456</p>
+    <p><strong>Application No.:</strong> {{ $appNumber }}</p>
     
     <div class="fw-timer-note" style="margin:20px 0; font-weight:bold;">
         Estimated Processing Window: Up to 20 Minutes

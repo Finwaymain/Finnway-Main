@@ -7,7 +7,7 @@
 @section('content')
 <div class="fw-card">
     <h2 class="fw-heading" style="color:#d9534f;">⚠️ Additional Documents Required</h2>
-    <p><strong>Application No.:</strong> FIIN-CL-123456</p>
+    <p><strong>Application No.:</strong> {{ $appNumber }}</p>
     <p style="font-size:0.9em; color:#666;">Requested By Admin</p>
     
     @if(isset($ctx['admin_remark']))

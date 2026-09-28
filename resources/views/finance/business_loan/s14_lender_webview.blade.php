@@ -6,9 +6,9 @@
 @endsection
 @section('content')
 <div class="fw-webview-header">
-    <div class="fw-app-no">Application No.: FIIN-BL-2026-123456</div>
+    <div class="fw-app-no">Application No.: {{ $appNumber }}</div>
 </div>
-<iframe src="{{ $ctx['lender_url'] ?? '#' }}" style="width:100%; height:80vh; border:none; padding:0; margin:0;"></iframe>
+<iframe src="{{ $selectedPartner->application_url ?? ($ctx['lender_url'] ?? '#') }}" style="width:100%; height:80vh; border:none; padding:0; margin:0;"></iframe>
 @endsection
 @section('sticky-bottom')
 <div class="fw-sticky-bottom" style="background:none;">

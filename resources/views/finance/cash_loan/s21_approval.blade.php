@@ -8,15 +8,15 @@
 <div class="fw-card fw-text-center">
     <h2 class="fw-heading" style="color:green;">🎉 Congratulations! Loan Approved</h2>
     
-    <div class="fw-amount-big" style="font-size:32px; font-weight:bold; margin:20px 0;">₹50,000</div>
+    <div class="fw-amount-big" style="font-size:32px; font-weight:bold; margin:20px 0;">₹{{ number_format($amount ?? 25000) }}</div>
     
     <div style="text-align:left; background:#f9f9f9; padding:15px; border-radius:8px;">
-        <p><strong>Lender:</strong> HDFC Bank</p>
-        <p><strong>Application No.:</strong> FIIN-CL-123456</p>
-        <p><strong>Tenure:</strong> 12 Months</p>
-        <p><strong>EMI:</strong> ₹4,500</p>
-        <p><strong>Interest Rate:</strong> 14% p.a. (as per lender)</p>
-        <p><strong>Processing Charges:</strong> ₹1,500</p>
+        <p><strong>Lender:</strong> {{ $selectedPartner->name ?? ($application->selected_lender_name ?? 'Lending Partner') }}</p>
+        <p><strong>Application No.:</strong> {{ $appNumber }}</p>
+        <p><strong>Tenure:</strong> {{ $tenure ?? 12 }} Months</p>
+        <p><strong>EMI:</strong> ₹{{ number_format($emi ?? 0) }}</p>
+        <p><strong>Interest Rate:</strong> {{ $selectedPartner->interest_rate_display ?? '12% - 16% p.a.' }}</p>
+        <p><strong>Processing Charges:</strong> ₹{{ number_format($totalFee ?? 999) }}</p>
     </div>
 </div>
 @endsection

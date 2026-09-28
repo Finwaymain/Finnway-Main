@@ -7,12 +7,12 @@
 @section('content')
 <div class="fw-card">
     <h2 class="fw-heading" style="color:green;">Payment Successful ✓</h2>
-    <p style="font-size:18px; font-weight:bold; text-align:center; margin:10px 0;">Application No.: FIIN-BL-2026-{{ rand(100000, 999999) }}</p>
+    <p style="font-size:18px; font-weight:bold; text-align:center; margin:10px 0;">Application No.: {{ $appNumber }}</p>
     
     <div style="border:1px solid #ddd; padding:15px; border-radius:8px; margin-top:20px;">
-        <p><strong>Business Name:</strong> XYZ Enterprises</p>
+        <p><strong>Business / Applicant Name:</strong> {{ $applicantName }}</p>
         <p><strong>Loan Type:</strong> Business Loan</p>
-        <p><strong>Requested Amount:</strong> ₹20,00,000</p>
+        <p><strong>Requested Amount:</strong> ₹{{ number_format($amount ?? 2000000) }}</p>
         <p><strong>Indicative Amount:</strong> ₹15,00,000</p>
         <p><strong>Payment Status:</strong> Paid ✓</p>
         <p><strong>Application Status:</strong> Active</p>

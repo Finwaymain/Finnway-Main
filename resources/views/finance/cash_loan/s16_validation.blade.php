@@ -7,7 +7,7 @@
 @section('content')
 <div class="fw-card fw-text-center">
     <h2 class="fw-heading" style="color: green;">✓ Application Submitted</h2>
-    <p>Application No.: FIIN-CL-123456</p>
+    <p>Application No.: <strong>{{ $appNumber }}</strong></p>
     
     <div class="fw-status-flow" style="margin-top:20px; text-align:left;">
         <p>✓ Application Submitted</p>

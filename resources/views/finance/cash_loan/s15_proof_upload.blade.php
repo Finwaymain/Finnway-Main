@@ -2,18 +2,18 @@
 @section('title', 'Upload Proof — Fiinway')
 @section('header-sub', 'Cash Loan')
 @section('back')
-<a href="{{ route('finance.cash_loan.s14_lender_webview', ['phone' => request('phone')]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s14_lender_webview', ['phone' => request('phone'), 'partner_id' => $selectedPartner->id ?? '']) }}" class="fw-back">← Back</a>
 @endsection
 @section('content')
 <div class="fw-card">
     <h2 class="fw-heading">Complete Your Lender Process</h2>
     <div class="fw-form-group">
         <label>Application Number</label>
-        <input type="text" class="fw-input" value="FIIN-CL-123456" readonly>
+        <input type="text" class="fw-input" value="{{ $appNumber }}" readonly style="font-family:monospace; font-weight:700;">
     </div>
     <div class="fw-form-group">
         <label>Selected Bank/Lender</label>
-        <input type="text" class="fw-input" value="HDFC Bank" readonly>
+        <input type="text" class="fw-input" value="{{ $selectedPartner->name ?? ($application->selected_lender_name ?? 'Lending Partner') }}" readonly style="font-weight:600;">
     </div>
     <div class="fw-form-group">
         <label>Loan Application Status</label>
@@ -30,15 +30,17 @@
     </div>
     <div class="fw-form-group">
         <label>Optional Remarks</label>
-        <textarea class="fw-input" rows="3"></textarea>
+        <textarea class="fw-input" rows="3" placeholder="Additional details or reference number from lender portal..."></textarea>
     </div>
     <div class="fw-checkbox-group">
-        <label><input type="checkbox"> I have completed the required lender process.</label>
+        <label><input type="checkbox" checked> I have completed the required lender process.</label>
     </div>
 </div>
 @endsection
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s16_validation', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary">Submit for Validation</a>
+    <a href="{{ route('finance.cash_loan.s16_validation', ['phone' => request('phone'), 'partner_id' => $selectedPartner->id ?? '']) }}" class="fw-btn fw-btn-primary" style="display:block; text-align:center;">
+        Submit for Validation
+    </a>
 </div>
 @endsection

@@ -9,8 +9,8 @@
     <h2 class="fw-heading" style="color:green;">✓ Disbursement Request Submitted</h2>
     
     <div style="text-align:left; background:#f9f9f9; padding:15px; border-radius:8px; margin:20px 0;">
-        <p><strong>Application No.:</strong> FIIN-CL-123456</p>
-        <p><strong>Approved Amount:</strong> ₹50,000</p>
+        <p><strong>Application No.:</strong> {{ $appNumber }}</p>
+        <p><strong>Approved Amount:</strong> ₹{{ number_format($amount ?? 25000) }}</p>
         <p><strong>Disbursement Account:</strong> XXXX-XXXX-1234</p>
     </div>
     

@@ -7,7 +7,7 @@
 @section('content')
 <div class="fw-card">
     <h2 class="fw-heading" style="color:green;">✓ Documents Submitted</h2>
-    <p><strong>Application Number:</strong> FIIN-CL-123456</p>
+    <p><strong>Application Number:</strong> {{ $appNumber }}</p>
     
     <table style="width:100%; margin-top:20px; border-collapse:collapse;">
         <tr style="background:#f4f4f4; text-align:left;">

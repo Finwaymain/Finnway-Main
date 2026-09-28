@@ -39,6 +39,33 @@ class FinanceWebController extends Controller
         if ($phone) {
             $variants = \App\Services\PhoneService::getVariants($phone);
             $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+            if (!$customer) {
+                // Check if user exists in tj_user_app
+                $user = DB::table('tj_user_app')->whereIn('phone', $variants)->first();
+                if ($user) {
+                    $fullName = trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')) ?: ($user->name ?? 'Customer');
+                    $customer = FinanceCustomer::create([
+                        'phone' => $phone,
+                        'name' => $fullName,
+                        'user_type' => 'customer',
+                        'user_id' => $user->id,
+                        'email' => $user->email ?? null,
+                    ]);
+                } else {
+                    // Check if user exists in tj_conducteur
+                    $driver = DB::table('tj_conducteur')->whereIn('phone', $variants)->first();
+                    if ($driver) {
+                        $fullName = trim(($driver->prenom ?? '') . ' ' . ($driver->nom ?? '')) ?: ($driver->name ?? 'Driver');
+                        $customer = FinanceCustomer::create([
+                            'phone' => $phone,
+                            'name' => $fullName,
+                            'user_type' => 'driver',
+                            'driver_id' => $driver->id,
+                            'email' => $driver->email ?? null,
+                        ]);
+                    }
+                }
+            }
             if ($customer) {
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
                     ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
@@ -140,12 +167,44 @@ class FinanceWebController extends Controller
         if ($request->has('hide_header') || $request->has('app')) {
             session(['finance_hide_header' => true]);
         }
-        $hideHeader = session('finance_hide_header', false) || $request->query('hide_header') == '1' || $request->query('app') == '1';
+        // Active lending partners from master
+        $partners = FinanceLenderPartner::where('status', 'active')
+            ->orderBy('sort_order')
+            ->get();
+
+        // Selected partner resolution
+        $partnerId = $request->query('partner_id', $request->input('partner_id', $application->selected_lender_id ?? null));
+        $selectedPartner = null;
+        if ($partnerId) {
+            $selectedPartner = FinanceLenderPartner::find($partnerId);
+        }
+        if (!$selectedPartner && $application && $application->selected_lender_id) {
+            $selectedPartner = FinanceLenderPartner::find($application->selected_lender_id);
+        }
+        if (!$selectedPartner && $partners->isNotEmpty()) {
+            $selectedPartner = $partners->first();
+        }
+
+        // Applicant display values (never dummy or hardcoded)
+        $applicantName = $application->applicant_name 
+            ?? ($customer->name ?? ($customer->full_name ?? ($request->input('name') ?: 'Valued Applicant')));
+        
+        $applicantPhone = $application->applicant_phone 
+            ?? ($customer->phone ?? ($phone ?: ''));
+
+        $appNumber = $application->application_number 
+            ?? ($customer ? 'FIIN-APP-' . date('Y') . '-' . str_pad($customer->id, 5, '0', STR_PAD_LEFT) : 'FIIN-APP-' . time());
 
         return [
             'customer' => $customer,
             'phone' => $phone,
             'application' => $application,
+            'appNumber' => $appNumber,
+            'applicantName' => $applicantName,
+            'applicantPhone' => $applicantPhone,
+            'partners' => $partners,
+            'lenders' => $partners,
+            'selectedPartner' => $selectedPartner,
             'product' => $product,
             'amount' => $amount,
             'tenure' => $tenure,
@@ -774,8 +833,41 @@ class FinanceWebController extends Controller
     public function cashLoanFeePayment(Request $request)       { return view('finance.cash_loan.s09_fee_payment', $this->resolveContext($request)); }
     public function cashLoanApplicationGen(Request $request)   { return view('finance.cash_loan.s10_app_generated', $this->resolveContext($request)); }
     public function cashLoanPartnerDashboard(Request $request) { return view('finance.cash_loan.s11_partner_dashboard', $this->resolveContext($request)); }
-    public function cashLoanPartnerVerify(Request $request)    { return view('finance.cash_loan.s12_partner_verify', $this->resolveContext($request)); }
-    public function cashLoanPartnerRedirect(Request $request)  { return view('finance.cash_loan.s13_partner_redirect', $this->resolveContext($request)); }
+    public function cashLoanPartnerVerify(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $partnerId = $request->query('partner_id', $request->input('partner_id'));
+        if ($partnerId && !empty($ctx['application'])) {
+            $partner = FinanceLenderPartner::find($partnerId);
+            if ($partner) {
+                $ctx['application']->update([
+                    'selected_lender_id' => $partner->id,
+                    'selected_lender_name' => $partner->name,
+                ]);
+                $ctx['selectedPartner'] = $partner;
+            }
+        }
+        return view('finance.cash_loan.s12_partner_verify', $ctx);
+    }
+
+    public function cashLoanPartnerRedirect(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $partnerId = $request->query('partner_id', $request->input('partner_id'));
+        if ($partnerId && !empty($ctx['application'])) {
+            $partner = FinanceLenderPartner::find($partnerId);
+            if ($partner) {
+                $ctx['application']->update([
+                    'selected_lender_id' => $partner->id,
+                    'selected_lender_name' => $partner->name,
+                    'partner_selection_time' => now(),
+                    'application_status' => 'PARTNER_SELECTED',
+                ]);
+                $ctx['selectedPartner'] = $partner;
+            }
+        }
+        return view('finance.cash_loan.s13_partner_redirect', $ctx);
+    }
     public function cashLoanLenderWebview(Request $request)    { return view('finance.cash_loan.s14_lender_webview', $this->resolveContext($request)); }
     public function cashLoanProofUpload(Request $request)      { return view('finance.cash_loan.s15_proof_upload', $this->resolveContext($request)); }
     public function cashLoanValidation(Request $request)       { return view('finance.cash_loan.s16_validation', $this->resolveContext($request)); }
