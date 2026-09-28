@@ -1297,6 +1297,7 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/documents/{id}/review', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'reviewDocument'])->name('document-review');
     Route::post('/applications/{id}/status', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'updateApplicationStatus'])->name('application-status');
     Route::post('/applications/{id}/request-document', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'requestDocument'])->name('applications.request-document');
+    Route::post('/applications/{id}/verify-all-documents', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'verifyAllDocuments'])->name('applications.verify-all-docs');
     Route::get('/lenders', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'lenderPartners'])->name('lenders');
     Route::post('/lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveLenderPartner'])->name('lenders.save');
     Route::get('/recovery', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'recoveryCenter'])->name('recovery');
@@ -1399,6 +1400,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/bank-details',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanBankDetails'])->name('s22_bank_details');
         Route::get('/disbursement',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDisbursement'])->name('s23_disbursement');
         Route::get('/additional-docs',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAdditionalDocs'])->name('s24_additional_docs');
+        Route::post('/additional-docs',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAdditionalDocsSubmit'])->name('s24_additional_docs_submit');
         Route::get('/docs-submitted',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDocsSubmitted'])->name('s25_docs_submitted');
         Route::get('/final-result',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanFinalResult'])->name('s26_final_result');
     });

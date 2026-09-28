@@ -153,6 +153,120 @@
                     </div>
                 </div>
 
+                <!-- Borrower Submitted & Additional Documents Vault -->
+                <div class="card border-0 mb-4 p-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h5 class="mb-0" style="font-size: 16px; font-weight: 700; color: #0f172a;">
+                                📄 Borrower KYC &amp; Additional Uploaded Documents
+                            </h5>
+                            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                                Review, verify individual documents or request re-upload
+                            </div>
+                        </div>
+                        @if($application->customer && $application->customer->documents->isNotEmpty())
+                        <form method="POST" action="{{ route('admin.finance.applications.verify-all-docs', $application->id) }}" onsubmit="return confirm('Verify all pending documents for this borrower?');">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-success" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px;">
+                                ✓ Verify All Documents
+                            </button>
+                        </form>
+                        @endif
+                    </div>
+
+                    @if($application->application_status === 'DOCS_RESUBMITTED')
+                    <div class="alert alert-success py-2 px-3 mb-3 border-0 d-flex align-items-center justify-content-between" style="background: #ecfdf5; color: #065f46; font-size: 13px; border-radius: 6px; border-left: 4px solid #059669 !important;">
+                        <div>
+                            <strong>🔔 Resubmitted Documents Received!</strong> The applicant has uploaded the requested files. Please inspect each file below and approve the loan.
+                        </div>
+                    </div>
+                    @endif
+
+                    @php
+                        $allDocs = $application->customer ? $application->customer->documents : collect();
+                    @endphp
+
+                    @if($allDocs->isNotEmpty())
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" style="font-size: 13px; vertical-align: middle;">
+                            <thead>
+                                <tr style="background: #f8fafc; color: #475569; font-weight: 600; font-size: 12px;">
+                                    <th style="padding: 10px 12px;">Document Name</th>
+                                    <th style="padding: 10px 12px;">Preview</th>
+                                    <th style="padding: 10px 12px;">Uploaded</th>
+                                    <th style="padding: 10px 12px;">Status</th>
+                                    <th style="padding: 10px 12px;">Admin Remark</th>
+                                    <th style="padding: 10px 12px; text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($allDocs as $doc)
+                                <tr>
+                                    <td style="padding: 10px 12px; font-weight: 600; color: #0f172a;">
+                                        {{ ucwords(str_replace('_', ' ', $doc->document_type)) }}
+                                        @if($doc->file_name)
+                                            <div style="font-size: 11px; color: #64748b; font-weight: 400;">{{ $doc->file_name }}</div>
+                                        @endif
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        <a href="{{ $doc->url }}" target="_blank" class="btn btn-sm" style="background: #f1f5f9; color: #0f172a; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 4px 10px; border: 1px solid #cbd5e1; text-decoration: none;">
+                                            View File ↗
+                                        </a>
+                                    </td>
+                                    <td style="padding: 10px 12px; color: #64748b; font-size: 12px;">
+                                        {{ $doc->created_at ? $doc->created_at->format('d M Y, H:i') : '—' }}
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        @php
+                                            $sbg = '#fef3c7'; $sfg = '#92400e';
+                                            if ($doc->status === 'verified') { $sbg = '#ecfdf5'; $sfg = '#065f46'; }
+                                            elseif ($doc->status === 'rejected') { $sbg = '#fef2f2'; $sfg = '#991b1b'; }
+                                            elseif ($doc->status === 'reupload_required') { $sbg = '#fee2e2'; $sfg = '#b91c1c'; }
+                                        @endphp
+                                        <span class="badge" style="background: {{ $sbg }}; color: {{ $sfg }}; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px;">
+                                            {{ strtoupper($doc->status) }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 10px 12px; color: #64748b; font-size: 12px;">
+                                        {{ $doc->admin_remark ?: '—' }}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: right;">
+                                        <div class="btn-group btn-group-sm">
+                                            <form method="POST" action="{{ route('admin.finance.document-review', $doc->id) }}" style="display:inline-block;">
+                                                @csrf
+                                                <input type="hidden" name="action" value="verify">
+                                                <button type="submit" class="btn btn-sm" style="background: #059669; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 4px 0 0 4px;" title="Verify">
+                                                    ✓ Verify
+                                                </button>
+                                            </form>
+                                            <form method="POST" action="{{ route('admin.finance.document-review', $doc->id) }}" style="display:inline-block;">
+                                                @csrf
+                                                <input type="hidden" name="action" value="reupload">
+                                                <button type="submit" class="btn btn-sm" style="background: #d97706; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 0;" title="Request Reupload">
+                                                    Reupload
+                                                </button>
+                                            </form>
+                                            <form method="POST" action="{{ route('admin.finance.document-review', $doc->id) }}" style="display:inline-block;">
+                                                @csrf
+                                                <input type="hidden" name="action" value="reject">
+                                                <button type="submit" class="btn btn-sm" style="background: #dc2626; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 0 4px 4px 0;" title="Reject">
+                                                    ✕
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @else
+                    <div class="py-4 text-center text-muted" style="font-size: 13px;">
+                        No documents uploaded yet by this borrower.
+                    </div>
+                    @endif
+                </div>
+
                 <!-- Disbursement Bank Details -->
                 <div class="card border-0 mb-4 p-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
                     <h5 class="mb-3" style="font-size: 16px; font-weight: 700; color: #0f172a;">Disbursement Account Destination</h5>
@@ -239,6 +353,80 @@
                     </div>
                     @endif
 
+                    @if($application->application_status === 'DOCS_RESUBMITTED')
+                    <div class="card border-0 mb-3 p-3" style="background: #ecfdf5; border: 1px solid #a7f3d0 !important; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #065f46; margin-bottom: 4px;">
+                            🎉 Additional Documents Resubmitted!
+                        </div>
+                        <div style="font-size: 12px; color: #047857; margin-bottom: 12px;">
+                            Borrower has uploaded the requested documents. Review them in the table and approve the application:
+                        </div>
+                        <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="LOAN_APPROVED">
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #065f46;">Approved Amount (₹):</label>
+                                <input type="number" name="approved_amount" value="{{ $application->approved_amount ?: $application->requested_amount }}" class="form-control form-control-sm" style="font-weight: 700; font-size: 13px; border: 1px solid #6ee7b7; background: #fff;" required>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-sm w-100" style="background: #059669; color: #fff; font-weight: 700; font-size: 12px; padding: 8px; border-radius: 6px;">
+                                    ✓ Approve Resubmitted Docs &amp; Release Loan
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 8px; border-radius: 6px; white-space: nowrap;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
+                                    ✕ Reject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    @endif
+
+                    @if($application->application_status === 'ADDITIONAL_DOCS_REQUESTED')
+                    <div class="card border-0 mb-3 p-3" style="background: #fffbeb; border: 1px solid #fde68a !important; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #b45309; margin-bottom: 4px;">
+                            ⏳ Waiting for Additional Documents
+                        </div>
+                        <div style="font-size: 12px; color: #92400e;">
+                            Borrower is currently on Step 24 uploading the requested documents.
+                        </div>
+                    </div>
+                    @endif
+
+                    @if(!in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED']))
+                    <div class="card border-0 mb-3 p-3" style="background: #f8fafc; border: 1px solid #cbd5e1 !important; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">
+                            📩 Request Additional Documents
+                        </div>
+                        <div style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
+                            Direct the applicant to Step 24 to upload specific documents:
+                        </div>
+                        <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
+                            @csrf
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Select Documents Required:</label>
+                                <div style="font-size: 12px; color: #334155; display: grid; grid-template-columns: 1fr; gap: 4px; max-height: 140px; overflow-y: auto; background: #ffffff; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="6 Months Bank Statement (PDF)"> 6 Months Bank Statement</label>
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Full Aadhaar Card (Front & Back)"> Full Aadhaar Card</label>
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Latest 3 Months Salary Slips"> Latest 3 Months Salary Slips</label>
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Electricity Bill / Rent Agreement"> Electricity Bill / Rent Agreement</label>
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Clear Selfie with ID Card"> Clear Selfie with ID Card</label>
+                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Business GST / ITR Certificate"> Business GST / ITR Certificate</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Other / Custom Document (Optional):</label>
+                                <input type="text" name="custom_document" class="form-control form-control-sm" placeholder="e.g. Property Tax Receipt" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                            </div>
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Instructions / Remarks for Borrower:</label>
+                                <textarea name="admin_remark" rows="2" class="form-control form-control-sm" placeholder="e.g. Bank statement must show salary credit and be in original PDF format" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-sm w-100" style="background: #2563eb; color: #fff; font-weight: 700; font-size: 12px; padding: 8px; border-radius: 6px;">
+                                📤 Send Document Request
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+
                     <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
                         @csrf
                         <div class="mb-3">
@@ -247,6 +435,8 @@
                                 <option value="VALIDATION_PENDING" {{ $application->application_status === 'VALIDATION_PENDING' ? 'selected' : '' }}>Validation Pending</option>
                                 <option value="SELFIE_PENDING" {{ in_array($application->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED']) ? 'selected' : '' }}>✓ Accept &amp; Require Agent Selfie (Step 17)</option>
                                 <option value="PROCESSING" {{ in_array($application->application_status, ['PROCESSING', 'SELFIE_SUBMITTED', 'UNDERWRITING']) ? 'selected' : '' }}>Underwriting Review in Progress (Step 18)</option>
+                                <option value="DOCS_RESUBMITTED" {{ $application->application_status === 'DOCS_RESUBMITTED' ? 'selected' : '' }}>Additional Docs Resubmitted (Step 25)</option>
+                                <option value="ADDITIONAL_DOCS_REQUESTED" {{ $application->application_status === 'ADDITIONAL_DOCS_REQUESTED' ? 'selected' : '' }}>Request Additional Docs (Step 24)</option>
                                 <option value="LOAN_APPROVED" {{ $application->application_status === 'LOAN_APPROVED' ? 'selected' : '' }}>Approve Loan (Step 21)</option>
                                 <option value="DISBURSEMENT_PENDING" {{ $application->application_status === 'DISBURSEMENT_PENDING' ? 'selected' : '' }}>Disbursement Pending</option>
                                 <option value="DISBURSED" {{ $application->application_status === 'DISBURSED' ? 'selected' : '' }}>Mark as Disbursed</option>

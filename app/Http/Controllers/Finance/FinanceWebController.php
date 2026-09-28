@@ -163,11 +163,29 @@ class FinanceWebController extends Controller
         $razorpayMerchantName = $loanRzp['merchant_name'] ?: 'Fiinway Loan & Credit';
 
         $documents = [];
+        $customerDocuments = collect();
         if ($customer) {
-            $documents = FinanceDocument::where('customer_id', $customer->id)
-                ->pluck('file_path', 'document_type')
-                ->toArray();
+            $customerDocuments = FinanceDocument::where('customer_id', $customer->id)->get();
+            $documents = $customerDocuments->pluck('file_path', 'document_type')->toArray();
         }
+
+        // Active additional document request if any
+        $activeDocRequest = null;
+        if ($customer) {
+            $activeDocRequest = \App\Models\Finance\FinanceDocumentRequest::where('customer_id', $customer->id)
+                ->where(function ($q) use ($application) {
+                    if ($application) {
+                        $q->where('application_id', $application->id)->orWhereNull('application_id');
+                    }
+                })
+                ->orderBy('id', 'desc')
+                ->first();
+        }
+        $requestedDocs = $activeDocRequest ? ($activeDocRequest->requested_documents ?? []) : [];
+        if (empty($requestedDocs) || !is_array($requestedDocs)) {
+            $requestedDocs = ['6 Months Bank Statement (PDF)', 'Full Aadhaar Card (Front & Back)', 'Additional Income / Salary Proof'];
+        }
+        $docRequestRemark = $activeDocRequest ? $activeDocRequest->admin_remark : null;
 
         if ($request->has('hide_header') || $request->has('app')) {
             session(['finance_hide_header' => true]);
@@ -237,6 +255,10 @@ class FinanceWebController extends Controller
             'razorpayKey' => $razorpayKey,
             'razorpayMerchantName' => $razorpayMerchantName,
             'documents' => $documents,
+            'customerDocuments' => $customerDocuments,
+            'activeDocRequest' => $activeDocRequest,
+            'requestedDocs' => $requestedDocs,
+            'docRequestRemark' => $docRequestRemark,
             'hideHeader' => $hideHeader,
             'maxLimit' => $maxLimit,
         ];
@@ -1046,6 +1068,56 @@ class FinanceWebController extends Controller
             return response()->json(['status' => $status, 'action' => 'wait']);
         }
 
+        // 3. Additional Docs Required Polling (s24)
+        if ($currentStep === 's24') {
+            if (in_array($status, ['LOAN_APPROVED', 'APPROVED'])) {
+                $effectiveAmount = ($app->approved_amount && floatval($app->approved_amount) > 0)
+                    ? floatval($app->approved_amount)
+                    : ($app->requested_amount ?: 25000);
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s21_approval', [
+                        'phone' => $phone,
+                        'amount' => $effectiveAmount,
+                    ]),
+                ]);
+            }
+            if ($status === 'DOCS_RESUBMITTED') {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s25_docs_submitted', ['phone' => $phone]),
+                ]);
+            }
+            return response()->json(['status' => $status, 'action' => 'wait']);
+        }
+
+        // 4. Additional Docs Submitted Polling (s25)
+        if ($currentStep === 's25') {
+            if (in_array($status, ['LOAN_APPROVED', 'APPROVED'])) {
+                $effectiveAmount = ($app->approved_amount && floatval($app->approved_amount) > 0)
+                    ? floatval($app->approved_amount)
+                    : ($app->requested_amount ?: 25000);
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s21_approval', [
+                        'phone' => $phone,
+                        'amount' => $effectiveAmount,
+                    ]),
+                ]);
+            }
+            if ($status === 'ADDITIONAL_DOCS_REQUESTED') {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s24_additional_docs', ['phone' => $phone]),
+                ]);
+            }
+            return response()->json(['status' => $status, 'action' => 'wait']);
+        }
+
         return response()->json([
             'status' => $status,
             'action' => 'wait',
@@ -1108,6 +1180,85 @@ class FinanceWebController extends Controller
     public function cashLoanBankDetails(Request $request)      { return view('finance.cash_loan.s22_bank_details', $this->resolveContext($request)); }
     public function cashLoanDisbursement(Request $request)     { return view('finance.cash_loan.s23_disbursement', $this->resolveContext($request)); }
     public function cashLoanAdditionalDocs(Request $request)   { return view('finance.cash_loan.s24_additional_docs', $this->resolveContext($request)); }
+
+    public function cashLoanAdditionalDocsSubmit(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+        $phone = $ctx['phone'];
+
+        if (!$customer) {
+            return redirect()->route('finance.hub', ['phone' => $phone])->with('error', 'Session expired. Please restart.');
+        }
+
+        $uploadedCount = 0;
+
+        // 1. Process array of requested documents
+        if ($request->hasFile('doc_files')) {
+            $files = $request->file('doc_files');
+            $names = $request->input('doc_names', []);
+
+            foreach ($files as $idx => $file) {
+                if ($file && $file->isValid()) {
+                    $rawName = $names[$idx] ?? ('Additional Doc ' . ($idx + 1));
+                    $slugType = \Illuminate\Support\Str::slug($rawName, '_');
+                    $path = $file->store('finance_docs', 'public');
+
+                    FinanceDocument::create([
+                        'customer_id' => $customer->id,
+                        'document_type' => $slugType,
+                        'file_path' => $path,
+                        'file_name' => $file->getClientOriginalName(),
+                        'status' => 'pending',
+                        'admin_remark' => 'Uploaded by borrower in response to Admin request: ' . $rawName,
+                        'is_reusable' => true,
+                        'reuse_valid_until' => now()->addDays(5),
+                    ]);
+                    $uploadedCount++;
+                }
+            }
+        }
+
+        // 2. Process optional extra document
+        if ($request->hasFile('extra_doc')) {
+            $file = $request->file('extra_doc');
+            if ($file && $file->isValid()) {
+                $path = $file->store('finance_docs', 'public');
+                FinanceDocument::create([
+                    'customer_id' => $customer->id,
+                    'document_type' => 'additional_supporting_doc',
+                    'file_path' => $path,
+                    'file_name' => $file->getClientOriginalName(),
+                    'status' => 'pending',
+                    'admin_remark' => 'Supporting document uploaded by borrower.',
+                    'is_reusable' => true,
+                    'reuse_valid_until' => now()->addDays(5),
+                ]);
+                $uploadedCount++;
+            }
+        }
+
+        // 3. Mark document request as submitted
+        \App\Models\Finance\FinanceDocumentRequest::where('customer_id', $customer->id)
+            ->where(function ($q) use ($app) {
+                if ($app) {
+                    $q->where('application_id', $app->id)->orWhereNull('application_id');
+                }
+            })
+            ->where('status', 'pending')
+            ->update(['status' => 'submitted']);
+
+        // 4. Update Application status to DOCS_RESUBMITTED
+        if ($app) {
+            $app->update([
+                'application_status' => 'DOCS_RESUBMITTED',
+            ]);
+        }
+
+        return redirect()->route('finance.cash_loan.s25_docs_submitted', ['phone' => $phone])
+            ->with('success', "{$uploadedCount} document(s) uploaded successfully.");
+    }
     public function cashLoanDocsSubmitted(Request $request)    { return view('finance.cash_loan.s25_docs_submitted', $this->resolveContext($request)); }
     public function cashLoanFinalResult(Request $request)      { return view('finance.cash_loan.s26_final_result', $this->resolveContext($request)); }
 

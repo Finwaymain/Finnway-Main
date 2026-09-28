@@ -90,7 +90,7 @@ class AdminFinanceController extends Controller
 
     public function applicationDetails($id)
     {
-        $application = FinanceLoanApplication::with(['customer.documents', 'product', 'lender', 'dailySchedules'])->findOrFail($id);
+        $application = FinanceLoanApplication::with(['customer.documents', 'product', 'lender', 'dailySchedules', 'documentRequests'])->findOrFail($id);
         return view('admin.finance.application_details', compact('application'));
     }
 
@@ -225,20 +225,26 @@ class AdminFinanceController extends Controller
     {
         $application = FinanceLoanApplication::findOrFail($id);
 
-        $request->validate([
-            'document_type' => 'required',
-            'admin_remark' => 'nullable|string',
-        ]);
-
         $docTypes = is_array($request->input('document_type'))
             ? $request->input('document_type')
-            : [$request->input('document_type')];
+            : ($request->filled('document_type') ? [$request->input('document_type')] : []);
+
+        if ($request->filled('custom_document')) {
+            $custom = trim($request->input('custom_document'));
+            if ($custom && !in_array($custom, $docTypes)) {
+                $docTypes[] = $custom;
+            }
+        }
+
+        if (empty($docTypes)) {
+            $docTypes = ['Additional Verification Documents'];
+        }
 
         FinanceDocumentRequest::create([
             'customer_id' => $application->customer_id,
             'application_id' => $application->id,
             'requested_documents' => $docTypes,
-            'admin_remark' => $request->input('admin_remark', 'Disbursement stage verification document requested by administration.'),
+            'admin_remark' => $request->input('admin_remark', 'Additional verification document requested by administration.'),
             'status' => 'pending',
             'created_by' => auth()->id() ?? 1,
         ]);
@@ -247,6 +253,21 @@ class AdminFinanceController extends Controller
         $application->save();
 
         return back()->with('success', 'Document request sent to applicant successfully.');
+    }
+
+    public function verifyAllDocuments(Request $request, $id)
+    {
+        $application = FinanceLoanApplication::findOrFail($id);
+        if ($application->customer) {
+            FinanceDocument::where('customer_id', $application->customer_id)
+                ->where('status', '!=', 'verified')
+                ->update([
+                    'status' => 'verified',
+                    'verified_at' => now(),
+                    'admin_remark' => 'Bulk verified by administration.',
+                ]);
+        }
+        return back()->with('success', 'All documents marked as verified.');
     }
 
     /**
