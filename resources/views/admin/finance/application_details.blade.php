@@ -52,6 +52,11 @@
                         <div class="col-md-4">
                             <div style="font-size: 12px; color: #64748b;">Requested Amount</div>
                             <div style="font-weight: 700; color: #0f172a; margin-top: 4px; font-size: 18px;">₹{{ number_format($application->requested_amount) }}</div>
+                            @if($application->approved_amount && $application->approved_amount > 0)
+                                <div style="font-size: 12px; color: #059669; font-weight: 700; margin-top: 2px;">
+                                    ✓ Approved Amount: ₹{{ number_format($application->approved_amount) }}
+                                </div>
+                            @endif
                         </div>
                         <div class="col-md-4">
                             <div style="font-size: 12px; color: #64748b;">Current Application Status</div>
@@ -214,14 +219,23 @@
                         <div style="font-size: 12px; color: #1e3a8a; margin-bottom: 12px;">
                             Verification selfie is recorded. Applicant is currently on the Tracking screen waiting for your decision:
                         </div>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm w-100" style="background: #059669; color: #fff; font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;" onclick="document.getElementById('statusSelect').value='LOAN_APPROVED';">
-                                ✓ Approve Loan
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
-                                ✕ Reject
-                            </button>
-                        </div>
+                        <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="LOAN_APPROVED">
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #1e3a8a;">Approved Loan Amount (₹):</label>
+                                <input type="number" name="approved_amount" value="{{ $application->approved_amount ?: $application->requested_amount }}" class="form-control form-control-sm" style="font-weight: 700; font-size: 13px; border: 1px solid #93c5fd; background: #fff;" required>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Applicant requested: ₹{{ number_format($application->requested_amount ?? 25000) }}</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-sm w-100" style="background: #059669; color: #fff; font-weight: 700; font-size: 12px; padding: 8px; border-radius: 6px;">
+                                    ✓ Approve &amp; Release Loan Now
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 8px; border-radius: 6px; white-space: nowrap;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
+                                    ✕ Reject
+                                </button>
+                            </div>
+                        </form>
                     </div>
                     @endif
 

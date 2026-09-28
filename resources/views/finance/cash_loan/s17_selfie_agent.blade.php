@@ -2,7 +2,7 @@
 @section('title', 'Selfie Verification — Fiinway')
 @section('header-sub', 'Cash Loan')
 @section('back')
-<a href="{{ route('finance.cash_loan.s16_validation', ['phone' => request('phone')]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s16_validation', ['phone' => $phone]) }}" class="fw-back">← Back</a>
 @endsection
 
 @section('content')
@@ -28,7 +28,7 @@
     </div>
 
     <!-- Selfie Capture / Preview Form -->
-    <form id="selfieForm" method="POST" action="{{ route('finance.cash_loan.s17_selfie_agent_submit', ['phone' => request('phone')]) }}" enctype="multipart/form-data">
+    <form id="selfieForm" method="POST" action="{{ route('finance.cash_loan.s17_selfie_agent_submit', ['phone' => $phone]) }}" enctype="multipart/form-data">
         @csrf
         <!-- Direct front-camera trigger (capture="user" launches FRONT selfie camera directly on Android/iOS) -->
         <input type="file" id="cameraFileInput" name="selfie" accept="image/*" capture="user" style="display: none;">

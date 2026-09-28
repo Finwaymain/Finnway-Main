@@ -2,7 +2,7 @@
 @section('title', 'Bank Details — Fiinway')
 @section('header-sub', 'Cash Loan')
 @section('back')
-<a href="{{ route('finance.cash_loan.s21_approval', ['phone' => request('phone')]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s21_approval', ['phone' => $phone]) }}" class="fw-back">← Back</a>
 @endsection
 @section('content')
 <div class="fw-card">
@@ -44,6 +44,6 @@
 @endsection
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
-    <a href="{{ route('finance.cash_loan.s23_disbursement', ['phone' => request('phone')]) }}" class="fw-btn fw-btn-primary">Submit for Disbursement</a>
+    <a href="{{ route('finance.cash_loan.s23_disbursement', ['phone' => $phone]) }}" class="fw-btn fw-btn-primary">Submit for Disbursement</a>
 </div>
 @endsection

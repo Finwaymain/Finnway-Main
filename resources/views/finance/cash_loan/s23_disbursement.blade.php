@@ -2,7 +2,7 @@
 @section('title', 'Disbursement — Fiinway')
 @section('header-sub', 'Cash Loan')
 @section('back')
-<a href="{{ route('finance.cash_loan.s22_bank_details', ['phone' => request('phone')]) }}" class="fw-back">← Back</a>
+<a href="{{ route('finance.cash_loan.s22_bank_details', ['phone' => $phone]) }}" class="fw-back">← Back</a>
 @endsection
 @section('content')
 <div class="fw-card fw-text-center">

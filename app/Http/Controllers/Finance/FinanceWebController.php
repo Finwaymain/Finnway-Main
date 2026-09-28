@@ -74,11 +74,16 @@ class FinanceWebController extends Controller
             }
         }
 
-        // Amount resolution (Request parameter -> Application -> Default 25,000)
-        $rawAmount = $request->query('amount', $request->input('amount', $application->requested_amount ?? 25000));
-        $amount = floatval($rawAmount);
-        if ($amount <= 0) {
-            $amount = 25000;
+        // Amount resolution (Approved Amount from Underwriting takes highest priority if set; otherwise Request parameter -> Requested Amount -> Default 25,000)
+        $approvedAmount = floatval($application->approved_amount ?? 0);
+        if ($approvedAmount > 0) {
+            $amount = $approvedAmount;
+        } else {
+            $rawAmount = $request->query('amount', $request->input('amount', $application->requested_amount ?? 25000));
+            $amount = floatval($rawAmount);
+            if ($amount <= 0) {
+                $amount = 25000;
+            }
         }
 
         // Tenure resolution (Request parameter -> Application -> Default 12 months)
@@ -219,6 +224,7 @@ class FinanceWebController extends Controller
             'selectedPartner' => $selectedPartner,
             'product' => $product,
             'amount' => $amount,
+            'approvedAmount' => $approvedAmount,
             'tenure' => $tenure,
             'loanType' => $loanType,
             'emi' => round($monthlyEmi),
@@ -239,7 +245,9 @@ class FinanceWebController extends Controller
     public function getResumeUrlForApplication(FinanceLoanApplication $application, ?string $phone): ?string
     {
         $status = $application->application_status;
-        $amount = $application->requested_amount ?: 25000;
+        $amount = ($application->approved_amount && floatval($application->approved_amount) > 0)
+            ? floatval($application->approved_amount)
+            : ($application->requested_amount ?: 25000);
         $tenure = $application->tenure_months ?: 12;
         $cat = $application->loan_category ?? 'low_cibil';
         $params = ['phone' => $phone, 'amount' => $amount, 'tenure' => $tenure];
@@ -964,6 +972,13 @@ class FinanceWebController extends Controller
         $app = $ctx['application'];
         $phone = $ctx['phone'];
 
+        if (!$app && $request->filled('application_id')) {
+            $app = FinanceLoanApplication::find($request->query('application_id'));
+            if ($app && empty($phone) && $app->customer) {
+                $phone = $app->customer->phone;
+            }
+        }
+
         if (!$app) {
             return response()->json(['status' => 'NOT_FOUND', 'action' => 'wait']);
         }
@@ -996,10 +1011,16 @@ class FinanceWebController extends Controller
         // 2. Tracking / Underwriting Review Polling (s18)
         if ($currentStep === 's18') {
             if (in_array($status, ['LOAN_APPROVED', 'APPROVED'])) {
+                $effectiveAmount = ($app->approved_amount && floatval($app->approved_amount) > 0)
+                    ? floatval($app->approved_amount)
+                    : ($app->requested_amount ?: 25000);
                 return response()->json([
                     'status' => $status,
                     'action' => 'redirect',
-                    'redirect_url' => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+                    'redirect_url' => route('finance.cash_loan.s21_approval', [
+                        'phone' => $phone,
+                        'amount' => $effectiveAmount,
+                    ]),
                 ]);
             }
             if ($status === 'ADDITIONAL_DOCS_REQUESTED') {
@@ -1010,10 +1031,16 @@ class FinanceWebController extends Controller
                 ]);
             }
             if ($status === 'DISBURSED' || $status === 'DISBURSEMENT_PENDING') {
+                $effectiveAmount = ($app->approved_amount && floatval($app->approved_amount) > 0)
+                    ? floatval($app->approved_amount)
+                    : ($app->requested_amount ?: 25000);
                 return response()->json([
                     'status' => $status,
                     'action' => 'redirect',
-                    'redirect_url' => route('finance.cash_loan.s23_disbursement', ['phone' => $phone]),
+                    'redirect_url' => route('finance.cash_loan.s23_disbursement', [
+                        'phone' => $phone,
+                        'amount' => $effectiveAmount,
+                    ]),
                 ]);
             }
             return response()->json(['status' => $status, 'action' => 'wait']);

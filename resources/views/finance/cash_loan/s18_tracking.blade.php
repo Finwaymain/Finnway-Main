@@ -32,7 +32,7 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px;">
             <span style="color: #64748b;">Applied Amount:</span>
-            <span style="font-weight: 700; color: #2563eb; font-size: 14px;">₹{{ number_format($amount) }}</span>
+            <span style="font-weight: 700; color: #2563eb; font-size: 14px;">₹{{ number_format($application->requested_amount ?? $amount) }}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
             <span style="color: #64748b;">Selected Lender:</span>
@@ -87,7 +87,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var pollUrl = "{{ route('finance.cash_loan.application_status_poll', ['phone' => request('phone'), 'current_step' => 's18']) }}";
+    var pollUrl = "{{ route('finance.cash_loan.application_status_poll', ['phone' => $phone, 'current_step' => 's18', 'application_id' => $application->id ?? '']) }}";
     
     // Real-Time Underwriting Status Poller (every 2.5s)
     var pollInterval = setInterval(function () {
