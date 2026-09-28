@@ -157,12 +157,12 @@
                                 </a>
                             </td>
                             <td style="padding: 12px 16px; color: #64748b;">
-                                {{ $doc->created_at->format('d M Y, H:i') }}
+                                {{ $doc->created_at ? $doc->created_at->format('d M Y, H:i') : '—' }}
                             </td>
                             <td style="padding: 12px 16px;">
                                 @if($doc->isReusable())
                                     <span class="badge" style="background: #ecfdf5; color: #065f46; font-size: 11px; font-weight: 600;">
-                                        Reusable (Expires {{ $doc->valid_until->format('d M') }})
+                                        Reusable (Expires {{ optional($doc->valid_until)->format('d M') ?? '—' }})
                                     </span>
                                 @else
                                     <span class="badge" style="background: #f1f5f9; color: #94a3b8; font-size: 11px;">

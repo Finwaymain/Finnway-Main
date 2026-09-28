@@ -36,6 +36,28 @@ class FinanceDocument extends Model
         return $this->belongsTo(FinanceCustomer::class, 'customer_id');
     }
 
+    public function isReusable(): bool
+    {
+        if (!$this->is_reusable) {
+            return false;
+        }
+        if ($this->status === 'rejected') {
+            return false;
+        }
+        if ($this->reuse_valid_until && now()->gt($this->reuse_valid_until)) {
+            return false;
+        }
+        if ($this->expires_at && now()->gt($this->expires_at)) {
+            return false;
+        }
+        return true;
+    }
+
+    public function getValidUntilAttribute()
+    {
+        return $this->reuse_valid_until ?? $this->expires_at ?? ($this->created_at ? $this->created_at->copy()->addDays(5) : now()->addDays(5));
+    }
+
     public function getUrlAttribute(): string
     {
         if (empty($this->file_path)) return '';
