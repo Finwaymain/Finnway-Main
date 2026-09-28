@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var circleCircumference = 2 * Math.PI * 72; // ~452.39
     
     var nextStepUrl = "{{ route('finance.cash_loan.s17_selfie_agent', ['phone' => request('phone')]) }}";
-    var pollUrl = "{{ route('finance.cash_loan.application_status_poll', ['phone' => request('phone')]) }}";
+    var pollUrl = "{{ route('finance.cash_loan.application_status_poll', ['phone' => request('phone'), 'current_step' => 's16']) }}";
     
     function updateClockDisplay() {
         var minutes = Math.floor(remainingSeconds / 60);

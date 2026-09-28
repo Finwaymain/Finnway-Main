@@ -979,12 +979,44 @@ class FinanceWebController extends Controller
             ]);
         }
 
-        if (in_array($status, ['SELFIE_PENDING', 'VALIDATION_APPROVED', 'PROCESSING', 'APPROVED', 'LOAN_APPROVED'])) {
-            return response()->json([
-                'status' => $status,
-                'action' => 'redirect',
-                'redirect_url' => route('finance.cash_loan.s17_selfie_agent', ['phone' => $phone]),
-            ]);
+        $currentStep = $request->query('current_step', '');
+
+        // 1. Validation Step Polling (s16)
+        if ($currentStep === 's16') {
+            if (in_array($status, ['SELFIE_PENDING', 'VALIDATION_APPROVED', 'PROCESSING', 'APPROVED', 'LOAN_APPROVED'])) {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s17_selfie_agent', ['phone' => $phone]),
+                ]);
+            }
+            return response()->json(['status' => $status, 'action' => 'wait']);
+        }
+
+        // 2. Tracking / Underwriting Review Polling (s18)
+        if ($currentStep === 's18') {
+            if (in_array($status, ['LOAN_APPROVED', 'APPROVED'])) {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+                ]);
+            }
+            if ($status === 'ADDITIONAL_DOCS_REQUESTED') {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s24_additional_docs', ['phone' => $phone]),
+                ]);
+            }
+            if ($status === 'DISBURSED' || $status === 'DISBURSEMENT_PENDING') {
+                return response()->json([
+                    'status' => $status,
+                    'action' => 'redirect',
+                    'redirect_url' => route('finance.cash_loan.s23_disbursement', ['phone' => $phone]),
+                ]);
+            }
+            return response()->json(['status' => $status, 'action' => 'wait']);
         }
 
         return response()->json([

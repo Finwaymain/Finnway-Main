@@ -206,14 +206,34 @@
                     </div>
                     @endif
 
+                    @if(in_array($application->application_status, ['PROCESSING', 'SELFIE_SUBMITTED', 'UNDERWRITING']))
+                    <div class="card border-0 mb-3 p-3" style="background: #eff6ff; border: 1px solid #bfdbfe !important; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #1e40af; margin-bottom: 4px;">
+                            📋 Final Underwriting Decision
+                        </div>
+                        <div style="font-size: 12px; color: #1e3a8a; margin-bottom: 12px;">
+                            Verification selfie is recorded. Applicant is currently on the Tracking screen waiting for your decision:
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm w-100" style="background: #059669; color: #fff; font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;" onclick="document.getElementById('statusSelect').value='LOAN_APPROVED';">
+                                ✓ Approve Loan
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
+                                ✕ Reject
+                            </button>
+                        </div>
+                    </div>
+                    @endif
+
                     <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
                         @csrf
                         <div class="mb-3">
                             <label style="font-size: 12px; font-weight: 600; color: #475569;">Update Status</label>
                             <select name="status" id="statusSelect" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
                                 <option value="VALIDATION_PENDING" {{ $application->application_status === 'VALIDATION_PENDING' ? 'selected' : '' }}>Validation Pending</option>
-                                <option value="SELFIE_PENDING" {{ in_array($application->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED']) ? 'selected' : '' }}>✓ Accept &amp; Require Agent Selfie (Next Step)</option>
-                                <option value="LOAN_APPROVED" {{ $application->application_status === 'LOAN_APPROVED' ? 'selected' : '' }}>Approve Loan</option>
+                                <option value="SELFIE_PENDING" {{ in_array($application->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED']) ? 'selected' : '' }}>✓ Accept &amp; Require Agent Selfie (Step 17)</option>
+                                <option value="PROCESSING" {{ in_array($application->application_status, ['PROCESSING', 'SELFIE_SUBMITTED', 'UNDERWRITING']) ? 'selected' : '' }}>Underwriting Review in Progress (Step 18)</option>
+                                <option value="LOAN_APPROVED" {{ $application->application_status === 'LOAN_APPROVED' ? 'selected' : '' }}>Approve Loan (Step 21)</option>
                                 <option value="DISBURSEMENT_PENDING" {{ $application->application_status === 'DISBURSEMENT_PENDING' ? 'selected' : '' }}>Disbursement Pending</option>
                                 <option value="DISBURSED" {{ $application->application_status === 'DISBURSED' ? 'selected' : '' }}>Mark as Disbursed</option>
                                 <option value="REJECTED" {{ $application->application_status === 'REJECTED' ? 'selected' : '' }}>Reject (Enforce 3-Day Lock)</option>
