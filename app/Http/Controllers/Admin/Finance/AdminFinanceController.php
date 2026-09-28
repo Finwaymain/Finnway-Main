@@ -437,5 +437,55 @@ class AdminFinanceController extends Controller
 
         return back()->with('success', 'Daily EMI marked as collected and paid. Usage permission refreshed.');
     }
+
+    /**
+     * Loan Flow Payment Gateway (Razorpay) Settings Page
+     */
+    public function paymentSettings()
+    {
+        $config = \App\Helpers\LoanRazorpayConfig::resolve();
+        return view('admin.finance.payment_settings', compact('config'));
+    }
+
+    /**
+     * Save Loan Flow Razorpay Settings
+     */
+    public function savePaymentSettings(Request $request)
+    {
+        $request->validate([
+            'key' => 'nullable|string|max:100',
+            'secret' => 'nullable|string|max:100',
+            'merchant_name' => 'nullable|string|max:100',
+            'webhook_secret' => 'nullable|string|max:100',
+        ]);
+
+        \App\Helpers\LoanRazorpayConfig::save([
+            'key' => $request->input('key'),
+            'secret' => $request->input('secret'),
+            'is_enabled' => $request->boolean('is_enabled'),
+            'is_sandbox' => $request->boolean('is_sandbox'),
+            'merchant_name' => $request->input('merchant_name', 'Fiinway Loan & Credit'),
+            'webhook_secret' => $request->input('webhook_secret'),
+        ]);
+
+        return back()->with('success', 'Loan Razorpay credentials updated successfully.');
+    }
+
+    /**
+     * Test Razorpay Connection for Loan Flow
+     */
+    public function testPaymentSettings(Request $request)
+    {
+        $key = $request->input('key');
+        $secret = $request->input('secret');
+
+        $result = \App\Helpers\LoanRazorpayConfig::testConnection($key, $secret);
+
+        if ($result['success']) {
+            return back()->with('success', $result['message']);
+        }
+
+        return back()->with('error', $result['message']);
+    }
 }
 

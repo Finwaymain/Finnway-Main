@@ -125,24 +125,10 @@ class FinanceWebController extends Controller
         // Flow A has lender, Flow B does NOT have lender
         $hasLender = in_array($productCategory, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
 
-        // Resolve Razorpay Key configured by Admin in Admin Panel (PaymentSettings id_payment_method=13)
-        $paymentSetting = PaymentSettings::where('id_payment_method', 13)->first();
-        $razorpayKey = null;
-        if ($paymentSetting && !empty($paymentSetting->key)) {
-            $razorpayKey = trim($paymentSetting->key);
-        }
-        if (!$razorpayKey) {
-            $apiSetting = DB::table('api_key_settings')
-                ->where('provider', 'razorpay')
-                ->where('is_active', 1)
-                ->first();
-            if ($apiSetting && !empty($apiSetting->key_value)) {
-                $razorpayKey = trim($apiSetting->key_value);
-            }
-        }
-        if (!$razorpayKey) {
-            $razorpayKey = env('RAZORPAY_KEY', 'rzp_test_fiinway');
-        }
+        // Resolve Razorpay Key specifically for Loan Flow (isolated from whole flow / payment_settings key 13)
+        $loanRzp = \App\Helpers\LoanRazorpayConfig::resolve();
+        $razorpayKey = $loanRzp['key'] ?: (string) env('LOAN_RAZORPAY_KEY', env('RAZORPAY_KEY', 'rzp_test_fiinway'));
+        $razorpayMerchantName = $loanRzp['merchant_name'] ?: 'Fiinway Loan & Credit';
 
         $documents = [];
         if ($customer) {
@@ -172,6 +158,7 @@ class FinanceWebController extends Controller
             'totalFee' => $totalFee,
             'hasLender' => $hasLender,
             'razorpayKey' => $razorpayKey,
+            'razorpayMerchantName' => $razorpayMerchantName,
             'documents' => $documents,
             'hideHeader' => $hideHeader,
             'maxLimit' => $maxLimit,

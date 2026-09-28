@@ -17,7 +17,9 @@
                     Credit &amp; Lending Dashboard
                 </h3>
             </div>
-            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('admin.finance.settings.payment') }}" class="btn btn-sm" style="background: #ffffff; color: #0f172a; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 8px 16px; border: 1px solid #cbd5e1;">
+                    💳 Razorpay Gateway
+                </a>
                 <a href="{{ route('admin.finance.products') }}" class="btn btn-sm" style="background: #ffffff; color: #0f172a; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 8px 16px; border: 1px solid #cbd5e1;">
                     ⚙️ Products &amp; Fees
                 </a>

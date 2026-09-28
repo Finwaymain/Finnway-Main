@@ -1306,6 +1306,9 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/applications/{id}/update-fee', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'updateApplicationFee'])->name('applications.update-fee');
     Route::post('/wallets/{id}/adjust', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'adjustWallet'])->name('wallets.adjust');
     Route::post('/recovery/{id}/mark-paid', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'markRecoveryPaid'])->name('recovery.mark-paid');
+    Route::get('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'paymentSettings'])->name('settings.payment');
+    Route::post('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'savePaymentSettings'])->name('settings.payment.save');
+    Route::post('/settings/payment/test', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'testPaymentSettings'])->name('settings.payment.test');
 });
 
 // Finance Documents Direct File Serving (Safe Fallback)

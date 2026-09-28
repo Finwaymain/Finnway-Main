@@ -2,13 +2,13 @@
 <script>
 function triggerRazorpayCheckout(config) {
     var totalAmountPaise = Math.round(Number(config.amount) * 100);
-    var key = config.key || "{{ $razorpayKey ?? '' }}" || "{{ env('RAZORPAY_KEY', 'rzp_test_fiinway') }}";
+    var key = config.key || "{{ $razorpayKey ?? '' }}" || "{{ env('LOAN_RAZORPAY_KEY', env('RAZORPAY_KEY', 'rzp_test_fiinway')) }}";
     
     var options = {
         "key": key,
         "amount": totalAmountPaise,
         "currency": "INR",
-        "name": "Fiinway Finance",
+        "name": config.name || "{{ $razorpayMerchantName ?? 'Fiinway Loan & Credit' }}",
         "description": config.description || "Loan Application Processing Fee",
         "image": "https://fiinway.com/favicon.ico",
         "handler": function (response){
