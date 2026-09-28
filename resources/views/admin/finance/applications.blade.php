@@ -137,6 +137,7 @@
                                 @php
                                     $bg = '#f1f5f9'; $fg = '#334155';
                                     if ($app->application_status === 'DISBURSED') { $bg = '#ecfdf5'; $fg = '#065f46'; }
+                                    elseif ($app->application_status === 'DISBURSEMENT_PENDING') { $bg = '#f0fdf4'; $fg = '#15803d'; }
                                     elseif (in_array($app->application_status, ['PROOF_SUBMITTED', 'VALIDATION_PENDING'])) { $bg = '#fef3c7'; $fg = '#92400e'; }
                                     elseif ($app->application_status === 'REJECTED') { $bg = '#fef2f2'; $fg = '#991b1b'; }
                                     elseif ($app->application_status === 'LOAN_APPROVED') { $bg = '#eff6ff'; $fg = '#1e40af'; }

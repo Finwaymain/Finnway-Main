@@ -1215,6 +1215,37 @@ class FinanceWebController extends Controller
     public function cashLoanProcessingWindow(Request $request) { return view('finance.cash_loan.s20_processing', $this->resolveContext($request)); }
     public function cashLoanApproved(Request $request)         { return view('finance.cash_loan.s21_approval', $this->resolveContext($request)); }
     public function cashLoanBankDetails(Request $request)      { return view('finance.cash_loan.s22_bank_details', $this->resolveContext($request)); }
+
+    public function cashLoanBankDetailsSubmit(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        $request->validate([
+            'account_holder_name'    => 'required|string|max:190',
+            'bank_name'              => 'required|string|max:190',
+            'account_number'         => 'required|string|min:6|max:35',
+            'confirm_account_number' => 'required|same:account_number',
+            'ifsc_code'              => 'required|string|min:4|max:20',
+            'account_type'           => 'nullable|string|max:30',
+        ]);
+
+        if ($application) {
+            $application->disbursement_account_name = trim($request->input('account_holder_name'));
+            $application->disbursement_bank_name = trim($request->input('bank_name'));
+            $application->disbursement_account_number = trim($request->input('account_number'));
+            $application->disbursement_ifsc = strtoupper(trim($request->input('ifsc_code')));
+            $application->disbursement_account_type = $request->input('account_type', 'Savings');
+            $application->disbursement_status = 'pending';
+            $application->application_status = 'DISBURSEMENT_PENDING';
+            $application->save();
+        }
+
+        return redirect()->route('finance.cash_loan.s23_disbursement', ['phone' => $phone])
+            ->with('success', 'Disbursement bank details saved successfully.');
+    }
+
     public function cashLoanDisbursement(Request $request)     { return view('finance.cash_loan.s23_disbursement', $this->resolveContext($request)); }
     public function cashLoanAdditionalDocs(Request $request)   { return view('finance.cash_loan.s24_additional_docs', $this->resolveContext($request)); }
 
@@ -1338,6 +1369,37 @@ class FinanceWebController extends Controller
     public function businessLoanAdditionalDocs(Request $request)   { return view('finance.business_loan.s16_additional_docs', $this->resolveContext($request)); }
     public function businessLoanApproved(Request $request)         { return view('finance.business_loan.s17_approval', $this->resolveContext($request)); }
     public function businessLoanBankDetails(Request $request)      { return view('finance.business_loan.s18_bank_details', $this->resolveContext($request)); }
+
+    public function businessLoanBankDetailsSubmit(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        $request->validate([
+            'account_holder_name'    => 'required|string|max:190',
+            'bank_name'              => 'required|string|max:190',
+            'account_number'         => 'required|string|min:6|max:35',
+            'confirm_account_number' => 'required|same:account_number',
+            'ifsc_code'              => 'required|string|min:4|max:20',
+            'account_type'           => 'nullable|string|max:30',
+        ]);
+
+        if ($application) {
+            $application->disbursement_account_name = trim($request->input('account_holder_name'));
+            $application->disbursement_bank_name = trim($request->input('bank_name'));
+            $application->disbursement_account_number = trim($request->input('account_number'));
+            $application->disbursement_ifsc = strtoupper(trim($request->input('ifsc_code')));
+            $application->disbursement_account_type = $request->input('account_type', 'Current');
+            $application->disbursement_status = 'pending';
+            $application->application_status = 'DISBURSEMENT_PENDING';
+            $application->save();
+        }
+
+        return redirect()->route('finance.business_loan.s19_disbursement', ['phone' => $phone])
+            ->with('success', 'Disbursement bank details saved successfully.');
+    }
+
     public function businessLoanDisbursement(Request $request)     { return view('finance.business_loan.s19_disbursement', $this->resolveContext($request)); }
     public function businessLoanFinalStatus(Request $request)      { return view('finance.business_loan.s20_final_status', $this->resolveContext($request)); }
 

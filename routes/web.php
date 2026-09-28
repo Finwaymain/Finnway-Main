@@ -1398,6 +1398,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/approved',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApproved'])->name('s21_approved');
         Route::get('/approval',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanApproved'])->name('s21_approval');
         Route::get('/bank-details',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanBankDetails'])->name('s22_bank_details');
+        Route::post('/bank-details',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanBankDetailsSubmit'])->name('s22_bank_details_submit');
         Route::get('/disbursement',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanDisbursement'])->name('s23_disbursement');
         Route::get('/additional-docs',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAdditionalDocs'])->name('s24_additional_docs');
         Route::post('/additional-docs',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanAdditionalDocsSubmit'])->name('s24_additional_docs_submit');
@@ -1429,6 +1430,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/approved',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApproved'])->name('s17_approved');
         Route::get('/approval',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApproved'])->name('s17_approval');
         Route::get('/bank-details',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanBankDetails'])->name('s18_bank_details');
+        Route::post('/bank-details',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanBankDetailsSubmit'])->name('s18_bank_details_submit');
         Route::get('/disbursement',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanDisbursement'])->name('s19_disbursement');
         Route::get('/final-status',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanFinalStatus'])->name('s20_final_status');
     });

@@ -391,6 +391,50 @@
                     </div>
                     @endif
 
+                    @if($application->application_status === 'DISBURSEMENT_PENDING')
+                    <div class="card border-0 mb-3 p-3" style="background: #f0fdf4; border: 1.5px solid #86efac !important; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #15803d; margin-bottom: 4px;">
+                            💰 Bank Details Submitted — Ready for Disbursement!
+                        </div>
+                        <div style="font-size: 12px; color: #166534; margin-bottom: 10px;">
+                            Borrower has submitted their bank account details. Verify the destination and confirm transfer:
+                        </div>
+                        <div class="p-2 mb-3" style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 12px;">
+                            <div><strong>Bank:</strong> {{ $application->disbursement_bank_name ?: '—' }}</div>
+                            <div><strong>A/C Holder:</strong> {{ $application->disbursement_account_name ?: '—' }}</div>
+                            <div><strong>A/C No:</strong> <span style="font-family: monospace; font-weight: 700;">{{ $application->disbursement_account_number ?: '—' }}</span> ({{ $application->disbursement_account_type ?: 'Savings' }})</div>
+                            <div><strong>IFSC:</strong> <span style="font-family: monospace; font-weight: 700;">{{ $application->disbursement_ifsc ?: '—' }}</span></div>
+                            <div style="margin-top: 6px; color: #15803d; font-weight: 700; font-size: 13px;">Amount to Disburse: ₹{{ number_format(($application->approved_amount > 0) ? $application->approved_amount : $application->requested_amount) }}</div>
+                        </div>
+                        <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="DISBURSED">
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #166534;">Bank UTR / Transaction Reference <span style="color:red;">*</span>:</label>
+                                <input type="text" name="txn_ref" placeholder="e.g. UTR192837465 or IMPS827364" class="form-control form-control-sm" style="font-size: 12px; border: 1px solid #86efac;" required>
+                            </div>
+                            <button type="submit" class="btn btn-sm w-100" style="background: #16a34a; color: #fff; font-weight: 700; font-size: 13px; padding: 9px; border-radius: 6px;">
+                                ✓ Confirm Bank Transfer &amp; Mark as Disbursed
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+
+                    @if($application->application_status === 'DISBURSED')
+                    <div class="card border-0 mb-3 p-3" style="background: #ecfdf5; border: 1.5px solid #a7f3d0 !important; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #065f46; margin-bottom: 4px;">
+                            ✓ Loan Disbursed Successfully
+                        </div>
+                        <div style="font-size: 12px; color: #047857;">
+                            Amount of <strong>₹{{ number_format($application->approved_amount ?: $application->requested_amount) }}</strong> was transferred.
+                            <div style="margin-top: 4px;">Bank Ref / UTR: <strong style="font-family: monospace;">{{ $application->disbursement_txn_ref ?: 'Completed' }}</strong></div>
+                            @if($application->disbursed_at)
+                            <div style="color: #64748b; font-size: 11px; margin-top: 2px;">Disbursed on {{ $application->disbursed_at->format('d M Y, H:i') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+
                     @if(!in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED']))
                     <div class="card border-0 mb-3 p-3" style="background: #f8fafc; border: 1px solid #cbd5e1 !important; border-radius: 8px;">
                         <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">
