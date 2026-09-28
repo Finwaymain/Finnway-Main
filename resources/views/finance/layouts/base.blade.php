@@ -217,7 +217,7 @@
         .fw-consent label { font-size: 12px; color: var(--gray3); line-height: 1.5; }
 
         /* Footer area */
-        .fw-footer-pad { height: 70px; }
+        .fw-footer-pad { height: 60px; }
         .fw-sticky-bottom {
             position: fixed;
             bottom: 0;
@@ -232,10 +232,10 @@
             box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.05);
         }
         body.has-bottom-nav .fw-sticky-bottom {
-            bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: 52px !important;
         }
         body.has-bottom-nav .fw-footer-pad {
-            height: calc(130px + env(safe-area-inset-bottom, 0px));
+            height: 64px;
         }
         .fw-sticky-bottom .fw-sticky-bottom {
             position: static !important;
@@ -256,20 +256,20 @@
             margin: 0 auto;
             max-width: 480px;
             width: 100%;
-            height: calc(58px + env(safe-area-inset-bottom, 0px));
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            height: 52px;
+            padding: 0;
             background: #ffffff;
             border-top: 1px solid #e2e8f0;
             display: flex;
             align-items: center;
             justify-content: space-around;
             z-index: 100;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
             box-sizing: border-box;
         }
         .fw-nav-item {
             flex: 1;
-            height: 58px;
+            height: 52px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -286,16 +286,16 @@
             opacity: 0.75;
         }
         .fw-nav-icon {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
         .fw-nav-icon svg {
-            width: 20px;
-            height: 20px;
+            width: 19px;
+            height: 19px;
             display: block;
             stroke: #64748b;
             stroke-width: 2;
@@ -303,8 +303,8 @@
             transition: stroke 0.15s ease;
         }
         .fw-nav-label {
-            font-size: 10px;
-            line-height: 1.1;
+            font-size: 9.5px;
+            line-height: 1;
             font-weight: 600;
             letter-spacing: 0.1px;
             color: #64748b;
