@@ -97,9 +97,9 @@ class FinanceLoanApplication extends Model
         return $this->hasMany(FinanceDocumentRequest::class, 'application_id');
     }
 
-    public function getProcessProofUrlAttribute(): ?string
+    public function getProcessCompletionProofUrlAttribute($value = null): ?string
     {
-        $path = $this->process_completion_proof_url;
+        $path = $value ?? ($this->attributes['process_completion_proof_url'] ?? null);
         if (empty($path)) return null;
         if (str_starts_with($path, 'http')) return $path;
         $path = ltrim($path, '/');
@@ -109,9 +109,14 @@ class FinanceLoanApplication extends Model
         return asset('storage/' . $path);
     }
 
-    public function getAgentSelfieUrlAttribute(): ?string
+    public function getProcessProofUrlAttribute(): ?string
     {
-        $path = $this->agent_selfie_url;
+        return $this->process_completion_proof_url;
+    }
+
+    public function getAgentSelfieUrlAttribute($value = null): ?string
+    {
+        $path = $value ?? ($this->attributes['agent_selfie_url'] ?? null);
         if (empty($path)) return null;
         if (str_starts_with($path, 'http')) return $path;
         $path = ltrim($path, '/');
@@ -123,7 +128,7 @@ class FinanceLoanApplication extends Model
 
     public function getProcessProofFileAttribute(): ?string
     {
-        return $this->process_proof_url;
+        return $this->process_completion_proof_url;
     }
 
     public function getAgentSelfieFileAttribute(): ?string
