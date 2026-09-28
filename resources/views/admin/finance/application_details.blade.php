@@ -397,33 +397,62 @@
                             📩 Request Additional Documents
                         </div>
                         <div style="font-size: 12px; color: #64748b; margin-bottom: 12px;">
-                            Direct the applicant to Step 24 to upload specific documents:
+                            Select one or multiple documents to demand from borrower at Step 24:
                         </div>
                         <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
                             @csrf
                             <div class="mb-2">
-                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Select Documents Required:</label>
-                                <div style="font-size: 12px; color: #334155; display: grid; grid-template-columns: 1fr; gap: 4px; max-height: 140px; overflow-y: auto; background: #ffffff; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="6 Months Bank Statement (PDF)"> 6 Months Bank Statement</label>
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Full Aadhaar Card (Front & Back)"> Full Aadhaar Card</label>
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Latest 3 Months Salary Slips"> Latest 3 Months Salary Slips</label>
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Electricity Bill / Rent Agreement"> Electricity Bill / Rent Agreement</label>
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Clear Selfie with ID Card"> Clear Selfie with ID Card</label>
-                                    <label style="margin: 0; font-weight: 500;"><input type="checkbox" name="document_type[]" value="Business GST / ITR Certificate"> Business GST / ITR Certificate</label>
+                                <label style="font-size: 11px; font-weight: 700; color: #475569;">Select Documents Required (Multi-Select):</label>
+                                <div style="font-size: 12px; color: #334155; display: grid; grid-template-columns: 1fr; gap: 5px; max-height: 180px; overflow-y: auto; background: #ffffff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Latest 3 Months Salary Slips"> 📄 Latest 3 Months Salary Slips</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="6 Months Bank Statement (PDF)"> 🏦 6 Months Bank Statement (PDF)</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Bank Passbook (First Page with Account & IFSC)"> 📖 Bank Passbook (Account & IFSC)</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Cancelled Cheque"> 🧾 Cancelled Cheque</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Full Aadhaar Card (Front & Back)"> 🆔 Full Aadhaar Card (Front & Back)</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="PAN Card Copy"> 🪪 PAN Card Copy</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Electricity Bill / Rent Agreement"> 🏠 Electricity Bill / Rent Agreement</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Clear Selfie with ID Card"> 🤳 Clear Selfie with ID Card</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Business GST / ITR Certificate"> 💼 Business GST / ITR Certificate</label>
+                                    <label style="margin: 0; font-weight: 500; cursor: pointer;"><input type="checkbox" name="document_type[]" value="Bonafide / Enrollment Certificate"> 🎓 Bonafide / Enrollment Certificate</label>
                                 </div>
                             </div>
                             <div class="mb-2">
                                 <label style="font-size: 11px; font-weight: 700; color: #475569;">Other / Custom Document (Optional):</label>
-                                <input type="text" name="custom_document" class="form-control form-control-sm" placeholder="e.g. Property Tax Receipt" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                <input type="text" name="custom_document" class="form-control form-control-sm" placeholder="e.g. Property Tax Receipt or Form 16" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
                             </div>
                             <div class="mb-2">
                                 <label style="font-size: 11px; font-weight: 700; color: #475569;">Instructions / Remarks for Borrower:</label>
-                                <textarea name="admin_remark" rows="2" class="form-control form-control-sm" placeholder="e.g. Bank statement must show salary credit and be in original PDF format" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;"></textarea>
+                                <textarea name="admin_remark" rows="2" class="form-control form-control-sm" placeholder="e.g. Bank statement must show salary credit and be original downloaded PDF" style="font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px;"></textarea>
                             </div>
                             <button type="submit" class="btn btn-sm w-100" style="background: #2563eb; color: #fff; font-weight: 700; font-size: 12px; padding: 8px; border-radius: 6px;">
                                 📤 Send Document Request
                             </button>
                         </form>
+
+                        @if($application->documentRequests && $application->documentRequests->count() > 0)
+                        <div class="mt-3 pt-2" style="border-top: 1px dashed #cbd5e1;">
+                            <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">Requested Documents History</div>
+                            @foreach($application->documentRequests->sortByDesc('id') as $req)
+                            <div class="p-2 mb-2" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong style="color: #0f172a;">
+                                        @php
+                                            $reqDocs = is_array($req->requested_documents) ? $req->requested_documents : (json_decode($req->requested_documents, true) ?: [$req->requested_documents]);
+                                        @endphp
+                                        {{ implode(', ', (array)$reqDocs) }}
+                                    </strong>
+                                    <span class="badge" style="background: {{ $req->status === 'verified' ? '#ecfdf5' : ($req->status === 'submitted' ? '#dbeafe' : '#fef3c7') }}; color: {{ $req->status === 'verified' ? '#065f46' : ($req->status === 'submitted' ? '#1e40af' : '#92400e') }}; font-size: 10px;">
+                                        {{ ucfirst($req->status) }}
+                                    </span>
+                                </div>
+                                @if($req->admin_remark)
+                                <div style="color: #64748b; margin-top: 2px;">{{ $req->admin_remark }}</div>
+                                @endif
+                                <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">Requested: {{ $req->created_at ? $req->created_at->format('d M, H:i') : '' }}</div>
+                            </div>
+                            @endforeach
+                        </div>
+                        @endif
                     </div>
                     @endif
 
@@ -512,56 +541,6 @@
                             Save Processing Fee Decision
                         </button>
                     </form>
-                </div>
-
-                <!-- Document Request Console (Disbursement Stage Bank Docs) -->
-                <div class="card border-0 p-4 mt-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
-                    <h5 class="mb-2" style="font-size: 16px; font-weight: 700; color: #0f172a;">Request Documents</h5>
-                    <p style="font-size: 12px; color: #64748b; margin-bottom: 14px;">
-                        Request bank passbook, statement, or cancelled cheque from borrower at disbursement stage.
-                    </p>
-
-                    <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
-                        @csrf
-                        <div class="mb-3">
-                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Document Type</label>
-                            <select name="document_type" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
-                                <option value="bank_passbook">Bank Passbook (First Page with Account & IFSC)</option>
-                                <option value="bank_statement">Bank Statement (Last 6 Months)</option>
-                                <option value="cancelled_cheque">Cancelled Cheque</option>
-                                <option value="salary_slips">Salary Slips (Recent)</option>
-                                <option value="gst_certificate">GST Certificate</option>
-                                <option value="bonafide_certificate">Bonafide / Enrollment Certificate</option>
-                                <option value="other">Other Supporting Document</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label style="font-size: 12px; font-weight: 600; color: #475569;">Request Reason / Instructions</label>
-                            <textarea name="admin_remark" rows="2" class="form-control form-control-sm" placeholder="Please upload bank passbook or statement to confirm disbursement bank account..." style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></textarea>
-                        </div>
-
-                        <button type="submit" class="btn btn-sm w-100" style="background: #1a5fa8; color: #ffffff; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 10px;">
-                            📩 Send Document Request
-                        </button>
-                    </form>
-
-                    @if($application->documentRequests && $application->documentRequests->count() > 0)
-                    <div class="mt-3 pt-3" style="border-top: 1px solid #e2e8f0;">
-                        <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">Requested Documents</div>
-                        @foreach($application->documentRequests as $req)
-                        <div class="p-2 mb-2" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 11px;">
-                            <div class="d-flex justify-content-between">
-                                <strong style="color: #0f172a;">{{ is_array($req->requested_documents) ? implode(', ', $req->requested_documents) : $req->requested_documents }}</strong>
-                                <span class="badge" style="background: {{ $req->status === 'verified' ? '#ecfdf5' : '#fef3c7' }}; color: {{ $req->status === 'verified' ? '#065f46' : '#92400e' }};">
-                                    {{ ucfirst($req->status) }}
-                                </span>
-                            </div>
-                            <div style="color: #64748b; margin-top: 2px;">{{ $req->admin_remark }}</div>
-                        </div>
-                        @endforeach
-                    </div>
-                    @endif
                 </div>
             </div>
         </div>

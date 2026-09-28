@@ -181,10 +181,47 @@ class FinanceWebController extends Controller
                 ->orderBy('id', 'desc')
                 ->first();
         }
-        $requestedDocs = $activeDocRequest ? ($activeDocRequest->requested_documents ?? []) : [];
-        if (empty($requestedDocs) || !is_array($requestedDocs)) {
-            $requestedDocs = ['6 Months Bank Statement (PDF)', 'Full Aadhaar Card (Front & Back)', 'Additional Income / Salary Proof'];
+
+        $rawRequestedDocs = $activeDocRequest ? ($activeDocRequest->requested_documents ?? []) : [];
+        if (is_string($rawRequestedDocs)) {
+            $decoded = json_decode($rawRequestedDocs, true);
+            $rawRequestedDocs = is_array($decoded) ? $decoded : (trim($rawRequestedDocs) ? [trim($rawRequestedDocs)] : []);
         }
+
+        $docCodeLabelMap = [
+            'salary_slips' => 'Salary Slips (Recent 3 Months)',
+            'salary_slip' => 'Salary Slips (Recent 3 Months)',
+            'bank_statement' => 'Bank Statement (Last 6 Months PDF)',
+            'bank_passbook' => 'Bank Passbook (First Page with Account & IFSC)',
+            'cancelled_cheque' => 'Cancelled Cheque',
+            'gst_certificate' => 'GST / Business Certificate',
+            'bonafide_certificate' => 'Bonafide / Enrollment Certificate',
+            'aadhaar' => 'Full Aadhaar Card (Front & Back)',
+            'pan' => 'PAN Card Copy',
+            'selfie' => 'Clear Front Selfie with ID Card',
+            'address_proof' => 'Electricity Bill / Rent Agreement',
+            'other' => 'Additional Supporting Document',
+        ];
+
+        $requestedDocs = [];
+        if (!empty($rawRequestedDocs) && is_array($rawRequestedDocs)) {
+            foreach ($rawRequestedDocs as $item) {
+                if (is_string($item)) {
+                    $key = strtolower(trim($item));
+                    if (isset($docCodeLabelMap[$key])) {
+                        $requestedDocs[] = $docCodeLabelMap[$key];
+                    } elseif (trim($item) !== '') {
+                        $requestedDocs[] = ucwords(str_replace('_', ' ', trim($item)));
+                    }
+                }
+            }
+        }
+
+        // Only if NO document request exists at all
+        if (empty($requestedDocs)) {
+            $requestedDocs = ['Additional Verification Document'];
+        }
+
         $docRequestRemark = $activeDocRequest ? $activeDocRequest->admin_remark : null;
 
         if ($request->has('hide_header') || $request->has('app')) {

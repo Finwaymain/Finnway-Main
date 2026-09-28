@@ -67,18 +67,7 @@
         </div>
         @endforeach
 
-        <!-- Optional Extra Document -->
-        <div style="background: #fafafa; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 14px 16px; margin-bottom: 22px;">
-            <label style="font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; display: block;">
-                Additional Supporting Document (Optional)
-            </label>
-            <input type="file" name="extra_doc" class="fw-input" accept="image/*,.pdf" style="font-size: 12px; padding: 8px;">
-            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                Any additional statement, payslip, or letter requested
-            </div>
-        </div>
-
-        <button type="submit" class="fw-btn fw-btn-primary w-100" style="padding: 14px; font-size: 15px; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+        <button type="submit" class="fw-btn fw-btn-primary w-100" style="padding: 14px; font-size: 15px; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.25); margin-top: 8px;">
             📤 Upload &amp; Submit Documents
         </button>
     </form>
