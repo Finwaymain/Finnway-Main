@@ -1308,6 +1308,31 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/recovery/{id}/mark-paid', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'markRecoveryPaid'])->name('recovery.mark-paid');
 });
 
+// Finance Documents Direct File Serving (Safe Fallback)
+Route::get('/finance_docs/{filename}', function ($filename) {
+    $path = 'finance_docs/' . $filename;
+    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        return \Illuminate\Support\Facades\Storage::disk('public')->response($path);
+    }
+    abort(404);
+})->where('filename', '.*');
+
+Route::get('/storage/finance_docs/{filename}', function ($filename) {
+    $path = 'finance_docs/' . $filename;
+    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        return \Illuminate\Support\Facades\Storage::disk('public')->response($path);
+    }
+    abort(404);
+})->where('filename', '.*');
+
+Route::get('/storage/finance/proofs/{path}', function ($path) {
+    $fullPath = 'finance/proofs/' . $path;
+    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($fullPath)) {
+        return \Illuminate\Support\Facades\Storage::disk('public')->response($fullPath);
+    }
+    abort(404);
+})->where('path', '.*');
+
 
 
 // ── Legacy Loans URL Redirects (Backward Compatibility for Mobile Apps) ──────

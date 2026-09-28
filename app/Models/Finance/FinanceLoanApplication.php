@@ -96,4 +96,38 @@ class FinanceLoanApplication extends Model
     {
         return $this->hasMany(FinanceDocumentRequest::class, 'application_id');
     }
+
+    public function getProcessProofUrlAttribute(): ?string
+    {
+        $path = $this->process_completion_proof_url;
+        if (empty($path)) return null;
+        if (str_starts_with($path, 'http')) return $path;
+        $path = ltrim($path, '/');
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+        return asset('storage/' . $path);
+    }
+
+    public function getAgentSelfieUrlAttribute(): ?string
+    {
+        $path = $this->agent_selfie_url;
+        if (empty($path)) return null;
+        if (str_starts_with($path, 'http')) return $path;
+        $path = ltrim($path, '/');
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+        return asset('storage/' . $path);
+    }
+
+    public function getProcessProofFileAttribute(): ?string
+    {
+        return $this->process_proof_url;
+    }
+
+    public function getAgentSelfieFileAttribute(): ?string
+    {
+        return $this->agent_selfie_url;
+    }
 }

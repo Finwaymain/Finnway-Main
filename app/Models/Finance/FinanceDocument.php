@@ -62,6 +62,10 @@ class FinanceDocument extends Model
     {
         if (empty($this->file_path)) return '';
         if (str_starts_with($this->file_path, 'http')) return $this->file_path;
-        return asset('storage/' . ltrim($this->file_path, '/'));
+        $path = ltrim($this->file_path, '/');
+        if (str_starts_with($path, 'storage/')) {
+            return asset($path);
+        }
+        return asset('storage/' . $path);
     }
 }

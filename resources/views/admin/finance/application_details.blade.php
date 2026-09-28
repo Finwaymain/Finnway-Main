@@ -113,8 +113,8 @@
                                 </div>
                                 @if($application->process_proof_file)
                                     <div class="mb-2">
-                                        <a href="{{ asset($application->process_proof_file) }}" target="_blank">
-                                            <img src="{{ asset($application->process_proof_file) }}" alt="Process Proof" style="max-height: 220px; width: 100%; object-fit: contain; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <a href="{{ $application->process_proof_file }}" target="_blank">
+                                            <img src="{{ $application->process_proof_file }}" alt="Process Proof" style="max-height: 220px; width: 100%; object-fit: contain; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px;">
                                         </a>
                                     </div>
                                     <div style="font-size: 11px; color: #64748b;">Uploaded: {{ $application->proof_submitted_at ? date('d M Y, H:i', strtotime($application->proof_submitted_at)) : 'N/A' }}</div>
@@ -133,8 +133,8 @@
                                 </div>
                                 @if($application->agent_selfie_file)
                                     <div class="mb-2">
-                                        <a href="{{ asset($application->agent_selfie_file) }}" target="_blank">
-                                            <img src="{{ asset($application->agent_selfie_file) }}" alt="Agent Selfie" style="max-height: 220px; width: 100%; object-fit: contain; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <a href="{{ $application->agent_selfie_file }}" target="_blank">
+                                            <img src="{{ $application->agent_selfie_file }}" alt="Agent Selfie" style="max-height: 220px; width: 100%; object-fit: contain; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px;">
                                         </a>
                                     </div>
                                     <div style="font-size: 11px; color: #64748b;">Selfie verified</div>

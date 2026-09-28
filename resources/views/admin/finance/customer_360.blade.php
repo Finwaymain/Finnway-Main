@@ -152,7 +152,7 @@
                                 {{ ucwords(str_replace('_', ' ', $doc->document_type)) }}
                             </td>
                             <td style="padding: 12px 16px;">
-                                <a href="{{ asset($doc->file_path) }}" target="_blank" class="btn btn-sm" style="background: #f1f5f9; color: #0f172a; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 3px 8px; border: 1px solid #cbd5e1;">
+                                <a href="{{ $doc->url }}" target="_blank" class="btn btn-sm" style="background: #f1f5f9; color: #0f172a; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 3px 8px; border: 1px solid #cbd5e1;">
                                     View File ↗
                                 </a>
                             </td>
