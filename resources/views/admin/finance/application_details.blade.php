@@ -183,12 +183,36 @@
                 <div class="card border-0 p-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
                     <h5 class="mb-3" style="font-size: 16px; font-weight: 700; color: #0f172a;">Underwriting Console</h5>
                     
+                    @if(in_array($application->application_status, ['VALIDATION_PENDING', 'PROOF_SUBMITTED', 'PARTNER_SELECTED']))
+                    <div class="card border-0 mb-3 p-3" style="background: #fefce8; border: 1px solid #fef08a !important; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #854d0e; margin-bottom: 4px;">
+                            ⏱️ Validation Step Active
+                        </div>
+                        <div style="font-size: 12px; color: #713f12; margin-bottom: 12px;">
+                            Borrower is currently in the validation stage. You can verify and accept or reject:
+                        </div>
+                        <div class="d-flex gap-2">
+                            <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}" style="flex: 1;">
+                                @csrf
+                                <input type="hidden" name="status" value="SELFIE_PENDING">
+                                <button type="submit" class="btn btn-sm w-100" style="background: #059669; color: #fff; font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;">
+                                    ✓ Accept (Move to Selfie)
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 7px; border-radius: 6px;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
+                                ✕ Reject
+                            </button>
+                        </div>
+                    </div>
+                    @endif
+
                     <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
                         @csrf
                         <div class="mb-3">
                             <label style="font-size: 12px; font-weight: 600; color: #475569;">Update Status</label>
-                            <select name="status" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
+                            <select name="status" id="statusSelect" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
                                 <option value="VALIDATION_PENDING" {{ $application->application_status === 'VALIDATION_PENDING' ? 'selected' : '' }}>Validation Pending</option>
+                                <option value="SELFIE_PENDING" {{ in_array($application->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED']) ? 'selected' : '' }}>✓ Accept &amp; Require Agent Selfie (Next Step)</option>
                                 <option value="LOAN_APPROVED" {{ $application->application_status === 'LOAN_APPROVED' ? 'selected' : '' }}>Approve Loan</option>
                                 <option value="DISBURSEMENT_PENDING" {{ $application->application_status === 'DISBURSEMENT_PENDING' ? 'selected' : '' }}>Disbursement Pending</option>
                                 <option value="DISBURSED" {{ $application->application_status === 'DISBURSED' ? 'selected' : '' }}>Mark as Disbursed</option>
@@ -209,7 +233,7 @@
 
                         <div class="mb-3">
                             <label style="font-size: 12px; font-weight: 600; color: #475569;">Rejection Reason (If rejecting)</label>
-                            <textarea name="rejection_reason" rows="2" class="form-control form-control-sm" placeholder="Reason communicated to borrower..." style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">{{ $application->rejection_reason }}</textarea>
+                            <textarea name="rejection_reason" id="rejectionReasonInput" rows="2" class="form-control form-control-sm" placeholder="Reason communicated to borrower..." style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">{{ $application->rejection_reason }}</textarea>
                             <div style="font-size: 11px; color: #dc2626; margin-top: 4px;">Applies 3-day reapply lock per underwriting rules.</div>
                         </div>
 

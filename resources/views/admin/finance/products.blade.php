@@ -290,6 +290,38 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Flow Validation Waiting Window & Timer Policy Card -->
+                <div class="card border-0 mt-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+                    <div class="p-3" style="border-bottom: 1px solid #e2e8f0; background: #1e293b; border-radius: 8px 8px 0 0;">
+                        <h5 class="mb-0" style="font-size: 15px; font-weight: 700; color: #ffffff;">⏱️ Validation Timer Policy</h5>
+                        <div style="font-size: 11px; color: #94a3b8;">Control applicant waiting clock window on validation screen</div>
+                    </div>
+
+                    <div class="p-3">
+                        @php
+                            $currentTimerSeconds = (int) \App\Models\Finance\FinanceSetting::get('loan_validation_timer_seconds', 180);
+                        @endphp
+                        <form method="POST" action="{{ route('admin.finance.settings.flow-timing') }}">
+                            @csrf
+                            <div class="mb-3">
+                                <label class="form-label" style="font-size: 12px; font-weight: 600; color: #334155;">Validation Waiting Time (Seconds) *</label>
+                                <input type="number" name="validation_timer_seconds" class="form-control" required style="font-size: 13px;" min="10" max="1800" value="{{ $currentTimerSeconds }}">
+                                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                    Currently: <strong>{{ $currentTimerSeconds }} seconds</strong> ({{ round($currentTimerSeconds / 60, 1) }} min). Example: 180 = 3 mins, 120 = 2 mins, 60 = 1 min.
+                                </div>
+                            </div>
+
+                            <p style="font-size: 11px; color: #475569; line-height: 1.5; margin-bottom: 14px; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                ℹ️ When an applicant completes lender proof upload, they see a live ticking clock for this duration. If you approve early or if the clock completes, they automatically move to Selfie verification.
+                            </p>
+
+                            <button type="submit" class="btn w-100" style="background: #2563eb; color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px; border-radius: 6px;">
+                                Save Waiting Time Policy
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
 

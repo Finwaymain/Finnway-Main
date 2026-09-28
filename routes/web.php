@@ -1309,6 +1309,7 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::get('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'paymentSettings'])->name('settings.payment');
     Route::post('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'savePaymentSettings'])->name('settings.payment.save');
     Route::post('/settings/payment/test', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'testPaymentSettings'])->name('settings.payment.test');
+    Route::post('/settings/flow-timing', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveFlowTimingSettings'])->name('settings.flow-timing');
 });
 
 // Finance Documents Direct File Serving (Safe Fallback)
@@ -1386,7 +1387,9 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/lender-webview',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanLenderWebview'])->name('s14_lender_webview');
         Route::get('/proof-upload',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanProofUpload'])->name('s15_proof_upload');
         Route::get('/validation',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanValidation'])->name('s16_validation');
+        Route::get('/status-poll',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'checkApplicationStatusPoll'])->name('application_status_poll');
         Route::get('/selfie-agent',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanSelfieAgent'])->name('s17_selfie_agent');
+        Route::post('/selfie-agent',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanSelfieAgentSubmit'])->name('s17_selfie_agent_submit');
         Route::get('/tracking',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanTracking'])->name('s18_tracking');
         Route::get('/lender-review',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanLenderReview'])->name('s19_lender_review');
         Route::get('/processing-window', [\App\Http\Controllers\Finance\FinanceWebController::class, 'cashLoanProcessingWindow'])->name('s20_processing_window');

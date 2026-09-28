@@ -197,11 +197,21 @@ class FinanceWebController extends Controller
         $appNumber = $application->application_number 
             ?? ($customer ? 'FIIN-APP-' . date('Y') . '-' . str_pad($customer->id, 5, '0', STR_PAD_LEFT) : 'FIIN-APP-' . time());
 
+        // Validation waiting timer configured by Admin (seconds, default 180 = 3 minutes)
+        $validationTimerSeconds = 180;
+        if (\Illuminate\Support\Facades\Schema::hasTable('finance_settings')) {
+            $validationTimerSeconds = (int) \App\Models\Finance\FinanceSetting::get('loan_validation_timer_seconds', 180);
+            if ($validationTimerSeconds <= 0) {
+                $validationTimerSeconds = 180;
+            }
+        }
+
         return [
             'customer' => $customer,
             'phone' => $phone,
             'application' => $application,
             'appNumber' => $appNumber,
+            'validationTimerSeconds' => $validationTimerSeconds,
             'applicantName' => $applicantName,
             'applicantPhone' => $applicantPhone,
             'partners' => $partners,
@@ -872,8 +882,111 @@ class FinanceWebController extends Controller
     }
     public function cashLoanLenderWebview(Request $request)    { return view('finance.cash_loan.s14_lender_webview', $this->resolveContext($request)); }
     public function cashLoanProofUpload(Request $request)      { return view('finance.cash_loan.s15_proof_upload', $this->resolveContext($request)); }
-    public function cashLoanValidation(Request $request)       { return view('finance.cash_loan.s16_validation', $this->resolveContext($request)); }
-    public function cashLoanSelfieAgent(Request $request)      { return view('finance.cash_loan.s17_selfie_agent', $this->resolveContext($request)); }
+    public function cashLoanValidation(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        if (!empty($ctx['application'])) {
+            $app = $ctx['application'];
+            if ($app->application_status === 'REJECTED') {
+                return redirect()->route('finance.cash_loan.s26_final_result', ['phone' => $ctx['phone']]);
+            }
+            if (in_array($app->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED', 'PROCESSING', 'APPROVED', 'LOAN_APPROVED'])) {
+                return redirect()->route('finance.cash_loan.s17_selfie_agent', ['phone' => $ctx['phone']]);
+            }
+            if (!in_array($app->application_status, ['VALIDATION_PENDING', 'PROOF_SUBMITTED'])) {
+                $app->update([
+                    'application_status' => 'VALIDATION_PENDING',
+                    'proof_submitted_at' => $app->proof_submitted_at ?? now(),
+                ]);
+            }
+        }
+        return view('finance.cash_loan.s16_validation', $ctx);
+    }
+
+    public function checkApplicationStatusPoll(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        $phone = $ctx['phone'];
+
+        if (!$app) {
+            return response()->json(['status' => 'NOT_FOUND', 'action' => 'wait']);
+        }
+
+        $status = $app->application_status;
+
+        if ($status === 'REJECTED') {
+            return response()->json([
+                'status' => 'REJECTED',
+                'action' => 'redirect',
+                'redirect_url' => route('finance.cash_loan.s26_final_result', ['phone' => $phone]),
+                'reason' => $app->rejection_reason ?? 'Underwriting criteria not met.',
+            ]);
+        }
+
+        if (in_array($status, ['SELFIE_PENDING', 'VALIDATION_APPROVED', 'PROCESSING', 'APPROVED', 'LOAN_APPROVED'])) {
+            return response()->json([
+                'status' => $status,
+                'action' => 'redirect',
+                'redirect_url' => route('finance.cash_loan.s17_selfie_agent', ['phone' => $phone]),
+            ]);
+        }
+
+        return response()->json([
+            'status' => $status,
+            'action' => 'wait',
+        ]);
+    }
+
+    public function cashLoanSelfieAgent(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        if (!empty($ctx['application'])) {
+            $app = $ctx['application'];
+            if ($app->application_status === 'REJECTED') {
+                return redirect()->route('finance.cash_loan.s26_final_result', ['phone' => $ctx['phone']]);
+            }
+        }
+        return view('finance.cash_loan.s17_selfie_agent', $ctx);
+    }
+
+    public function cashLoanSelfieAgentSubmit(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        $phone = $ctx['phone'];
+
+        $path = null;
+
+        // 1. Direct file upload from native camera
+        if ($request->hasFile('selfie')) {
+            $file = $request->file('selfie');
+            $path = $file->store('finance_docs', 'public');
+        } elseif ($request->filled('selfie_base64')) {
+            // 2. Base64 data from in-browser live capture
+            $base64 = $request->input('selfie_base64');
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64, $matches)) {
+                $imageType = strtolower($matches[1]);
+                $data = substr($base64, strpos($base64, ',') + 1);
+                $decoded = base64_decode($data);
+                if ($decoded !== false) {
+                    $ext = in_array($imageType, ['jpg', 'jpeg', 'png', 'webp']) ? $imageType : 'jpg';
+                    $filename = 'finance_docs/selfie_' . uniqid() . '.' . $ext;
+                    \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $decoded);
+                    $path = $filename;
+                }
+            }
+        }
+
+        if ($path && $app) {
+            $app->update([
+                'agent_selfie_url' => $path,
+                'application_status' => 'PROCESSING',
+            ]);
+        }
+
+        return redirect()->route('finance.cash_loan.s18_tracking', ['phone' => $phone]);
+    }
     public function cashLoanTracking(Request $request)         { return view('finance.cash_loan.s18_tracking', $this->resolveContext($request)); }
     public function cashLoanLenderReview(Request $request)     { return view('finance.cash_loan.s19_lender_review', $this->resolveContext($request)); }
     public function cashLoanProcessingWindow(Request $request) { return view('finance.cash_loan.s20_processing', $this->resolveContext($request)); }

@@ -130,6 +130,8 @@ class AdminFinanceController extends Controller
         if ($status === 'REJECTED') {
             $app->rejection_reason = $request->input('rejection_reason', 'Underwriting criteria not met.');
             $app->reapply_locked_until = now()->addDays(3); // 3-Day Reapply Lock (Doc 2)
+        } elseif ($status === 'SELFIE_PENDING' || $status === 'VALIDATION_APPROVED') {
+            $app->validation_approved_at = now();
         } elseif ($status === 'LOAN_APPROVED') {
             $approvedAmt = floatval($request->input('approved_amount', $app->requested_amount));
             $app->approved_amount = $approvedAmt;
@@ -486,6 +488,21 @@ class AdminFinanceController extends Controller
         }
 
         return back()->with('error', $result['message']);
+    }
+
+    /**
+     * Save Loan Flow Validation Waiting Window / Timer Settings
+     */
+    public function saveFlowTimingSettings(Request $request)
+    {
+        $request->validate([
+            'validation_timer_seconds' => 'required|integer|min:10|max:1800',
+        ]);
+
+        $seconds = (int) $request->input('validation_timer_seconds');
+        \App\Models\Finance\FinanceSetting::set('loan_validation_timer_seconds', $seconds, 'loan_flow', 'integer', 'Validation countdown timer duration in seconds');
+
+        return back()->with('success', "Loan Validation waiting timer successfully set to {$seconds} seconds (" . round($seconds / 60, 1) . " minutes).");
     }
 }
 
