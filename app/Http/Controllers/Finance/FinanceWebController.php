@@ -167,6 +167,8 @@ class FinanceWebController extends Controller
         if ($request->has('hide_header') || $request->has('app')) {
             session(['finance_hide_header' => true]);
         }
+        $hideHeader = session('finance_hide_header', false) || $request->query('hide_header') == '1' || $request->query('app') == '1';
+
         // Active lending partners from master
         $partners = FinanceLenderPartner::where('status', 'active')
             ->orderBy('sort_order')
