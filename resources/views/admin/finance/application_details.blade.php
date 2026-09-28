@@ -402,27 +402,33 @@
                         <form method="POST" action="{{ route('admin.finance.applications.request-document', $application->id) }}">
                             @csrf
                             <div class="mb-3">
-                                <label style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px; display: block;">Select Documents Required (Check all that apply):</label>
-                                <div style="display: grid; grid-template-columns: 1fr; gap: 6px;">
+                                <label style="font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 8px; display: block;">
+                                    Select Documents Required (Check one or more):
+                                </label>
+                                <div style="background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 12px;">
                                     @php
                                         $availableDocOptions = [
-                                            ['val' => 'Latest 3 Months Salary Slips', 'icon' => '📄', 'label' => 'Latest 3 Months Salary Slips'],
-                                            ['val' => '6 Months Bank Statement (PDF)', 'icon' => '🏦', 'label' => '6 Months Bank Statement (PDF)'],
-                                            ['val' => 'Bank Passbook (First Page with Account & IFSC)', 'icon' => '📖', 'label' => 'Bank Passbook (Account & IFSC)'],
-                                            ['val' => 'Cancelled Cheque', 'icon' => '🧾', 'label' => 'Cancelled Cheque'],
-                                            ['val' => 'Full Aadhaar Card (Front & Back)', 'icon' => '🆔', 'label' => 'Full Aadhaar Card (Front & Back)'],
-                                            ['val' => 'PAN Card Copy', 'icon' => '🪪', 'label' => 'PAN Card Copy'],
-                                            ['val' => 'Electricity Bill / Rent Agreement', 'icon' => '🏠', 'label' => 'Electricity Bill / Rent Agreement'],
-                                            ['val' => 'Clear Selfie with ID Card', 'icon' => '🤳', 'label' => 'Clear Selfie with ID Card'],
-                                            ['val' => 'Business GST / ITR Certificate', 'icon' => '💼', 'label' => 'Business GST / ITR Certificate'],
-                                            ['val' => 'Bonafide / Enrollment Certificate', 'icon' => '🎓', 'label' => 'Bonafide / Enrollment Certificate'],
+                                            'Latest 3 Months Salary Slips' => '📄 Latest 3 Months Salary Slips',
+                                            '6 Months Bank Statement (PDF)' => '🏦 6 Months Bank Statement (PDF)',
+                                            'Bank Passbook (First Page with Account & IFSC)' => '📖 Bank Passbook (Account & IFSC)',
+                                            'Cancelled Cheque' => '🧾 Cancelled Cheque',
+                                            'Full Aadhaar Card (Front & Back)' => '🆔 Full Aadhaar Card (Front & Back)',
+                                            'PAN Card Copy' => '🪪 PAN Card Copy',
+                                            'Electricity Bill / Rent Agreement' => '🏠 Electricity Bill / Rent Agreement',
+                                            'Clear Selfie with ID Card' => '🤳 Clear Selfie with ID Card',
+                                            'Business GST / ITR Certificate' => '💼 Business GST / ITR Certificate',
+                                            'Bonafide / Enrollment Certificate' => '🎓 Bonafide / Enrollment Certificate',
                                         ];
+                                        $idx = 0;
                                     @endphp
-                                    @foreach($availableDocOptions as $i => $opt)
-                                    <label for="doc_opt_{{ $i }}" style="display: flex; align-items: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin: 0; cursor: pointer; font-size: 12px; font-weight: 600; color: #1e293b; user-select: none;">
-                                        <input type="checkbox" id="doc_opt_{{ $i }}" name="document_type[]" value="{{ $opt['val'] }}" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer; accent-color: #2563eb; flex-shrink: 0;">
-                                        <span>{{ $opt['icon'] }} {{ $opt['label'] }}</span>
-                                    </label>
+                                    @foreach($availableDocOptions as $val => $title)
+                                    @php $idx++; @endphp
+                                    <div style="display: flex; align-items: center; padding: 7px 4px; border-bottom: 1px solid #f1f5f9;">
+                                        <input type="checkbox" id="chk_doc_{{ $idx }}" name="document_type[]" value="{{ $val }}" style="position: static !important; opacity: 1 !important; visibility: visible !important; width: 18px !important; height: 18px !important; margin: 0 10px 0 0 !important; cursor: pointer !important; accent-color: #2563eb !important; flex-shrink: 0;">
+                                        <label for="chk_doc_{{ $idx }}" style="margin: 0; cursor: pointer; font-size: 13px; font-weight: 600; color: #1e293b; flex-grow: 1;">
+                                            {{ $title }}
+                                        </label>
+                                    </div>
                                     @endforeach
                                 </div>
                             </div>
