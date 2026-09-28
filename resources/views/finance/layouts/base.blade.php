@@ -217,7 +217,7 @@
         .fw-consent label { font-size: 12px; color: var(--gray3); line-height: 1.5; }
 
         /* Footer area */
-        .fw-footer-pad { height: 75px; }
+        .fw-footer-pad { height: 70px; }
         .fw-sticky-bottom {
             position: fixed;
             bottom: 0;
@@ -232,10 +232,10 @@
             box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.05);
         }
         body.has-bottom-nav .fw-sticky-bottom {
-            bottom: 60px !important;
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
         }
         body.has-bottom-nav .fw-footer-pad {
-            height: 125px;
+            height: calc(130px + env(safe-area-inset-bottom, 0px));
         }
         .fw-sticky-bottom .fw-sticky-bottom {
             position: static !important;
@@ -251,11 +251,13 @@
         .fw-bottom-nav {
             position: fixed;
             bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100%;
+            left: 0;
+            right: 0;
+            margin: 0 auto;
             max-width: 480px;
-            height: 60px;
+            width: 100%;
+            height: calc(58px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: env(safe-area-inset-bottom, 0px);
             background: #ffffff;
             border-top: 1px solid #e2e8f0;
             display: flex;
@@ -263,51 +265,58 @@
             justify-content: space-around;
             z-index: 100;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
-            padding: 4px 6px env(safe-area-inset-bottom, 4px);
+            box-sizing: border-box;
         }
         .fw-nav-item {
             flex: 1;
+            height: 58px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             text-decoration: none;
             color: #64748b;
-            font-size: 11px;
-            font-weight: 600;
-            transition: color 0.15s ease, transform 0.15s ease;
+            padding: 0;
+            margin: 0;
             position: relative;
-            padding: 4px 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .fw-nav-item:active {
-            transform: scale(0.92);
-        }
-        .fw-nav-item.active {
-            color: #1a5fa8;
-            font-weight: 700;
-        }
-        .fw-nav-item.active svg {
-            stroke: #1a5fa8;
-            transform: translateY(-1px);
-        }
-        .fw-nav-item.active::after {
-            content: '';
-            position: absolute;
-            bottom: 1px;
-            width: 18px;
-            height: 3px;
-            border-radius: 3px;
-            background: #1a5fa8;
+            opacity: 0.75;
         }
         .fw-nav-icon {
+            width: 24px;
+            height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 2px;
         }
         .fw-nav-icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
             stroke: #64748b;
+            stroke-width: 2;
+            fill: none;
             transition: stroke 0.15s ease;
+        }
+        .fw-nav-label {
+            font-size: 10px;
+            line-height: 1.1;
+            font-weight: 600;
+            letter-spacing: 0.1px;
+            color: #64748b;
+            transition: color 0.15s ease;
+            white-space: nowrap;
+        }
+        .fw-nav-item.active .fw-nav-icon svg {
+            stroke: #1a5fa8;
+        }
+        .fw-nav-item.active .fw-nav-label {
+            color: #1a5fa8;
+            font-weight: 700;
         }
 
         /* Timer */
@@ -375,43 +384,43 @@
     <nav class="fw-bottom-nav">
         <a href="{{ route('finance.hub', ['phone' => $navPhone]) }}" class="fw-nav-item {{ in_array($currentRoute, ['finance.hub', 'finance.cash_loan.s23_disbursement', 'finance.business_loan.s20_final_status']) || (!in_array($currentRoute, ['finance.repayments', 'finance.documents', 'finance.support']) && str_starts_with($currentRoute, 'finance.')) ? 'active' : '' }}">
             <div class="fw-nav-icon">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                     <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
             </div>
-            <span>Dashboard</span>
+            <span class="fw-nav-label">Dashboard</span>
         </a>
 
         <a href="{{ route('finance.repayments', ['phone' => $navPhone]) }}" class="fw-nav-item {{ $currentRoute === 'finance.repayments' ? 'active' : '' }}">
             <div class="fw-nav-icon">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="5" width="20" height="14" rx="2"></rect>
                     <line x1="2" y1="10" x2="22" y2="10"></line>
                 </svg>
             </div>
-            <span>Repayments</span>
+            <span class="fw-nav-label">Repayments</span>
         </a>
 
         <a href="{{ route('finance.documents', ['phone' => $navPhone]) }}" class="fw-nav-item {{ $currentRoute === 'finance.documents' ? 'active' : '' }}">
             <div class="fw-nav-icon">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
                     <line x1="16" y1="13" x2="8" y2="13"></line>
                     <line x1="16" y1="17" x2="8" y2="17"></line>
                 </svg>
             </div>
-            <span>Documents</span>
+            <span class="fw-nav-label">Documents</span>
         </a>
 
         <a href="{{ route('finance.support', ['phone' => $navPhone]) }}" class="fw-nav-item {{ $currentRoute === 'finance.support' ? 'active' : '' }}">
             <div class="fw-nav-icon">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
             </div>
-            <span>Support</span>
+            <span class="fw-nav-label">Support</span>
         </a>
     </nav>
     @endif
