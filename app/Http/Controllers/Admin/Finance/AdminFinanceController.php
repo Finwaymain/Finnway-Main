@@ -130,8 +130,6 @@ class AdminFinanceController extends Controller
         if ($status === 'REJECTED') {
             $app->rejection_reason = $request->input('rejection_reason', 'Underwriting criteria not met.');
             $app->reapply_locked_until = now()->addDays(3); // 3-Day Reapply Lock (Doc 2)
-        } elseif ($status === 'SELFIE_PENDING' || $status === 'VALIDATION_APPROVED') {
-            $app->validation_approved_at = now();
         } elseif ($status === 'LOAN_APPROVED') {
             $approvedAmt = floatval($request->input('approved_amount', $app->requested_amount));
             $app->approved_amount = $approvedAmt;
