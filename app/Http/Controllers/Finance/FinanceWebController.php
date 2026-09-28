@@ -260,22 +260,58 @@ class FinanceWebController extends Controller
             return $stepMap[$status] ?? null;
         }
 
+        if (in_array($cat, ['business', 'business_loan', 'business_msme'])) {
+            $stepMap = [
+                'DRAFT'                      => route('finance.business_loan.s02_business_details', ['phone' => $phone]),
+                'BUSINESS_DETAILS'           => route('finance.business_loan.s03_loan_requirement', ['phone' => $phone]),
+                'LOAN_REQUIREMENT'           => route('finance.business_loan.s04_eligibility', ['phone' => $phone]),
+                'ELIGIBILITY'                => route('finance.business_loan.s05_amount_tenure', ['phone' => $phone]),
+                'DOCUMENTS'                  => route('finance.business_loan.s07_documents', ['phone' => $phone]),
+                'READY_PROCESSING'           => route('finance.business_loan.s09_ready_processing', ['phone' => $phone]),
+                'FEE_PENDING'                => route('finance.business_loan.s10_fee_payment', ['phone' => $phone]),
+                'FEE_PAID'                   => route('finance.business_loan.s11_app_generated', ['phone' => $phone]),
+                'PARTNER_SELECTED'           => route('finance.business_loan.s14_lender_webview', ['phone' => $phone]),
+                'VALIDATION_PENDING'         => route('finance.business_loan.s15_lender_processing', ['phone' => $phone]),
+                'PROOF_SUBMITTED'            => route('finance.business_loan.s15_lender_processing', ['phone' => $phone]),
+                'ADDITIONAL_DOCS_REQUESTED'  => route('finance.business_loan.s16_additional_docs', ['phone' => $phone]),
+                'LOAN_APPROVED'              => route('finance.business_loan.s17_approval', ['phone' => $phone]),
+                'APPROVED'                   => route('finance.business_loan.s17_approval', ['phone' => $phone]),
+                'DISBURSEMENT_PENDING'       => route('finance.business_loan.s19_disbursement', ['phone' => $phone]),
+                'DISBURSED'                  => route('finance.business_loan.s20_final_status', ['phone' => $phone]),
+            ];
+            return $stepMap[$status] ?? null;
+        }
+
         $stepMap = [
-            'DRAFT'           => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
-            'KYC_PENDING'     => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
-            'DETAILS_SAVED'   => route('finance.cash_loan.s03_applicant_details', ['phone' => $phone]),
-            'ELIGIBILITY'     => route('finance.cash_loan.s04_eligibility', ['phone' => $phone, 'amount' => $amount]),
-            'AMOUNT_PENDING'  => route('finance.cash_loan.s05_tenure', $params),
-            'TENURE_SELECTED' => route('finance.cash_loan.s07_documents', $params),
-            'DOCS_PENDING'    => route('finance.cash_loan.s07_documents', $params),
-            'DOCS_SUBMITTED'  => route('finance.cash_loan.s08_ready', $params),
-            'SANCTIONED'      => route('finance.cash_loan.s08b_sanction_summary', $params),
-            'FEE_PENDING'     => route('finance.cash_loan.s09_fee_payment', $params),
-            'FEE_PAID'        => route('finance.cash_loan.s10_app_generated', ['phone' => $phone, 'amount' => $amount]),
-            'UNDERWRITING'    => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
-            'APP_GENERATED'   => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
-            'PROCESSING'      => route('finance.cash_loan.s18_tracking', ['phone' => $phone]),
-            'APPROVED'        => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+            'DRAFT'                      => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
+            'KYC_PENDING'                => route('finance.cash_loan.s02_type_consent', ['phone' => $phone]),
+            'DETAILS_SAVED'              => route('finance.cash_loan.s03_applicant_details', ['phone' => $phone]),
+            'ELIGIBILITY'                => route('finance.cash_loan.s04_eligibility', ['phone' => $phone, 'amount' => $amount]),
+            'AMOUNT_PENDING'             => route('finance.cash_loan.s05_tenure', $params),
+            'TENURE_SELECTED'            => route('finance.cash_loan.s07_documents', $params),
+            'DOCS_PENDING'               => route('finance.cash_loan.s07_documents', $params),
+            'DOCS_SUBMITTED'             => route('finance.cash_loan.s08_ready', $params),
+            'SANCTIONED'                 => route('finance.cash_loan.s08b_sanction_summary', $params),
+            'FEE_PENDING'                => route('finance.cash_loan.s09_fee_payment', $params),
+            'FEE_PAID'                   => route('finance.cash_loan.s10_app_generated', ['phone' => $phone, 'amount' => $amount]),
+            'UNDERWRITING'               => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
+            'APP_GENERATED'              => route('finance.cash_loan.s11_partner_dashboard', ['phone' => $phone]),
+            'PARTNER_SELECTED'           => route('finance.cash_loan.s14_lender_webview', ['phone' => $phone, 'partner_id' => $application->selected_lender_id]),
+            'PROOF_SUBMITTED'            => route('finance.cash_loan.s16_validation', ['phone' => $phone]),
+            'VALIDATION_PENDING'         => route('finance.cash_loan.s16_validation', ['phone' => $phone]),
+            'VALIDATION_APPROVED'        => route('finance.cash_loan.s17_selfie_agent', ['phone' => $phone]),
+            'SELFIE_PENDING'             => route('finance.cash_loan.s17_selfie_agent', ['phone' => $phone]),
+            'SELFIE_SUBMITTED'           => route('finance.cash_loan.s18_tracking', ['phone' => $phone]),
+            'PROCESSING'                 => route('finance.cash_loan.s18_tracking', ['phone' => $phone]),
+            'LENDER_REVIEW'              => route('finance.cash_loan.s19_lender_review', ['phone' => $phone]),
+            'PROCESSING_WINDOW'          => route('finance.cash_loan.s20_processing', ['phone' => $phone]),
+            'LOAN_APPROVED'              => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+            'APPROVED'                   => route('finance.cash_loan.s21_approval', ['phone' => $phone]),
+            'DISBURSEMENT_PENDING'       => route('finance.cash_loan.s23_disbursement', ['phone' => $phone]),
+            'DISBURSED'                  => route('finance.cash_loan.s23_disbursement', ['phone' => $phone]),
+            'ADDITIONAL_DOCS_REQUESTED'  => route('finance.cash_loan.s24_additional_docs', ['phone' => $phone]),
+            'DOCS_RESUBMITTED'           => route('finance.cash_loan.s25_docs_submitted', ['phone' => $phone]),
+            'REJECTED'                   => route('finance.cash_loan.s26_final_result', ['phone' => $phone]),
         ];
 
         return $stepMap[$status] ?? null;
@@ -368,6 +404,14 @@ class FinanceWebController extends Controller
             'virtual_loan' => 'Virtual Loan',
             'student_credit' => 'Student Credit',
         ];
+
+        // Auto-resume active loan application when reopening loans from mobile app or direct link
+        if ($isRunning && !$request->has('explore') && empty($cardType)) {
+            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+            if ($resumeUrl) {
+                return redirect($resumeUrl);
+            }
+        }
 
         if ($cardType) {
             $params = $request->all();
@@ -798,6 +842,17 @@ class FinanceWebController extends Controller
         if ($lock) return $lock;
 
         $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        // If user already has an active in-progress application, auto-resume to their current step
+        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])) {
+            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+            if ($resumeUrl) {
+                return redirect($resumeUrl);
+            }
+        }
+
         return view('finance.cash_loan.s01_apply', $ctx);
     }
 
@@ -1006,7 +1061,18 @@ class FinanceWebController extends Controller
         $lock = $this->checkActiveApplicationLock($request, 'business_loan', 'Business Loan');
         if ($lock) return $lock;
 
-        return view('finance.business_loan.s01_apply', $this->resolveContext($request));
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $application = $ctx['application'];
+
+        if ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])) {
+            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
+            if ($resumeUrl) {
+                return redirect($resumeUrl);
+            }
+        }
+
+        return view('finance.business_loan.s01_apply', $ctx);
     }
     public function businessLoanDetails(Request $request)          { return view('finance.business_loan.s02_business_details', $this->resolveContext($request)); }
     public function businessLoanRequirement(Request $request)      { return view('finance.business_loan.s03_loan_requirement', $this->resolveContext($request)); }
