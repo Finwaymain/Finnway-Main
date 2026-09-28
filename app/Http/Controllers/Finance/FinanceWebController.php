@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Finance\FinanceCustomer;
+use App\Models\Finance\FinanceDailySchedule;
 use App\Models\Finance\FinanceDocument;
 use App\Models\Finance\FinanceDocumentRequest;
 use App\Models\Finance\FinanceLenderPartner;
@@ -67,19 +68,28 @@ class FinanceWebController extends Controller
                 }
             }
             if ($customer) {
+                // Ongoing in-funnel application
                 $application = FinanceLoanApplication::where('customer_id', $customer->id)
                     ->whereNotIn('application_status', ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                // Active disbursed loan
+                $disbursedLoan = FinanceLoanApplication::where('customer_id', $customer->id)
+                    ->where('application_status', 'DISBURSED')
                     ->orderBy('id', 'desc')
                     ->first();
             }
         }
 
+        $loanContext = $application ?? ($disbursedLoan ?? null);
+
         // Amount resolution (Approved Amount from Underwriting takes highest priority if set; otherwise Request parameter -> Requested Amount -> Default 25,000)
-        $approvedAmount = floatval($application->approved_amount ?? 0);
+        $approvedAmount = floatval($loanContext->approved_amount ?? 0);
         if ($approvedAmount > 0) {
             $amount = $approvedAmount;
         } else {
-            $rawAmount = $request->query('amount', $request->input('amount', $application->requested_amount ?? 25000));
+            $rawAmount = $request->query('amount', $request->input('amount', $loanContext->requested_amount ?? 25000));
             $amount = floatval($rawAmount);
             if ($amount <= 0) {
                 $amount = 25000;
@@ -87,13 +97,13 @@ class FinanceWebController extends Controller
         }
 
         // Tenure resolution (Request parameter -> Application -> Default 12 months)
-        $rawTenure = $request->query('tenure', $request->input('tenure', $application->tenure_months ?? 12));
+        $rawTenure = $request->query('tenure', $request->input('tenure', $loanContext->tenure_months ?? 12));
         $tenure = intval($rawTenure);
         if ($tenure <= 0) {
             $tenure = 12;
         }
 
-        $loanType = $request->query('loan_type', $request->input('loan_type', $application->loan_type ?? 'low_cibil'));
+        $loanType = $request->query('loan_type', $request->input('loan_type', $loanContext->loan_type ?? 'low_cibil'));
         $maxLimit = in_array($loanType, ['good_cibil', 'prime_cash']) ? 2000000 : 400000;
         if ($amount > $maxLimit) {
             $amount = $maxLimit;
@@ -248,13 +258,13 @@ class FinanceWebController extends Controller
         }
 
         // Applicant display values (never dummy or hardcoded)
-        $applicantName = $application->applicant_name 
+        $applicantName = $loanContext->applicant_name 
             ?? ($customer->name ?? ($customer->full_name ?? ($request->input('name') ?: 'Valued Applicant')));
         
-        $applicantPhone = $application->applicant_phone 
+        $applicantPhone = $loanContext->applicant_phone 
             ?? ($customer->phone ?? ($phone ?: ''));
 
-        $appNumber = $application->application_number 
+        $appNumber = $loanContext->application_number 
             ?? ($customer ? 'FIIN-APP-' . date('Y') . '-' . str_pad($customer->id, 5, '0', STR_PAD_LEFT) : 'FIIN-APP-' . time());
 
         // Validation waiting timer configured by Admin (seconds, default 180 = 3 minutes)
@@ -270,6 +280,8 @@ class FinanceWebController extends Controller
             'customer' => $customer,
             'phone' => $phone,
             'application' => $application,
+            'disbursedLoan' => $disbursedLoan ?? null,
+            'activeLoan' => $loanContext,
             'appNumber' => $appNumber,
             'validationTimerSeconds' => $validationTimerSeconds,
             'applicantName' => $applicantName,
@@ -449,10 +461,27 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $phone = $ctx['phone'];
         $application = $ctx['application'];
+        $disbursedLoan = $ctx['disbursedLoan'] ?? null;
         $isRunning = ($application && !in_array($application->application_status, ['DISBURSED', 'REJECTED', 'CLOSED', 'WITHDRAWN', 'DRAFT', 'APPLICATION_CREATED']));
 
+        // Repayment & schedule details for active disbursed loan
+        $nextDueSchedule = null;
+        $totalPaidEmi = 0;
+        $totalOutstandingEmi = 0;
+        $scheduleList = collect();
+
+        if ($disbursedLoan) {
+            $this->ensureRepaymentSchedule($disbursedLoan);
+            $scheduleList = FinanceDailySchedule::where('application_id', $disbursedLoan->id)
+                ->orderBy('day_number', 'asc')
+                ->get();
+            $nextDueSchedule = $scheduleList->firstWhere('status', 'pending') ?? $scheduleList->firstWhere('status', 'overdue');
+            $totalPaidEmi = $scheduleList->where('status', 'paid')->sum('paid_amount');
+            $totalOutstandingEmi = $scheduleList->where('status', '!=', 'paid')->sum('total_due');
+        }
+
         // Map active loan category to family
-        $activeCategory = $application->loan_category ?? '';
+        $activeCategory = $application->loan_category ?? ($disbursedLoan->loan_category ?? '');
         $activeFamily = 'cash_loan';
         if (in_array($activeCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
             $activeFamily = 'zero_cibil';
@@ -526,6 +555,11 @@ class FinanceWebController extends Controller
                     ->with('active_resume_url', $resumeUrl);
             }
 
+            // If user clicked View Details with an active disbursed loan, keep on hub
+            if ($isViewDetails && $disbursedLoan) {
+                return redirect()->route('finance.hub', ['phone' => $phone]);
+            }
+
             // If no running application, open requested product
             if (in_array($cardType, ['zero_cibil', '0 cibil loan', 'interest_free', 'interest free loan'])) {
                 return redirect()->route('finance.zero_cibil.s01_intro', $params);
@@ -555,6 +589,11 @@ class FinanceWebController extends Controller
             'isRunning' => $isRunning,
             'activeFamily' => $activeFamily,
             'activeFamilyName' => $familyNames[$activeFamily] ?? 'Loan',
+            'disbursedLoan' => $disbursedLoan,
+            'nextDueSchedule' => $nextDueSchedule,
+            'totalPaidEmi' => $totalPaidEmi,
+            'totalOutstandingEmi' => $totalOutstandingEmi,
+            'scheduleList' => $scheduleList,
         ]));
     }
 
@@ -1550,5 +1589,161 @@ class FinanceWebController extends Controller
 
         return redirect()->route('finance.hub', ['phone' => $phone])
             ->with('success', 'You have no active applications. You can start a new application anytime.');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ACTIVE LOAN REPAYMENTS, DOCUMENTS & SUPPORT
+    // ─────────────────────────────────────────────────────────────
+
+    public function ensureRepaymentSchedule(FinanceLoanApplication $application): void
+    {
+        if ($application->application_status !== 'DISBURSED') {
+            return;
+        }
+
+        $existing = FinanceDailySchedule::where('application_id', $application->id)->count();
+        if ($existing > 0) {
+            return;
+        }
+
+        $customer = $application->customer;
+        $customerId = $customer ? $customer->id : ($application->customer_id ?? 0);
+        $approvedAmount = floatval($application->approved_amount ?: ($application->requested_amount ?: 25000));
+        $cat = $application->loan_category ?? '';
+        $isDaily = in_array($cat, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily']);
+        $disbursedDate = $application->disbursed_at ? \Carbon\Carbon::parse($application->disbursed_at) : now();
+
+        if ($isDaily) {
+            $dailyEmi = round($approvedAmount / 60, 2);
+            for ($d = 1; $d <= 30; $d++) {
+                FinanceDailySchedule::create([
+                    'application_id' => $application->id,
+                    'customer_id'    => $customerId,
+                    'schedule_date'  => $disbursedDate->copy()->addDays($d)->toDateString(),
+                    'day_number'     => $d,
+                    'emi_amount'     => $dailyEmi,
+                    'total_due'      => $dailyEmi,
+                    'status'         => 'pending',
+                ]);
+            }
+        } else {
+            $tenure = intval($application->tenure_months ?: 12);
+            if ($tenure <= 0) $tenure = 12;
+            $monthlyEmi = floatval($application->estimated_emi ?: round($approvedAmount / $tenure, 2));
+            for ($m = 1; $m <= $tenure; $m++) {
+                FinanceDailySchedule::create([
+                    'application_id' => $application->id,
+                    'customer_id'    => $customerId,
+                    'schedule_date'  => $disbursedDate->copy()->addMonths($m)->toDateString(),
+                    'day_number'     => $m,
+                    'emi_amount'     => $monthlyEmi,
+                    'total_due'      => $monthlyEmi,
+                    'status'         => 'pending',
+                ]);
+            }
+        }
+    }
+
+    public function repayments(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $customer = $ctx['customer'];
+        $loan = $ctx['disbursedLoan'] ?? $ctx['application'];
+
+        $schedules = collect();
+        $nextDue = null;
+        $totalPaid = 0;
+        $totalOutstanding = 0;
+
+        if ($loan) {
+            $this->ensureRepaymentSchedule($loan);
+            $schedules = FinanceDailySchedule::where('application_id', $loan->id)
+                ->orderBy('day_number', 'asc')
+                ->get();
+
+            $nextDue = $schedules->firstWhere('status', 'pending') ?? $schedules->firstWhere('status', 'overdue');
+            $totalPaid = $schedules->where('status', 'paid')->sum('paid_amount');
+            $totalOutstanding = $schedules->where('status', '!=', 'paid')->sum('total_due');
+        }
+
+        return view('finance.repayments', array_merge($ctx, [
+            'loan'             => $loan,
+            'schedules'        => $schedules,
+            'nextDue'          => $nextDue,
+            'totalPaid'        => $totalPaid,
+            'totalOutstanding' => $totalOutstanding,
+        ]));
+    }
+
+    public function payRepayment(Request $request)
+    {
+        $phone = $request->input('phone');
+        $scheduleId = $request->input('schedule_id');
+        $paymentId = $request->input('payment_id', 'PAY-EMI-' . time());
+        $amount = floatval($request->input('amount', 0));
+
+        $schedule = FinanceDailySchedule::find($scheduleId);
+        if ($schedule) {
+            $schedule->update([
+                'status'         => 'paid',
+                'paid_amount'    => $amount ?: $schedule->total_due,
+                'paid_at'        => now(),
+                'payment_method' => 'razorpay',
+                'txn_id'         => $paymentId,
+            ]);
+
+            FinanceTransaction::create([
+                'customer_id'         => $schedule->customer_id,
+                'application_id'      => $schedule->application_id,
+                'txn_number'          => $paymentId,
+                'txn_type'            => 'repayment',
+                'amount'              => $amount ?: $schedule->total_due,
+                'direction'           => 'credit',
+                'payment_method'      => 'razorpay',
+                'payment_gateway_ref' => $paymentId,
+                'status'              => 'success',
+                'notes'               => "EMI Repayment Installment #{$schedule->day_number} paid via Razorpay",
+            ]);
+
+            // Check if all installments are paid
+            $pendingCount = FinanceDailySchedule::where('application_id', $schedule->application_id)
+                ->where('status', '!=', 'paid')
+                ->count();
+            if ($pendingCount === 0) {
+                FinanceLoanApplication::where('id', $schedule->application_id)
+                    ->update(['application_status' => 'CLOSED']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'EMI Payment of ₹' . number_format($amount ?: $schedule->total_due) . ' received successfully!',
+            ]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Installment not found.'], 404);
+    }
+
+    public function documents(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $customer = $ctx['customer'];
+        $loan = $ctx['disbursedLoan'] ?? $ctx['application'];
+
+        return view('finance.documents', array_merge($ctx, [
+            'loan' => $loan,
+        ]));
+    }
+
+    public function support(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $loan = $ctx['disbursedLoan'] ?? $ctx['application'];
+
+        return view('finance.support', array_merge($ctx, [
+            'loan' => $loan,
+        ]));
     }
 }

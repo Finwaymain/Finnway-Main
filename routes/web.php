@@ -1364,6 +1364,12 @@ Route::prefix('finance')->name('finance.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Finance\FinanceWebController::class, 'hub'])->name('hub');
     Route::match(['get', 'post'], '/withdraw-application', [\App\Http\Controllers\Finance\FinanceWebController::class, 'withdrawApplication'])->name('withdraw_application');
 
+    // Post-Disbursement & Dashboard Navigation Tabs
+    Route::get('/repayments',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'repayments'])->name('repayments');
+    Route::post('/repayments/pay', [\App\Http\Controllers\Finance\FinanceWebController::class, 'payRepayment'])->name('repayments.pay');
+    Route::get('/documents',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'documents'])->name('documents');
+    Route::get('/support',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'support'])->name('support');
+
     // Cash Loan (26 screens)
     Route::prefix('cash-loan')->name('cash_loan.')->group(function () {
         Route::post('/save-step',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveCashLoanStep'])->name('save_step');

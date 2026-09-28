@@ -80,8 +80,17 @@
 @endsection
 @section('sticky-bottom')
 <div class="fw-sticky-bottom">
+    @if($application && $application->application_status === 'DISBURSED')
+    <a href="{{ route('finance.hub', ['phone' => $phone]) }}" class="fw-btn fw-btn-primary w-100" style="padding: 13px; font-size: 15px; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.25); text-decoration: none; display: block; text-align: center; margin-bottom: 8px;">
+        Go to Active Loan Dashboard →
+    </a>
+    <a href="{{ route('finance.repayments', ['phone' => $phone]) }}" class="fw-btn fw-btn-outline w-100" style="padding: 10px; font-size: 13px; font-weight: 700; border-radius: 8px; text-decoration: none; display: block; text-align: center;">
+        💳 View EMI &amp; Repayments
+    </a>
+    @else
     <a href="{{ route('finance.cash_loan.s23_disbursement', ['phone' => $phone]) }}" class="fw-btn fw-btn-primary w-100" style="padding: 14px; font-size: 15px; font-weight: 700; border-radius: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.25); text-decoration: none; display: block; text-align: center;">
         🔄 Refresh Status
     </a>
+    @endif
 </div>
 @endsection
