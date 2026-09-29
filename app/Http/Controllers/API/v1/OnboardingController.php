@@ -326,7 +326,8 @@ class OnboardingController extends Controller
                 $depth++;
             }
             $isHomeService = self::isHomeServicesProviderCategory($primaryCategory) || self::isHomeServicesProviderCategory($topLevelCategory);
-            $requiresManualApproval = !$isHomeService;
+            $isTransport = self::isTransportOrDeliveryCategory($primaryCategory) || self::isTransportOrDeliveryCategory($topLevelCategory);
+            $requiresManualApproval = $isTransport;
 
             $bankName = $request->input('bank_name');
             $accountNo = $request->input('account_no');
@@ -614,11 +615,23 @@ class OnboardingController extends Controller
             return false;
         }
 
+        $label = is_array($category) ? ($category['libelle'] ?? '') : ($category->libelle ?? '');
+        $normalized = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $label)));
+
+        return str_contains($normalized, 'home services') || str_contains($normalized, 'home service');
+    }
+
+    public static function isTransportOrDeliveryCategory($category): bool
+    {
+        if (!$category) {
+            return false;
+        }
+
         $catId = is_array($category) ? ($category['id'] ?? 0) : ($category->id ?? 0);
         $label = is_array($category) ? ($category['libelle'] ?? '') : ($category->libelle ?? '');
         $normalized = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', '', $label)));
 
-        // Pure transport and commercial vehicle categories — not home service
+        // Pure transport and commercial vehicle categories
         $isTransport = str_contains($normalized, 'transport') ||
                        str_contains($normalized, 'cab') ||
                        str_contains($normalized, 'taxi') ||
@@ -628,7 +641,7 @@ class OnboardingController extends Controller
                        str_contains($normalized, 'bike rider') ||
                        str_contains($normalized, 'truck');
 
-        // Delivery & Logistics categories — not home service
+        // Delivery & Logistics categories
         $isDelivery = str_contains($normalized, 'delivery') ||
                       str_contains($normalized, 'logistics') ||
                       str_contains($normalized, 'parcel') ||
@@ -641,19 +654,18 @@ class OnboardingController extends Controller
                       str_contains($normalized, 'dispatch');
 
         if ($isTransport || $isDelivery) {
-            return false;
+            return true;
         }
 
         // Check if explicitly mapped to a vehicle type
         if ($catId > 0 && Schema::hasTable('tj_category_user_vehicle_type')) {
             $hasVeh = DB::table('tj_category_user_vehicle_type')->where('category_user_id', $catId)->exists();
             if ($hasVeh) {
-                return false;
+                return true;
             }
         }
 
-        // All other categories (Home Services, Repair & Maintenance, Cleaning, Pest Control, Health, etc.) are home/skill services
-        return true;
+        return false;
     }
 
     private static function categoryRequiresHomeVisitPricing(?UserCategory $category): bool
@@ -907,14 +919,9 @@ class OnboardingController extends Controller
         }
     }
 
-    private function isTransportOrDeliveryCategory(?UserCategory $topLevelCategory): bool
-    {
-        return !self::isHomeServicesProviderCategory($topLevelCategory);
-    }
-
     private function saveHomeProviderDocuments(Request $request, int $driverId, ?UserCategory $topLevelCategory): void
     {
-        if ($this->isTransportOrDeliveryCategory($topLevelCategory)) {
+        if (self::isTransportOrDeliveryCategory($topLevelCategory)) {
             return;
         }
 
