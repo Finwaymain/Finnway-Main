@@ -1058,6 +1058,8 @@ class VendorTeamService
         $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
 
         return [
+            'status'                     => 'approved',
+            'is_approved'                => true,
             'vendor_id'                  => $vendor->id,
             'vendor_code'                => $vendor->vendor_code,
             'sub_vendor_code'            => $subVendorCode,
