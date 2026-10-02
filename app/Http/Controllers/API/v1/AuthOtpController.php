@@ -1365,6 +1365,31 @@ class AuthOtpController extends Controller
         }
 
         if (str_starts_with($referralCode, 'FR')) {
+            // Check if it matches a Vendor's Freelancer Joining Code
+            $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
+            if ($vendor) {
+                if ((int)$vendor->user_id === $userId && $vendor->user_type === $userCat) {
+                    return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own vendor code.']);
+                }
+
+                $reg = \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
+                if (!empty($reg['success'])) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                    }
+                    \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
+
+                    return response()->json([
+                        'success' => 'success',
+                        'message' => "Joined as Freelancer under Vendor {$vendor->vendor_code}!",
+                        'data'    => $reg,
+                    ]);
+                }
+            }
+
             return response()->json(['success' => 'Failed', 'error' => 'Invalid Freelancer Code. Please check the code and try again.']);
         }
 
@@ -1548,31 +1573,50 @@ class AuthOtpController extends Controller
 
             // ── CHECK MARKETING VENDOR / TEAM MEMBER CODES ─────────────────────────
             if (!empty($referralCode)) {
-                // 1. Check if Vendor Code (TM...) — Registers user as Team Member under Vendor
-                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
-                if ($vendor) {
-                    \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
+                $codeUpper = strtoupper(trim($referralCode));
+
+                // 1. SUB-VENDOR JOINING CODE (SV...) -> Apply as Sub-Vendor under Parent Vendor
+                if (str_starts_with($codeUpper, 'SV')) {
+                    $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($codeUpper);
+                    if ($vendor) {
+                        \App\Services\VendorTeamService::applyWithVendorCode($userId, $userCat, $codeUpper, 'sub_vendor');
+                        \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                        if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                            DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $codeUpper]);
+                        }
+                        if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                            DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
+                        }
+                        \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
+                        return;
+                    }
+                }
+
+                // 2. CHECK IF TEAM MEMBER CODE (FR...) -> Records marketing acquisition for Freelancer
+                $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($codeUpper);
+                if ($teamMember) {
+                    \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
                     \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
                     if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
-                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $codeUpper]);
                     }
                     if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
-                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
                     }
                     \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
                     return;
                 }
 
-                // 2. Check if Team Member Code (FR...) — Records marketing acquisition
-                $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
-                if ($teamMember) {
-                    \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
+                // 3. CHECK IF VENDOR CODE (VR... / TM... or Vendor's Freelancer Joining Code FR...)
+                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($codeUpper);
+                if ($vendor) {
+                    \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
                     \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
                     if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
-                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $codeUpper]);
                     }
                     if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
-                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
                     }
                     \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
                     return;
