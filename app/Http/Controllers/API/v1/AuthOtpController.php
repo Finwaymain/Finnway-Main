@@ -1211,89 +1211,82 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'user_id and referral_code are required.']);
         }
 
-        // ── 1. CHECK MARKETING VENDOR CODE (TM...) ───────────────────────────
         // ── 1. CHECK MARKETING VENDOR / SUB-VENDOR CODE (VR... / TM... / SV...) ───
-        $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
-        if ($vendor) {
-            // Cannot apply own vendor code
-            if ((int)$vendor->user_id === $userId && $vendor->user_type === $userCat) {
-                return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own vendor code.']);
-            }
-
-            if (str_starts_with($referralCode, 'SV')) {
-                $roleType = 'sub_vendor';
-            } elseif (str_starts_with($referralCode, 'FR')) {
-                $roleType = 'freelancer';
-            } else {
-                $roleType = strtolower(trim((string)$request->input('role_type', 'sub_vendor')));
-            }
-            $designation = $request->input('designation');
-            $teamLocation = $request->input('team_location');
-            $teamType = $request->input('team_type');
-            $remarks = $request->input('remarks');
-
-            $joinResult = \App\Services\VendorTeamService::applyWithVendorCode(
-                $userId,
-                $userCat,
-                $referralCode,
-                $roleType,
-                $designation,
-                $teamLocation,
-                $teamType,
-                $remarks
-            );
-
-            if (empty($joinResult['success'])) {
-                return response()->json(['success' => 'Failed', 'error' => $joinResult['message'] ?? 'Failed to apply vendor code.']);
-            }
-
-            // Update ref_by in tj_conducteur / tj_user_app
-            if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
-                DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
-            }
-            if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
-                DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
-            }
-
-            // Ensure referral record has referral_by_code
-            $existingReferral = DB::table('referral')
-                ->where('user_id', $userId)
-                ->where(function($q) use ($userCat) {
-                    $q->where('user_type', $userCat)->orWhereNull('user_type');
-                })
-                ->first();
-
-            if ($existingReferral) {
-                $refUpdate = ['code_used' => 'true'];
-                if (Schema::hasColumn('referral', 'referral_by_code')) {
-                    $refUpdate['referral_by_code'] = $referralCode;
-                }
-                DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
-            } else {
-                $userReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
-                $insertData = [
-                    'user_id'        => $userId,
-                    'user_type'      => $userCat,
-                    'referral_code'  => $userReferralCode,
-                    'code_used'      => 'true',
-                    'creer'          => date('Y-m-d H:i:s'),
-                ];
-                if (Schema::hasColumn('referral', 'referral_by_code')) {
-                    $insertData['referral_by_code'] = $referralCode;
-                }
-                DB::table('referral')->insert($insertData);
-            }
-
-            \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
-
-            return response()->json([
-                'success' => 'success',
-                'message' => $joinResult['message'] ?? 'Vendor code applied successfully!',
-                'data'    => $joinResult,
-            ]);
-        }
-
         if (str_starts_with($referralCode, 'VR') || str_starts_with($referralCode, 'TM') || str_starts_with($referralCode, 'SV')) {
+            $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
+            if ($vendor) {
+                // Cannot apply own vendor code
+                if ((int)$vendor->user_id === $userId && $vendor->user_type === $userCat) {
+                    return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own vendor code.']);
+                }
+
+                $roleType = str_starts_with($referralCode, 'SV') ? 'sub_vendor' : strtolower(trim((string)$request->input('role_type', 'sub_vendor')));
+                $designation = $request->input('designation');
+                $teamLocation = $request->input('team_location');
+                $teamType = $request->input('team_type');
+                $remarks = $request->input('remarks');
+
+                $joinResult = \App\Services\VendorTeamService::applyWithVendorCode(
+                    $userId,
+                    $userCat,
+                    $referralCode,
+                    $roleType,
+                    $designation,
+                    $teamLocation,
+                    $teamType,
+                    $remarks
+                );
+
+                if (empty($joinResult['success'])) {
+                    return response()->json(['success' => 'Failed', 'error' => $joinResult['message'] ?? 'Failed to apply vendor code.']);
+                }
+
+                // Update ref_by in tj_conducteur / tj_user_app
+                if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                    DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                }
+                if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                    DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                }
+
+                // Ensure referral record has referral_by_code
+                $existingReferral = DB::table('referral')
+                    ->where('user_id', $userId)
+                    ->where(function($q) use ($userCat) {
+                        $q->where('user_type', $userCat)->orWhereNull('user_type');
+                    })
+                    ->first();
+
+                if ($existingReferral) {
+                    $refUpdate = ['code_used' => 'true'];
+                    if (Schema::hasColumn('referral', 'referral_by_code')) {
+                        $refUpdate['referral_by_code'] = $referralCode;
+                    }
+                    DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                } else {
+                    $userReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                    $insertData = [
+                        'user_id'        => $userId,
+                        'user_type'      => $userCat,
+                        'referral_code'  => $userReferralCode,
+                        'code_used'      => 'true',
+                        'creer'          => date('Y-m-d H:i:s'),
+                    ];
+                    if (Schema::hasColumn('referral', 'referral_by_code')) {
+                        $insertData['referral_by_code'] = $referralCode;
+                    }
+                    DB::table('referral')->insert($insertData);
+                }
+
+                \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
+
+                return response()->json([
+                    'success' => 'success',
+                    'message' => $joinResult['message'] ?? 'Vendor code applied successfully!',
+                    'data'    => $joinResult,
+                ]);
+            }
+
             return response()->json(['success' => 'Failed', 'error' => 'Invalid or inactive Vendor / Sub-Vendor Code. Please check the code and try again.']);
         }
 
