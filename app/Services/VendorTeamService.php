@@ -842,6 +842,67 @@ class VendorTeamService
             $svAcquisitions = DB::table('marketing_acquisitions')->whereIn('vendor_id', $svSubTree)->count();
             $svVerified = DB::table('marketing_acquisitions')->whereIn('vendor_id', $svSubTree)->where('verification_status', 'verified')->count();
 
+            // Fetch detailed acquisitions for this sub-vendor's team
+            $svAcqsRaw = DB::table('marketing_acquisitions')
+                ->whereIn('vendor_id', $svSubTree)
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get();
+
+            $svAcquisitionsList = [];
+            $svPendCount = 0;
+            $svRejCount = 0;
+            $svVerCount = 0;
+
+            foreach ($svAcqsRaw as $acq) {
+                if ($acq->verification_status === 'verified') $svVerCount++;
+                elseif ($acq->verification_status === 'rejected') $svRejCount++;
+                else $svPendCount++;
+
+                $acqName = $acq->acquired_user_type === 'business' ? 'Partner Driver' : 'Customer User';
+                $acqPhone = '';
+
+                if ($acq->acquired_user_type === 'customer') {
+                    $au = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
+                    if ($au) {
+                        $acqName = trim(($au->prenom ?? '') . ' ' . ($au->nom ?? '')) ?: 'Customer User';
+                        $acqPhone = $au->phone ?? '';
+                    }
+                } else {
+                    $ad = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
+                    if ($ad) {
+                        $acqName = trim(($ad->prenom ?? '') . ' ' . ($ad->nom ?? '')) ?: 'Partner Driver';
+                        $acqPhone = $ad->phone ?? '';
+                    }
+                }
+
+                $maskedPhone = '';
+                if (!empty($acqPhone)) {
+                    $digits = preg_replace('/[^0-9]/', '', $acqPhone);
+                    $maskedPhone = strlen($digits) >= 10 ? substr($digits, 0, 3) . 'XXXX' . substr($digits, -3) : $acqPhone;
+                }
+
+                $hoursLeft = null;
+                if ($acq->verification_status === 'pending') {
+                    $createdTime = Carbon::parse($acq->created_at);
+                    $deadline = $createdTime->copy()->addHours(72);
+                    $diffHours = now()->diffInHours($deadline, false);
+                    $hoursLeft = max(0, (int)$diffHours);
+                }
+
+                $svAcquisitionsList[] = [
+                    'id'                  => $acq->id,
+                    'name'                => $acqName,
+                    'phone'               => $maskedPhone,
+                    'zone'                => $sv->team_location ?? 'DELHI',
+                    'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
+                    'user_type'           => $acq->acquired_user_type,
+                    'verification_status' => $acq->verification_status,
+                    'hours_left'          => $hoursLeft,
+                    'rejection_reason'    => $acq->rejection_reason ?? null,
+                ];
+            }
+
             $directSubVendors[] = [
                 'id'                 => $sv->id,
                 'vendor_code'        => $sv->vendor_code ?: 'Pending',
@@ -855,8 +916,12 @@ class VendorTeamService
                 'rate_per_business'  => number_format((float)$sv->rate_per_business, 2, '.', ''),
                 'freelancers_count'  => $svFreelancers,
                 'acquisitions_count' => $svAcquisitions,
+                'total_users'        => $svAcquisitions,
                 'verified_count'     => $svVerified,
+                'pending_count'      => $svPendCount,
+                'rejected_count'     => $svRejCount,
                 'joined_at'          => Carbon::parse($sv->created_at)->format('d M Y'),
+                'acquisitions'       => $svAcquisitionsList,
             ];
         }
 
