@@ -16,11 +16,12 @@ class MarketingVendorAdminController extends Controller
     }
 
     /**
-     * List all Vendors with status filters
+     * List all Vendors with status & hierarchy filters
      */
     public function index(Request $request)
     {
         $status = $request->get('status', 'all');
+        $type   = $request->get('type', 'all'); // 'all', 'head', 'sub'
 
         $query = DB::table('marketing_vendors')
             ->orderBy('created_at', 'desc');
@@ -29,9 +30,15 @@ class MarketingVendorAdminController extends Controller
             $query->where('status', $status);
         }
 
+        if ($type === 'head') {
+            $query->whereNull('parent_vendor_id');
+        } elseif ($type === 'sub') {
+            $query->whereNotNull('parent_vendor_id');
+        }
+
         $vendors = $query->paginate(20);
 
-        // Enhance with user details and counts
+        // Enhance with user details, lineage, and counts
         foreach ($vendors as $v) {
             $name = 'Vendor';
             $phone = '';
@@ -56,6 +63,28 @@ class MarketingVendorAdminController extends Controller
             $v->applicant_name = $name;
             $v->applicant_phone = $phone;
             $v->applicant_email = $email;
+
+            // Parent Vendor info if sub-vendor
+            $v->parent_code = null;
+            $v->parent_name = null;
+            if ($v->parent_vendor_id) {
+                $pv = DB::table('marketing_vendors')->where('id', $v->parent_vendor_id)->first();
+                if ($pv) {
+                    $v->parent_code = $pv->vendor_code;
+                    $pName = 'Parent';
+                    if ($pv->user_type === 'customer') {
+                        $pu = DB::table('tj_user_app')->where('id', $pv->user_id)->first();
+                        if ($pu) $pName = trim(($pu->prenom ?? '') . ' ' . ($pu->nom ?? '')) ?: 'Parent';
+                    } else {
+                        $pd = DB::table('tj_conducteur')->where('id', $pv->user_id)->first();
+                        if ($pd) $pName = trim(($pd->prenom ?? '') . ' ' . ($pd->nom ?? '')) ?: 'Parent';
+                    }
+                    $v->parent_name = $pName;
+                }
+            }
+
+            // Downline Sub-Vendors count
+            $v->sub_vendors_count = DB::table('marketing_vendors')->where('parent_vendor_id', $v->id)->count();
 
             // Counts
             $v->total_members = DB::table('marketing_team_members')->where('vendor_id', $v->id)->count();
@@ -87,11 +116,13 @@ class MarketingVendorAdminController extends Controller
         }
 
         $counts = [
-            'all'       => DB::table('marketing_vendors')->count(),
-            'pending'   => DB::table('marketing_vendors')->where('status', 'pending')->count(),
-            'approved'  => DB::table('marketing_vendors')->where('status', 'approved')->count(),
-            'rejected'  => DB::table('marketing_vendors')->where('status', 'rejected')->count(),
-            'all_users' => DB::table('marketing_acquisitions')->count(),
+            'all'          => DB::table('marketing_vendors')->count(),
+            'head_vendors' => DB::table('marketing_vendors')->whereNull('parent_vendor_id')->count(),
+            'sub_vendors'  => DB::table('marketing_vendors')->whereNotNull('parent_vendor_id')->count(),
+            'pending'      => DB::table('marketing_vendors')->where('status', 'pending')->count(),
+            'approved'     => DB::table('marketing_vendors')->where('status', 'approved')->count(),
+            'rejected'     => DB::table('marketing_vendors')->where('status', 'rejected')->count(),
+            'all_users'    => DB::table('marketing_acquisitions')->count(),
         ];
 
         // For rejected vendors – load users who joined via their code so admin can verify/reject them
@@ -112,101 +143,20 @@ class MarketingVendorAdminController extends Controller
                         $d = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
                         if ($d) { $acqName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner'; $acqPhone = $d->phone ?? ''; }
                     }
-                    $acq->user_name  = $acqName;
+                    $acq->user_name = $acqName;
                     $acq->user_phone = $acqPhone;
+                    $acq->vendor_code = $v->vendor_code ?: 'VR' . $v->id;
+                    $acq->vendor_name = $v->applicant_name;
+                    $rejectedAcquisitions[] = $acq;
                 }
-                $rejectedAcquisitions[$v->id] = $acqs;
             }
         }
 
-        // All-users tab: every acquisition across all vendors with freelancer + vendor context
-        $allUsers = collect();
-        if ($status === 'all_users') {
-            $rawAcqs = DB::table('marketing_acquisitions as acq')
-                ->leftJoin('marketing_team_members as tm', 'tm.id', '=', 'acq.team_member_id')
-                ->leftJoin('marketing_vendors as mv', 'mv.id', '=', 'acq.vendor_id')
-                ->select(
-                    'acq.*',
-                    'tm.member_code as freelancer_code',
-                    'tm.user_id as freelancer_user_id',
-                    'tm.user_type as freelancer_user_type',
-                    'mv.vendor_code as vendor_code_label',
-                    'mv.user_id as vendor_user_id',
-                    'mv.user_type as vendor_user_type'
-                )
-                ->orderBy('acq.id', 'desc')
-                ->get();
-
-            foreach ($rawAcqs as $acq) {
-                // Acquired user details
-                $acqName = 'User'; $acqPhone = '';
-                if (($acq->acquired_user_type ?? 'customer') === 'customer') {
-                    $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
-                    if ($u) { $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer'; $acqPhone = $u->phone ?? ''; }
-                } else {
-                    $d = DB::table('tj_conducteur')->where('id', $acq->acquired_user_id)->first();
-                    if ($d) { $acqName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner'; $acqPhone = $d->phone ?? ''; }
-                }
-                // Freelancer name
-                $flName = 'Freelancer';
-                if (!empty($acq->freelancer_user_id)) {
-                    if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
-                        $fu = DB::table('tj_user_app')->where('id', $acq->freelancer_user_id)->first();
-                        if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
-                    } else {
-                        $fd = DB::table('tj_conducteur')->where('id', $acq->freelancer_user_id)->first();
-                        if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
-                    }
-                }
-                $acq->user_name      = $acqName;
-                $acq->user_phone     = $acqPhone;
-                $acq->freelancer_name = $flName;
-            }
-            $allUsers = $rawAcqs;
-        }
-
-        return view('admin.marketing_vendors.index', compact('vendors', 'status', 'counts', 'rejectedAcquisitions', 'allUsers'));
+        return view('admin.marketing_vendors.index', compact('vendors', 'counts', 'status', 'type', 'rejectedAcquisitions'));
     }
 
     /**
-     * Approve Vendor Application & Set Custom Payout Rates
-     */
-    public function approve(Request $request, $id)
-    {
-        $request->validate([
-            'rate_per_customer' => 'required|numeric|min:0',
-            'rate_per_business' => 'required|numeric|min:0',
-        ]);
-
-        $rateCustomer = (float)$request->input('rate_per_customer');
-        $rateBusiness = (float)$request->input('rate_per_business');
-
-        $result = VendorTeamService::approveVendor((int)$id, $rateCustomer, $rateBusiness, Auth::id());
-
-        if ($result['success']) {
-            return redirect()->back()->with('success', 'Vendor approved successfully! Generated Vendor Code: ' . $result['vendor_code']);
-        }
-
-        return redirect()->back()->with('error', $result['message'] ?? 'Failed to approve vendor.');
-    }
-
-    /**
-     * Reject Vendor Application
-     */
-    public function reject(Request $request, $id)
-    {
-        $reason = $request->input('rejection_reason', 'Application did not meet requirements.');
-        $ok = VendorTeamService::rejectVendor((int)$id, $reason, Auth::id());
-
-        if ($ok) {
-            return redirect()->back()->with('success', 'Vendor application rejected.');
-        }
-
-        return redirect()->back()->with('error', 'Failed to reject vendor.');
-    }
-
-    /**
-     * Detailed Vendor Profile with Team Members and Acquired Users
+     * Show Vendor Detail with Multi-Level Sub-Vendor Flow, Team & Payment Ledger
      */
     public function show($id)
     {
@@ -237,6 +187,45 @@ class MarketingVendorAdminController extends Controller
         $vendor->applicant_name = $name;
         $vendor->applicant_phone = $phone;
         $vendor->applicant_email = $email;
+
+        // Parent Vendor Info (if Sub-Vendor)
+        $parentVendor = null;
+        if ($vendor->parent_vendor_id) {
+            $parentVendor = DB::table('marketing_vendors')->where('id', $vendor->parent_vendor_id)->first();
+            if ($parentVendor) {
+                $pName = 'Parent';
+                if ($parentVendor->user_type === 'customer') {
+                    $pu = DB::table('tj_user_app')->where('id', $parentVendor->user_id)->first();
+                    if ($pu) $pName = trim(($pu->prenom ?? '') . ' ' . ($pu->nom ?? '')) ?: 'Parent';
+                } else {
+                    $pd = DB::table('tj_conducteur')->where('id', $parentVendor->user_id)->first();
+                    if ($pd) $pName = trim(($pd->prenom ?? '') . ' ' . ($pd->nom ?? '')) ?: 'Parent';
+                }
+                $parentVendor->applicant_name = $pName;
+            }
+        }
+
+        // Downline Sub-Vendors (Direct Children)
+        $subVendors = DB::table('marketing_vendors')
+            ->where('parent_vendor_id', $vendor->id)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        foreach ($subVendors as $sv) {
+            $svName = 'Sub-Vendor';
+            $svPhone = '';
+            if ($sv->user_type === 'customer') {
+                $su = DB::table('tj_user_app')->where('id', $sv->user_id)->first();
+                if ($su) { $svName = trim(($su->prenom ?? '') . ' ' . ($su->nom ?? '')) ?: 'Consumer'; $svPhone = $su->phone ?? ''; }
+            } else {
+                $sd = DB::table('tj_conducteur')->where('id', $sv->user_id)->first();
+                if ($sd) { $svName = trim(($sd->prenom ?? '') . ' ' . ($sd->nom ?? '')) ?: 'Partner'; $svPhone = $sd->phone ?? ''; }
+            }
+            $sv->applicant_name = $svName;
+            $sv->applicant_phone = $svPhone;
+            $sv->members_count = DB::table('marketing_team_members')->where('vendor_id', $sv->id)->count();
+            $sv->acquisitions_count = DB::table('marketing_acquisitions')->where('vendor_id', $sv->id)->count();
+        }
 
         // Team members under this vendor
         $teamMembers = DB::table('marketing_team_members')
@@ -311,7 +300,6 @@ class MarketingVendorAdminController extends Controller
             $acq->user_phone = $acqPhone;
             $acq->kyc_status = $acqKyc;
 
-            // Freelancer name (team member who brought this user)
             $flName = '—';
             if (!empty($acq->freelancer_user_id)) {
                 if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
@@ -351,7 +339,11 @@ class MarketingVendorAdminController extends Controller
 
         $pendingPayout = max(0, round($totalEarned - $paidEarned, 2));
 
+        // Payment Ledgers
+        $ledgers = VendorTeamService::getVendorPaymentLedger($vendor->id);
+
         $stats = [
+            'total_sub_vendors'   => count($subVendors),
             'total_members'       => count($teamMembers),
             'total_acquisitions'  => DB::table('marketing_acquisitions')->where('vendor_id', $vendor->id)->count(),
             'pending_verify'      => DB::table('marketing_acquisitions')->where('vendor_id', $vendor->id)->where('verification_status', 'pending')->count(),
@@ -362,7 +354,46 @@ class MarketingVendorAdminController extends Controller
             'pending_payout'      => $pendingPayout,
         ];
 
-        return view('admin.marketing_vendors.show', compact('vendor', 'teamMembers', 'acquisitions', 'stats'));
+        return view('admin.marketing_vendors.show', compact('vendor', 'parentVendor', 'subVendors', 'teamMembers', 'acquisitions', 'ledgers', 'stats'));
+    }
+
+    /**
+     * Admin Approves Vendor Application
+     */
+    public function approve(Request $request, $id)
+    {
+        $request->validate([
+            'rate_per_customer' => 'required|numeric|min:0',
+            'rate_per_business' => 'required|numeric|min:0',
+        ]);
+
+        $res = VendorTeamService::approveVendor(
+            (int)$id,
+            (float)$request->input('rate_per_customer'),
+            (float)$request->input('rate_per_business'),
+            Auth::id()
+        );
+
+        if (!empty($res['success'])) {
+            return redirect()->back()->with('success', "Vendor approved successfully with Code {$res['vendor_code']}.");
+        }
+
+        return redirect()->back()->with('error', $res['message'] ?? 'Failed to approve vendor.');
+    }
+
+    /**
+     * Admin Rejects Vendor Application
+     */
+    public function reject(Request $request, $id)
+    {
+        $reason = $request->input('reason', 'Application did not meet requirements.');
+        $ok = VendorTeamService::rejectVendor((int)$id, $reason, Auth::id());
+
+        if ($ok) {
+            return redirect()->back()->with('success', 'Vendor application rejected.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to reject vendor.');
     }
 
     /**
@@ -391,7 +422,7 @@ class MarketingVendorAdminController extends Controller
     {
         $ok = VendorTeamService::verifyAcquisition((int)$id, Auth::id());
         if ($ok) {
-            return redirect()->back()->with('success', 'User acquisition verified successfully. Earnings credited to vendor summary.');
+            return redirect()->back()->with('success', 'User acquisition verified successfully. Earnings and payment ledgers credited.');
         }
         return redirect()->back()->with('error', 'Failed to verify acquisition or already verified.');
     }
@@ -456,7 +487,19 @@ class MarketingVendorAdminController extends Controller
                 'updated_at'       => now(),
             ]);
 
+        // Settle ledgers
+        DB::table('marketing_payment_ledgers')
+            ->where('vendor_id', $id)
+            ->where('payment_status', 'unpaid')
+            ->update([
+                'paid_amount'      => DB::raw('earned_amount'),
+                'pending_amount'   => 0.00,
+                'payment_status'   => 'paid',
+                'payout_reference' => $reference,
+                'paid_at'          => now(),
+                'updated_at'       => now(),
+            ]);
+
         return redirect()->back()->with('success', "Settled payout for {$updated} verified acquisitions (Ref: {$reference}).");
     }
 }
-

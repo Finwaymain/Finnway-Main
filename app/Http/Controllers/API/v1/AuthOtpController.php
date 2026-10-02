@@ -1212,6 +1212,7 @@ class AuthOtpController extends Controller
         }
 
         // ── 1. CHECK MARKETING VENDOR CODE (TM...) ───────────────────────────
+        // ── 1. CHECK MARKETING VENDOR CODE (VR... / TM...) ───────────────────
         $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
         if ($vendor) {
             // Cannot apply own vendor code
@@ -1219,35 +1220,26 @@ class AuthOtpController extends Controller
                 return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own vendor code.']);
             }
 
-            // Cannot apply if user is already an approved vendor
-            $isVendor = DB::table('marketing_vendors')
-                ->where('user_id', $userId)
-                ->where('user_type', $userCat)
-                ->where('status', 'approved')
-                ->first();
-            if ($isVendor) {
-                return response()->json(['success' => 'Failed', 'error' => "You are already an approved Vendor (Code: {$isVendor->vendor_code})."]);
-            }
+            $roleType = strtolower(trim((string)$request->input('role_type', 'freelancer')));
+            $designation = $request->input('designation');
+            $teamLocation = $request->input('team_location');
+            $teamType = $request->input('team_type');
+            $remarks = $request->input('remarks');
 
-            // Check if already a team member
-            $existingMember = DB::table('marketing_team_members')
-                ->where('user_id', $userId)
-                ->where('user_type', $userCat)
-                ->first();
-            if ($existingMember) {
-                return response()->json([
-                    'success' => 'Failed',
-                    'error'   => "You are already registered as a Team Member with code {$existingMember->member_code}."
-                ]);
-            }
+            $joinResult = \App\Services\VendorTeamService::applyWithVendorCode(
+                $userId,
+                $userCat,
+                $referralCode,
+                $roleType,
+                $designation,
+                $teamLocation,
+                $teamType,
+                $remarks
+            );
 
-            // Register user as Team Member under this Vendor
-            $regResult = \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
-            if (empty($regResult['success'])) {
-                return response()->json(['success' => 'Failed', 'error' => $regResult['message'] ?? 'Failed to register as team member.']);
+            if (empty($joinResult['success'])) {
+                return response()->json(['success' => 'Failed', 'error' => $joinResult['message'] ?? 'Failed to apply vendor code.']);
             }
-
-            $memberCode = $regResult['member_code'] ?? '';
 
             // Update ref_by in tj_conducteur / tj_user_app
             if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
@@ -1288,16 +1280,15 @@ class AuthOtpController extends Controller
 
             \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
 
-            \Log::info("applyReferral: user $userId ($userCat) applied Vendor code '$referralCode', became Team Member $memberCode under Vendor #{$vendor->id}");
-
             return response()->json([
                 'success' => 'success',
-                'message' => "Vendor code applied successfully! You are now joined as a Team Member. Your Freelancer Code is {$memberCode}."
+                'message' => $joinResult['message'] ?? 'Vendor code applied successfully!',
+                'data'    => $joinResult,
             ]);
         }
 
-        if (str_starts_with($referralCode, 'TM')) {
-            return response()->json(['success' => 'Failed', 'error' => 'Invalid Vendor Code. Please check the code and try again.']);
+        if (str_starts_with($referralCode, 'VR') || str_starts_with($referralCode, 'TM')) {
+            return response()->json(['success' => 'Failed', 'error' => 'Invalid or inactive Vendor Code. Please check the code and try again.']);
         }
 
         // ── 2. CHECK MARKETING TEAM MEMBER CODE (FR...) ──────────────────────

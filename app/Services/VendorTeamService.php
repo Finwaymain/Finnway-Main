@@ -10,7 +10,7 @@ use Carbon\Carbon;
 class VendorTeamService
 {
     /**
-     * Submit Vendor Application
+     * Submit Top-Level Head Vendor Application (to Company Admin)
      */
     public static function applyForVendor(int $userId, string $userType, string $teamLocation, string $teamType, ?string $remarks = null): array
     {
@@ -64,28 +64,32 @@ class VendorTeamService
                     'status'    => 'pending',
                     'vendor_id' => $existing->id,
                 ];
-
             }
 
             // Create new vendor application
             $vendorId = DB::table('marketing_vendors')->insertGetId([
                 'user_id'            => $userId,
                 'user_type'          => $userType,
+                'parent_vendor_id'   => null,
+                'head_vendor_id'     => null,
                 'vendor_code'        => null, // Generated upon approval
+                'designation'        => 'Head Vendor',
+                'hierarchy_level'    => 0,
                 'team_location'      => $teamLocation,
                 'team_type'          => $teamType,
                 'remarks'            => $remarks,
                 'status'             => 'pending',
                 'rate_per_customer'  => 0.00,
                 'rate_per_business'  => 0.00,
+                'is_rate_visible'    => true,
                 'created_at'         => now(),
                 'updated_at'         => now(),
             ]);
 
             return [
-                'success' => true,
-                'message' => 'Vendor application submitted successfully. Awaiting Admin review.',
-                'status'  => 'pending',
+                'success'   => true,
+                'message'   => 'Vendor application submitted successfully. Awaiting Admin review.',
+                'status'    => 'pending',
                 'vendor_id' => $vendorId,
             ];
 
@@ -96,7 +100,363 @@ class VendorTeamService
     }
 
     /**
-     * Admin Approves Vendor Application & Sets Custom Payout Rates
+     * Unified Join via Vendor Code: Auto-map to Sub-Vendor or Freelancer
+     */
+    public static function applyWithVendorCode(
+        int $userId,
+        string $userType,
+        string $vendorCode,
+        string $roleType = 'freelancer', // 'sub_vendor' or 'freelancer'
+        ?string $designation = null,
+        ?string $teamLocation = null,
+        ?string $teamType = null,
+        ?string $remarks = null
+    ): array {
+        try {
+            $userType = self::normalizeUserType($userType);
+            $parentVendor = self::findApprovedVendorByCode($vendorCode);
+
+            if (!$parentVendor) {
+                return ['success' => false, 'message' => 'Invalid or unapproved Vendor Code. Please check the code and try again.'];
+            }
+
+            // Prevent user applying under themselves
+            if ((int)$parentVendor->user_id === $userId && $parentVendor->user_type === $userType) {
+                return ['success' => false, 'message' => 'You cannot apply under your own vendor code.'];
+            }
+
+            if ($roleType === 'sub_vendor') {
+                // Check if user is already an approved or pending vendor
+                $existingVendor = DB::table('marketing_vendors')
+                    ->where('user_id', $userId)
+                    ->where('user_type', $userType)
+                    ->first();
+
+                if ($existingVendor) {
+                    if ($existingVendor->status === 'approved') {
+                        return [
+                            'success'   => true,
+                            'status'    => 'approved',
+                            'role'      => 'vendor',
+                            'message'   => "You are already an approved Vendor (Code: {$existingVendor->vendor_code}).",
+                        ];
+                    }
+                    if ($existingVendor->status === 'pending') {
+                        return [
+                            'success'   => true,
+                            'status'    => 'pending',
+                            'role'      => 'sub_vendor',
+                            'message'   => 'Your Sub-Vendor application is already pending approval.',
+                        ];
+                    }
+                }
+
+                $parentHeadId = $parentVendor->head_vendor_id ?? $parentVendor->id;
+                $level = ((int)($parentVendor->hierarchy_level ?? 0)) + 1;
+                $cleanDesignation = trim((string)$designation) ?: 'Sub-Vendor';
+                $location = trim((string)$teamLocation) ?: ($parentVendor->team_location ?? 'Territory');
+                $type = trim((string)$teamType) ?: ($parentVendor->team_type ?? 'Field Marketing');
+
+                $subVendorId = DB::table('marketing_vendors')->insertGetId([
+                    'user_id'            => $userId,
+                    'user_type'          => $userType,
+                    'parent_vendor_id'   => $parentVendor->id,
+                    'head_vendor_id'     => $parentHeadId,
+                    'vendor_code'        => null, // Generated upon approval by parent
+                    'designation'        => $cleanDesignation,
+                    'hierarchy_level'    => $level,
+                    'team_location'      => $location,
+                    'team_type'          => $type,
+                    'remarks'            => $remarks,
+                    'status'             => 'pending',
+                    'rate_per_customer'  => 0.00,
+                    'rate_per_business'  => 0.00,
+                    'is_rate_visible'    => true,
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+
+                Log::info("VendorTeamService: User #{$userId} ($userType) applied as Sub-Vendor under Parent Vendor #{$parentVendor->id} ($vendorCode)");
+
+                return [
+                    'success'       => true,
+                    'status'        => 'pending',
+                    'role'          => 'sub_vendor',
+                    'sub_vendor_id' => $subVendorId,
+                    'parent_code'   => $parentVendor->vendor_code,
+                    'message'       => 'Sub-Vendor application submitted to Parent Vendor for approval.',
+                ];
+
+            } else {
+                // Register as Freelancer / Team Member
+                $reg = self::registerTeamMember($parentVendor, $userId, $userType);
+                if (empty($reg['success'])) {
+                    return $reg;
+                }
+
+                return [
+                    'success'     => true,
+                    'status'      => 'active',
+                    'role'        => 'team_member',
+                    'member_code' => $reg['member_code'],
+                    'member_id'   => $reg['member_id'],
+                    'message'     => "Vendor code applied! You are now joined as a Freelancer with code {$reg['member_code']}.",
+                ];
+            }
+
+        } catch (\Throwable $e) {
+            Log::error("VendorTeamService::applyWithVendorCode error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Parent Vendor Approves Sub-Vendor with Rates, Designation, and Rate Visibility Toggle
+     */
+    public static function approveSubVendor(
+        int $subVendorId,
+        int $approverUserId,
+        string $approverUserType,
+        float $ratePerCustomer,
+        float $ratePerBusiness,
+        ?string $designation = null,
+        bool $isRateVisible = true
+    ): array {
+        try {
+            $approverUserType = self::normalizeUserType($approverUserType);
+
+            // Find approver's vendor profile
+            $parentVendor = DB::table('marketing_vendors')
+                ->where('user_id', $approverUserId)
+                ->where('user_type', $approverUserType)
+                ->where('status', 'approved')
+                ->first();
+
+            if (!$parentVendor) {
+                return ['success' => false, 'message' => 'You do not have an approved Vendor account to approve Sub-Vendors.'];
+            }
+
+            // Find sub-vendor application
+            $subVendor = DB::table('marketing_vendors')->where('id', $subVendorId)->first();
+            if (!$subVendor) {
+                return ['success' => false, 'message' => 'Sub-Vendor application not found.'];
+            }
+
+            // Verify hierarchy ownership: must be the direct parent or head vendor
+            if ((int)$subVendor->parent_vendor_id !== (int)$parentVendor->id && (int)$subVendor->head_vendor_id !== (int)$parentVendor->id) {
+                return ['success' => false, 'message' => 'You are not authorized to approve this Sub-Vendor application.'];
+            }
+
+            // Rate Ceiling Enforcement: cannot exceed parent's own effective rates
+            $parentCustRate = (float)$parentVendor->rate_per_customer;
+            $parentBizRate  = (float)$parentVendor->rate_per_business;
+
+            if ($ratePerCustomer > $parentCustRate) {
+                return [
+                    'success' => false,
+                    'message' => "Customer rate cannot exceed your rate of ₹" . number_format($parentCustRate, 2) . ".",
+                ];
+            }
+
+            if ($ratePerBusiness > $parentBizRate) {
+                return [
+                    'success' => false,
+                    'message' => "Business rate cannot exceed your rate of ₹" . number_format($parentBizRate, 2) . ".",
+                ];
+            }
+
+            // Generate VR code if not set
+            $code = $subVendor->vendor_code;
+            if (empty($code)) {
+                $code = self::generateUniqueCode('VR', 'marketing_vendors', 'vendor_code');
+            }
+
+            $finalDesignation = trim((string)$designation) ?: ($subVendor->designation ?: 'Sub-Vendor');
+
+            DB::table('marketing_vendors')->where('id', $subVendorId)->update([
+                'status'                => 'approved',
+                'vendor_code'           => $code,
+                'designation'           => $finalDesignation,
+                'rate_per_customer'     => max(0, $ratePerCustomer),
+                'rate_per_business'     => max(0, $ratePerBusiness),
+                'is_rate_visible'       => (bool)$isRateVisible,
+                'approved_by_vendor_id' => $parentVendor->id,
+                'approved_at'           => now(),
+                'rejection_reason'      => null,
+                'updated_at'            => now(),
+            ]);
+
+            Log::info("VendorTeamService: Parent Vendor #{$parentVendor->id} approved Sub-Vendor #{$subVendorId} with code {$code}, designation '{$finalDesignation}', Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}, Visible: " . ($isRateVisible ? 'ON' : 'OFF'));
+
+            return [
+                'success'          => true,
+                'message'          => 'Sub-Vendor approved successfully.',
+                'vendor_code'      => $code,
+                'designation'      => $finalDesignation,
+                'rate_customer'    => $ratePerCustomer,
+                'rate_business'    => $ratePerBusiness,
+                'is_rate_visible'  => (bool)$isRateVisible,
+            ];
+
+        } catch (\Throwable $e) {
+            Log::error("VendorTeamService::approveSubVendor error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Parent Vendor Rejects Sub-Vendor Application
+     */
+    public static function rejectSubVendor(int $subVendorId, int $approverUserId, string $approverUserType, string $reason): array
+    {
+        try {
+            $approverUserType = self::normalizeUserType($approverUserType);
+            $parentVendor = DB::table('marketing_vendors')
+                ->where('user_id', $approverUserId)
+                ->where('user_type', $approverUserType)
+                ->first();
+
+            if (!$parentVendor) {
+                return ['success' => false, 'message' => 'Unauthorized approver.'];
+            }
+
+            $subVendor = DB::table('marketing_vendors')->where('id', $subVendorId)->first();
+            if (!$subVendor || ((int)$subVendor->parent_vendor_id !== (int)$parentVendor->id && (int)$subVendor->head_vendor_id !== (int)$parentVendor->id)) {
+                return ['success' => false, 'message' => 'Unauthorized to reject this sub-vendor.'];
+            }
+
+            DB::table('marketing_vendors')->where('id', $subVendorId)->update([
+                'status'                => 'rejected',
+                'rejection_reason'      => $reason,
+                'approved_by_vendor_id' => $parentVendor->id,
+                'updated_at'            => now(),
+            ]);
+
+            return ['success' => true, 'message' => 'Sub-Vendor application rejected.'];
+
+        } catch (\Throwable $e) {
+            Log::error("VendorTeamService::rejectSubVendor error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Parent Vendor Toggles Rate Visibility ON/OFF for Sub-Vendor
+     */
+    public static function toggleSubVendorRateVisibility(int $subVendorId, int $parentUserId, string $parentUserType, bool $visible): array
+    {
+        try {
+            $parentUserType = self::normalizeUserType($parentUserType);
+            $parentVendor = DB::table('marketing_vendors')
+                ->where('user_id', $parentUserId)
+                ->where('user_type', $parentUserType)
+                ->first();
+
+            if (!$parentVendor) {
+                return ['success' => false, 'message' => 'Unauthorized.'];
+            }
+
+            $subVendor = DB::table('marketing_vendors')->where('id', $subVendorId)->first();
+            if (!$subVendor || ((int)$subVendor->parent_vendor_id !== (int)$parentVendor->id && (int)$subVendor->head_vendor_id !== (int)$parentVendor->id)) {
+                return ['success' => false, 'message' => 'Unauthorized to modify this Sub-Vendor.'];
+            }
+
+            DB::table('marketing_vendors')->where('id', $subVendorId)->update([
+                'is_rate_visible' => (bool)$visible,
+                'updated_at'      => now(),
+            ]);
+
+            return [
+                'success'         => true,
+                'is_rate_visible' => (bool)$visible,
+                'message'         => 'Rate visibility updated successfully.',
+            ];
+
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get Pending Sub-Vendor Requests for a Vendor
+     */
+    public static function getPendingSubVendors(int $vendorId): array
+    {
+        $requests = DB::table('marketing_vendors')
+            ->where('parent_vendor_id', $vendorId)
+            ->where('status', 'pending')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $list = [];
+        foreach ($requests as $r) {
+            $name = 'Applicant';
+            $phone = '';
+            $email = '';
+
+            if ($r->user_type === 'customer') {
+                $u = DB::table('tj_user_app')->where('id', $r->user_id)->first();
+                if ($u) {
+                    $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
+                    $phone = $u->phone ?? '';
+                    $email = $u->email ?? '';
+                }
+            } else {
+                $d = DB::table('tj_conducteur')->where('id', $r->user_id)->first();
+                if ($d) {
+                    $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner';
+                    $phone = $d->phone ?? '';
+                    $email = $d->email ?? '';
+                }
+            }
+
+            $list[] = [
+                'id'            => $r->id,
+                'user_id'       => $r->user_id,
+                'user_type'     => $r->user_type,
+                'name'          => $name,
+                'phone'         => $phone,
+                'email'         => $email,
+                'designation'   => $r->designation ?: 'Sub-Vendor',
+                'team_location' => $r->team_location,
+                'team_type'     => $r->team_type,
+                'remarks'       => $r->remarks,
+                'applied_at'    => Carbon::parse($r->created_at)->format('d M Y, h:i A'),
+            ];
+        }
+
+        return $list;
+    }
+
+    /**
+     * Get All Recursive Downline Sub-Vendor IDs for a given Vendor
+     */
+    public static function getDownlineVendorIds(int $vendorId): array
+    {
+        $ids = [];
+        $queue = [$vendorId];
+
+        while (!empty($queue)) {
+            $currentId = array_shift($queue);
+            $children = DB::table('marketing_vendors')
+                ->where('parent_vendor_id', $currentId)
+                ->where('status', 'approved')
+                ->pluck('id')
+                ->toArray();
+
+            foreach ($children as $cId) {
+                if (!in_array($cId, $ids, true)) {
+                    $ids[] = $cId;
+                    $queue[] = $cId;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Admin Approves Top-Level Vendor Application & Sets Master Rates
      */
     public static function approveVendor(int $vendorId, float $ratePerCustomer, float $ratePerBusiness, ?int $adminId = null): array
     {
@@ -106,10 +466,10 @@ class VendorTeamService
                 return ['success' => false, 'message' => 'Vendor application not found.'];
             }
 
-            // Generate unique Vendor Code if not already set (e.g. TM00101)
+            // Generate VR code (VR10001...)
             $vendorCode = $vendor->vendor_code;
             if (empty($vendorCode)) {
-                $vendorCode = self::generateUniqueCode('TM', 'marketing_vendors', 'vendor_code');
+                $vendorCode = self::generateUniqueCode('VR', 'marketing_vendors', 'vendor_code');
             }
 
             DB::table('marketing_vendors')->where('id', $vendorId)->update([
@@ -117,13 +477,14 @@ class VendorTeamService
                 'vendor_code'       => $vendorCode,
                 'rate_per_customer' => max(0, $ratePerCustomer),
                 'rate_per_business' => max(0, $ratePerBusiness),
+                'is_rate_visible'   => true,
                 'approved_by'       => $adminId,
                 'approved_at'       => now(),
                 'rejection_reason'  => null,
                 'updated_at'        => now(),
             ]);
 
-            Log::info("VendorTeamService: Approved Vendor #{$vendorId} with code {$vendorCode}. Rates: Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}");
+            Log::info("VendorTeamService: Approved Vendor #{$vendorId} with code {$vendorCode}. Master Rates: Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}");
 
             return [
                 'success'     => true,
@@ -157,12 +518,12 @@ class VendorTeamService
     }
 
     /**
-     * Check if a given code belongs to an approved Vendor (starts with TM)
+     * Check if code belongs to an approved Vendor (starts with VR or legacy TM)
      */
     public static function findApprovedVendorByCode(string $code): ?object
     {
         $code = strtoupper(trim($code));
-        if (!str_starts_with($code, 'TM')) {
+        if (!str_starts_with($code, 'VR') && !str_starts_with($code, 'TM')) {
             return null;
         }
 
@@ -177,7 +538,7 @@ class VendorTeamService
     }
 
     /**
-     * Check if a given code belongs to an active Team Member / Freelancer (starts with FR)
+     * Check if code belongs to an active Team Member / Freelancer (starts with FR)
      */
     public static function findActiveTeamMemberByCode(string $code): ?object
     {
@@ -197,14 +558,14 @@ class VendorTeamService
     }
 
     /**
-     * Register a user as a Team Member under an Approved Vendor
+     * Register a user as a Team Member under an Approved Vendor/Sub-Vendor
      */
     public static function registerTeamMember(object $vendor, int $userId, string $userType): array
     {
         try {
             $userType = self::normalizeUserType($userType);
 
-            // Check if user is already a team member under any vendor
+            // Check if already a team member
             $existing = DB::table('marketing_team_members')
                 ->where('user_id', $userId)
                 ->where('user_type', $userType)
@@ -215,11 +576,11 @@ class VendorTeamService
                     'success'     => true,
                     'member_code' => $existing->member_code,
                     'member_id'   => $existing->id,
-                    'message'     => 'Already registered as Team Member.',
+                    'message'     => 'Already registered as Freelancer.',
                 ];
             }
 
-            // Generate unique Member Code (e.g. FR10001)
+            // Generate unique Member Code (FR10001...)
             $memberCode = self::generateUniqueCode('FR', 'marketing_team_members', 'member_code');
 
             $memberId = DB::table('marketing_team_members')->insertGetId([
@@ -232,13 +593,13 @@ class VendorTeamService
                 'updated_at'  => now(),
             ]);
 
-            Log::info("VendorTeamService: Registered user #{$userId} ($userType) as Team Member under Vendor #{$vendor->id} with code {$memberCode}");
+            Log::info("VendorTeamService: Registered user #{$userId} ($userType) as Freelancer under Vendor #{$vendor->id} with code {$memberCode}");
 
             return [
                 'success'     => true,
                 'member_code' => $memberCode,
                 'member_id'   => $memberId,
-                'message'     => 'Registered as Team Member successfully.',
+                'message'     => 'Registered as Freelancer successfully.',
             ];
 
         } catch (\Throwable $e) {
@@ -250,7 +611,7 @@ class VendorTeamService
     /**
      * Record a Marketing Acquisition (Customer or Business user joined via FR code)
      */
-    public static function recordAcquisition(object $teamMember, int $acquiredUserId, string $acquiredUserType): array
+    public static function recordAcquisition(object $teamMember, int $acquiredUserId, string $acquiredUserType, string $serviceCategory = 'General'): array
     {
         try {
             $acquiredUserType = self::normalizeUserType($acquiredUserType);
@@ -296,7 +657,7 @@ class VendorTeamService
     {
         $userType = self::normalizeUserType($userType);
 
-        // 1. Check if Vendor
+        // 1. Check if Vendor / Sub-Vendor
         $vendor = DB::table('marketing_vendors')
             ->where('user_id', $userId)
             ->where('user_type', $userType)
@@ -304,17 +665,23 @@ class VendorTeamService
 
         if ($vendor) {
             return [
-                'role'             => 'vendor',
-                'status'           => $vendor->status,
-                'vendor_id'        => $vendor->id,
-                'vendor_code'      => $vendor->vendor_code,
-                'team_location'    => $vendor->team_location,
-                'team_type'        => $vendor->team_type,
-                'rejection_reason' => $vendor->rejection_reason,
+                'role'               => 'vendor',
+                'status'             => $vendor->status,
+                'is_head_vendor'     => is_null($vendor->parent_vendor_id),
+                'vendor_id'          => $vendor->id,
+                'vendor_code'        => $vendor->vendor_code,
+                'designation'        => $vendor->designation ?: ($vendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
+                'hierarchy_level'    => (int)($vendor->hierarchy_level ?? 0),
+                'parent_vendor_id'   => $vendor->parent_vendor_id,
+                'head_vendor_id'     => $vendor->head_vendor_id,
+                'team_location'      => $vendor->team_location,
+                'team_type'          => $vendor->team_type,
+                'is_rate_visible'    => (bool)($vendor->is_rate_visible ?? true),
+                'rejection_reason'   => $vendor->rejection_reason,
             ];
         }
 
-        // 2. Check if Team Member
+        // 2. Check if Freelancer / Team Member
         $member = DB::table('marketing_team_members')
             ->where('user_id', $userId)
             ->where('user_type', $userType)
@@ -337,7 +704,7 @@ class VendorTeamService
     }
 
     /**
-     * Vendor Dashboard Statistics & Team Performance
+     * Vendor Dashboard Statistics & Multi-Level Work/Data Tracking
      */
     public static function getVendorDashboardStats(int $userId, string $userType): ?array
     {
@@ -353,91 +720,115 @@ class VendorTeamService
         }
 
         $vendorId = $vendor->id;
+        $isHeadVendor = is_null($vendor->parent_vendor_id);
 
-        // Team members counts
-        $totalMembers = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->count();
-        $activeMembers = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->where('status', 'active')->count();
-        $inactiveMembers = max(0, $totalMembers - $activeMembers);
+        // Downline vendor subtree (all recursive descendants)
+        $downlineVendorIds = self::getDownlineVendorIds($vendorId);
+        $allScopeVendorIds = array_merge([$vendorId], $downlineVendorIds);
 
-        // Acquisitions counts
-        $customerJoined = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'customer')
-            ->count();
+        // Direct Sub-Vendors
+        $directSubVendorsRaw = DB::table('marketing_vendors')
+            ->where('parent_vendor_id', $vendorId)
+            ->orderBy('id', 'desc')
+            ->get();
 
-        $customerVerified = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'customer')
-            ->where('verification_status', 'verified')
-            ->count();
+        $directSubVendors = [];
+        foreach ($directSubVendorsRaw as $sv) {
+            $svName = 'Sub-Vendor';
+            $svPhone = '';
+            if ($sv->user_type === 'customer') {
+                $u = DB::table('tj_user_app')->where('id', $sv->user_id)->first();
+                if ($u) {
+                    $svName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
+                    $svPhone = $u->phone ?? '';
+                }
+            } else {
+                $d = DB::table('tj_conducteur')->where('id', $sv->user_id)->first();
+                if ($d) {
+                    $svName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner';
+                    $svPhone = $d->phone ?? '';
+                }
+            }
 
-        $customerPending = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'customer')
-            ->where('verification_status', 'pending')
-            ->count();
+            // Downline tree for this child
+            $svSubTree = array_merge([$sv->id], self::getDownlineVendorIds($sv->id));
+            $svFreelancers = DB::table('marketing_team_members')->whereIn('vendor_id', $svSubTree)->count();
+            $svAcquisitions = DB::table('marketing_acquisitions')->whereIn('vendor_id', $svSubTree)->count();
+            $svVerified = DB::table('marketing_acquisitions')->whereIn('vendor_id', $svSubTree)->where('verification_status', 'verified')->count();
 
-        $customerRejected = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'customer')
-            ->where('verification_status', 'rejected')
-            ->count();
+            $directSubVendors[] = [
+                'id'                 => $sv->id,
+                'vendor_code'        => $sv->vendor_code ?: 'Pending',
+                'name'               => $svName,
+                'phone'              => $svPhone,
+                'designation'        => $sv->designation ?: 'Sub-Vendor',
+                'hierarchy_level'    => (int)$sv->hierarchy_level,
+                'status'             => $sv->status,
+                'is_rate_visible'    => (bool)($sv->is_rate_visible ?? true),
+                'rate_per_customer'  => number_format((float)$sv->rate_per_customer, 2, '.', ''),
+                'rate_per_business'  => number_format((float)$sv->rate_per_business, 2, '.', ''),
+                'freelancers_count'  => $svFreelancers,
+                'acquisitions_count' => $svAcquisitions,
+                'verified_count'     => $svVerified,
+                'joined_at'          => Carbon::parse($sv->created_at)->format('d M Y'),
+            ];
+        }
 
-        $businessJoined = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'business')
-            ->count();
+        // Pending Sub-Vendor Requests awaiting this vendor's approval
+        $pendingSubVendors = self::getPendingSubVendors($vendorId);
 
-        $businessVerified = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'business')
-            ->where('verification_status', 'verified')
-            ->count();
+        // Direct Freelancers under this vendor
+        $directMembersCount = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->count();
+        // Total Freelancers in entire downline chain
+        $chainMembersCount = DB::table('marketing_team_members')->whereIn('vendor_id', $allScopeVendorIds)->count();
 
-        $businessPending = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'business')
-            ->where('verification_status', 'pending')
-            ->count();
+        // Chain-wide Acquisitions
+        $customerJoined = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'customer')->count();
+        $customerVerified = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'customer')->where('verification_status', 'verified')->count();
+        $customerPending = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'customer')->where('verification_status', 'pending')->count();
+        $customerRejected = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'customer')->where('verification_status', 'rejected')->count();
 
-        $businessRejected = DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('acquired_user_type', 'business')
-            ->where('verification_status', 'rejected')
-            ->count();
+        $businessJoined = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->count();
+        $businessVerified = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->where('verification_status', 'verified')->count();
+        $businessPending = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->where('verification_status', 'pending')->count();
+        $businessRejected = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->where('verification_status', 'rejected')->count();
 
         $totalVerified = $customerVerified + $businessVerified;
         $totalPending  = $customerPending + $businessPending;
         $totalRejected = $customerRejected + $businessRejected;
         $totalInstall  = $customerJoined + $businessJoined;
 
+        // Rate privacy: Sub-Vendors do NOT see Admin master rates
         $rateCustomer = (float)$vendor->rate_per_customer;
         $rateBusiness = (float)$vendor->rate_per_business;
+        $isRateVisible = (bool)($vendor->is_rate_visible ?? true);
 
-        // Verified Due & Upcoming Income
-        $customerDue = round($customerVerified * $rateCustomer, 2);
-        $businessDue = round($businessVerified * $rateBusiness, 2);
-        $totalVerifiedDue = round($customerDue + $businessDue, 2);
+        // Financial Earnings Calculation:
+        // Use marketing_payment_ledgers if records exist, otherwise calculate from verified acquisitions
+        $hasLedger = DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->exists();
+
+        if ($hasLedger) {
+            $totalEarned = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('earned_amount');
+            $paidEarned = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('paid_amount');
+            $pendingPayout = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('pending_amount');
+            $customerDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->where('acquired_user_type', 'customer')->sum('earned_amount');
+            $businessDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->where('acquired_user_type', 'business')->sum('earned_amount');
+        } else {
+            $customerDue = round($customerVerified * $rateCustomer, 2);
+            $businessDue = round($businessVerified * $rateBusiness, 2);
+            $totalEarned = round($customerDue + $businessDue, 2);
+            $paidEarned = (float)DB::table('marketing_acquisitions')->where('vendor_id', $vendorId)->where('payout_status', 'paid')->sum('payout_rate_applied');
+            $pendingPayout = max(0, round($totalEarned - $paidEarned, 2));
+        }
 
         $customerUpcoming = round($customerPending * $rateCustomer, 2);
         $businessUpcoming = round($businessPending * $rateBusiness, 2);
         $totalUpcomingIncome = round($customerUpcoming + $businessUpcoming, 2);
 
-        // Verified earnings
-        $totalEarned = $totalVerifiedDue;
-
-        // Paid earnings
-        $paidEarned = (float)DB::table('marketing_acquisitions')
-            ->where('vendor_id', $vendorId)
-            ->where('payout_status', 'paid')
-            ->sum('payout_rate_applied');
-
-        $pendingPayout = max(0, round($totalEarned - $paidEarned, 2));
-
-        // Team members list with individual stats
+        // Direct Freelancers List with their acquisition items
         $membersRaw = DB::table('marketing_team_members')
-            ->where('marketing_team_members.vendor_id', $vendorId)
-            ->orderBy('marketing_team_members.id', 'desc')
+            ->where('vendor_id', $vendorId)
+            ->orderBy('id', 'desc')
             ->get();
 
         $teamMembers = [];
@@ -445,7 +836,6 @@ class VendorTeamService
             $name = 'Freelancer';
             $phone = '';
             $photo = null;
-            $zone = $vendor->team_location ?? 'DELHI';
 
             if ($m->user_type === 'customer') {
                 $u = DB::table('tj_user_app')->where('id', $m->user_id)->first();
@@ -469,50 +859,29 @@ class VendorTeamService
                 ->get();
 
             $acquisitions = [];
-            $mCustTotal = 0;
-            $mCustVer = 0;
-            $mCustPend = 0;
-            $mCustRej = 0;
-            $mBizTotal = 0;
-            $mBizVer = 0;
-            $mBizPend = 0;
-            $mBizRej = 0;
-            $verCount = 0;
-            $pendCount = 0;
-            $rejCount = 0;
+            $mCustTotal = 0; $mCustVer = 0; $mCustPend = 0; $mCustRej = 0;
+            $mBizTotal = 0; $mBizVer = 0; $mBizPend = 0; $mBizRej = 0;
+            $verCount = 0; $pendCount = 0; $rejCount = 0;
 
             foreach ($acqsRaw as $acq) {
                 if ($acq->acquired_user_type === 'customer') {
                     $mCustTotal++;
-                    if ($acq->verification_status === 'verified') {
-                        $mCustVer++;
-                    } elseif ($acq->verification_status === 'rejected') {
-                        $mCustRej++;
-                    } else {
-                        $mCustPend++;
-                    }
+                    if ($acq->verification_status === 'verified') $mCustVer++;
+                    elseif ($acq->verification_status === 'rejected') $mCustRej++;
+                    else $mCustPend++;
                 } else {
                     $mBizTotal++;
-                    if ($acq->verification_status === 'verified') {
-                        $mBizVer++;
-                    } elseif ($acq->verification_status === 'rejected') {
-                        $mBizRej++;
-                    } else {
-                        $mBizPend++;
-                    }
+                    if ($acq->verification_status === 'verified') $mBizVer++;
+                    elseif ($acq->verification_status === 'rejected') $mBizRej++;
+                    else $mBizPend++;
                 }
 
-                if ($acq->verification_status === 'verified') {
-                    $verCount++;
-                } elseif ($acq->verification_status === 'rejected') {
-                    $rejCount++;
-                } else {
-                    $pendCount++;
-                }
+                if ($acq->verification_status === 'verified') $verCount++;
+                elseif ($acq->verification_status === 'rejected') $rejCount++;
+                else $pendCount++;
 
                 $acqName = $acq->acquired_user_type === 'business' ? 'Partner Driver' : 'Customer User';
                 $acqPhone = '';
-                $acqZone = $zone;
 
                 if ($acq->acquired_user_type === 'customer') {
                     $au = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
@@ -528,18 +897,12 @@ class VendorTeamService
                     }
                 }
 
-                // Masking in format: 888XXXX231
                 $maskedPhone = '';
                 if (!empty($acqPhone)) {
                     $digits = preg_replace('/[^0-9]/', '', $acqPhone);
-                    if (strlen($digits) >= 10) {
-                        $maskedPhone = substr($digits, 0, 3) . 'XXXX' . substr($digits, -3);
-                    } else {
-                        $maskedPhone = $acqPhone;
-                    }
+                    $maskedPhone = strlen($digits) >= 10 ? substr($digits, 0, 3) . 'XXXX' . substr($digits, -3) : $acqPhone;
                 }
 
-                // 72-hour countdown for pending verification
                 $hoursLeft = null;
                 if ($acq->verification_status === 'pending') {
                     $createdTime = Carbon::parse($acq->created_at);
@@ -552,12 +915,12 @@ class VendorTeamService
                     'id'                  => $acq->id,
                     'name'                => $acqName,
                     'phone'               => $maskedPhone,
-                    'zone'                => $acqZone,
+                    'zone'                => $vendor->team_location ?? 'DELHI',
                     'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
                     'user_type'           => $acq->acquired_user_type,
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
-                    'rejection_reason'    => $acq->rejection_reason ?? $acq->remarks ?? null,
+                    'rejection_reason'    => $acq->rejection_reason ?? null,
                 ];
             }
 
@@ -570,7 +933,6 @@ class VendorTeamService
                 'name'                => $name,
                 'phone'               => $phone,
                 'photo'               => $photo,
-                'zone'                => $zone,
                 'status'              => $m->status,
                 'joined_at'           => Carbon::parse($m->created_at)->format('d M Y'),
                 'total_users'         => $verCount + $pendCount + $rejCount,
@@ -592,50 +954,83 @@ class VendorTeamService
             ];
         }
 
+        // Parent Vendor Info (if Sub-Vendor)
+        $parentVendorInfo = null;
+        if (!$isHeadVendor) {
+            $pv = DB::table('marketing_vendors')->where('id', $vendor->parent_vendor_id)->first();
+            if ($pv) {
+                $parentVendorInfo = [
+                    'id'          => $pv->id,
+                    'vendor_code' => $pv->vendor_code,
+                    'designation' => $pv->designation ?: 'Parent Vendor',
+                ];
+            }
+        }
+
         return [
-            'vendor_id'            => $vendor->id,
-            'vendor_code'          => $vendor->vendor_code,
-            'team_location'        => $vendor->team_location,
-            'team_type'            => $vendor->team_type,
-            'rate_per_customer'    => number_format($rateCustomer, 2, '.', ''),
-            'rate_per_business'    => number_format($rateBusiness, 2, '.', ''),
-            'total_members'        => $totalMembers,
-            'freelancers_count'    => $totalMembers,
-            'active_members'       => $activeMembers,
-            'inactive_members'     => $inactiveMembers,
-            'customer_joined'      => $customerJoined,
-            'total_customers'      => $customerJoined,
-            'customer_verified'    => $customerVerified,
-            'verified_customers'   => $customerVerified,
-            'customer_pending'     => $customerPending,
-            'customer_rejected'    => $customerRejected,
-            'business_joined'      => $businessJoined,
-            'total_businesses'     => $businessJoined,
-            'business_verified'    => $businessVerified,
-            'verified_businesses'  => $businessVerified,
-            'business_pending'     => $businessPending,
-            'business_rejected'    => $businessRejected,
-            'total_verified'       => $totalVerified,
-            'total_pending'        => $totalPending,
-            'total_rejected'       => $totalRejected,
-            'total_install'        => $totalInstall,
-            'customer_due'         => number_format($customerDue, 2, '.', ''),
-            'business_due'         => number_format($businessDue, 2, '.', ''),
-            'total_verified_due'   => number_format($totalVerifiedDue, 2, '.', ''),
-            'customer_upcoming'    => number_format($customerUpcoming, 2, '.', ''),
-            'business_upcoming'    => number_format($businessUpcoming, 2, '.', ''),
-            'total_upcoming_income'=> number_format($totalUpcomingIncome, 2, '.', ''),
-            'total_earned'         => number_format($totalEarned, 2, '.', ''),
-            'total_earnings'       => number_format($totalEarned, 2, '.', ''),
-            'paid_earned'          => number_format($paidEarned, 2, '.', ''),
-            'paid_earnings'        => number_format($paidEarned, 2, '.', ''),
-            'pending_payout'       => number_format($pendingPayout, 2, '.', ''),
-            'team_members'         => $teamMembers,
+            'vendor_id'                  => $vendor->id,
+            'vendor_code'                => $vendor->vendor_code,
+            'is_head_vendor'             => $isHeadVendor,
+            'parent_vendor'              => $parentVendorInfo,
+            'designation'                => $vendor->designation ?: ($isHeadVendor ? 'Head Vendor' : 'Sub-Vendor'),
+            'hierarchy_level'            => (int)($vendor->hierarchy_level ?? 0),
+            'team_location'              => $vendor->team_location,
+            'team_type'                  => $vendor->team_type,
+            'is_rate_visible'            => $isRateVisible,
+
+            // Rate values: redacted if not visible to sub-vendor
+            'rate_per_customer'          => ($isHeadVendor || $isRateVisible) ? number_format($rateCustomer, 2, '.', '') : null,
+            'rate_per_business'          => ($isHeadVendor || $isRateVisible) ? number_format($rateBusiness, 2, '.', '') : null,
+
+            // Counts
+            'total_sub_vendors'          => count($directSubVendors),
+            'all_downline_vendors_count' => count($downlineVendorIds),
+            'direct_sub_vendors'         => $directSubVendors,
+            'pending_sub_vendors'        => $pendingSubVendors,
+            'pending_sub_vendors_count'  => count($pendingSubVendors),
+
+            'freelancers_count'          => $chainMembersCount,
+            'direct_freelancers_count'   => $directMembersCount,
+
+            'customer_joined'            => $customerJoined,
+            'total_customers'            => $customerJoined,
+            'customer_verified'          => $customerVerified,
+            'verified_customers'         => $customerVerified,
+            'customer_pending'           => $customerPending,
+            'customer_rejected'          => $customerRejected,
+
+            'business_joined'            => $businessJoined,
+            'total_businesses'           => $businessJoined,
+            'business_verified'          => $businessVerified,
+            'verified_businesses'        => $businessVerified,
+            'business_pending'           => $businessPending,
+            'business_rejected'          => $businessRejected,
+
+            'total_verified'             => $totalVerified,
+            'total_pending'              => $totalPending,
+            'total_rejected'             => $totalRejected,
+            'total_install'              => $totalInstall,
+            'total_completed_work'       => $totalVerified,
+
+            // Financials
+            'customer_due'               => number_format($customerDue, 2, '.', ''),
+            'business_due'               => number_format($businessDue, 2, '.', ''),
+            'total_verified_due'         => number_format($totalEarned, 2, '.', ''),
+            'customer_upcoming'          => number_format($customerUpcoming, 2, '.', ''),
+            'business_upcoming'          => number_format($businessUpcoming, 2, '.', ''),
+            'total_upcoming_income'      => number_format($totalUpcomingIncome, 2, '.', ''),
+            'total_earned'               => number_format($totalEarned, 2, '.', ''),
+            'total_earnings'             => number_format($totalEarned, 2, '.', ''),
+            'paid_earned'                => number_format($paidEarned, 2, '.', ''),
+            'paid_earnings'              => number_format($paidEarned, 2, '.', ''),
+            'pending_payout'             => number_format($pendingPayout, 2, '.', ''),
+
+            'team_members'               => $teamMembers,
         ];
     }
 
     /**
-     * Team Member Dashboard Statistics & Acquisitions Detail
+     * Team Member / Freelancer Dashboard Statistics
      */
     public static function getTeamMemberDashboardStats(int $userId, string $userType): ?array
     {
@@ -732,14 +1127,9 @@ class VendorTeamService
             $maskedPhone = '';
             if (!empty($phone)) {
                 $digits = preg_replace('/[^0-9]/', '', $phone);
-                if (strlen($digits) >= 10) {
-                    $maskedPhone = substr($digits, 0, 3) . 'XXXX' . substr($digits, -3);
-                } else {
-                    $maskedPhone = $phone;
-                }
+                $maskedPhone = strlen($digits) >= 10 ? substr($digits, 0, 3) . 'XXXX' . substr($digits, -3) : $phone;
             }
 
-            // 72-hour countdown for pending verification
             $hoursLeft = null;
             if ($acq->verification_status === 'pending') {
                 $createdTime = Carbon::parse($acq->created_at);
@@ -758,7 +1148,7 @@ class VendorTeamService
                 'kyc_status'          => $kyc,
                 'verification_status' => $acq->verification_status,
                 'hours_left'          => $hoursLeft,
-                'rejection_reason'    => $acq->rejection_reason ?? $acq->remarks ?? null,
+                'rejection_reason'    => $acq->rejection_reason ?? null,
                 'joined_date'         => Carbon::parse($acq->created_at)->format('d M Y, h:i A'),
             ];
         }
@@ -791,7 +1181,7 @@ class VendorTeamService
     }
 
     /**
-     * Admin Verifies an Acquisition
+     * Admin Verifies an Acquisition & Writes Granular Payment Ledgers Up the Chain
      */
     public static function verifyAcquisition(int $acquisitionId, ?int $adminId = null): bool
     {
@@ -801,13 +1191,14 @@ class VendorTeamService
                 return false;
             }
 
-            $vendor = DB::table('marketing_vendors')->where('id', $acq->vendor_id)->first();
-            $rate = 0.00;
-            if ($vendor) {
-                $rate = $acq->acquired_user_type === 'business'
-                    ? (float)$vendor->rate_per_business
-                    : (float)$vendor->rate_per_customer;
+            $immediateVendor = DB::table('marketing_vendors')->where('id', $acq->vendor_id)->first();
+            if (!$immediateVendor) {
+                return false;
             }
+
+            $rate = $acq->acquired_user_type === 'business'
+                ? (float)$immediateVendor->rate_per_business
+                : (float)$immediateVendor->rate_per_customer;
 
             DB::table('marketing_acquisitions')->where('id', $acquisitionId)->update([
                 'verification_status' => 'verified',
@@ -818,11 +1209,200 @@ class VendorTeamService
                 'updated_at'          => now(),
             ]);
 
+            // ── GENERATE PAYMENT LEDGER ENTRIES UP THE HIERARCHY CHAIN ──────────
+            self::generateLedgerEntriesForAcquisition($acq, $immediateVendor);
+
             return true;
         } catch (\Throwable $e) {
             Log::error("VendorTeamService::verifyAcquisition error: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Generate Payment Ledger entries for each vendor level in the chain
+     */
+    private static function generateLedgerEntriesForAcquisition(object $acq, object $immediateVendor): void
+    {
+        if (!Schema::hasTable('marketing_payment_ledgers')) {
+            return;
+        }
+
+        // Trace chain upwards to root Head Vendor
+        $chain = [];
+        $curr = $immediateVendor;
+        while ($curr) {
+            $chain[] = $curr;
+            if (empty($curr->parent_vendor_id)) {
+                break;
+            }
+            $curr = DB::table('marketing_vendors')->where('id', $curr->parent_vendor_id)->first();
+        }
+
+        $headVendor = end($chain) ?: $immediateVendor;
+        $isBiz = ($acq->acquired_user_type === 'business');
+
+        // Traverse from immediate vendor upwards and compute earnings
+        $prevChildRate = 0.00;
+
+        foreach ($chain as $idx => $v) {
+            $applicableRate = $isBiz ? (float)$v->rate_per_business : (float)$v->rate_per_customer;
+
+            if ($idx === 0) {
+                // Immediate vendor earns their direct applicable rate
+                $earned = $applicableRate;
+            } else {
+                // Parent / Head vendor earns the margin difference: (parent_rate - child_rate)
+                $earned = max(0, $applicableRate - $prevChildRate);
+            }
+
+            $prevChildRate = $applicableRate;
+
+            DB::table('marketing_payment_ledgers')->insert([
+                'acquisition_id'     => $acq->id,
+                'head_vendor_id'     => $headVendor->id,
+                'parent_vendor_id'   => $v->parent_vendor_id,
+                'vendor_id'          => $v->id,
+                'team_member_id'     => $acq->team_member_id,
+                'acquired_user_id'   => $acq->acquired_user_id,
+                'acquired_user_type' => $acq->acquired_user_type,
+                'service_category'   => 'General',
+                'rate_applied'       => $applicableRate,
+                'earned_amount'      => $earned,
+                'paid_amount'        => 0.00,
+                'pending_amount'     => $earned,
+                'payment_status'     => 'unpaid',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        }
+    }
+
+    /**
+     * Get Granular Payment Ledger Records for a Vendor
+     */
+    public static function getVendorPaymentLedger(int $vendorId, array $filters = []): array
+    {
+        if (!Schema::hasTable('marketing_payment_ledgers')) {
+            return [];
+        }
+
+        $query = DB::table('marketing_payment_ledgers')
+            ->where('marketing_payment_ledgers.vendor_id', $vendorId)
+            ->leftJoin('marketing_team_members', 'marketing_team_members.id', '=', 'marketing_payment_ledgers.team_member_id')
+            ->leftJoin('marketing_vendors as sub_v', 'sub_v.id', '=', 'marketing_payment_ledgers.parent_vendor_id')
+            ->select(
+                'marketing_payment_ledgers.*',
+                'marketing_team_members.member_code as freelancer_code'
+            )
+            ->orderBy('marketing_payment_ledgers.id', 'desc');
+
+        if (!empty($filters['status']) && in_array($filters['status'], ['unpaid', 'partially_paid', 'paid'], true)) {
+            $query->where('marketing_payment_ledgers.payment_status', $filters['status']);
+        }
+
+        if (!empty($filters['user_type'])) {
+            $query->where('marketing_payment_ledgers.acquired_user_type', $filters['user_type']);
+        }
+
+        $ledgers = $query->limit(100)->get();
+
+        $result = [];
+        foreach ($ledgers as $l) {
+            $userName = $l->acquired_user_type === 'business' ? 'Business Partner' : 'Customer User';
+            $userPhone = '';
+
+            if ($l->acquired_user_type === 'customer') {
+                $u = DB::table('tj_user_app')->where('id', $l->acquired_user_id)->first();
+                if ($u) {
+                    $userName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Customer User';
+                    $userPhone = $u->phone ?? '';
+                }
+            } else {
+                $d = DB::table('tj_conducteur')->where('id', $l->acquired_user_id)->first();
+                if ($d) {
+                    $userName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Business Partner';
+                    $userPhone = $d->phone ?? '';
+                }
+            }
+
+            $maskedPhone = '';
+            if (!empty($userPhone)) {
+                $digits = preg_replace('/[^0-9]/', '', $userPhone);
+                $maskedPhone = strlen($digits) >= 10 ? substr($digits, 0, 3) . 'XXXX' . substr($digits, -3) : $userPhone;
+            }
+
+            $result[] = [
+                'id'                 => $l->id,
+                'transaction_id'     => 'LEDG-' . str_pad((string)$l->id, 6, '0', STR_PAD_LEFT),
+                'date'               => Carbon::parse($l->created_at)->format('d M Y, h:i A'),
+                'acquired_user_id'   => $l->acquired_user_id,
+                'acquired_user_type' => $l->acquired_user_type,
+                'user_name'          => $userName,
+                'user_phone'         => $maskedPhone,
+                'service_category'   => $l->service_category,
+                'freelancer_code'    => $l->freelancer_code ?: 'Direct',
+                'rate_applied'       => number_format((float)$l->rate_applied, 2, '.', ''),
+                'earned_amount'      => number_format((float)$l->earned_amount, 2, '.', ''),
+                'paid_amount'        => number_format((float)$l->paid_amount, 2, '.', ''),
+                'pending_amount'     => number_format((float)$l->pending_amount, 2, '.', ''),
+                'payment_status'     => $l->payment_status,
+                'payout_reference'   => $l->payout_reference,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Chain-wise Consolidated Report
+     */
+    public static function getConsolidatedReport(int $vendorId, ?string $period = 'all', ?string $serviceCategory = 'all'): array
+    {
+        $allScopeIds = array_merge([$vendorId], self::getDownlineVendorIds($vendorId));
+
+        $acqQuery = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeIds);
+
+        if ($period === 'today') {
+            $acqQuery->whereDate('created_at', today());
+        } elseif ($period === 'week') {
+            $acqQuery->where('created_at', '>=', now()->subDays(7));
+        } elseif ($period === 'month') {
+            $acqQuery->where('created_at', '>=', now()->subDays(30));
+        }
+
+        $totalUsers = (clone $acqQuery)->count();
+        $totalVerified = (clone $acqQuery)->where('verification_status', 'verified')->count();
+        $totalPending = (clone $acqQuery)->where('verification_status', 'pending')->count();
+        $totalRejected = (clone $acqQuery)->where('verification_status', 'rejected')->count();
+
+        $custCount = (clone $acqQuery)->where('acquired_user_type', 'customer')->count();
+        $bizCount = (clone $acqQuery)->where('acquired_user_type', 'business')->count();
+
+        // Financial totals from ledgers if available
+        $totalEarned = 0.00;
+        $totalPaid = 0.00;
+        $totalPendingDue = 0.00;
+
+        if (Schema::hasTable('marketing_payment_ledgers')) {
+            $totalEarned = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('earned_amount');
+            $totalPaid = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('paid_amount');
+            $totalPendingDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('pending_amount');
+        }
+
+        return [
+            'period'             => $period,
+            'service_category'   => $serviceCategory,
+            'total_acquisitions' => $totalUsers,
+            'total_verified'     => $totalVerified,
+            'total_pending'      => $totalPending,
+            'total_rejected'     => $totalRejected,
+            'customers_count'    => $custCount,
+            'businesses_count'   => $bizCount,
+            'total_earned'       => number_format($totalEarned, 2, '.', ''),
+            'total_paid'         => number_format($totalPaid, 2, '.', ''),
+            'total_pending_due'  => number_format($totalPendingDue, 2, '.', ''),
+        ];
     }
 
     /**
@@ -838,6 +1418,15 @@ class VendorTeamService
                 'payout_rate_applied' => 0.00,
                 'updated_at'          => now(),
             ]);
+
+            // Cancel any unpaid ledger entries
+            if (Schema::hasTable('marketing_payment_ledgers')) {
+                DB::table('marketing_payment_ledgers')
+                    ->where('acquisition_id', $acquisitionId)
+                    ->where('payment_status', 'unpaid')
+                    ->delete();
+            }
+
             return true;
         } catch (\Throwable $e) {
             Log::error("VendorTeamService::rejectAcquisition error: " . $e->getMessage());
@@ -846,12 +1435,12 @@ class VendorTeamService
     }
 
     /**
-     * Generate unique sequential code with prefix (e.g. TM00101, FR10001)
+     * Generate unique sequential code with prefix (e.g. VR10001, FR10001)
      */
     private static function generateUniqueCode(string $prefix, string $table, string $column): string
     {
         $maxAttempts = 50;
-        $startNum = ($prefix === 'TM') ? 100 : 1000;
+        $startNum = in_array($prefix, ['VR', 'TM'], true) ? 10000 : 1000;
 
         for ($i = 0; $i < $maxAttempts; $i++) {
             $count = DB::table($table)->count();

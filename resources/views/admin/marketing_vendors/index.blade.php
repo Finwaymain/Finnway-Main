@@ -124,8 +124,25 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ $status === 'rejected' ? 'active active-rejected' : '' }}" href="{{ route('admin.marketing-vendors.index', ['status' => 'rejected']) }}">
+                        <a class="nav-link {{ $status === 'rejected' ? 'active active-rejected' : '' }}" href="{{ route('admin.marketing-vendors.index', ['status' => 'rejected', 'type' => $type]) }}">
                             Rejected <span class="tab-badge badge-danger-custom">{{ $counts['rejected'] }}</span>
+                        </a>
+                    </li>
+                    <!-- Hierarchy Role Filters -->
+                    <li class="nav-item d-none d-md-flex align-items-center mx-2" style="border-left: 1.5px solid #cbd5e1; height: 24px;"></li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === 'all' && $status !== 'all_users' ? 'font-weight-bold text-dark' : 'text-muted' }}" style="font-size: 11.5px; padding: 5px 9px;" href="{{ route('admin.marketing-vendors.index', ['status' => $status, 'type' => 'all']) }}">
+                            All Roles
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === 'head' ? 'active' : '' }}" style="font-size: 11.5px; padding: 5px 9px; {{ $type === 'head' ? 'background: #4338ca !important;' : '' }}" href="{{ route('admin.marketing-vendors.index', ['status' => $status, 'type' => 'head']) }}">
+                            👑 Head Vendors <span class="tab-badge" style="background: rgba(255,255,255,0.25);">{{ $counts['head_vendors'] }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ $type === 'sub' ? 'active' : '' }}" style="font-size: 11.5px; padding: 5px 9px; {{ $type === 'sub' ? 'background: #d97706 !important;' : '' }}" href="{{ route('admin.marketing-vendors.index', ['status' => $status, 'type' => 'sub']) }}">
+                            ↳ Sub-Vendors <span class="tab-badge" style="background: rgba(255,255,255,0.25);">{{ $counts['sub_vendors'] }}</span>
                         </a>
                     </li>
                     <li class="nav-item ml-auto">
@@ -175,16 +192,29 @@
                                         <div style="font-size: 11.5px; color: #334155; font-weight: 600;">
                                             {{ $v->applicant_phone ?: 'No phone' }}
                                         </div>
-                                        <div class="mt-1 d-flex align-items-center gap-1">
+                                        <div class="mt-1 d-flex flex-wrap align-items-center gap-1">
                                             <span class="user-type-badge {{ $v->user_type === 'driver' ? 'badge-driver' : 'badge-consumer' }}">
                                                 {{ $v->user_type === 'driver' ? 'Partner Driver' : 'Consumer User' }}
                                             </span>
+                                            @if(!$v->parent_vendor_id)
+                                                <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 10px; font-weight: 700; border: 1px solid #c7d2fe; border-radius: 4px;">👑 Head Vendor</span>
+                                            @else
+                                                <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 10px; font-weight: 700; border: 1px solid #fde68a; border-radius: 4px;">↳ Sub-Vendor (L{{ $v->hierarchy_level }})</span>
+                                            @endif
+                                            @if(!empty($v->designation))
+                                                <span class="badge" style="background: #f1f5f9; color: #334155; font-size: 10px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 4px;">🏷 {{ $v->designation }}</span>
+                                            @endif
                                             @if($v->created_at)
                                             <span style="color: #64748b; font-size: 11px; font-weight: 500;">
                                                 • {{ \Carbon\Carbon::parse($v->created_at)->format('d M Y') }}
                                             </span>
                                             @endif
                                         </div>
+                                        @if($v->parent_vendor_id && $v->parent_code)
+                                            <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 3px;">
+                                                Parent: <a href="{{ route('admin.marketing-vendors.show', $v->parent_vendor_id) }}" class="text-primary font-weight-bold" style="text-decoration: underline;">{{ $v->parent_code }} ({{ $v->parent_name }})</a>
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -219,6 +249,13 @@
                                         <div><span style="color: #64748b; font-weight: 500;">Cust:</span> <strong style="color: #0f172a;">₹{{ number_format($v->rate_per_customer, 2) }}</strong></div>
                                         <div><span style="color: #64748b; font-weight: 500;">Biz:</span> <strong style="color: #0f172a;">₹{{ number_format($v->rate_per_business, 2) }}</strong></div>
                                     </div>
+                                    @if(isset($v->is_rate_visible))
+                                        <div class="mt-1">
+                                            <span class="badge" style="font-size: 9.5px; {{ $v->is_rate_visible ? 'background: #dcfce7; color: #166534;' : 'background: #f1f5f9; color: #64748b;' }}">
+                                                Visibility: {{ $v->is_rate_visible ? 'ON' : 'OFF' }}
+                                            </span>
+                                        </div>
+                                    @endif
                                 @else
                                     <span class="rate-pending-tag">
                                         Rates Pending
@@ -229,8 +266,15 @@
                             <!-- Team Size -->
                             <td>
                                 <span class="team-count-badge">
-                                    {{ $v->total_members }} {{ $v->total_members === 1 ? 'member' : 'members' }}
+                                    👥 {{ $v->total_members }} Freelancers
                                 </span>
+                                @if(($v->sub_vendors_count ?? 0) > 0)
+                                <div class="mt-1">
+                                    <span class="badge" style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; font-size: 10px; font-weight: 700; border-radius: 4px;">
+                                        🏢 {{ $v->sub_vendors_count }} Sub-Vendors
+                                    </span>
+                                </div>
+                                @endif
                             </td>
 
                             <!-- Joined Users -->
