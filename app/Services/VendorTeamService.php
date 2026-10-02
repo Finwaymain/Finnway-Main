@@ -715,26 +715,55 @@ class VendorTeamService
             ->first();
 
         if ($vendor) {
+            $isApproved = ($vendor->status === 'approved');
             $numPart = substr((string)($vendor->vendor_code ?? ''), 2);
             $subVendorCode = $vendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
             $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
 
+            // Fetch parent vendor info if applicable
+            $parentVendorInfo = null;
+            if ($vendor->parent_vendor_id) {
+                $pVendor = DB::table('marketing_vendors')->where('id', $vendor->parent_vendor_id)->first();
+                if ($pVendor) {
+                    $parentVendorInfo = [
+                        'id'            => $pVendor->id,
+                        'vendor_code'   => $pVendor->vendor_code,
+                        'designation'   => $pVendor->designation,
+                        'team_location' => $pVendor->team_location,
+                    ];
+                }
+            }
+
             return [
-                'role'               => 'vendor',
+                'role'               => $isApproved ? 'vendor' : ($vendor->status === 'rejected' ? 'rejected' : 'pending'),
                 'status'             => $vendor->status,
+                'application_status' => $vendor->status,
+                'application_type'   => $vendor->parent_vendor_id ? 'sub_vendor' : 'head_vendor',
+                'is_approved'        => $isApproved,
                 'is_head_vendor'     => is_null($vendor->parent_vendor_id),
                 'vendor_id'          => $vendor->id,
-                'vendor_code'        => $vendor->vendor_code,
-                'sub_vendor_code'    => $subVendorCode,
-                'freelancer_code'    => $freelancerCode,
+                'vendor_code'        => $isApproved ? $vendor->vendor_code : null,
+                'sub_vendor_code'    => $isApproved ? $subVendorCode : null,
+                'freelancer_code'    => $isApproved ? $freelancerCode : null,
                 'designation'        => $vendor->designation ?: ($vendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
                 'hierarchy_level'    => (int)($vendor->hierarchy_level ?? 0),
                 'parent_vendor_id'   => $vendor->parent_vendor_id,
+                'parent_vendor'      => $parentVendorInfo,
                 'head_vendor_id'     => $vendor->head_vendor_id,
                 'team_location'      => $vendor->team_location,
                 'team_type'          => $vendor->team_type,
                 'is_rate_visible'    => (bool)($vendor->is_rate_visible ?? true),
                 'rejection_reason'   => $vendor->rejection_reason,
+                'application_data'   => [
+                    'id'               => $vendor->id,
+                    'status'           => $vendor->status,
+                    'designation'      => $vendor->designation ?: ($vendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
+                    'team_location'    => $vendor->team_location,
+                    'team_type'        => $vendor->team_type,
+                    'parent_vendor'    => $parentVendorInfo,
+                    'parent_code'      => $parentVendorInfo['vendor_code'] ?? null,
+                    'created_at'       => $vendor->created_at,
+                ],
             ];
         }
 

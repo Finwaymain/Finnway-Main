@@ -314,8 +314,32 @@ class VendorTeamAPIController extends Controller
         $stats = VendorTeamService::getVendorDashboardStats($userId, $userCat);
 
         if (!$stats) {
+            $pendingVendor = DB::table('marketing_vendors')
+                ->where('user_id', $userId)
+                ->where('user_type', $userCat)
+                ->where('status', 'pending')
+                ->first();
+
+            if ($pendingVendor) {
+                return response()->json([
+                    'success'            => false,
+                    'status'             => 'pending',
+                    'application_status' => 'pending',
+                    'message'            => 'Your Sub-Vendor application is awaiting review and rate assignment.',
+                    'data'               => [
+                        'status'           => 'pending',
+                        'designation'      => $pendingVendor->designation ?: 'Sub-Vendor',
+                        'team_location'    => $pendingVendor->team_location,
+                        'team_type'        => $pendingVendor->team_type,
+                        'parent_vendor_id' => $pendingVendor->parent_vendor_id,
+                        'created_at'       => $pendingVendor->created_at,
+                    ]
+                ], 403);
+            }
+
             return response()->json([
                 'success' => false,
+                'status'  => 'none',
                 'message' => 'You do not have an approved Vendor account.',
             ], 403);
         }
