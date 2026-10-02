@@ -114,6 +114,15 @@ class VendorTeamService
     ): array {
         try {
             $userType = self::normalizeUserType($userType);
+            $codeUpper = strtoupper(trim($vendorCode));
+
+            // Auto-detect role from code prefix: SV -> sub_vendor, FR -> freelancer
+            if (str_starts_with($codeUpper, 'SV')) {
+                $roleType = 'sub_vendor';
+            } elseif (str_starts_with($codeUpper, 'FR')) {
+                $roleType = 'freelancer';
+            }
+
             $parentVendor = self::findApprovedVendorByCode($vendorCode);
 
             if (!$parentVendor) {
@@ -270,12 +279,16 @@ class VendorTeamService
             if (empty($code)) {
                 $code = self::generateUniqueCode('VR', 'marketing_vendors', 'vendor_code');
             }
+            $subVendorCode  = 'SV' . substr($code, 2);
+            $freelancerCode = 'FR' . substr($code, 2);
 
             $finalDesignation = trim((string)$designation) ?: ($subVendor->designation ?: 'Sub-Vendor');
 
             DB::table('marketing_vendors')->where('id', $subVendorId)->update([
                 'status'                => 'approved',
                 'vendor_code'           => $code,
+                'sub_vendor_code'       => $subVendorCode,
+                'freelancer_code'       => $freelancerCode,
                 'designation'           => $finalDesignation,
                 'rate_per_customer'     => max(0, $ratePerCustomer),
                 'rate_per_business'     => max(0, $ratePerBusiness),
@@ -286,12 +299,14 @@ class VendorTeamService
                 'updated_at'            => now(),
             ]);
 
-            Log::info("VendorTeamService: Parent Vendor #{$parentVendor->id} approved Sub-Vendor #{$subVendorId} with code {$code}, designation '{$finalDesignation}', Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}, Visible: " . ($isRateVisible ? 'ON' : 'OFF'));
+            Log::info("VendorTeamService: Parent Vendor #{$parentVendor->id} approved Sub-Vendor #{$subVendorId} with code {$code}, SV: {$subVendorCode}, FR: {$freelancerCode}, designation '{$finalDesignation}', Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}, Visible: " . ($isRateVisible ? 'ON' : 'OFF'));
 
             return [
                 'success'          => true,
                 'message'          => 'Sub-Vendor approved successfully.',
                 'vendor_code'      => $code,
+                'sub_vendor_code'  => $subVendorCode,
+                'freelancer_code'  => $freelancerCode,
                 'designation'      => $finalDesignation,
                 'rate_customer'    => $ratePerCustomer,
                 'rate_business'    => $ratePerBusiness,
@@ -471,10 +486,14 @@ class VendorTeamService
             if (empty($vendorCode)) {
                 $vendorCode = self::generateUniqueCode('VR', 'marketing_vendors', 'vendor_code');
             }
+            $subVendorCode  = 'SV' . substr($vendorCode, 2);
+            $freelancerCode = 'FR' . substr($vendorCode, 2);
 
             DB::table('marketing_vendors')->where('id', $vendorId)->update([
                 'status'            => 'approved',
                 'vendor_code'       => $vendorCode,
+                'sub_vendor_code'   => $subVendorCode,
+                'freelancer_code'   => $freelancerCode,
                 'rate_per_customer' => max(0, $ratePerCustomer),
                 'rate_per_business' => max(0, $ratePerBusiness),
                 'is_rate_visible'   => true,
@@ -484,12 +503,14 @@ class VendorTeamService
                 'updated_at'        => now(),
             ]);
 
-            Log::info("VendorTeamService: Approved Vendor #{$vendorId} with code {$vendorCode}. Master Rates: Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}");
+            Log::info("VendorTeamService: Approved Vendor #{$vendorId} with code {$vendorCode}, SV: {$subVendorCode}, FR: {$freelancerCode}. Master Rates: Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}");
 
             return [
-                'success'     => true,
-                'message'     => 'Vendor approved successfully.',
-                'vendor_code' => $vendorCode,
+                'success'         => true,
+                'message'         => 'Vendor approved successfully.',
+                'vendor_code'     => $vendorCode,
+                'sub_vendor_code' => $subVendorCode,
+                'freelancer_code' => $freelancerCode,
             ];
 
         } catch (\Throwable $e) {
@@ -518,12 +539,12 @@ class VendorTeamService
     }
 
     /**
-     * Check if code belongs to an approved Vendor (starts with VR or legacy TM)
+     * Check if code belongs to an approved Vendor (starts with VR, TM, SV, or FR)
      */
     public static function findApprovedVendorByCode(string $code): ?object
     {
         $code = strtoupper(trim($code));
-        if (!str_starts_with($code, 'VR') && !str_starts_with($code, 'TM')) {
+        if (empty($code)) {
             return null;
         }
 
@@ -531,10 +552,40 @@ class VendorTeamService
             return null;
         }
 
-        return DB::table('marketing_vendors')
-            ->where('vendor_code', $code)
+        // 1. Direct match on vendor_code, sub_vendor_code, or freelancer_code
+        $vendor = DB::table('marketing_vendors')
             ->where('status', 'approved')
+            ->where(function($q) use ($code) {
+                $q->where('vendor_code', $code);
+                if (Schema::hasColumn('marketing_vendors', 'sub_vendor_code')) {
+                    $q->orWhere('sub_vendor_code', $code);
+                }
+                if (Schema::hasColumn('marketing_vendors', 'freelancer_code')) {
+                    $q->orWhere('freelancer_code', $code);
+                }
+            })
             ->first();
+
+        if ($vendor) {
+            return $vendor;
+        }
+
+        // 2. If code starts with SV or FR, map to VR / TM
+        if (str_starts_with($code, 'SV') || str_starts_with($code, 'FR')) {
+            $numPart = substr($code, 2);
+            $vrCode  = 'VR' . $numPart;
+            $tmCode  = 'TM' . $numPart;
+
+            return DB::table('marketing_vendors')
+                ->where('status', 'approved')
+                ->where(function($q) use ($vrCode, $tmCode) {
+                    $q->where('vendor_code', $vrCode)
+                      ->orWhere('vendor_code', $tmCode);
+                })
+                ->first();
+        }
+
+        return null;
     }
 
     /**
@@ -664,12 +715,18 @@ class VendorTeamService
             ->first();
 
         if ($vendor) {
+            $numPart = substr((string)($vendor->vendor_code ?? ''), 2);
+            $subVendorCode = $vendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
+            $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
+
             return [
                 'role'               => 'vendor',
                 'status'             => $vendor->status,
                 'is_head_vendor'     => is_null($vendor->parent_vendor_id),
                 'vendor_id'          => $vendor->id,
                 'vendor_code'        => $vendor->vendor_code,
+                'sub_vendor_code'    => $subVendorCode,
+                'freelancer_code'    => $freelancerCode,
                 'designation'        => $vendor->designation ?: ($vendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
                 'hierarchy_level'    => (int)($vendor->hierarchy_level ?? 0),
                 'parent_vendor_id'   => $vendor->parent_vendor_id,
@@ -967,9 +1024,15 @@ class VendorTeamService
             }
         }
 
+        $numPart = substr((string)($vendor->vendor_code ?? ''), 2);
+        $subVendorCode = $vendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
+        $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
+
         return [
             'vendor_id'                  => $vendor->id,
             'vendor_code'                => $vendor->vendor_code,
+            'sub_vendor_code'            => $subVendorCode,
+            'freelancer_code'            => $freelancerCode,
             'is_head_vendor'             => $isHeadVendor,
             'parent_vendor'              => $parentVendorInfo,
             'designation'                => $vendor->designation ?: ($isHeadVendor ? 'Head Vendor' : 'Sub-Vendor'),

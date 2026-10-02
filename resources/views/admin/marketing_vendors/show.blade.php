@@ -109,11 +109,25 @@
 
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         @if($vendor->vendor_code)
-                        <div class="text-right mr-3">
-                            <small class="text-muted text-uppercase d-block" style="font-size: 10.5px; font-weight: 700;">Vendor Code</small>
-                            <span class="badge bg-dark text-white px-3 py-1 font-monospace" style="font-size: 15px; letter-spacing: 1px;">
-                                {{ $vendor->vendor_code }}
-                            </span>
+                        <div class="d-flex align-items-center gap-2 mr-3">
+                            <div class="text-right">
+                                <small class="text-muted text-uppercase d-block" style="font-size: 10px; font-weight: 700;">Vendor Code</small>
+                                <span class="badge bg-dark text-white px-2 py-1 font-monospace" style="font-size: 13px; letter-spacing: 0.5px;">
+                                    {{ $vendor->vendor_code }}
+                                </span>
+                            </div>
+                            <div class="text-right">
+                                <small class="text-muted text-uppercase d-block" style="font-size: 10px; font-weight: 700; color: #4338ca !important;">Sub-Vendor Code</small>
+                                <span class="badge" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-size: 13px; font-weight: 700; font-family: monospace;">
+                                    {{ $vendor->sub_vendor_code ?: ('SV' . substr($vendor->vendor_code, 2)) }}
+                                </span>
+                            </div>
+                            <div class="text-right">
+                                <small class="text-muted text-uppercase d-block" style="font-size: 10px; font-weight: 700; color: #047857 !important;">Freelancer Code</small>
+                                <span class="badge" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 13px; font-weight: 700; font-family: monospace;">
+                                    {{ $vendor->freelancer_code ?: ('FR' . substr($vendor->vendor_code, 2)) }}
+                                </span>
+                            </div>
                         </div>
                         @endif
 

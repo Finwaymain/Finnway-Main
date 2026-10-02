@@ -219,12 +219,22 @@
                                 </div>
                             </td>
 
-                            <!-- Vendor Code -->
+                            <!-- Vendor Codes -->
                             <td>
                                 @if(!empty($v->vendor_code))
-                                    <span class="code-badge">
-                                        {{ $v->vendor_code }}
-                                    </span>
+                                    <div>
+                                        <span class="code-badge" title="Master Vendor Code">
+                                            {{ $v->vendor_code }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1 d-flex flex-column" style="gap: 3px; font-size: 10px;">
+                                        <span class="badge" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-family: monospace; font-size: 10px; font-weight: 700;">
+                                            SV: {{ $v->sub_vendor_code ?: ('SV' . substr($v->vendor_code, 2)) }}
+                                        </span>
+                                        <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-family: monospace; font-size: 10px; font-weight: 700;">
+                                            FR: {{ $v->freelancer_code ?: ('FR' . substr($v->vendor_code, 2)) }}
+                                        </span>
+                                    </div>
                                 @else
                                     <span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 600;">
                                         Pending Setup

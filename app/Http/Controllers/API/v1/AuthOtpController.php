@@ -1212,7 +1212,7 @@ class AuthOtpController extends Controller
         }
 
         // ── 1. CHECK MARKETING VENDOR CODE (TM...) ───────────────────────────
-        // ── 1. CHECK MARKETING VENDOR CODE (VR... / TM...) ───────────────────
+        // ── 1. CHECK MARKETING VENDOR / SUB-VENDOR CODE (VR... / TM... / SV...) ───
         $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
         if ($vendor) {
             // Cannot apply own vendor code
@@ -1220,7 +1220,13 @@ class AuthOtpController extends Controller
                 return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own vendor code.']);
             }
 
-            $roleType = strtolower(trim((string)$request->input('role_type', 'freelancer')));
+            if (str_starts_with($referralCode, 'SV')) {
+                $roleType = 'sub_vendor';
+            } elseif (str_starts_with($referralCode, 'FR')) {
+                $roleType = 'freelancer';
+            } else {
+                $roleType = strtolower(trim((string)$request->input('role_type', 'sub_vendor')));
+            }
             $designation = $request->input('designation');
             $teamLocation = $request->input('team_location');
             $teamType = $request->input('team_type');
@@ -1287,8 +1293,8 @@ class AuthOtpController extends Controller
             ]);
         }
 
-        if (str_starts_with($referralCode, 'VR') || str_starts_with($referralCode, 'TM')) {
-            return response()->json(['success' => 'Failed', 'error' => 'Invalid or inactive Vendor Code. Please check the code and try again.']);
+        if (str_starts_with($referralCode, 'VR') || str_starts_with($referralCode, 'TM') || str_starts_with($referralCode, 'SV')) {
+            return response()->json(['success' => 'Failed', 'error' => 'Invalid or inactive Vendor / Sub-Vendor Code. Please check the code and try again.']);
         }
 
         // ── 2. CHECK MARKETING TEAM MEMBER CODE (FR...) ──────────────────────

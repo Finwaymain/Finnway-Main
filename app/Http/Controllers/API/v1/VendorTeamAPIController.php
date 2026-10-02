@@ -120,7 +120,16 @@ class VendorTeamAPIController extends Controller
         }
 
         $vendorCode   = trim((string)($request->input('vendor_code') ?? $request->input('code')));
-        $roleType     = strtolower(trim((string)$request->input('role_type', 'freelancer')));
+        $codeUpper    = strtoupper($vendorCode);
+
+        // Auto-detect role from prefix
+        if (str_starts_with($codeUpper, 'SV')) {
+            $roleType = 'sub_vendor';
+        } elseif (str_starts_with($codeUpper, 'FR')) {
+            $roleType = 'freelancer';
+        } else {
+            $roleType = strtolower(trim((string)$request->input('role_type', 'sub_vendor')));
+        }
         $designation  = $request->input('designation');
         $teamLocation = $request->input('team_location');
         $teamType     = $request->input('team_type');
