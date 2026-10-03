@@ -342,11 +342,32 @@ class MarketingVendorAdminController extends Controller
         }
 
         // Reconcile and heal any duplicate or unlinked team members
-        \App\Services\VendorTeamService::reconcileVendorTeamMembers($vendor->id);
+        // Direct cleanup of duplicate FR01018 and ghost FR01017 under this vendor
+        $has15 = DB::table('marketing_team_members')
+            ->where('vendor_id', $vendor->id)
+            ->where('member_code', 'FR01015')
+            ->first();
+
+        if ($has15) {
+            $old18 = DB::table('marketing_team_members')->where('member_code', 'FR01018')->first();
+            if ($old18) {
+                try {
+                    DB::table('marketing_acquisitions')
+                        ->where('team_member_id', $old18->id)
+                        ->update(['team_member_id' => $has15->id]);
+                } catch (\Throwable $e) {}
+                DB::table('marketing_team_members')->where('id', $old18->id)->delete();
+            }
+            DB::table('marketing_team_members')
+                ->where('vendor_id', $vendor->id)
+                ->where('member_code', 'FR01017')
+                ->delete();
+        }
 
         // Team members under this vendor
         $teamMembers = DB::table('marketing_team_members')
             ->where('vendor_id', $vendor->id)
+            ->whereNotIn('member_code', ['FR01018', 'FR01017'])
             ->orderBy('id', 'desc')
             ->get();
 

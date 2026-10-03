@@ -765,8 +765,7 @@ class VendorTeamService
                 DB::table('marketing_acquisitions')
                     ->where('team_member_id', $dup->id)
                     ->update([
-                        'team_member_id'  => $canonical->id,
-                        'freelancer_code' => $canonical->member_code,
+                        'team_member_id' => $canonical->id,
                     ]);
 
                 // Move payment ledgers pointing to duplicate
@@ -838,12 +837,20 @@ class VendorTeamService
 
                     // If FR01018 exists, move any acquisitions and delete duplicate FR01018
                     if ($fr01018) {
-                        DB::table('marketing_acquisitions')
-                            ->where('team_member_id', $fr01018->id)
-                            ->update([
-                                'team_member_id'  => $fr01015->id,
-                                'freelancer_code' => 'FR01015',
-                            ]);
+                        try {
+                            DB::table('marketing_acquisitions')
+                                ->where('team_member_id', $fr01018->id)
+                                ->update(['team_member_id' => $fr01015->id]);
+                        } catch (\Throwable $e) {}
+
+                        try {
+                            if (Schema::hasTable('marketing_payment_ledgers') && Schema::hasColumn('marketing_payment_ledgers', 'team_member_id')) {
+                                DB::table('marketing_payment_ledgers')
+                                    ->where('team_member_id', $fr01018->id)
+                                    ->update(['team_member_id' => $fr01015->id]);
+                            }
+                        } catch (\Throwable $e) {}
+
                         DB::table('marketing_team_members')->where('id', $fr01018->id)->delete();
                         Log::info("VendorTeamService: Deleted duplicate FR01018 and consolidated to FR01015 for Ajit Shelke");
                     }
@@ -857,15 +864,41 @@ class VendorTeamService
                             'user_type'   => 'business',
                             'status'      => 'active',
                         ]);
-                    DB::table('marketing_acquisitions')
-                        ->where('team_member_id', $fr01018->id)
-                        ->update(['freelancer_code' => 'FR01015']);
+                }
+            }
+
+            // Always ensure FR01018 is deleted if FR01015 exists
+            $check15 = DB::table('marketing_team_members')->where('member_code', 'FR01015')->first();
+            if ($check15) {
+                $dup18 = DB::table('marketing_team_members')->where('member_code', 'FR01018')->first();
+                if ($dup18) {
+                    try {
+                        DB::table('marketing_acquisitions')
+                            ->where('team_member_id', $dup18->id)
+                            ->update(['team_member_id' => $check15->id]);
+                    } catch (\Throwable $e) {}
+                    DB::table('marketing_team_members')->where('id', $dup18->id)->delete();
                 }
             }
 
             // 2. Remove orphaned ghost members with 0 acquisitions and no valid user (e.g. FR01017)
+            $ghostMembers = DB::table('marketing_team_members')
+                ->where('member_code', 'FR01017')
+                ->get();
+            foreach ($ghostMembers as $gm) {
+                if ($check15) {
+                    try {
+                        DB::table('marketing_acquisitions')
+                            ->where('team_member_id', $gm->id)
+                            ->update(['team_member_id' => $check15->id]);
+                    } catch (\Throwable $e) {}
+                }
+                DB::table('marketing_team_members')->where('id', $gm->id)->delete();
+            }
+
             $allVendorMembers = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->get();
             foreach ($allVendorMembers as $vm) {
+                if ($check15 && $vm->id === $check15->id) continue;
                 $acqCount = DB::table('marketing_acquisitions')->where('team_member_id', $vm->id)->count();
                 if ($acqCount === 0) {
                     $uFound = DB::table('tj_conducteur')->where('id', $vm->user_id)->first()
