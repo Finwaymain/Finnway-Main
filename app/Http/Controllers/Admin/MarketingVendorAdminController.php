@@ -20,6 +20,9 @@ class MarketingVendorAdminController extends Controller
      */
     public function index(Request $request)
     {
+        // Auto-reconcile any duplicate or unlinked freelancers globally
+        \App\Services\VendorTeamService::reconcileAllDuplicateFreelancers();
+
         $status = $request->get('status', 'all');
         $type   = $request->get('type', 'all'); // 'all', 'head', 'sub'
 
@@ -44,20 +47,23 @@ class MarketingVendorAdminController extends Controller
             $phone = '';
             $email = '';
 
+            $user = null;
             if ($v->user_type === 'customer') {
-                $u = DB::table('tj_user_app')->where('id', $v->user_id)->first();
-                if ($u) {
-                    $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
-                    $phone = $u->phone ?? '';
-                    $email = $u->email ?? '';
+                $user = DB::table('tj_user_app')->where('id', $v->user_id)->first();
+                if (!$user) {
+                    $user = DB::table('tj_conducteur')->where('id', $v->user_id)->first();
                 }
             } else {
-                $d = DB::table('tj_conducteur')->where('id', $v->user_id)->first();
-                if ($d) {
-                    $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner';
-                    $phone = $d->phone ?? '';
-                    $email = $d->email ?? '';
+                $user = DB::table('tj_conducteur')->where('id', $v->user_id)->first();
+                if (!$user) {
+                    $user = DB::table('tj_user_app')->where('id', $v->user_id)->first();
                 }
+            }
+
+            if ($user) {
+                $name = trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')) ?: 'Vendor';
+                $phone = $user->phone ?? '';
+                $email = $user->email ?? '';
             }
 
             $v->applicant_name = $name;
@@ -72,12 +78,20 @@ class MarketingVendorAdminController extends Controller
                 if ($pv) {
                     $v->parent_code = $pv->vendor_code;
                     $pName = 'Parent';
+                    $pUser = null;
                     if ($pv->user_type === 'customer') {
-                        $pu = DB::table('tj_user_app')->where('id', $pv->user_id)->first();
-                        if ($pu) $pName = trim(($pu->prenom ?? '') . ' ' . ($pu->nom ?? '')) ?: 'Parent';
+                        $pUser = DB::table('tj_user_app')->where('id', $pv->user_id)->first();
+                        if (!$pUser) {
+                            $pUser = DB::table('tj_conducteur')->where('id', $pv->user_id)->first();
+                        }
                     } else {
-                        $pd = DB::table('tj_conducteur')->where('id', $pv->user_id)->first();
-                        if ($pd) $pName = trim(($pd->prenom ?? '') . ' ' . ($pd->nom ?? '')) ?: 'Parent';
+                        $pUser = DB::table('tj_conducteur')->where('id', $pv->user_id)->first();
+                        if (!$pUser) {
+                            $pUser = DB::table('tj_user_app')->where('id', $pv->user_id)->first();
+                        }
+                    }
+                    if ($pUser) {
+                        $pName = trim(($pUser->prenom ?? '') . ' ' . ($pUser->nom ?? '')) ?: 'Parent';
                     }
                     $v->parent_name = $pName;
                 }
@@ -250,20 +264,22 @@ class MarketingVendorAdminController extends Controller
         $name = 'Vendor';
         $phone = '';
         $email = '';
+        $vUser = null;
         if ($vendor->user_type === 'customer') {
-            $u = DB::table('tj_user_app')->where('id', $vendor->user_id)->first();
-            if ($u) {
-                $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
-                $phone = $u->phone ?? '';
-                $email = $u->email ?? '';
+            $vUser = DB::table('tj_user_app')->where('id', $vendor->user_id)->first();
+            if (!$vUser) {
+                $vUser = DB::table('tj_conducteur')->where('id', $vendor->user_id)->first();
             }
         } else {
-            $d = DB::table('tj_conducteur')->where('id', $vendor->user_id)->first();
-            if ($d) {
-                $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner';
-                $phone = $d->phone ?? '';
-                $email = $d->email ?? '';
+            $vUser = DB::table('tj_conducteur')->where('id', $vendor->user_id)->first();
+            if (!$vUser) {
+                $vUser = DB::table('tj_user_app')->where('id', $vendor->user_id)->first();
             }
+        }
+        if ($vUser) {
+            $name = trim(($vUser->prenom ?? '') . ' ' . ($vUser->nom ?? '')) ?: 'Vendor';
+            $phone = $vUser->phone ?? '';
+            $email = $vUser->email ?? '';
         }
         $vendor->applicant_name = $name;
         $vendor->applicant_phone = $phone;
@@ -275,12 +291,20 @@ class MarketingVendorAdminController extends Controller
             $parentVendor = DB::table('marketing_vendors')->where('id', $vendor->parent_vendor_id)->first();
             if ($parentVendor) {
                 $pName = 'Parent';
+                $pUser = null;
                 if ($parentVendor->user_type === 'customer') {
-                    $pu = DB::table('tj_user_app')->where('id', $parentVendor->user_id)->first();
-                    if ($pu) $pName = trim(($pu->prenom ?? '') . ' ' . ($pu->nom ?? '')) ?: 'Parent';
+                    $pUser = DB::table('tj_user_app')->where('id', $parentVendor->user_id)->first();
+                    if (!$pUser) {
+                        $pUser = DB::table('tj_conducteur')->where('id', $parentVendor->user_id)->first();
+                    }
                 } else {
-                    $pd = DB::table('tj_conducteur')->where('id', $parentVendor->user_id)->first();
-                    if ($pd) $pName = trim(($pd->prenom ?? '') . ' ' . ($pd->nom ?? '')) ?: 'Parent';
+                    $pUser = DB::table('tj_conducteur')->where('id', $parentVendor->user_id)->first();
+                    if (!$pUser) {
+                        $pUser = DB::table('tj_user_app')->where('id', $parentVendor->user_id)->first();
+                    }
+                }
+                if ($pUser) {
+                    $pName = trim(($pUser->prenom ?? '') . ' ' . ($pUser->nom ?? '')) ?: 'Parent';
                 }
                 $parentVendor->applicant_name = $pName;
             }
@@ -295,12 +319,21 @@ class MarketingVendorAdminController extends Controller
         foreach ($subVendors as $sv) {
             $svName = 'Sub-Vendor';
             $svPhone = '';
+            $svUser = null;
             if ($sv->user_type === 'customer') {
-                $su = DB::table('tj_user_app')->where('id', $sv->user_id)->first();
-                if ($su) { $svName = trim(($su->prenom ?? '') . ' ' . ($su->nom ?? '')) ?: 'Consumer'; $svPhone = $su->phone ?? ''; }
+                $svUser = DB::table('tj_user_app')->where('id', $sv->user_id)->first();
+                if (!$svUser) {
+                    $svUser = DB::table('tj_conducteur')->where('id', $sv->user_id)->first();
+                }
             } else {
-                $sd = DB::table('tj_conducteur')->where('id', $sv->user_id)->first();
-                if ($sd) { $svName = trim(($sd->prenom ?? '') . ' ' . ($sd->nom ?? '')) ?: 'Partner'; $svPhone = $sd->phone ?? ''; }
+                $svUser = DB::table('tj_conducteur')->where('id', $sv->user_id)->first();
+                if (!$svUser) {
+                    $svUser = DB::table('tj_user_app')->where('id', $sv->user_id)->first();
+                }
+            }
+            if ($svUser) {
+                $svName = trim(($svUser->prenom ?? '') . ' ' . ($svUser->nom ?? '')) ?: 'Sub-Vendor';
+                $svPhone = $svUser->phone ?? '';
             }
             $sv->applicant_name = $svName;
             $sv->applicant_phone = $svPhone;

@@ -815,40 +815,64 @@ class VendorTeamService
                 ->where('vendor_id', $vendorId)
                 ->get();
 
-            // First, heal any members that have user_id = 0 or missing link
-            foreach ($members as $m) {
-                // If member code is FR01015, link to Ajit Shelke if not already linked
-                if ($m->member_code === 'FR01015' && (empty($m->user_id) || $m->user_id === 0)) {
-                    $ajit = DB::table('tj_conducteur')->where('phone', 'like', '%9970601711%')->first();
-                    if (!$ajit) {
-                        $ajit = DB::table('tj_user_app')->where('phone', 'like', '%9970601711%')->first();
-                    }
-                    if ($ajit) {
-                        DB::table('marketing_team_members')
-                            ->where('id', $m->id)
-                            ->update([
-                                'user_id'    => $ajit->id,
-                                'user_type'  => 'business',
-                                'status'     => 'active',
-                                'updated_at' => now(),
-                            ]);
-                    }
-                }
+            // 1. Direct healing for Ajit Shelke (+919970601711) and FR01015
+            // Ajit acquired Amruta Gadhave under FR01015. Santosh Mahato was mistakenly linked to FR01015,
+            // while FR01018 was created as an accidental duplicate and FR01017 as an orphaned ghost row.
+            $ajit = DB::table('tj_conducteur')->where('phone', 'like', '%9970601711%')->first()
+                ?? DB::table('tj_user_app')->where('phone', 'like', '%9970601711%')->first();
 
-                // If member has acquisitions but user_id is 0
-                if (empty($m->user_id) || $m->user_id === 0) {
-                    $acq = DB::table('marketing_acquisitions')->where('team_member_id', $m->id)->first();
-                    if ($acq && !empty($acq->freelancer_code)) {
-                        $existingWithCode = DB::table('marketing_team_members')
-                            ->where('member_code', $acq->freelancer_code)
-                            ->where('id', '!=', $m->id)
-                            ->first();
-                        if ($existingWithCode) {
-                            DB::table('marketing_acquisitions')
-                                ->where('team_member_id', $m->id)
-                                ->update(['team_member_id' => $existingWithCode->id]);
-                            DB::table('marketing_team_members')->where('id', $m->id)->delete();
-                        }
+            if ($ajit) {
+                $fr01015 = DB::table('marketing_team_members')->where('member_code', 'FR01015')->first();
+                $fr01018 = DB::table('marketing_team_members')->where('member_code', 'FR01018')->first();
+
+                if ($fr01015) {
+                    // Ensure FR01015 belongs to Ajit Shelke
+                    DB::table('marketing_team_members')
+                        ->where('id', $fr01015->id)
+                        ->update([
+                            'user_id'    => $ajit->id,
+                            'user_type'  => 'business',
+                            'status'     => 'active',
+                            'updated_at' => now(),
+                        ]);
+
+                    // If FR01018 exists, move any acquisitions and delete duplicate FR01018
+                    if ($fr01018) {
+                        DB::table('marketing_acquisitions')
+                            ->where('team_member_id', $fr01018->id)
+                            ->update([
+                                'team_member_id'  => $fr01015->id,
+                                'freelancer_code' => 'FR01015',
+                            ]);
+                        DB::table('marketing_team_members')->where('id', $fr01018->id)->delete();
+                        Log::info("VendorTeamService: Deleted duplicate FR01018 and consolidated to FR01015 for Ajit Shelke");
+                    }
+                } elseif ($fr01018) {
+                    // If only FR01018 exists, rename to FR01015
+                    DB::table('marketing_team_members')
+                        ->where('id', $fr01018->id)
+                        ->update([
+                            'member_code' => 'FR01015',
+                            'user_id'     => $ajit->id,
+                            'user_type'   => 'business',
+                            'status'      => 'active',
+                        ]);
+                    DB::table('marketing_acquisitions')
+                        ->where('team_member_id', $fr01018->id)
+                        ->update(['freelancer_code' => 'FR01015']);
+                }
+            }
+
+            // 2. Remove orphaned ghost members with 0 acquisitions and no valid user (e.g. FR01017)
+            $allVendorMembers = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->get();
+            foreach ($allVendorMembers as $vm) {
+                $acqCount = DB::table('marketing_acquisitions')->where('team_member_id', $vm->id)->count();
+                if ($acqCount === 0) {
+                    $uFound = DB::table('tj_conducteur')->where('id', $vm->user_id)->first()
+                        ?? DB::table('tj_user_app')->where('id', $vm->user_id)->first();
+                    if (!$uFound || empty($uFound->phone)) {
+                        DB::table('marketing_team_members')->where('id', $vm->id)->delete();
+                        Log::info("VendorTeamService: Deleted ghost freelancer member #{$vm->id} ({$vm->member_code}) with no valid user and 0 acquisitions");
                     }
                 }
             }
