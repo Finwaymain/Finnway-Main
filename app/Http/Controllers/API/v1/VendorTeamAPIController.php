@@ -14,16 +14,40 @@ class VendorTeamAPIController extends Controller
      */
     private function resolveUser(Request $request): array
     {
-        $userId = $request->header('id_user')
-            ?? $request->input('id_user')
-            ?? $request->input('user_id');
+        $rawId = null;
+        $candidates = [
+            $request->header('id_user'),
+            $request->header('id_driver'),
+            $request->header('driver_id'),
+            $request->header('user_id'),
+            $request->input('id_user'),
+            $request->input('id_driver'),
+            $request->input('driver_id'),
+            $request->input('user_id'),
+            $request->input('id_conducteur'),
+            $request->input('id_user_app'),
+        ];
+        foreach ($candidates as $c) {
+            if ($c !== null && $c !== '' && (int)$c > 0) {
+                $rawId = (int)$c;
+                break;
+            }
+        }
 
-        $userCat = $request->header('user_cat')
+        $rawCat = $request->header('user_cat')
+            ?? $request->header('user_type')
             ?? $request->input('user_cat')
-            ?? $request->input('user_type')
-            ?? 'driver';
+            ?? $request->input('user_type');
 
-        return [(int)$userId, strtolower(trim((string)$userCat))];
+        if (empty($rawCat)) {
+            if ($request->has('driver_id') || $request->has('id_driver') || $request->has('id_conducteur')) {
+                $rawCat = 'driver';
+            } else {
+                $rawCat = 'driver';
+            }
+        }
+
+        return [(int)$rawId, strtolower(trim((string)$rawCat))];
     }
 
     /**

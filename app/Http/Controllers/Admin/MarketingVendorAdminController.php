@@ -308,6 +308,9 @@ class MarketingVendorAdminController extends Controller
             $sv->acquisitions_count = DB::table('marketing_acquisitions')->where('vendor_id', $sv->id)->count();
         }
 
+        // Reconcile and heal any duplicate or unlinked team members
+        \App\Services\VendorTeamService::reconcileVendorTeamMembers($vendor->id);
+
         // Team members under this vendor
         $teamMembers = DB::table('marketing_team_members')
             ->where('vendor_id', $vendor->id)
@@ -317,19 +320,25 @@ class MarketingVendorAdminController extends Controller
         foreach ($teamMembers as $m) {
             $mName = 'Freelancer';
             $mPhone = '';
+
+            $userObj = null;
             if ($m->user_type === 'customer') {
-                $mu = DB::table('tj_user_app')->where('id', $m->user_id)->first();
-                if ($mu) {
-                    $mName = trim(($mu->prenom ?? '') . ' ' . ($mu->nom ?? '')) ?: 'Consumer';
-                    $mPhone = $mu->phone ?? '';
+                $userObj = DB::table('tj_user_app')->where('id', $m->user_id)->first();
+                if (!$userObj) {
+                    $userObj = DB::table('tj_conducteur')->where('id', $m->user_id)->first();
                 }
             } else {
-                $md = DB::table('tj_conducteur')->where('id', $m->user_id)->first();
-                if ($md) {
-                    $mName = trim(($md->prenom ?? '') . ' ' . ($md->nom ?? '')) ?: 'Partner';
-                    $mPhone = $md->phone ?? '';
+                $userObj = DB::table('tj_conducteur')->where('id', $m->user_id)->first();
+                if (!$userObj) {
+                    $userObj = DB::table('tj_user_app')->where('id', $m->user_id)->first();
                 }
             }
+
+            if ($userObj) {
+                $mName = trim(($userObj->prenom ?? '') . ' ' . ($userObj->nom ?? '')) ?: 'Freelancer';
+                $mPhone = $userObj->phone ?? '';
+            }
+
             $m->name = $mName;
             $m->phone = $mPhone;
 
