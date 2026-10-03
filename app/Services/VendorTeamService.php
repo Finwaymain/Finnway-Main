@@ -1098,9 +1098,9 @@ class VendorTeamService
                 'businesses_verified' => $mBizVer,
                 'businesses_pending'  => $mBizPend,
                 'businesses_rejected' => $mBizRej,
-                'total_earnings'      => $mEarnings,
-                'verified_earnings'   => $mEarnings,
-                'pending_earnings'    => $mPendingEarnings,
+                'total_earnings'      => ($isHeadVendor || $isRateVisible) ? $mEarnings : null,
+                'verified_earnings'   => ($isHeadVendor || $isRateVisible) ? $mEarnings : null,
+                'pending_earnings'    => ($isHeadVendor || $isRateVisible) ? $mPendingEarnings : null,
                 'acquisitions'        => $acquisitions,
             ];
         }
@@ -1171,18 +1171,18 @@ class VendorTeamService
             'total_install'              => $totalInstall,
             'total_completed_work'       => $totalVerified,
 
-            // Financials
-            'customer_due'               => number_format($customerDue, 2, '.', ''),
-            'business_due'               => number_format($businessDue, 2, '.', ''),
-            'total_verified_due'         => number_format($totalEarned, 2, '.', ''),
-            'customer_upcoming'          => number_format($customerUpcoming, 2, '.', ''),
-            'business_upcoming'          => number_format($businessUpcoming, 2, '.', ''),
-            'total_upcoming_income'      => number_format($totalUpcomingIncome, 2, '.', ''),
-            'total_earned'               => number_format($totalEarned, 2, '.', ''),
-            'total_earnings'             => number_format($totalEarned, 2, '.', ''),
-            'paid_earned'                => number_format($paidEarned, 2, '.', ''),
-            'paid_earnings'              => number_format($paidEarned, 2, '.', ''),
-            'pending_payout'             => number_format($pendingPayout, 2, '.', ''),
+            // Financials: redacted if not visible to sub-vendor
+            'customer_due'               => ($isHeadVendor || $isRateVisible) ? number_format($customerDue, 2, '.', '') : null,
+            'business_due'               => ($isHeadVendor || $isRateVisible) ? number_format($businessDue, 2, '.', '') : null,
+            'total_verified_due'         => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
+            'customer_upcoming'          => ($isHeadVendor || $isRateVisible) ? number_format($customerUpcoming, 2, '.', '') : null,
+            'business_upcoming'          => ($isHeadVendor || $isRateVisible) ? number_format($businessUpcoming, 2, '.', '') : null,
+            'total_upcoming_income'      => ($isHeadVendor || $isRateVisible) ? number_format($totalUpcomingIncome, 2, '.', '') : null,
+            'total_earned'               => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
+            'total_earnings'             => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
+            'paid_earned'                => ($isHeadVendor || $isRateVisible) ? number_format($paidEarned, 2, '.', '') : null,
+            'paid_earnings'              => ($isHeadVendor || $isRateVisible) ? number_format($paidEarned, 2, '.', '') : null,
+            'pending_payout'             => ($isHeadVendor || $isRateVisible) ? number_format($pendingPayout, 2, '.', '') : null,
 
             'team_members'               => $teamMembers,
         ];

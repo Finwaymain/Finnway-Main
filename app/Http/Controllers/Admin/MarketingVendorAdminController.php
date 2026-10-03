@@ -152,7 +152,88 @@ class MarketingVendorAdminController extends Controller
             }
         }
 
-        return view('admin.marketing_vendors.index', compact('vendors', 'counts', 'status', 'type', 'rejectedAcquisitions'));
+        // For all_users tab – load all acquired users with member and vendor details
+        $allUsers = [];
+        if ($status === 'all_users') {
+            $allUsers = DB::table('marketing_acquisitions')
+                ->leftJoin('marketing_team_members', 'marketing_team_members.id', '=', 'marketing_acquisitions.team_member_id')
+                ->leftJoin('marketing_vendors', 'marketing_vendors.id', '=', 'marketing_acquisitions.vendor_id')
+                ->select(
+                    'marketing_acquisitions.*',
+                    'marketing_team_members.member_code as freelancer_code',
+                    'marketing_team_members.user_id as freelancer_user_id',
+                    'marketing_team_members.user_type as freelancer_user_type',
+                    'marketing_vendors.vendor_code as vendor_code_label'
+                )
+                ->orderBy('marketing_acquisitions.id', 'desc')
+                ->paginate(50);
+
+            $customerIds = [];
+            $driverIds = [];
+            $flCustomerIds = [];
+            $flDriverIds = [];
+
+            foreach ($allUsers as $acq) {
+                if ($acq->acquired_user_type === 'customer') {
+                    $customerIds[] = $acq->acquired_user_id;
+                } else {
+                    $driverIds[] = $acq->acquired_user_id;
+                }
+
+                if (!empty($acq->freelancer_user_id)) {
+                    if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
+                        $flCustomerIds[] = $acq->freelancer_user_id;
+                    } else {
+                        $flDriverIds[] = $acq->freelancer_user_id;
+                    }
+                }
+            }
+
+            $customers = !empty($customerIds) ? DB::table('tj_user_app')->whereIn('id', array_unique($customerIds))->get()->keyBy('id') : collect();
+            $drivers = !empty($driverIds) ? DB::table('tj_conducteur')->whereIn('id', array_unique($driverIds))->get()->keyBy('id') : collect();
+            $flCustomers = !empty($flCustomerIds) ? DB::table('tj_user_app')->whereIn('id', array_unique($flCustomerIds))->get()->keyBy('id') : collect();
+            $flDrivers = !empty($flDriverIds) ? DB::table('tj_conducteur')->whereIn('id', array_unique($flDriverIds))->get()->keyBy('id') : collect();
+
+            foreach ($allUsers as $acq) {
+                $acqName = 'User';
+                $acqPhone = '';
+
+                if ($acq->acquired_user_type === 'customer') {
+                    $u = $customers->get($acq->acquired_user_id);
+                    if ($u) {
+                        $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
+                        $acqPhone = $u->phone ?? '';
+                    }
+                } else {
+                    $d = $drivers->get($acq->acquired_user_id);
+                    if ($d) {
+                        $acqName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Partner';
+                        $acqPhone = $d->phone ?? '';
+                    }
+                }
+
+                $acq->user_name = $acqName;
+                $acq->user_phone = $acqPhone;
+
+                $flName = 'Freelancer';
+                if (!empty($acq->freelancer_user_id)) {
+                    if (($acq->freelancer_user_type ?? 'customer') === 'customer') {
+                        $fu = $flCustomers->get($acq->freelancer_user_id);
+                        if ($fu) $flName = trim(($fu->prenom ?? '') . ' ' . ($fu->nom ?? '')) ?: 'Freelancer';
+                    } else {
+                        $fd = $flDrivers->get($acq->freelancer_user_id);
+                        if ($fd) $flName = trim(($fd->prenom ?? '') . ' ' . ($fd->nom ?? '')) ?: 'Freelancer';
+                    }
+                }
+                $acq->freelancer_name = $flName;
+
+                if (empty($acq->vendor_code_label) && $acq->vendor_id) {
+                    $acq->vendor_code_label = 'VR' . $acq->vendor_id;
+                }
+            }
+        }
+
+        return view('admin.marketing_vendors.index', compact('vendors', 'counts', 'status', 'type', 'rejectedAcquisitions', 'allUsers'));
     }
 
     /**

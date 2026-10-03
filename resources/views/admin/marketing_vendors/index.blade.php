@@ -561,7 +561,7 @@
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge" style="background:#6d28d9; color:#fff; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 6px;">
-                            Total: {{ count($allUsers) }} users
+                            Total: {{ isset($allUsers) && method_exists($allUsers, 'total') ? $allUsers->total() : (is_countable($allUsers ?? null) ? count($allUsers) : 0) }} users
                         </span>
                         <span style="color: #475569; font-size: 12px; font-weight: 600;">All consumers/businesses acquired through freelancer invite codes</span>
                     </div>
@@ -583,9 +583,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($allUsers as $i => $acq)
+                            @forelse(($allUsers ?? []) as $i => $acq)
                             <tr>
-                                <td class="text-center font-weight-bold" style="font-size: 11.5px; color: #475569;">{{ $i + 1 }}</td>
+                                <td class="text-center font-weight-bold" style="font-size: 11.5px; color: #475569;">{{ (isset($allUsers) && method_exists($allUsers, 'firstItem') ? ($allUsers->firstItem() + $i) : ($i + 1)) }}</td>
                                 <td>
                                     <div class="font-weight-bold" style="font-size: 12.5px; color: #0f172a;">{{ $acq->user_name }}</div>
                                     <div style="font-size: 11px; color: #334155; font-weight: 600;">{{ $acq->user_phone }}</div>
@@ -664,6 +664,17 @@
                         </tbody>
                     </table>
                 </div>
+
+                @if(isset($allUsers) && method_exists($allUsers, 'hasPages') && $allUsers->hasPages())
+                <div class="p-3 border-top d-flex justify-content-between align-items-center" style="background: #ffffff; border-color: #e2e8f0 !important;">
+                    <span style="font-size: 12.5px; color: #475569; font-weight: 600;">
+                        Showing {{ $allUsers->firstItem() }} to {{ $allUsers->lastItem() }} of {{ $allUsers->total() }} entries
+                    </span>
+                    <div>
+                        {{ $allUsers->appends(['status' => $status])->links() }}
+                    </div>
+                </div>
+                @endif
             </div>
             @endif
 
