@@ -1041,23 +1041,14 @@ class ServiceRequestAPIController extends Controller
                 $notifiedCount++;
             }
 
-            // Fallback: If strict category/keyword matching found 0 providers, broadcast to online drivers
-            // so service requests are never dropped silently
-            if ($notifiedCount === 0 && $allDrivers->isNotEmpty()) {
-                \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') had 0 strict keyword matches. Broadcasting fallback to online providers.");
-                foreach ($allDrivers as $drv) {
-                    $this->sendServiceNotification(
-                        (int) $drv->id,
-                        'driver',
-                        $title,
-                        $body,
-                        $customData
-                    );
-                    $notifiedCount++;
-                }
+            // CRITICAL FIX: NEVER broadcast home service requests indiscriminately to non-home-service partners
+            // (such as Digital Marketers, Taxi drivers, Couriers, or Vendors).
+            // If 0 matching providers are online in the area, log it and keep the request pending for admin dispatch.
+            if ($notifiedCount === 0) {
+                \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') found 0 online matching home service providers within range. Booking remains pending for provider pickup or admin dispatch.");
+            } else {
+                \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') notified {$notifiedCount} matching online home service providers.");
             }
-
-            \Log::info("Home Service #{$serviceRequest->id} ('{$serviceName}') notified {$notifiedCount} matching online providers.");
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error("notifyMatchingServiceProviders error: " . $e->getMessage());
         }
@@ -3411,19 +3402,19 @@ class ServiceRequestAPIController extends Controller
 
             foreach ($rows as $row) {
                 $label = trim((string) ($row->libelle ?? ''));
-                if ($label === '' || strcasecmp($label, 'Online Seller') === 0) {
+                if ($label === '' || strcasecmp($label, 'Online Seller') === 0 || $this->isExplicitlyNonHomeServiceProfession($label)) {
                     continue;
                 }
 
                 $hasOnboarding = true;
                 $profession = $profession ?: $label;
                 $normalizedLabel = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}]/u', '', $label)));
-                if ($normalizedLabel !== '') {
+                if ($normalizedLabel !== '' && !$this->isExplicitlyNonHomeServiceProfession($normalizedLabel)) {
                     $keywords[] = $normalizedLabel;
                 }
 
                 $parentLabel = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}]/u', '', (string) ($row->parent_libelle ?? ''))));
-                if (str_contains($parentLabel, 'home services') || $this->isHomeServiceProfession($label)) {
+                if ((str_contains($parentLabel, 'home services') || $this->isHomeServiceProfession($label)) && !$this->isExplicitlyNonHomeServiceProfession($label)) {
                     $isHomeServiceProvider = true;
                 }
             }
@@ -3437,7 +3428,7 @@ class ServiceRequestAPIController extends Controller
 
             foreach ($skillRows as $skillLabel) {
                 $skillLabel = strtolower(trim((string) $skillLabel));
-                if ($skillLabel !== '') {
+                if ($skillLabel !== '' && !$this->isExplicitlyNonHomeServiceProfession($skillLabel)) {
                     $keywords[] = $skillLabel;
                     $hasOnboarding = true;
                     $isHomeServiceProvider = true;
@@ -3447,6 +3438,12 @@ class ServiceRequestAPIController extends Controller
 
         if ($hasOnboarding && !$isHomeServiceProvider && $this->isHomeServiceProfession($profession)) {
             $isHomeServiceProvider = true;
+        }
+
+        // Hard gate: If the user's profession or any assigned role is strictly non-home-service,
+        // force isHomeServiceProvider to false
+        if ($this->isExplicitlyNonHomeServiceProfession($profession)) {
+            $isHomeServiceProvider = false;
         }
 
         if (!$hasOnboarding && \Illuminate\Support\Facades\Schema::hasTable('tj_vehicule')) {
@@ -3489,6 +3486,49 @@ class ServiceRequestAPIController extends Controller
         ];
     }
 
+    private function isExplicitlyNonHomeServiceProfession(string $label): bool
+    {
+        $key = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}]/u', '', $label)));
+        if ($key === '') {
+            return false;
+        }
+
+        $nonHomeService = [
+            'digital marketer',
+            'digital marketing',
+            'seo specialist',
+            'content creator',
+            'e-learning instructor',
+            'freelance writer',
+            'driver',
+            'cab driver',
+            'taxi driver',
+            'delivery',
+            'courier',
+            'parcel delivery',
+            'food delivery',
+            'vendor',
+            'head vendor',
+            'sub-vendor',
+            'freelancer',
+            'loan agent',
+            'insurance advisor',
+            'tax consultant',
+            'real estate agent',
+            'farmer',
+            'online seller',
+            'marketing',
+        ];
+
+        foreach ($nonHomeService as $excluded) {
+            if ($key === $excluded || str_contains($key, $excluded)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function isHomeServiceProfession(string $label): bool
     {
         $key = strtolower(trim(preg_replace('/[\x{1F300}-\x{1F9FF}]/u', '', $label)));
@@ -3496,11 +3536,16 @@ class ServiceRequestAPIController extends Controller
         return in_array($key, [
             'electrician',
             'plumber',
+            'plumbing',
             'cleaner',
+            'cleaning',
             'carpenter',
+            'carpentry',
             'painter',
+            'painting',
             'pest control',
             'ac repair',
+            'ac service',
             'appliance repair',
             'home tutor',
             'maid',
@@ -3508,6 +3553,8 @@ class ServiceRequestAPIController extends Controller
             'babysitter',
             'physiotherapist',
             'nurse',
+            'salon',
+            'beautician',
         ], true);
     }
 
@@ -3587,19 +3634,24 @@ class ServiceRequestAPIController extends Controller
 
     private function serviceMatchesDriverProfile(string $serviceName, array $profile): bool
     {
+        if (empty($profile['is_home_service_provider'])) {
+            return false;
+        }
+
         $service = strtolower(trim($serviceName));
         if ($service === '') {
             return false;
         }
 
         foreach ($profile['match_keywords'] as $keyword) {
-            if ($keyword === '') {
+            $keyword = trim((string) $keyword);
+            if ($keyword === '' || strlen($keyword) < 3) {
+                continue;
+            }
+            if ($this->isExplicitlyNonHomeServiceProfession($keyword)) {
                 continue;
             }
             if (str_contains($service, $keyword) || str_contains($keyword, $service)) {
-                return true;
-            }
-            if (strlen($keyword) >= 4 && str_contains($service, substr($keyword, 0, 4))) {
                 return true;
             }
         }
