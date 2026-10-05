@@ -1235,11 +1235,17 @@ class VendorTeamService
                 ];
             }
 
+            $maskedSvPhone = '';
+            if (!empty($svPhone)) {
+                $svDigits = preg_replace('/[^0-9]/', '', $svPhone);
+                $maskedSvPhone = strlen($svDigits) >= 4 ? 'xxxxxx' . substr($svDigits, -4) : $svPhone;
+            }
+
             $directSubVendors[] = [
                 'id'                 => $sv->id,
                 'vendor_code'        => $sv->vendor_code ?: 'Pending',
                 'name'               => $svName,
-                'phone'              => $svPhone,
+                'phone'              => $maskedSvPhone,
                 'designation'        => $sv->designation ?: 'Sub-Vendor',
                 'hierarchy_level'    => (int)$sv->hierarchy_level,
                 'status'             => $sv->status,
