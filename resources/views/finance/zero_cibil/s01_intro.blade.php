@@ -14,7 +14,7 @@
                 <span class="fw-badge-fintech">✓ Instant Sanction</span>
             </div>
             <div style="font-size:24px; font-weight:800; letter-spacing:-0.4px; color:#ffffff; margin-bottom:2px;">
-                ₹20,000 – ₹2,00,000
+                ₹15,000 – ₹84,000
             </div>
             <div style="font-size:11px; color:#94a3b8; margin-bottom:10px;">Pre-approved credit line without bureau scoring</div>
             
@@ -23,7 +23,7 @@
                     0% Interest
                 </span>
                 <span style="background:rgba(25,118,210,0.18); color:#90caf9; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid rgba(25,118,210,0.3);">
-                    Daily Micro-EMI
+                    Daily Micro-Expense
                 </span>
                 <span style="background:rgba(255,184,0,0.15); color:#ffb800; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid rgba(255,184,0,0.3);">
                     No CIBIL Required
@@ -41,7 +41,7 @@
             <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:0;">
                 <div style="font-size:18px; margin-bottom:2px;">💳</div>
                 <div style="font-size:12px; font-weight:700; color:var(--navy);">Daily Credit Wallet</div>
-                <div style="font-size:10px; color:var(--gray3); line-height:1.3;">Spend up to ₹5,000 daily limit</div>
+                <div style="font-size:10px; color:var(--gray3); line-height:1.3;">Spend up to ₹4,000 daily limit</div>
             </div>
             <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:0;">
                 <div style="font-size:18px; margin-bottom:2px;">📱</div>
@@ -63,8 +63,8 @@
     </div>
 
     {{-- Bottom Action Area with Stage Transition Loader --}}
-    <div style="padding-top:10px;">
-        <button type="button" onclick="startZeroCibilApply()" class="fw-btn fw-btn-primary" style="padding:12px 14px; font-size:15px; font-weight:700;">
+    <div style="padding-top:14px; margin-bottom:20px;">
+        <button type="button" onclick="startZeroCibilApply()" class="fw-btn fw-btn-primary" style="min-height:48px; padding:12px 14px; font-size:15px; font-weight:700; border-radius:10px;">
             Apply for Credit Limit →
         </button>
     </div>
@@ -75,7 +75,7 @@ function startZeroCibilApply() {
     window.showBankingStageLoader(
         "Initializing Application",
         "Configuring secure zero-CIBIL verification session...",
-        20,
+        10,
         function() {
             window.location.href = "{{ route('finance.zero_cibil.s02_kyc', ['phone' => request('phone')]) }}";
         }

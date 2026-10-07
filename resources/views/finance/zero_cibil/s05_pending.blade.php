@@ -6,61 +6,128 @@
 @section('progress', ' ')
 
 @section('content')
-<div class="fw-viewport-container">
+<div class="fw-viewport-container" style="padding-bottom:88px;">
     <div>
         @php
             $isApproved = ($application && in_array($application->application_status, ['LOAN_APPROVED', 'DISBURSED', 'ACTIVE']))
                 || (isset($wallet) && $wallet->status === 'active');
+            $isRejected = ($application && $application->application_status === 'REJECTED');
+            $hasDocRequest = !empty($activeDocRequest) && $activeDocRequest->status === 'pending';
+            $appNumber = $application->application_number ?? ('FIIN-ZC-' . ($application->id ?? time()));
         @endphp
 
         {{-- Status Hero Card --}}
         @if($isApproved)
-            <div class="fw-bank-hero" style="text-align:center; padding:16px 14px; margin-bottom:8px; background:linear-gradient(135deg, #064e3b 0%, #065f46 100%);">
-                <div style="font-size:28px; margin-bottom:4px;">🎉</div>
-                <div style="font-size:18px; font-weight:800; color:#ffffff; margin-bottom:2px;">Credit Line Approved!</div>
-                <div style="font-size:11px; color:#a7f3d0;">Your zero-interest daily credit wallet is approved and ready.</div>
+            <div class="fw-bank-hero" style="text-align:center; padding:18px 14px; margin-bottom:12px; background:linear-gradient(135deg, #064e3b 0%, #065f46 100%);">
+                <div style="font-size:32px; margin-bottom:4px;">🎉</div>
+                <div style="font-size:18px; font-weight:800; color:#ffffff; margin-bottom:2px;">Credit Limit Approved & Sanctioned!</div>
+                <div style="font-size:12px; color:#a7f3d0;">Your zero-interest daily credit card is activated and ready to use.</div>
+            </div>
+        @elseif($isRejected)
+            <div class="fw-bank-hero" style="text-align:center; padding:18px 14px; margin-bottom:12px; background:linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);">
+                <div style="font-size:32px; margin-bottom:4px;">⚠️</div>
+                <div style="font-size:18px; font-weight:800; color:#ffffff; margin-bottom:2px;">Application Under Review / Rejected</div>
+                <div style="font-size:12px; color:#fca5a5;">{{ $application->rejection_reason ?? 'Your application could not be approved at this time.' }}</div>
             </div>
         @else
-            <div class="fw-bank-hero" style="text-align:center; padding:14px; margin-bottom:8px;">
-                <div style="font-size:24px; margin-bottom:4px;">⏳</div>
-                <div style="font-size:16px; font-weight:800; color:#ffffff; margin-bottom:2px;">Underwriting Review In-Progress</div>
-                <div style="font-size:11px; color:#94a3b8;">KYC &amp; activation fee verified. Admin is sanctioning your daily limit.</div>
+            <div class="fw-bank-hero" style="text-align:center; padding:18px 14px; margin-bottom:12px; background:linear-gradient(135deg, #0f1b2d 0%, #1e3a8a 100%); border:1px solid rgba(255,255,255,0.12);">
+                <div style="font-size:32px; margin-bottom:6px;">⏳</div>
+                <div style="font-size:17px; font-weight:800; color:#ffffff; margin-bottom:6px; line-height:1.35;">
+                    Your Disbursal is under process it will active In upto 4 hours
+                </div>
+                <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.1); border-radius:20px; padding:4px 12px; font-size:11px; color:#93c5fd;">
+                    <span>⏱</span> Estimated Time: Within 4 Hours
+                </div>
             </div>
         @endif
 
-        {{-- Application Summary (Compact Card) --}}
-        <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <span style="font-size:11px; font-weight:700; color:var(--navy);">Application Summary</span>
-                <span style="font-size:10px; font-family:monospace; color:var(--gray3);">{{ $application->application_number ?? 'FIIN-ZC' }}</span>
+        {{-- Auto Generated Application Number Banner --}}
+        <div class="fw-bank-card" style="padding:14px 16px; margin-bottom:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray3);">Application Number</div>
+                    <div style="font-size:16px; font-weight:800; font-family:monospace; color:var(--navy); margin-top:2px;">
+                        {{ $appNumber }}
+                    </div>
+                </div>
+                <span class="fw-badge fw-badge-blue" style="font-size:11px; font-weight:700; padding:4px 8px;">
+                    {{ $isApproved ? 'SANCTIONED' : ($isRejected ? 'REJECTED' : 'UNDER PROCESS') }}
+                </span>
             </div>
+        </div>
 
-            <div class="fw-info-row" style="padding:4px 0; font-size:12px;">
-                <span class="fw-info-label">Sanctioned Limit</span>
-                <span class="fw-info-value" style="font-size:13px; color:var(--navy);">₹{{ number_format($amount) }}</span>
+        {{-- Additional Document Request by Admin --}}
+        @if($hasDocRequest)
+            <div class="fw-bank-card" style="padding:14px; margin-bottom:12px; border:1.5px solid #f59e0b; background:#fffbeb;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                    <span style="font-size:20px;">📄</span>
+                    <div>
+                        <div style="font-size:13px; font-weight:800; color:#92400e;">Additional Documents Requested by Admin</div>
+                        <div style="font-size:11px; color:#b45309;">Please submit the following required documents to approve disbursal.</div>
+                    </div>
+                </div>
+                @if($docRequestRemark)
+                    <div style="background:#fef3c7; padding:8px 10px; border-radius:8px; font-size:11px; color:#78350f; margin-bottom:10px;">
+                        <strong>Admin Note:</strong> {{ $docRequestRemark }}
+                    </div>
+                @endif
+                <form action="{{ route('finance.cash_loan.s24_additional_docs_submit') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <input type="hidden" name="phone" value="{{ request('phone') }}">
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+                        @foreach($requestedDocs as $idx => $docLabel)
+                            <div>
+                                <label style="font-size:11px; font-weight:700; color:#374151; display:block; margin-bottom:2px;">
+                                    {{ $docLabel }} <span style="color:#ef4444;">*</span>
+                                </label>
+                                <input type="hidden" name="doc_names[]" value="{{ $docLabel }}">
+                                <input type="file" name="doc_files[]" class="fw-input" required accept="image/*,application/pdf" style="font-size:11px; padding:6px 8px;">
+                            </div>
+                        @endforeach
+                    </div>
+                    <button type="submit" class="fw-btn fw-btn-primary" style="min-height:48px; font-size:13px; font-weight:800;">
+                        Upload & Submit Documents →
+                    </button>
+                </form>
             </div>
-            <div class="fw-info-row" style="padding:4px 0; font-size:12px;">
-                <span class="fw-info-label">Activation Fee</span>
-                <span class="fw-badge fw-badge-green" style="font-size:10px;">✓ Paid &amp; Verified</span>
+        @endif
+
+        {{-- Application Summary --}}
+        <div class="fw-bank-card" style="padding:12px 14px; margin-bottom:12px;">
+            <div style="font-size:12px; font-weight:700; color:var(--navy); margin-bottom:8px;">Application Details</div>
+
+            <div class="fw-info-row" style="padding:6px 0; font-size:12px;">
+                <span class="fw-info-label">Applied Credit Limit</span>
+                <span class="fw-info-value" style="font-size:14px; font-weight:800; color:var(--navy);">₹{{ number_format($amount) }}</span>
             </div>
-            <div class="fw-info-row" style="padding:4px 0 0; font-size:12px;">
-                <span class="fw-info-label">Underwriting Desk</span>
+            <div class="fw-info-row" style="padding:6px 0; font-size:12px;">
+                <span class="fw-info-label">Activation Fee Status</span>
+                <span class="fw-badge fw-badge-green" style="font-size:11px; font-weight:700;">✓ Paid &amp; Verified</span>
+            </div>
+            <div class="fw-info-row" style="padding:6px 0; font-size:12px;">
+                <span class="fw-info-label">Disbursal Window</span>
+                <span class="fw-info-value" style="font-size:12px; font-weight:700; color:#0284c7;">Active In Upto 4 Hours</span>
+            </div>
+            <div class="fw-info-row" style="padding:6px 0 0; font-size:12px;">
+                <span class="fw-info-label">Underwriting Status</span>
                 @if($isApproved)
-                    <span class="fw-badge fw-badge-green" style="font-size:10px;">✓ Approved</span>
+                    <span class="fw-badge fw-badge-green" style="font-size:11px; font-weight:700;">✓ Approved by Admin</span>
+                @elseif($isRejected)
+                    <span class="fw-badge fw-badge-red" style="font-size:11px; font-weight:700;">Rejected</span>
                 @else
-                    <span class="fw-badge fw-badge-blue" style="font-size:10px;">⏳ In Queue</span>
+                    <span class="fw-badge fw-badge-blue" style="font-size:11px; font-weight:700;">⏳ Desk Verification Active</span>
                 @endif
             </div>
         </div>
 
-        {{-- Verification Pipeline (Compact 4 Steps) --}}
-        <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:8px;">
-            <div style="font-size:11px; font-weight:700; color:var(--navy); margin-bottom:6px;">
+        {{-- Verification Pipeline --}}
+        <div class="fw-bank-card" style="padding:12px 14px; margin-bottom:14px;">
+            <div style="font-size:12px; font-weight:700; color:var(--navy); margin-bottom:8px;">
                 Pipeline Progression
             </div>
-            <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+            <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
                 <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <span>✓ 1. KYC Documents Uploaded</span>
+                    <span>✓ 1. KYC Details Submitted</span>
                     <span style="color:#00a875; font-weight:700;">Verified</span>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -68,36 +135,36 @@
                     <span style="color:#00a875; font-weight:700;">Verified</span>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <span>{{ $isApproved ? '✓' : '●' }} 3. Admin Underwriting Approval</span>
-                    <span style="{{ $isApproved ? 'color:#00a875; font-weight:700;' : 'color:var(--blue); font-weight:600;' }}">
-                        {{ $isApproved ? 'Sanctioned' : 'Processing' }}
+                    <span>{{ $isApproved ? '✓' : '●' }} 3. Admin Document Verification</span>
+                    <span style="{{ $isApproved ? 'color:#00a875; font-weight:700;' : 'color:var(--blue); font-weight:700;' }}">
+                        {{ $isApproved ? 'Approved' : 'In Progress' }}
                     </span>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; color:{{ $isApproved ? '#0f1b2d' : 'var(--gray3)' }};">
-                    <span>{{ $isApproved ? '✓' : '○' }} 4. Daily Wallet Activated</span>
+                    <span>{{ $isApproved ? '✓' : '○' }} 4. Disbursal &amp; Card Active</span>
                     <span style="{{ $isApproved ? 'color:#00a875; font-weight:700;' : '' }}">
-                        {{ $isApproved ? 'Ready' : 'Pending' }}
+                        {{ $isApproved ? 'Active' : 'Within 4 Hours' }}
                     </span>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Bottom Action (Single Viewport) --}}
-    <div style="padding-top:4px;">
+    {{-- Bottom Action --}}
+    <div style="padding-top:8px;">
         @if($isApproved)
             <a href="{{ route('finance.zero_cibil.s06_wallet_active', ['phone' => request('phone')]) }}"
-               class="fw-btn fw-btn-green" style="padding:11px 14px; font-size:14px; font-weight:700;">
-                Access Active Credit Wallet →
+               class="fw-btn fw-btn-green" style="min-height:52px; font-size:15px; font-weight:800; border-radius:12px; display:flex; align-items:center; justify-content:center;">
+                Access Active Credit Card & Wallet →
             </a>
         @else
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:10px;">
                 <a href="{{ route('finance.zero_cibil.s05_pending', ['phone' => request('phone')]) }}"
-                   class="fw-btn fw-btn-primary" style="padding:10px; font-size:13px; font-weight:700; flex:1;">
+                   class="fw-btn fw-btn-primary" style="min-height:48px; font-size:13px; font-weight:800; flex:1; display:flex; align-items:center; justify-content:center; border-radius:10px;">
                     🔄 Refresh Status
                 </a>
                 <a href="{{ route('finance.hub', ['phone' => request('phone')]) }}"
-                   class="fw-btn fw-btn-outline" style="padding:10px; font-size:13px; font-weight:700; flex:1;">
+                   class="fw-btn fw-btn-outline" style="min-height:48px; font-size:13px; font-weight:800; flex:1; display:flex; align-items:center; justify-content:center; border-radius:10px;">
                     Financial Hub
                 </a>
             </div>
@@ -105,9 +172,9 @@
     </div>
 </div>
 
-@if(!$isApproved)
+@if(!$isApproved && !$isRejected)
 <script>
-// Live polling every 10 seconds to detect admin sanction
+// Live polling every 10 seconds to detect admin approval
 setInterval(function() {
     fetch("{{ route('finance.zero_cibil.s05_pending', ['phone' => request('phone')]) }}", {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }

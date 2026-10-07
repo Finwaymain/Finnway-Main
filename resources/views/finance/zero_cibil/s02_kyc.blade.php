@@ -179,9 +179,9 @@
         </form>
     </div>
 
-    {{-- Bottom Action (Single Viewport Submission) --}}
-    <div style="padding-top:6px;">
-        <button type="button" onclick="validateAndSubmitKyc()" class="fw-btn fw-btn-primary" style="padding:11px 14px; font-size:14px; font-weight:700;">
+    {{-- Bottom Action Area (Fixed height and safe bottom spacing) --}}
+    <div style="padding:16px 0 32px; margin-bottom:20px;">
+        <button type="button" onclick="validateAndSubmitKyc()" class="fw-btn fw-btn-primary" style="min-height:52px; height:52px; font-size:15px; font-weight:800; border-radius:12px; box-shadow:0 4px 14px rgba(26,95,168,0.3);">
             Save &amp; Continue to Amount Selection →
         </button>
     </div>
@@ -247,11 +247,11 @@ function validateAndSubmitKyc() {
         return;
     }
 
-    // Trigger 20-30s Stage Transition Loading Modal (Req 5)
+    // Trigger 10s Stage Transition Loading Modal (Req 1 & 5)
     window.showBankingStageLoader(
         "Encrypting KYC Vault",
         "Hashing Aadhaar & PAN credentials with SHA-256...",
-        22,
+        10,
         function() {
             form.submit();
         }

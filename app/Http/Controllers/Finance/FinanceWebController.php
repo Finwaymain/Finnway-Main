@@ -146,23 +146,76 @@ class FinanceWebController extends Controller
                 ->first();
         }
 
-        $baseFee = 999.0;
-        if ($application && $application->processing_fee_base > 0) {
+        if (in_array($productCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
+            if ($amount > 84000) $amount = 84000;
+            if ($amount < 15000) $amount = 15000;
+            $feeMap = [
+                15000 => 3500.0,
+                24000 => 4500.0,
+                65000 => 6903.0,
+                84000 => 9500.0,
+            ];
+            if (isset($feeMap[(int)$amount])) {
+                $totalFee = $feeMap[(int)$amount];
+                $baseFee = round($totalFee / 1.18, 2);
+                $feeTax = round($totalFee - $baseFee, 2);
+            } else {
+                $totalFee = round(3500 + (($amount - 15000) / (84000 - 15000)) * (9500 - 3500), 2);
+                $baseFee = round($totalFee / 1.18, 2);
+                $feeTax = round($totalFee - $baseFee, 2);
+            }
+        } elseif ($application && $application->processing_fee_base > 0) {
             $baseFee = floatval($application->processing_fee_base);
+            $feeTax = round($baseFee * 0.18, 2);
+            $totalFee = $baseFee + $feeTax;
         } elseif ($application && $application->processing_fee_amount > 0) {
             $baseFee = floatval($application->processing_fee_amount);
+            $feeTax = round($baseFee * 0.18, 2);
+            $totalFee = $baseFee + $feeTax;
         } elseif ($product) {
             if ($product->processing_fee_type === 'percentage') {
                 $baseFee = round($amount * (floatval($product->processing_fee_value) / 100), 2);
             } else {
                 $baseFee = floatval($product->processing_fee_value);
             }
+            $feeTax = round($baseFee * 0.18, 2);
+            $totalFee = $baseFee + $feeTax;
         } else {
             $baseFee = max(999, min(2500, round($amount * 0.02, 2)));
+            $feeTax = round($baseFee * 0.18, 2);
+            $totalFee = $baseFee + $feeTax;
         }
 
-        $feeTax = round($baseFee * 0.18, 2);
-        $totalFee = $baseFee + $feeTax;
+        // Exact itemized 5-component fee breakdown (User Req 3)
+        if ((int)$amount === 65000) {
+            $itemizedFees = [
+                'processing' => 1500.00,
+                'verification' => 1200.00,
+                'platform' => 1400.00,
+                'agreement' => 1000.00,
+                'monitoring' => 750.00,
+                'gst' => 1053.00,
+                'total' => 6903.00,
+            ];
+            $baseFee = 5850.00;
+            $feeTax = 1053.00;
+            $totalFee = 6903.00;
+        } else {
+            $pFee = round($baseFee * 0.2564, 2);
+            $vFee = round($baseFee * 0.2051, 2);
+            $plFee = round($baseFee * 0.2393, 2);
+            $aFee = round($baseFee * 0.1709, 2);
+            $mFee = round($baseFee - ($pFee + $vFee + $plFee + $aFee), 2);
+            $itemizedFees = [
+                'processing' => $pFee,
+                'verification' => $vFee,
+                'platform' => $plFee,
+                'agreement' => $aFee,
+                'monitoring' => $mFee,
+                'gst' => $feeTax,
+                'total' => $totalFee,
+            ];
+        }
 
         // Flow A has lender, Flow B does NOT have lender
         $hasLender = in_array($productCategory, ['low_cibil_cash', 'prime_cash', 'business_msme', 'cash_loan', 'business_loan']);
@@ -320,6 +373,7 @@ class FinanceWebController extends Controller
             'baseFee' => $baseFee,
             'feeTax' => $feeTax,
             'totalFee' => $totalFee,
+            'itemizedFees' => $itemizedFees ?? [],
             'hasLender' => $hasLender,
             'razorpayKey' => $razorpayKey,
             'razorpayMerchantName' => $razorpayMerchantName,
@@ -980,8 +1034,9 @@ class FinanceWebController extends Controller
     public function saveZeroCibilAmount(Request $request)
     {
         $phone = $request->input('phone', $request->query('phone'));
-        $amount = floatval($request->input('amount', 25000));
-        if ($amount <= 0) $amount = 25000;
+        $amount = floatval($request->input('amount', 65000));
+        if ($amount > 84000) $amount = 84000;
+        if ($amount < 15000) $amount = 15000;
 
         $customer = null;
         if ($phone) {
@@ -991,8 +1046,23 @@ class FinanceWebController extends Controller
 
         if ($customer) {
             $product = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
-            $baseFee = $product ? floatval($product->processing_fee_value) : 2500.00;
-            $tax = round($baseFee * 0.18, 2);
+            
+            // Map exact tier fee structure from policy (D15=3500, D12=4500, D30=6903, D45=9500)
+            $feeMap = [
+                15000 => 3500.0,
+                24000 => 4500.0,
+                65000 => 6903.0,
+                84000 => 9500.0,
+            ];
+            if (isset($feeMap[(int)$amount])) {
+                $totalFee = $feeMap[(int)$amount];
+                $baseFee = round($totalFee / 1.18, 2);
+                $tax = round($totalFee - $baseFee, 2);
+            } else {
+                $totalFee = round(3500 + (($amount - 15000) / (84000 - 15000)) * (9500 - 3500), 2);
+                $baseFee = round($totalFee / 1.18, 2);
+                $tax = round($totalFee - $baseFee, 2);
+            }
 
             $application = FinanceLoanApplication::where('customer_id', $customer->id)
                 ->where('loan_category', 'zero_cibil_micro')
@@ -1011,7 +1081,7 @@ class FinanceWebController extends Controller
                 'partner_lock_status' => 'unlocked',
                 'processing_fee_base' => $baseFee,
                 'processing_fee_tax' => $tax,
-                'processing_fee_total' => $baseFee + $tax,
+                'processing_fee_total' => $totalFee,
                 'fee_payment_status' => 'pending',
             ];
 

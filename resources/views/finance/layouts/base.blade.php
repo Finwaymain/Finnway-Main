@@ -247,39 +247,26 @@
             width: 100% !important;
         }
 
-        /* Fintech & Viewport No-Scroll Container (Req 1) */
+        /* Fintech Container & Viewport Safe Scrolling (Req 1: Button clipping fix) */
         .fw-viewport-container {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             box-sizing: border-box;
             width: 100%;
+            min-height: 100%;
         }
-        @media (min-height: 580px) {
-            body.fw-fintech-locked {
-                overflow: hidden !important;
-                height: 100vh !important;
-                max-height: 100dvh !important;
-            }
-            body.fw-fintech-locked .fw-main {
-                height: calc(100dvh - 46px) !important;
-                max-height: calc(100dvh - 46px) !important;
-                overflow: hidden !important;
-                display: flex !important;
-                flex-direction: column !important;
-                padding: 10px 14px 6px !important;
-            }
-            body.fw-fintech-locked.has-bottom-nav .fw-main {
-                height: calc(100dvh - 98px) !important;
-                max-height: calc(100dvh - 98px) !important;
-            }
-            body.fw-fintech-locked .fw-viewport-container {
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-                overflow: hidden;
-            }
+        body.fw-fintech-locked {
+            min-height: 100vh;
+        }
+        body.fw-fintech-locked .fw-main {
+            padding: 10px 14px 80px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            box-sizing: border-box;
+        }
+        body.fw-fintech-locked.has-bottom-nav .fw-main {
+            padding-bottom: 88px !important;
         }
         .fw-bank-card {
             background: #ffffff;
@@ -528,7 +515,7 @@
             if (typeof onComplete === 'function') onComplete();
             return;
         }
-        durationSeconds = durationSeconds || 22; // default 20-25 seconds
+        durationSeconds = durationSeconds || 10; // 10 seconds as requested
         var titleEl = document.getElementById('fwStageTitle');
         var subEl = document.getElementById('fwStageSubtitle');
         var circle = document.getElementById('fwStageCircle');

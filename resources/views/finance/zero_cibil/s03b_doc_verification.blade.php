@@ -188,13 +188,38 @@
             setStep(2, 'done');
             setStep(3, 'done');
             setStep(4, 'done');
-            statusText.textContent = "Completed ✓";
+            statusText.textContent = "Approved ✓";
             sessionStorage.removeItem(storageKey);
 
-            // Automatically proceed to Fee Payment (Req 4)
-            document.getElementById('completeVerificationForm').submit();
+            // Display Pre-Fee Approval Notification (User Req 3)
+            var appModal = document.getElementById('approvalModal');
+            if (appModal) {
+                appModal.style.display = 'flex';
+                setTimeout(function() {
+                    document.getElementById('completeVerificationForm').submit();
+                }, 3500);
+            } else {
+                document.getElementById('completeVerificationForm').submit();
+            }
         }
     }, 1000);
 })();
 </script>
+
+{{-- Pre-Fee Approval Congratulation Modal (User Req 3) --}}
+<div id="approvalModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,27,45,0.85); z-index:9999; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#ffffff; border-radius:16px; padding:24px 20px; max-width:340px; width:100%; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.4);">
+        <div style="width:60px; height:60px; background:#ecfdf5; color:#00a875; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:30px; margin-bottom:12px; border:2px solid #00a875;">
+            ✓
+        </div>
+        <h3 style="font-size:18px; font-weight:800; color:var(--navy); margin-bottom:4px;">Congratulations!</h3>
+        <p style="font-size:15px; font-weight:800; color:#00a875; margin-bottom:6px;">Your Credit Limit is Approved!</p>
+        <p style="font-size:12px; color:var(--gray3); margin-bottom:16px;">
+            Your pre-approved limit of <strong>₹{{ number_format($amount) }}</strong> has successfully passed underwriting verification.
+        </p>
+        <button type="button" onclick="document.getElementById('completeVerificationForm').submit()" class="fw-btn fw-btn-primary" style="min-height:48px; font-size:14px; font-weight:700; border-radius:10px;">
+            Proceed to Activation Fee →
+        </button>
+    </div>
+</div>
 @endsection
