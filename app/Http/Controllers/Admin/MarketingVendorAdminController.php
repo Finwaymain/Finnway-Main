@@ -358,10 +358,6 @@ class MarketingVendorAdminController extends Controller
                 } catch (\Throwable $e) {}
                 DB::table('marketing_team_members')->where('id', $old18->id)->delete();
             }
-            DB::table('marketing_team_members')
-                ->where('vendor_id', $vendor->id)
-                ->where('member_code', 'FR01017')
-                ->delete();
         }
 
         // Run vendor team member reconciliation and auto-healing
@@ -370,7 +366,7 @@ class MarketingVendorAdminController extends Controller
         // Team members under this vendor
         $teamMembers = DB::table('marketing_team_members')
             ->where('vendor_id', $vendor->id)
-            ->whereNotIn('member_code', ['FR01018', 'FR01017'])
+            ->where('member_code', '!=', 'FR01018')
             ->orderBy('id', 'desc')
             ->get();
 

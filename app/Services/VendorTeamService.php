@@ -944,20 +944,7 @@ class VendorTeamService
                 }
             }
 
-            // 2. Remove orphaned ghost members with 0 acquisitions and no valid user (e.g. FR01017)
-            $ghostMembers = DB::table('marketing_team_members')
-                ->where('member_code', 'FR01017')
-                ->get();
-            foreach ($ghostMembers as $gm) {
-                if ($check15) {
-                    try {
-                        DB::table('marketing_acquisitions')
-                            ->where('team_member_id', $gm->id)
-                            ->update(['team_member_id' => $check15->id]);
-                    } catch (\Throwable $e) {}
-                }
-                DB::table('marketing_team_members')->where('id', $gm->id)->delete();
-            }
+            // 2. Remove orphaned ghost members with 0 acquisitions and no valid user
 
             $allVendorMembers = DB::table('marketing_team_members')->where('vendor_id', $vendorId)->get();
             foreach ($allVendorMembers as $vm) {
