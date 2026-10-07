@@ -1290,82 +1290,9 @@ class AuthOtpController extends Controller
             return response()->json(['success' => 'Failed', 'error' => 'Invalid or inactive Vendor / Sub-Vendor Code. Please check the code and try again.']);
         }
 
-        // ── 2. CHECK MARKETING TEAM MEMBER CODE (FR...) ──────────────────────
-        $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
-        if ($teamMember) {
-            // Cannot apply own freelancer code
-            if ((int)$teamMember->user_id === $userId && $teamMember->user_type === $userCat) {
-                return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own freelancer code.']);
-            }
-
-            // Cannot apply if already acquired
-            $existingAcq = DB::table('marketing_acquisitions')
-                ->where('acquired_user_id', $userId)
-                ->where('acquired_user_type', $userCat)
-                ->first();
-            if ($existingAcq) {
-                return response()->json(['success' => 'Failed', 'error' => 'A team member referral code has already been applied to your account.']);
-            }
-
-            // Cannot apply if already has a peer referral applied
-            $existingReferral = DB::table('referral')
-                ->where('user_id', $userId)
-                ->where(function($q) use ($userCat) {
-                    $q->where('user_type', $userCat)->orWhereNull('user_type');
-                })
-                ->first();
-            if ($existingReferral && !empty($existingReferral->referral_by_id)) {
-                return response()->json(['success' => 'Failed', 'error' => 'A referral code has already been applied to your account.']);
-            }
-
-            // Record marketing acquisition
-            $acqResult = \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
-            if (empty($acqResult['success'])) {
-                return response()->json(['success' => 'Failed', 'error' => $acqResult['message'] ?? 'Failed to record referral.']);
-            }
-
-            // Update ref_by in tj_conducteur / tj_user_app
-            if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
-                DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
-            }
-            if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
-                DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
-            }
-
-            // Update referral table
-            if ($existingReferral) {
-                $refUpdate = ['code_used' => 'true'];
-                if (Schema::hasColumn('referral', 'referral_by_code')) {
-                    $refUpdate['referral_by_code'] = $referralCode;
-                }
-                DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
-            } else {
-                $userReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
-                $insertData = [
-                    'user_id'        => $userId,
-                    'user_type'      => $userCat,
-                    'referral_code'  => $userReferralCode,
-                    'code_used'      => 'true',
-                    'creer'          => date('Y-m-d H:i:s'),
-                ];
-                if (Schema::hasColumn('referral', 'referral_by_code')) {
-                    $insertData['referral_by_code'] = $referralCode;
-                }
-                DB::table('referral')->insert($insertData);
-            }
-
-            \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
-
-            \Log::info("applyReferral: user $userId ($userCat) acquired under Freelancer #{$teamMember->id} (Code: $referralCode)");
-
-            return response()->json([
-                'success' => 'success',
-                'message' => 'Team member referral code applied successfully!'
-            ]);
-        }
-
+        // ── 2. CHECK MARKETING TEAM MEMBER / FREELANCER CODE (FR...) ─────────
         if (str_starts_with($referralCode, 'FR')) {
-            // Check if it matches a Vendor's Freelancer Joining Code
+            // First check if it matches a Vendor's Freelancer Joining Code (e.g. FR10020 for Sub-Vendor VR10020)
             $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
             if ($vendor) {
                 if ((int)$vendor->user_id === $userId && $vendor->user_type === $userCat) {
@@ -1380,6 +1307,36 @@ class AuthOtpController extends Controller
                     if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
                         DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
                     }
+
+                    // Update referral table
+                    $existingReferral = DB::table('referral')
+                        ->where('user_id', $userId)
+                        ->where(function($q) use ($userCat) {
+                            $q->where('user_type', $userCat)->orWhereNull('user_type');
+                        })
+                        ->first();
+
+                    if ($existingReferral) {
+                        $refUpdate = ['code_used' => 'true'];
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                            $refUpdate['referral_by_code'] = $referralCode;
+                        }
+                        DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                    } else {
+                        $userReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                        $insertData = [
+                            'user_id'        => $userId,
+                            'user_type'      => $userCat,
+                            'referral_code'  => $userReferralCode,
+                            'code_used'      => 'true',
+                            'creer'          => date('Y-m-d H:i:s'),
+                        ];
+                        if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                            $insertData['referral_by_code'] = $referralCode;
+                        }
+                        DB::table('referral')->insert($insertData);
+                    }
+
                     \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
 
                     return response()->json([
@@ -1388,6 +1345,80 @@ class AuthOtpController extends Controller
                         'data'    => $reg,
                     ]);
                 }
+            }
+
+            // Otherwise, check if it belongs to an individual Freelancer / Team Member
+            $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
+            if ($teamMember) {
+                // Cannot apply own freelancer code
+                if ((int)$teamMember->user_id === $userId && $teamMember->user_type === $userCat) {
+                    return response()->json(['success' => 'Failed', 'error' => 'You cannot apply your own freelancer code.']);
+                }
+
+                // Cannot apply if already acquired
+                $existingAcq = DB::table('marketing_acquisitions')
+                    ->where('acquired_user_id', $userId)
+                    ->where('acquired_user_type', $userCat)
+                    ->first();
+                if ($existingAcq) {
+                    return response()->json(['success' => 'Failed', 'error' => 'A team member referral code has already been applied to your account.']);
+                }
+
+                // Cannot apply if already has a peer referral applied
+                $existingReferral = DB::table('referral')
+                    ->where('user_id', $userId)
+                    ->where(function($q) use ($userCat) {
+                        $q->where('user_type', $userCat)->orWhereNull('user_type');
+                    })
+                    ->first();
+                if ($existingReferral && !empty($existingReferral->referral_by_id)) {
+                    return response()->json(['success' => 'Failed', 'error' => 'A referral code has already been applied to your account.']);
+                }
+
+                // Record marketing acquisition
+                $acqResult = \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
+                if (empty($acqResult['success'])) {
+                    return response()->json(['success' => 'Failed', 'error' => $acqResult['message'] ?? 'Failed to record referral.']);
+                }
+
+                // Update ref_by in tj_conducteur / tj_user_app
+                if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                    DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                }
+                if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                    DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $referralCode]);
+                }
+
+                // Update referral table
+                if ($existingReferral) {
+                    $refUpdate = ['code_used' => 'true'];
+                    if (Schema::hasColumn('referral', 'referral_by_code')) {
+                        $refUpdate['referral_by_code'] = $referralCode;
+                    }
+                    DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                } else {
+                    $userReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                    $insertData = [
+                        'user_id'        => $userId,
+                        'user_type'      => $userCat,
+                        'referral_code'  => $userReferralCode,
+                        'code_used'      => 'true',
+                        'creer'          => date('Y-m-d H:i:s'),
+                    ];
+                    if (Schema::hasColumn('referral', 'referral_by_code')) {
+                        $insertData['referral_by_code'] = $referralCode;
+                    }
+                    DB::table('referral')->insert($insertData);
+                }
+
+                \App\Services\PromotionalService::grantWelcomeBonus($userId, $userCat, null);
+
+                \Log::info("applyReferral: user $userId ($userCat) acquired under Freelancer #{$teamMember->id} (Code: $referralCode)");
+
+                return response()->json([
+                    'success' => 'success',
+                    'message' => 'Team member referral code applied successfully!'
+                ]);
             }
 
             return response()->json(['success' => 'Failed', 'error' => 'Invalid Freelancer Code. Please check the code and try again.']);
@@ -1592,7 +1623,49 @@ class AuthOtpController extends Controller
                     }
                 }
 
-                // 2. CHECK IF TEAM MEMBER CODE (FR...) -> Records marketing acquisition for Freelancer
+                // 2. CHECK IF VENDOR CODE (VR... / TM... or Vendor's Freelancer Joining Code FR...)
+                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($codeUpper);
+                if ($vendor) {
+                    $reg = \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
+                    \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
+                    if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
+                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $codeUpper]);
+                    }
+                    if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
+                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
+                    }
+
+                    $existingReferral = DB::table('referral')
+                        ->where('user_id', $userId)
+                        ->where(function($q) use ($userCat) {
+                            $q->where('user_type', $userCat)->orWhereNull('user_type');
+                        })
+                        ->first();
+                    if ($existingReferral) {
+                        $refUpdate = ['code_used' => 'true'];
+                        if (Schema::hasColumn('referral', 'referral_by_code')) {
+                            $refUpdate['referral_by_code'] = $codeUpper;
+                        }
+                        DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                    } else {
+                        $insertData = [
+                            'user_id'        => $userId,
+                            'user_type'      => $userCat,
+                            'referral_code'  => \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat),
+                            'code_used'      => 'true',
+                            'creer'          => date('Y-m-d H:i:s'),
+                        ];
+                        if (Schema::hasColumn('referral', 'referral_by_code')) {
+                            $insertData['referral_by_code'] = $codeUpper;
+                        }
+                        DB::table('referral')->insert($insertData);
+                    }
+
+                    \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
+                    return;
+                }
+
+                // 3. CHECK IF TEAM MEMBER CODE (FR...) -> Records marketing acquisition for Freelancer
                 $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($codeUpper);
                 if ($teamMember) {
                     \App\Services\VendorTeamService::recordAcquisition($teamMember, $userId, $userCat);
@@ -1603,21 +1676,33 @@ class AuthOtpController extends Controller
                     if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
                         DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
                     }
-                    \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
-                    return;
-                }
 
-                // 3. CHECK IF VENDOR CODE (VR... / TM... or Vendor's Freelancer Joining Code FR...)
-                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($codeUpper);
-                if ($vendor) {
-                    \App\Services\VendorTeamService::registerTeamMember($vendor, $userId, $userCat);
-                    \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat);
-                    if (Schema::hasColumn('tj_user_app', 'ref_by') && $userCat !== 'driver') {
-                        DB::table('tj_user_app')->where('id', $userId)->update(['ref_by' => $codeUpper]);
+                    $existingReferral = DB::table('referral')
+                        ->where('user_id', $userId)
+                        ->where(function($q) use ($userCat) {
+                            $q->where('user_type', $userCat)->orWhereNull('user_type');
+                        })
+                        ->first();
+                    if ($existingReferral) {
+                        $refUpdate = ['code_used' => 'true'];
+                        if (Schema::hasColumn('referral', 'referral_by_code')) {
+                            $refUpdate['referral_by_code'] = $codeUpper;
+                        }
+                        DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                    } else {
+                        $insertData = [
+                            'user_id'        => $userId,
+                            'user_type'      => $userCat,
+                            'referral_code'  => \App\Services\ReferralCodeService::getOrCreateReferralCode($userId, $userCat),
+                            'code_used'      => 'true',
+                            'creer'          => date('Y-m-d H:i:s'),
+                        ];
+                        if (Schema::hasColumn('referral', 'referral_by_code')) {
+                            $insertData['referral_by_code'] = $codeUpper;
+                        }
+                        DB::table('referral')->insert($insertData);
                     }
-                    if (Schema::hasColumn('tj_conducteur', 'ref_by') && $userCat === 'driver') {
-                        DB::table('tj_conducteur')->where('id', $userId)->update(['ref_by' => $codeUpper]);
-                    }
+
                     \App\Services\PromotionalService::grantWelcomeBonus((int)$userId, $userCat, null);
                     return;
                 }

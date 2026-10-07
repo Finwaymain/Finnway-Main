@@ -758,6 +758,15 @@ class VendorTeamService
 
             $canonical = $sorted->first()['member'];
 
+            // Preserve the most recent non-null vendor_id across candidates
+            $latestVendorId = null;
+            foreach ($sorted->reverse() as $item) {
+                if (!empty($item['member']->vendor_id)) {
+                    $latestVendorId = $item['member']->vendor_id;
+                    break;
+                }
+            }
+
             // Merge duplicates into canonical
             for ($i = 1; $i < $sorted->count(); $i++) {
                 $dup = $sorted[$i]['member'];
@@ -780,19 +789,25 @@ class VendorTeamService
                 Log::info("VendorTeamService: Reconciled duplicate freelancer member #{$dup->id} ({$dup->member_code}) into canonical #{$canonical->id} ({$canonical->member_code})");
             }
 
-            // Update canonical with active user credentials
+            // Update canonical with active user credentials and latest vendor_id
+            $updateData = [
+                'status'     => 'active',
+                'updated_at' => now(),
+            ];
             if ($userId > 0) {
-                DB::table('marketing_team_members')
-                    ->where('id', $canonical->id)
-                    ->update([
-                        'user_id'    => $userId,
-                        'user_type'  => $userType,
-                        'status'     => 'active',
-                        'updated_at' => now(),
-                    ]);
+                $updateData['user_id'] = $userId;
+                $updateData['user_type'] = $userType;
                 $canonical->user_id = $userId;
                 $canonical->user_type = $userType;
             }
+            if ($latestVendorId && (int)$canonical->vendor_id !== (int)$latestVendorId) {
+                $updateData['vendor_id'] = $latestVendorId;
+                $canonical->vendor_id = $latestVendorId;
+            }
+
+            DB::table('marketing_team_members')
+                ->where('id', $canonical->id)
+                ->update($updateData);
 
             return $canonical;
 
@@ -901,9 +916,15 @@ class VendorTeamService
                 if ($check15 && $vm->id === $check15->id) continue;
                 $acqCount = DB::table('marketing_acquisitions')->where('team_member_id', $vm->id)->count();
                 if ($acqCount === 0) {
-                    $uFound = DB::table('tj_conducteur')->where('id', $vm->user_id)->first()
-                        ?? DB::table('tj_user_app')->where('id', $vm->user_id)->first();
-                    if (!$uFound || empty($uFound->phone)) {
+                    $uFound = null;
+                    if ($vm->user_type === 'customer') {
+                        $uFound = DB::table('tj_user_app')->where('id', $vm->user_id)->first()
+                            ?? DB::table('tj_conducteur')->where('id', $vm->user_id)->first();
+                    } else {
+                        $uFound = DB::table('tj_conducteur')->where('id', $vm->user_id)->first()
+                            ?? DB::table('tj_user_app')->where('id', $vm->user_id)->first();
+                    }
+                    if (!$uFound || (empty($uFound->phone) && empty($uFound->email))) {
                         DB::table('marketing_team_members')->where('id', $vm->id)->delete();
                         Log::info("VendorTeamService: Deleted ghost freelancer member #{$vm->id} ({$vm->member_code}) with no valid user and 0 acquisitions");
                     }
@@ -958,11 +979,24 @@ class VendorTeamService
             $existing = self::resolveAndReconcileTeamMember($userId, $userType);
 
             if ($existing) {
+                // If the user already had a member record, ensure they are assigned/transferred to this vendor
+                if ((int)$existing->vendor_id !== (int)$vendor->id) {
+                    DB::table('marketing_team_members')
+                        ->where('id', $existing->id)
+                        ->update([
+                            'vendor_id'  => $vendor->id,
+                            'status'     => 'active',
+                            'updated_at' => now(),
+                        ]);
+                    $existing->vendor_id = $vendor->id;
+                    Log::info("VendorTeamService: Assigned/transferred freelancer #{$existing->id} ({$existing->member_code}) to Vendor #{$vendor->id} ({$vendor->vendor_code})");
+                }
+
                 return [
                     'success'     => true,
                     'member_code' => $existing->member_code,
                     'member_id'   => $existing->id,
-                    'message'     => 'Already registered as Freelancer.',
+                    'message'     => "Joined as Freelancer successfully under Vendor {$vendor->vendor_code}.",
                 ];
             }
 
