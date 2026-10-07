@@ -825,6 +825,54 @@ class VendorTeamService
         try {
             if (!Schema::hasTable('marketing_team_members')) return;
 
+            // Auto-heal/reconcile any user who entered this vendor's Freelancer Joining Code (FR...)
+            $vendor = DB::table('marketing_vendors')->where('id', $vendorId)->first();
+            if ($vendor && !empty($vendor->vendor_code)) {
+                $numPart = substr($vendor->vendor_code, 2);
+                $frCodes = array_filter(array_unique([
+                    $vendor->freelancer_code ?? null,
+                    $numPart ? 'FR' . $numPart : null,
+                ]));
+
+                foreach ($frCodes as $frCode) {
+                    $appliedUsers = collect();
+                    if (Schema::hasColumn('tj_user_app', 'ref_by')) {
+                        $custs = DB::table('tj_user_app')
+                            ->where('ref_by', $frCode)
+                            ->select('id')
+                            ->get()
+                            ->map(fn($r) => ['user_id' => (int)$r->id, 'user_type' => 'customer']);
+                        $appliedUsers = $appliedUsers->merge($custs);
+                    }
+                    if (Schema::hasColumn('tj_conducteur', 'ref_by')) {
+                        $drivers = DB::table('tj_conducteur')
+                            ->where('ref_by', $frCode)
+                            ->select('id')
+                            ->get()
+                            ->map(fn($r) => ['user_id' => (int)$r->id, 'user_type' => 'business']);
+                        $appliedUsers = $appliedUsers->merge($drivers);
+                    }
+                    if (Schema::hasTable('referral') && Schema::hasColumn('referral', 'referral_by_code')) {
+                        $refs = DB::table('referral')
+                            ->where('referral_by_code', $frCode)
+                            ->select('user_id', 'user_type')
+                            ->get()
+                            ->map(fn($r) => [
+                                'user_id' => (int)$r->user_id,
+                                'user_type' => in_array(strtolower((string)$r->user_type), ['driver', 'conducteur', 'business', 'provider'], true) ? 'business' : 'customer'
+                            ]);
+                        $appliedUsers = $appliedUsers->merge($refs);
+                    }
+
+                    $uniqueApplied = $appliedUsers->unique(fn($u) => $u['user_id'] . '_' . $u['user_type']);
+                    foreach ($uniqueApplied as $u) {
+                        if ($u['user_id'] <= 0) continue;
+                        if ($u['user_id'] === (int)$vendor->user_id && $u['user_type'] === $vendor->user_type) continue;
+                        self::registerTeamMember($vendor, $u['user_id'], $u['user_type']);
+                    }
+                }
+            }
+
             $members = DB::table('marketing_team_members')
                 ->where('vendor_id', $vendorId)
                 ->get();

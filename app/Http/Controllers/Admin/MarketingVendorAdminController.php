@@ -364,6 +364,9 @@ class MarketingVendorAdminController extends Controller
                 ->delete();
         }
 
+        // Run vendor team member reconciliation and auto-healing
+        \App\Services\VendorTeamService::reconcileVendorTeamMembers($vendor->id);
+
         // Team members under this vendor
         $teamMembers = DB::table('marketing_team_members')
             ->where('vendor_id', $vendor->id)
