@@ -186,20 +186,62 @@ class FinanceWebController extends Controller
             $totalFee = $baseFee + $feeTax;
         }
 
-        // Exact itemized 5-component fee breakdown (User Req 3)
-        if ((int)$amount === 65000) {
-            $itemizedFees = [
-                'processing' => 1500.00,
-                'verification' => 1200.00,
-                'platform' => 1400.00,
-                'agreement' => 1000.00,
-                'monitoring' => 750.00,
-                'gst' => 1053.00,
-                'total' => 6903.00,
-            ];
-            $baseFee = 5850.00;
-            $feeTax = 1053.00;
-            $totalFee = 6903.00;
+        // Exact itemized 5-component fee breakdown (Clean integers, no decimals - User Req 1)
+        if (in_array($productCategory, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
+            $amtInt = (int)$amount;
+            if ($amtInt === 15000) {
+                $itemizedFees = [
+                    'processing' => 760,
+                    'verification' => 610,
+                    'platform' => 710,
+                    'agreement' => 510,
+                    'monitoring' => 376,
+                    'gst' => 534,
+                    'total' => 3500,
+                ];
+                $baseFee = 2966.0;
+                $feeTax = 534.0;
+                $totalFee = 3500.0;
+            } elseif ($amtInt === 24000) {
+                $itemizedFees = [
+                    'processing' => 978,
+                    'verification' => 782,
+                    'platform' => 913,
+                    'agreement' => 652,
+                    'monitoring' => 489,
+                    'gst' => 686,
+                    'total' => 4500,
+                ];
+                $baseFee = 3814.0;
+                $feeTax = 686.0;
+                $totalFee = 4500.0;
+            } elseif ($amtInt === 84000) {
+                $itemizedFees = [
+                    'processing' => 2064,
+                    'verification' => 1651,
+                    'platform' => 1927,
+                    'agreement' => 1376,
+                    'monitoring' => 1033,
+                    'gst' => 1449,
+                    'total' => 9500,
+                ];
+                $baseFee = 8051.0;
+                $feeTax = 1449.0;
+                $totalFee = 9500.0;
+            } else { // 65000 or custom
+                $itemizedFees = [
+                    'processing' => 1500,
+                    'verification' => 1200,
+                    'platform' => 1400,
+                    'agreement' => 1000,
+                    'monitoring' => 750,
+                    'gst' => 1053,
+                    'total' => 6903,
+                ];
+                $baseFee = 5850.0;
+                $feeTax = 1053.0;
+                $totalFee = 6903.0;
+            }
         } else {
             $pFee = round($baseFee * 0.2564, 2);
             $vFee = round($baseFee * 0.2051, 2);
@@ -1660,11 +1702,51 @@ class FinanceWebController extends Controller
         $lock = $this->checkActiveApplicationLock($request, 'zero_cibil', 'Zero-CIBIL Daily Credit');
         if ($lock) return $lock;
 
-        return view('finance.zero_cibil.s01_intro', $this->resolveContext($request));
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        if ($app && !in_array($app->application_status, ['DRAFT', 'APPLICATION_CREATED', 'REJECTED', 'CLOSED', 'WITHDRAWN'])) {
+            $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
+            if ($resume) return redirect($resume);
+        }
+
+        return view('finance.zero_cibil.s01_intro', $ctx);
     }
-    public function zeroCibilKyc(Request $request)          { return view('finance.zero_cibil.s02_kyc', $this->resolveContext($request)); }
-    public function zeroCibilAmountSelect(Request $request) { return view('finance.zero_cibil.s03_amount_select', $this->resolveContext($request)); }
-    public function zeroCibilDocVerification(Request $request) { return view('finance.zero_cibil.s03b_doc_verification', $this->resolveContext($request)); }
+
+    public function zeroCibilKyc(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        // If approved or fee pending or further, no back navigation allowed
+        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+            $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
+            if ($resume) return redirect($resume);
+        }
+        return view('finance.zero_cibil.s02_kyc', $ctx);
+    }
+
+    public function zeroCibilAmountSelect(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        // If approved or fee pending or further, no back navigation allowed
+        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+            $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
+            if ($resume) return redirect($resume);
+        }
+        return view('finance.zero_cibil.s03_amount_select', $ctx);
+    }
+
+    public function zeroCibilDocVerification(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        // If already fee pending or past verification, forward to current step
+        if ($app && in_array($app->application_status, ['SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+            $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
+            if ($resume) return redirect($resume);
+        }
+        return view('finance.zero_cibil.s03b_doc_verification', $ctx);
+    }
 
     public function completeZeroCibilDocVerification(Request $request)
     {
@@ -1701,7 +1783,16 @@ class FinanceWebController extends Controller
         return redirect()->route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone]);
     }
 
-    public function zeroCibilFeePayment(Request $request)   { return view('finance.zero_cibil.s04_fee_payment', $this->resolveContext($request)); }
+    public function zeroCibilFeePayment(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        if ($app && in_array($app->application_status, ['UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+            $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
+            if ($resume) return redirect($resume);
+        }
+        return view('finance.zero_cibil.s04_fee_payment', $ctx);
+    }
     public function zeroCibilPending(Request $request)      { return view('finance.zero_cibil.s05_pending', $this->resolveContext($request)); }
     public function zeroCibilWalletActive(Request $request) {
         $phone = $request->query('phone');

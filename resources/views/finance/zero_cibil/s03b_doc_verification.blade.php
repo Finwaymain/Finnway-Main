@@ -203,6 +203,12 @@
             }
         }
     }, 1000);
+
+    // Prevent backward navigation once verification starts (User Req 2)
+    history.pushState(null, null, location.href);
+    window.onpopstate = function () {
+        history.go(1);
+    };
 })();
 </script>
 

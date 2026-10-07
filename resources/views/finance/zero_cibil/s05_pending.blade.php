@@ -172,8 +172,14 @@
     </div>
 </div>
 
-@if(!$isApproved && !$isRejected)
 <script>
+// Prevent backward navigation once in disbursal queue (User Req 2)
+history.pushState(null, null, location.href);
+window.onpopstate = function () {
+    history.go(1);
+};
+
+@if(!$isApproved && !$isRejected)
 // Live polling every 10 seconds to detect admin approval
 setInterval(function() {
     fetch("{{ route('finance.zero_cibil.s05_pending', ['phone' => request('phone')]) }}", {
@@ -184,6 +190,6 @@ setInterval(function() {
         }
     }).catch(function() {});
 }, 10000);
-</script>
 @endif
+</script>
 @endsection

@@ -148,6 +148,12 @@
 </div>
 
 <script>
+// Prevent backward navigation on active card/wallet (User Req 2)
+history.pushState(null, null, location.href);
+window.onpopstate = function () {
+    history.go(1);
+};
+
 function showRepaymentSuccess() {
     alert("✓ Repayment installment submitted successfully! Next day's daily spending limit remains unlocked.");
 }
