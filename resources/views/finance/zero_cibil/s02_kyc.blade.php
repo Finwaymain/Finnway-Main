@@ -1,7 +1,7 @@
 @extends('finance.layouts.base')
-@section('title', 'KYC Upload — Zero-CIBIL')
+@section('title', 'KYC Verification — Zero-CIBIL')
 @section('header-sub', 'Zero-CIBIL Credit')
-@section('progress-label', 'Step 2 of 6')
+@section('progress-label', 'Step 2 of 6 · KYC & Identity')
 @section('progress-pct', '33')
 @section('progress', ' ')
 
@@ -10,158 +10,252 @@
 @endsection
 
 @section('content')
+<div class="fw-viewport-container">
+    <div>
+        {{-- Micro Header --}}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+                <p class="fw-section-title" style="font-size:18px; margin-bottom:2px;">KYC &amp; Contact Details</p>
+                <p style="font-size:11px; color:var(--gray3); margin:0;">Zero bureau check · Instant Aadhaar &amp; PAN match</p>
+            </div>
+            <span class="fw-badge-fintech">🔒 Vault Protected</span>
+        </div>
 
-<p class="fw-section-title">KYC Verification</p>
-<p class="fw-section-sub">Upload your Aadhaar &amp; PAN card to activate your zero-interest credit line.</p>
+        @if(session('error'))
+            <div class="fw-alert fw-alert-error" style="padding:8px 12px; margin-bottom:8px; font-size:12px;">
+                ⚠️ {{ session('error') }}
+            </div>
+        @endif
 
-<div class="fw-alert fw-alert-info">
-    🔒 Bank statements or passbooks are <strong>never required</strong>. Only Aadhaar &amp; PAN are needed.
+        <div id="clientErrorBox" class="fw-alert fw-alert-error" style="display:none; padding:8px 12px; margin-bottom:8px; font-size:12px;">
+        </div>
+
+        @php
+            $hasAadhaarFront = !empty($uploadedDocs['aadhaar_front']);
+            $hasAadhaarBack  = !empty($uploadedDocs['aadhaar_back']);
+            $hasPanCard      = !empty($uploadedDocs['pan_card']);
+
+            $savedDetails = is_array($application->applicant_details ?? null) 
+                ? $application->applicant_details 
+                : (json_decode($application->applicant_details ?? '[]', true) ?: []);
+
+            $altPhoneVal = $customer->alternate_phone ?? ($savedDetails['alternate_phone'] ?? '');
+            $waPhoneVal  = $customer->whatsapp_phone ?? ($savedDetails['whatsapp_phone'] ?? '');
+            $emailVal    = $customer->email ?? ($savedDetails['email'] ?? '');
+            $nameVal     = $customer->name ?? ($savedDetails['name'] ?? '');
+            $panVal      = $customer->pan ?? ($savedDetails['pan'] ?? '');
+            $aadhaarVal  = $customer->aadhaar ?? ($savedDetails['aadhaar'] ?? '');
+        @endphp
+
+        <form id="kycForm" method="POST" action="{{ route('finance.zero_cibil.save_kyc') }}" enctype="multipart/form-data">
+            @csrf
+            <input type="hidden" id="primary_phone" name="phone" value="{{ request('phone', $phone) }}">
+
+            {{-- 1. Identity Inputs (Compact Grid) --}}
+            <div class="fw-bank-card" style="margin-bottom:8px; padding:10px 12px;">
+                <div style="display:grid; grid-template-columns:1fr; gap:6px;">
+                    <div>
+                        <label class="fw-label" style="font-size:10px; margin-bottom:2px;">Full Name (As per Aadhaar)</label>
+                        <input type="text" name="applicant_name" class="fw-input" required
+                               style="padding:8px 10px; font-size:13px;"
+                               value="{{ $nameVal }}" placeholder="e.g. Rahul Sharma">
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+                    <div>
+                        <label class="fw-label" style="font-size:10px; margin-bottom:2px;">PAN Number</label>
+                        <input type="text" name="pan_number" class="fw-input" maxlength="10" required
+                               style="padding:8px 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;"
+                               value="{{ $panVal }}" placeholder="ABCDE1234F">
+                    </div>
+                    <div>
+                        <label class="fw-label" style="font-size:10px; margin-bottom:2px;">Aadhaar Number</label>
+                        <input type="text" name="aadhaar_number" class="fw-input" maxlength="12" required
+                               style="padding:8px 10px; font-size:13px; letter-spacing:0.5px;"
+                               value="{{ $aadhaarVal }}" placeholder="12-digit number">
+                    </div>
+                </div>
+            </div>
+
+            {{-- 2. Contact Profile Isolation (Req 3: Alternate, WhatsApp, Email) --}}
+            <div class="fw-bank-card" style="margin-bottom:8px; padding:10px 12px; border-left:3px solid var(--blue2);">
+                <div style="font-size:11px; font-weight:700; color:var(--navy); margin-bottom:4px; display:flex; justify-content:space-between;">
+                    <span>Contact Verification</span>
+                    <span style="font-size:10px; color:var(--gray3); font-weight:normal;">Must be distinct numbers</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px;">
+                    <div>
+                        <label class="fw-label" style="font-size:10px; margin-bottom:2px;">Alternate Phone</label>
+                        <input type="tel" id="alternate_phone" name="alternate_phone" class="fw-input" maxlength="10" required
+                               style="padding:8px 10px; font-size:13px;"
+                               value="{{ $altPhoneVal }}" placeholder="10-digit number">
+                    </div>
+                    <div>
+                        <label class="fw-label" style="font-size:10px; margin-bottom:2px;">WhatsApp Phone</label>
+                        <input type="tel" id="whatsapp_phone" name="whatsapp_phone" class="fw-input" maxlength="10" required
+                               style="padding:8px 10px; font-size:13px;"
+                               value="{{ $waPhoneVal }}" placeholder="10-digit number">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="fw-label" style="font-size:10px; margin-bottom:2px;">Email ID</label>
+                    <input type="email" id="email" name="email" class="fw-input" required
+                           style="padding:8px 10px; font-size:13px;"
+                           value="{{ $emailVal }}" placeholder="e.g. applicant@domain.com">
+                </div>
+            </div>
+
+            {{-- 3. Document Vault & Reflection (Req 2: Show Uploaded Across All Screens) --}}
+            <div class="fw-bank-card" style="margin-bottom:8px; padding:10px 12px;">
+                <div style="font-size:11px; font-weight:700; color:var(--navy); margin-bottom:6px;">
+                    KYC Document Vault
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+                    {{-- Doc 1: Aadhaar Front --}}
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:8px 6px; text-align:center; background:#f8fafc;">
+                        <div style="font-size:14px; margin-bottom:2px;">🪪</div>
+                        <div style="font-size:10px; font-weight:700; color:var(--navy);">Aadhaar Front</div>
+                        @if($hasAadhaarFront)
+                            <div style="font-size:9px; color:#00a875; font-weight:700; margin-top:3px;">✓ Uploaded</div>
+                            <label style="font-size:9px; color:var(--blue); cursor:pointer; text-decoration:underline; display:block; margin-top:2px;">
+                                Replace
+                                <input type="file" name="aadhaar_front" accept="image/*,.pdf" style="display:none;" onchange="markSelected(this, 'badge-af')">
+                            </label>
+                            <span id="badge-af" style="display:none; font-size:8px; color:var(--green);">Selected</span>
+                        @else
+                            <label style="font-size:10px; color:var(--blue); cursor:pointer; display:block; margin-top:3px; font-weight:600;">
+                                📷 Tap to Add
+                                <input type="file" name="aadhaar_front" accept="image/*,.pdf" required style="display:none;" onchange="markSelected(this, 'badge-af')">
+                            </label>
+                            <span id="badge-af" style="display:none; font-size:9px; color:var(--green); font-weight:700;">✓ Selected</span>
+                        @endif
+                    </div>
+
+                    {{-- Doc 2: Aadhaar Back --}}
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:8px 6px; text-align:center; background:#f8fafc;">
+                        <div style="font-size:14px; margin-bottom:2px;">🪪</div>
+                        <div style="font-size:10px; font-weight:700; color:var(--navy);">Aadhaar Back</div>
+                        @if($hasAadhaarBack)
+                            <div style="font-size:9px; color:#00a875; font-weight:700; margin-top:3px;">✓ Uploaded</div>
+                            <label style="font-size:9px; color:var(--blue); cursor:pointer; text-decoration:underline; display:block; margin-top:2px;">
+                                Replace
+                                <input type="file" name="aadhaar_back" accept="image/*,.pdf" style="display:none;" onchange="markSelected(this, 'badge-ab')">
+                            </label>
+                            <span id="badge-ab" style="display:none; font-size:8px; color:var(--green);">Selected</span>
+                        @else
+                            <label style="font-size:10px; color:var(--blue); cursor:pointer; display:block; margin-top:3px; font-weight:600;">
+                                📷 Tap to Add
+                                <input type="file" name="aadhaar_back" accept="image/*,.pdf" required style="display:none;" onchange="markSelected(this, 'badge-ab')">
+                            </label>
+                            <span id="badge-ab" style="display:none; font-size:9px; color:var(--green); font-weight:700;">✓ Selected</span>
+                        @endif
+                    </div>
+
+                    {{-- Doc 3: PAN Card --}}
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:8px 6px; text-align:center; background:#f8fafc;">
+                        <div style="font-size:14px; margin-bottom:2px;">💳</div>
+                        <div style="font-size:10px; font-weight:700; color:var(--navy);">PAN Card</div>
+                        @if($hasPanCard)
+                            <div style="font-size:9px; color:#00a875; font-weight:700; margin-top:3px;">✓ Uploaded</div>
+                            <label style="font-size:9px; color:var(--blue); cursor:pointer; text-decoration:underline; display:block; margin-top:2px;">
+                                Replace
+                                <input type="file" name="pan_card" accept="image/*,.pdf" style="display:none;" onchange="markSelected(this, 'badge-pan')">
+                            </label>
+                            <span id="badge-pan" style="display:none; font-size:8px; color:var(--green);">Selected</span>
+                        @else
+                            <label style="font-size:10px; color:var(--blue); cursor:pointer; display:block; margin-top:3px; font-weight:600;">
+                                📷 Tap to Add
+                                <input type="file" name="pan_card" accept="image/*,.pdf" required style="display:none;" onchange="markSelected(this, 'badge-pan')">
+                            </label>
+                            <span id="badge-pan" style="display:none; font-size:9px; color:var(--green); font-weight:700;">✓ Selected</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {{-- Bottom Action (Single Viewport Submission) --}}
+    <div style="padding-top:6px;">
+        <button type="button" onclick="validateAndSubmitKyc()" class="fw-btn fw-btn-primary" style="padding:11px 14px; font-size:14px; font-weight:700;">
+            Save &amp; Continue to Amount Selection →
+        </button>
+    </div>
 </div>
 
-<form id="kycForm" method="POST" action="{{ route('finance.zero_cibil.save_kyc') }}" enctype="multipart/form-data">
-    @csrf
-    <input type="hidden" name="phone" value="{{ request('phone') }}">
-
-    {{-- Applicant Personal Information --}}
-    <div class="fw-card">
-        <p class="fw-card-title">Applicant Identity</p>
-        <div class="fw-input-group">
-            <label class="fw-label">Full Name</label>
-            <input type="text" name="applicant_name" class="fw-input" required
-                   value="{{ $customer->name ?? '' }}" placeholder="Full Name as on Aadhaar">
-        </div>
-        <div class="fw-input-group">
-            <label class="fw-label">PAN Number</label>
-            <input type="text" name="pan_number" class="fw-input" maxlength="10" required
-                   style="text-transform:uppercase;"
-                   value="{{ $customer->pan ?? '' }}" placeholder="ABCDE1234F">
-        </div>
-        <div class="fw-input-group" style="margin-bottom:0;">
-            <label class="fw-label">Aadhaar Number</label>
-            <input type="text" name="aadhaar_number" class="fw-input" maxlength="12" required
-                   value="{{ $customer->aadhaar ?? '' }}" placeholder="12-digit Aadhaar Number">
-        </div>
-    </div>
-
-    {{-- Doc 1: Aadhaar Front --}}
-    <div class="fw-card">
-        <div class="fw-doc-item" style="border:none; padding:0; margin-bottom:8px;">
-            <div class="fw-doc-item-info">
-                <div class="fw-doc-icon">🪪</div>
-                <div>
-                    <div class="fw-doc-name">Aadhaar Card — Front</div>
-                    <div class="fw-doc-status">Clear photo of front side</div>
-                </div>
-            </div>
-            <span class="fw-badge fw-badge-amber" id="badge-aadhaar-front">Pending</span>
-        </div>
-        <label class="fw-upload-box" id="box-aadhaar-front">
-            <div id="preview-aadhaar-front" style="display:none;"></div>
-            <div id="placeholder-aadhaar-front">
-                <div class="fw-upload-icon">📷</div>
-                <strong>Tap to Upload Front Side</strong>
-                <p>JPG, PNG, PDF · Max 5 MB</p>
-            </div>
-            <input type="file" name="aadhaar_front" accept="image/*,.pdf" capture="environment" required
-                   onchange="handlePreview('box-aadhaar-front', 'badge-aadhaar-front', 'preview-aadhaar-front', 'placeholder-aadhaar-front', this)">
-        </label>
-    </div>
-
-    {{-- Doc 2: Aadhaar Back --}}
-    <div class="fw-card">
-        <div class="fw-doc-item" style="border:none; padding:0; margin-bottom:8px;">
-            <div class="fw-doc-item-info">
-                <div class="fw-doc-icon">🪪</div>
-                <div>
-                    <div class="fw-doc-name">Aadhaar Card — Back</div>
-                    <div class="fw-doc-status">Clear photo with address</div>
-                </div>
-            </div>
-            <span class="fw-badge fw-badge-amber" id="badge-aadhaar-back">Pending</span>
-        </div>
-        <label class="fw-upload-box" id="box-aadhaar-back">
-            <div id="preview-aadhaar-back" style="display:none;"></div>
-            <div id="placeholder-aadhaar-back">
-                <div class="fw-upload-icon">📷</div>
-                <strong>Tap to Upload Back Side</strong>
-                <p>JPG, PNG, PDF · Max 5 MB</p>
-            </div>
-            <input type="file" name="aadhaar_back" accept="image/*,.pdf" capture="environment" required
-                   onchange="handlePreview('box-aadhaar-back', 'badge-aadhaar-back', 'preview-aadhaar-back', 'placeholder-aadhaar-back', this)">
-        </label>
-    </div>
-
-    {{-- Doc 3: PAN Card --}}
-    <div class="fw-card">
-        <div class="fw-doc-item" style="border:none; padding:0; margin-bottom:8px;">
-            <div class="fw-doc-item-info">
-                <div class="fw-doc-icon">💳</div>
-                <div>
-                    <div class="fw-doc-name">PAN Card</div>
-                    <div class="fw-doc-status">Front photo of PAN card</div>
-                </div>
-            </div>
-            <span class="fw-badge fw-badge-amber" id="badge-pan">Pending</span>
-        </div>
-        <label class="fw-upload-box" id="box-pan">
-            <div id="preview-pan" style="display:none;"></div>
-            <div id="placeholder-pan">
-                <div class="fw-upload-icon">📷</div>
-                <strong>Tap to Upload PAN Card</strong>
-                <p>JPG, PNG, PDF · Max 5 MB</p>
-            </div>
-            <input type="file" name="pan_card" accept="image/*,.pdf" capture="environment" required
-                   onchange="handlePreview('box-pan', 'badge-pan', 'preview-pan', 'placeholder-pan', this)">
-        </label>
-    </div>
-
-    <div class="fw-card" style="padding:14px;">
-        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
-            <input type="checkbox" id="consent" required checked style="margin-top:3px; accent-color:var(--blue);">
-            <span style="font-size:12px; color:var(--text); line-height:1.4;">
-                I declare that the information and documents provided belong to me and are authentic.
-            </span>
-        </label>
-    </div>
-</form>
-
-@endsection
-
-@section('sticky-bottom')
-<button type="submit" form="kycForm" class="fw-btn fw-btn-primary">
-    Submit Documents &amp; Continue →
-</button>
-@endsection
-
-@push('scripts')
 <script>
-function handlePreview(boxId, badgeId, previewId, placeholderId, input) {
-    if (!input.files || !input.files[0]) return;
-    var file = input.files[0];
-    
-    // Update badge & container styling
-    var box = document.getElementById(boxId);
-    box.classList.add('fw-upload-done');
-    var badge = document.getElementById(badgeId);
-    badge.textContent = '✓ Selected';
-    badge.className = 'fw-badge fw-badge-green';
-
-    // Show thumbnail preview if image
-    if (file.type.match('image.*')) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            var previewEl = document.getElementById(previewId);
-            previewEl.innerHTML = '<img src="' + e.target.result + '" class="fw-preview-thumb"><p style="font-size:11px;color:#065f46;font-weight:600;margin-top:2px;">Tap to re-select file</p>';
-            previewEl.style.display = 'block';
-            document.getElementById(placeholderId).style.display = 'none';
-        };
-        reader.readAsDataURL(file);
-    } else {
-        var previewEl = document.getElementById(previewId);
-        previewEl.innerHTML = '<div style="font-size:24px;margin-bottom:2px;">📄</div><strong style="font-size:12px;color:#065f46;">' + file.name + '</strong><p style="font-size:11px;color:#065f46;">Tap to re-select</p>';
-        previewEl.style.display = 'block';
-        document.getElementById(placeholderId).style.display = 'none';
+function markSelected(input, badgeId) {
+    if (input.files && input.files[0]) {
+        var el = document.getElementById(badgeId);
+        if (el) {
+            el.style.display = 'block';
+            el.textContent = '✓ ' + input.files[0].name.substring(0, 10) + '...';
+        }
     }
 }
+
+function cleanDigits(val) {
+    if (!val) return '';
+    var d = String(val).replace(/\D/g, '');
+    return d.length >= 10 ? d.slice(-10) : d;
+}
+
+function validateAndSubmitKyc() {
+    var form = document.getElementById('kycForm');
+    var errBox = document.getElementById('clientErrorBox');
+    errBox.style.display = 'none';
+    errBox.textContent = '';
+
+    // HTML5 native validity check
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    var primary = cleanDigits(document.getElementById('primary_phone').value);
+    var alt = cleanDigits(document.getElementById('alternate_phone').value);
+    var wa = cleanDigits(document.getElementById('whatsapp_phone').value);
+
+    // Strict validation
+    if (alt.length !== 10) {
+        errBox.textContent = 'Alternate phone must be a valid 10-digit number.';
+        errBox.style.display = 'block';
+        return;
+    }
+    if (wa.length !== 10) {
+        errBox.textContent = 'WhatsApp phone must be a valid 10-digit number.';
+        errBox.style.display = 'block';
+        return;
+    }
+    if (alt === primary) {
+        errBox.textContent = 'Alternate number cannot be identical to your Primary registered number (' + primary + ').';
+        errBox.style.display = 'block';
+        return;
+    }
+    if (wa === primary) {
+        errBox.textContent = 'WhatsApp number cannot be identical to your Primary registered number (' + primary + ').';
+        errBox.style.display = 'block';
+        return;
+    }
+    if (wa === alt) {
+        errBox.textContent = 'WhatsApp number and Alternate number must be different from each other.';
+        errBox.style.display = 'block';
+        return;
+    }
+
+    // Trigger 20-30s Stage Transition Loading Modal (Req 5)
+    window.showBankingStageLoader(
+        "Encrypting KYC Vault",
+        "Hashing Aadhaar & PAN credentials with SHA-256...",
+        22,
+        function() {
+            form.submit();
+        }
+    );
+}
 </script>
-@endpush
+@endsection

@@ -1451,6 +1451,8 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/intro',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilIntro'])->name('s01_intro');
         Route::get('/kyc',           [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilKyc'])->name('s02_kyc');
         Route::get('/amount-select', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilAmountSelect'])->name('s03_amount_select');
+        Route::get('/doc-verification', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilDocVerification'])->name('s03b_doc_verification');
+        Route::post('/doc-verification/complete', [\App\Http\Controllers\Finance\FinanceWebController::class, 'completeZeroCibilDocVerification'])->name('complete_doc_verification');
         Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilFeePayment'])->name('s04_fee_payment');
         Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilPending'])->name('s05_pending');
         Route::get('/wallet-active', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilWalletActive'])->name('s06_wallet_active');

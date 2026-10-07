@@ -1,7 +1,7 @@
 @extends('finance.layouts.base')
-@section('title', 'Select Loan Amount — Fiinway')
+@section('title', 'Select Credit Limit — Zero-CIBIL')
 @section('header-sub', 'Zero-CIBIL Credit')
-@section('progress-label', 'Step 3 of 6')
+@section('progress-label', 'Step 3 of 6 · Credit Limit')
 @section('progress-pct', '50')
 @section('progress', ' ')
 
@@ -10,76 +10,101 @@
 @endsection
 
 @section('content')
-
-<p class="fw-section-title">Select Credit Limit</p>
-<p class="fw-section-sub">Choose your desired limit between ₹20,000 – ₹2,00,000.</p>
-
-<form id="amountForm" method="POST" action="{{ route('finance.zero_cibil.save_amount') }}">
-    @csrf
-    <input type="hidden" name="phone" value="{{ $phone }}">
-    <input type="hidden" id="chosen-amount" name="amount" value="{{ $amount ?? 25000 }}">
-
-    {{-- Amount Chips --}}
-    <div class="fw-card">
-        <div class="fw-card-title">Quick Select Amount</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            @php
-                $amounts = [
-                    ['val' => '20000',  'label' => '₹20,000'],
-                    ['val' => '25000',  'label' => '₹25,000'],
-                    ['val' => '50000',  'label' => '₹50,000'],
-                    ['val' => '75000',  'label' => '₹75,000'],
-                    ['val' => '100000', 'label' => '₹1,00,000'],
-                    ['val' => '200000', 'label' => '₹2,00,000'],
-                ];
-            @endphp
-            @foreach($amounts as $a)
-            <button type="button"
-                    class="fw-btn fw-btn-outline"
-                    style="padding:12px 10px; font-size:14px; font-weight:700;"
-                    data-val="{{ $a['val'] }}"
-                    onclick="selectChip(this, '{{ $a['val'] }}')">
-                {{ $a['label'] }}
-            </button>
-            @endforeach
+<div class="fw-viewport-container">
+    <div>
+        {{-- Section Header --}}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+                <p class="fw-section-title" style="font-size:18px; margin-bottom:2px;">Select Credit Limit</p>
+                <p style="font-size:11px; color:var(--gray3); margin:0;">Zero interest daily revolving wallet</p>
+            </div>
+            <span class="fw-badge-fintech">0% Interest</span>
         </div>
+
+        <form id="amountForm" method="POST" action="{{ route('finance.zero_cibil.save_amount') }}">
+            @csrf
+            <input type="hidden" name="phone" value="{{ request('phone', $phone) }}">
+            <input type="hidden" id="chosen-amount" name="amount" value="{{ $amount ?? 25000 }}">
+
+            {{-- Dynamic Selection Hero Card --}}
+            <div class="fw-bank-hero" style="padding:14px 16px; margin-bottom:8px; text-align:center;">
+                <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.8px; color:#94a3b8; font-weight:700;">
+                    Selected Credit Limit
+                </div>
+                <div id="display-amount" style="font-size:28px; font-weight:800; color:#00e599; margin:2px 0 4px; letter-spacing:-0.5px;">
+                    ₹{{ number_format($amount ?? 25000) }}
+                </div>
+                <div style="font-size:11px; color:#94a3b8; display:flex; justify-content:center; gap:12px;">
+                    <span>Daily Repayment: <strong style="color:#ffffff;" id="display-daily">₹1,000 / day</strong></span>
+                    <span>•</span>
+                    <span style="color:#00e599; font-weight:700;">Strictly 0% Interest</span>
+                </div>
+            </div>
+
+            {{-- Quick Chips (Compact 3x2 Grid) --}}
+            <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:8px;">
+                <div style="font-size:11px; font-weight:700; color:var(--navy); margin-bottom:6px;">
+                    Quick Select Limit
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+                    @php
+                        $amounts = [
+                            ['val' => '20000',  'label' => '₹20,000'],
+                            ['val' => '25000',  'label' => '₹25,000'],
+                            ['val' => '50000',  'label' => '₹50,000'],
+                            ['val' => '75000',  'label' => '₹75,000'],
+                            ['val' => '100000', 'label' => '₹1,00,000'],
+                            ['val' => '200000', 'label' => '₹2,00,000'],
+                        ];
+                        $curr = $amount ?? 25000;
+                    @endphp
+                    @foreach($amounts as $a)
+                    <button type="button"
+                            class="fw-btn {{ $curr == $a['val'] ? 'fw-btn-primary' : 'fw-btn-outline' }}"
+                            style="padding:8px 4px; font-size:12px; font-weight:700; border-radius:8px;"
+                            data-val="{{ $a['val'] }}"
+                            onclick="selectChip(this, '{{ $a['val'] }}')">
+                        {{ $a['label'] }}
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Custom Amount Slider / Input --}}
+            <div class="fw-bank-card" style="padding:10px 12px; margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label class="fw-label" style="font-size:10px; margin:0;" for="custom-amount">Custom Amount (₹)</label>
+                    <span style="font-size:10px; color:var(--gray3);">Min ₹20k · Max ₹2L</span>
+                </div>
+                <input type="number" id="custom-amount" class="fw-input"
+                       style="padding:8px 10px; font-size:14px; font-weight:700;"
+                       placeholder="e.g. 35000" min="20000" max="200000" step="5000"
+                       value="{{ $curr }}"
+                       oninput="selectCustom(this.value)">
+            </div>
+        </form>
     </div>
 
-    {{-- Custom Amount Input --}}
-    <div class="fw-card">
-        <div class="fw-card-title">Or Enter Custom Amount</div>
-        <div class="fw-input-group">
-            <label class="fw-label" for="custom-amount">Credit Amount (₹)</label>
-            <input type="number" id="custom-amount" class="fw-input"
-                   placeholder="e.g. 35000" min="20000" max="200000" step="1000"
-                   value="{{ $amount ?? 25000 }}"
-                   oninput="selectCustom(this.value)">
-        </div>
-        <p style="font-size:12px; color:var(--gray3); margin:0;">Min ₹20,000 · Max ₹2,00,000</p>
+    {{-- Bottom Action (Single Viewport Submission with 20s Stage Loader) --}}
+    <div style="padding-top:6px;">
+        <button type="button" onclick="submitAmountSelection()" class="fw-btn fw-btn-primary" style="padding:11px 14px; font-size:14px; font-weight:700;">
+            Proceed to Verification & Underwriting →
+        </button>
     </div>
+</div>
 
-    <div class="fw-card" style="border-left:4px solid var(--blue2);">
-        <div class="fw-info-row" style="padding:0; border:none;">
-            <span class="fw-info-label">Daily Recovery Installment</span>
-            <span class="fw-info-value" id="daily-recovery-label">₹1,000 / day</span>
-        </div>
-        <div class="fw-info-row" style="padding-top:8px; border:none;">
-            <span class="fw-info-label">Interest Rate</span>
-            <span class="fw-info-value" style="color:var(--green);">0% Strictly Interest-Free</span>
-        </div>
-    </div>
-</form>
-
-@endsection
-
-@section('sticky-bottom')
-<button type="submit" form="amountForm" class="fw-btn fw-btn-primary" id="continue-btn">
-    Proceed to Fee Payment →
-</button>
-@endsection
-
-@push('scripts')
 <script>
+function updateDisplays(val) {
+    var num = parseInt(val) || 25000;
+    document.getElementById('chosen-amount').value = num;
+    document.getElementById('custom-amount').value = num;
+    document.getElementById('display-amount').textContent = '₹' + num.toLocaleString('en-IN');
+    
+    // Daily repayment indicative calculation (e.g. ₹1,000 for standard amounts)
+    var daily = Math.max(500, Math.round(num / 30 / 100) * 100);
+    document.getElementById('display-daily').textContent = '₹' + daily.toLocaleString('en-IN') + ' / day';
+}
+
 function selectChip(btn, val) {
     document.querySelectorAll('[data-val]').forEach(function(b) {
         b.classList.remove('fw-btn-primary');
@@ -87,9 +112,7 @@ function selectChip(btn, val) {
     });
     btn.classList.remove('fw-btn-outline');
     btn.classList.add('fw-btn-primary');
-
-    document.getElementById('custom-amount').value = val;
-    document.getElementById('chosen-amount').value = val;
+    updateDisplays(val);
 }
 
 function selectCustom(val) {
@@ -97,16 +120,20 @@ function selectCustom(val) {
         b.classList.remove('fw-btn-primary');
         b.classList.add('fw-btn-outline');
     });
-    document.getElementById('chosen-amount').value = val;
+    updateDisplays(val);
 }
 
-// Initialize active chip on load
-window.addEventListener('DOMContentLoaded', function() {
-    var curVal = document.getElementById('chosen-amount').value;
-    var match = document.querySelector('[data-val="' + curVal + '"]');
-    if (match) {
-        selectChip(match, curVal);
-    }
-});
+function submitAmountSelection() {
+    var form = document.getElementById('amountForm');
+    // Trigger 20-30s Stage Transition Loading Modal (Req 5)
+    window.showBankingStageLoader(
+        "Persisting Sanction Parameters",
+        "Calculating zero-CIBIL daily recovery schedule & quota...",
+        22,
+        function() {
+            form.submit();
+        }
+    );
+}
 </script>
-@endpush
+@endsection

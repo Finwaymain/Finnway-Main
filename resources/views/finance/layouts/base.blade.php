@@ -247,6 +247,70 @@
             width: 100% !important;
         }
 
+        /* Fintech & Viewport No-Scroll Container (Req 1) */
+        .fw-viewport-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        @media (min-height: 580px) {
+            body.fw-fintech-locked {
+                overflow: hidden !important;
+                height: 100vh !important;
+                max-height: 100dvh !important;
+            }
+            body.fw-fintech-locked .fw-main {
+                height: calc(100dvh - 46px) !important;
+                max-height: calc(100dvh - 46px) !important;
+                overflow: hidden !important;
+                display: flex !important;
+                flex-direction: column !important;
+                padding: 10px 14px 6px !important;
+            }
+            body.fw-fintech-locked.has-bottom-nav .fw-main {
+                height: calc(100dvh - 98px) !important;
+                max-height: calc(100dvh - 98px) !important;
+            }
+            body.fw-fintech-locked .fw-viewport-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                overflow: hidden;
+            }
+        }
+        .fw-bank-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        }
+        .fw-bank-hero {
+            background: linear-gradient(135deg, #0b172a 0%, #1e293b 100%);
+            border-radius: 14px;
+            padding: 16px;
+            color: #ffffff;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+        }
+        .fw-badge-fintech {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(0, 208, 156, 0.12);
+            color: #00a875;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 14px;
+            border: 1px solid rgba(0, 208, 156, 0.25);
+        }
+
         /* Global Mobile Bottom Navigation Bar */
         .fw-bottom-nav {
             position: fixed;
@@ -348,8 +412,9 @@
     $currentRoute = \Illuminate\Support\Facades\Route::currentRouteName() ?? '';
     $navPhone = request('phone') ?? ($phone ?? '');
     $showBottomNav = !empty($navPhone) && !($hideBottomNav ?? false);
+    $isFintechFlow = str_contains($currentRoute, 'zero_cibil');
 @endphp
-<body class="{{ $showBottomNav ? 'has-bottom-nav' : '' }}">
+<body class="{{ $showBottomNav ? 'has-bottom-nav' : '' }} {{ $isFintechFlow ? 'fw-fintech-locked' : '' }}">
     @if(!($hideHeader ?? false) && !request('hide_header') && !request('app') && !session('finance_hide_header'))
     <div class="fw-header">
         <div class="fw-header-brand">
@@ -381,6 +446,13 @@
     @endif
 
     @if($showBottomNav)
+    @php
+        // Req 7: Repayment & Document tabs must only show after loan approval/disbursement in Zero-CIBIL flow
+        $showRepaymentsAndDocs = !empty($isDisbursedOrApproved);
+        if (!str_contains($currentRoute, 'zero_cibil')) {
+            $showRepaymentsAndDocs = !empty($isDisbursedOrApproved) || in_array($currentRoute, ['finance.repayments', 'finance.documents']);
+        }
+    @endphp
     <nav class="fw-bottom-nav">
         <a href="{{ route('finance.hub', ['phone' => $navPhone]) }}" class="fw-nav-item {{ in_array($currentRoute, ['finance.hub', 'finance.cash_loan.s23_disbursement', 'finance.business_loan.s20_final_status']) || (!in_array($currentRoute, ['finance.repayments', 'finance.documents', 'finance.support']) && str_starts_with($currentRoute, 'finance.')) ? 'active' : '' }}">
             <div class="fw-nav-icon">
@@ -392,6 +464,7 @@
             <span class="fw-nav-label">Dashboard</span>
         </a>
 
+        @if($showRepaymentsAndDocs)
         <a href="{{ route('finance.repayments', ['phone' => $navPhone]) }}" class="fw-nav-item {{ $currentRoute === 'finance.repayments' ? 'active' : '' }}">
             <div class="fw-nav-icon">
                 <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
@@ -413,6 +486,7 @@
             </div>
             <span class="fw-nav-label">Documents</span>
         </a>
+        @endif
 
         <a href="{{ route('finance.support', ['phone' => $navPhone]) }}" class="fw-nav-item {{ $currentRoute === 'finance.support' ? 'active' : '' }}">
             <div class="fw-nav-icon">
@@ -424,6 +498,89 @@
         </a>
     </nav>
     @endif
+
+    {{-- Global Banking Stage Transition Loader Modal (Req 5: 20-30s animation) --}}
+    <div id="fwStageLoaderModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:99999; background:rgba(11, 19, 43, 0.94); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); align-items:center; justify-content:center; padding:20px; text-align:center; color:#ffffff;">
+        <div style="background:#152338; border:1px solid rgba(255,255,255,0.12); border-radius:18px; padding:28px 22px; max-width:340px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,0.5); display:flex; flex-direction:column; align-items:center;">
+            <div style="position:relative; width:88px; height:88px; margin-bottom:16px;">
+                <svg viewBox="0 0 100 100" style="width:100%; height:100%; transform:rotate(-90deg);">
+                    <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none" />
+                    <circle id="fwStageCircle" cx="50" cy="50" r="42" stroke="#00e599" stroke-width="8" stroke-linecap="round" fill="none"
+                            stroke-dasharray="264" stroke-dashoffset="264" style="transition: stroke-dashoffset 0.25s linear;" />
+                </svg>
+                <div style="position:absolute; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <span id="fwStagePercent" style="font-size:18px; font-weight:800; color:#ffffff;">0%</span>
+                    <span id="fwStageTimer" style="font-size:10px; color:#94a3b8; font-weight:600;">20s</span>
+                </div>
+            </div>
+            <div id="fwStageTitle" style="font-size:16px; font-weight:700; color:#ffffff; margin-bottom:6px;">Saving Stage Progress</div>
+            <div id="fwStageSubtitle" style="font-size:12px; color:#94a3b8; line-height:1.4; min-height:34px;">Encrypting data with banking SHA-256...</div>
+            <div style="margin-top:14px; width:100%; height:4px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                <div id="fwStageBar" style="height:100%; width:0%; background:linear-gradient(90deg, #1976d2, #00e599); transition:width 0.25s linear;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    window.showBankingStageLoader = function(title, subtitle, durationSeconds, onComplete) {
+        var modal = document.getElementById('fwStageLoaderModal');
+        if (!modal) {
+            if (typeof onComplete === 'function') onComplete();
+            return;
+        }
+        durationSeconds = durationSeconds || 22; // default 20-25 seconds
+        var titleEl = document.getElementById('fwStageTitle');
+        var subEl = document.getElementById('fwStageSubtitle');
+        var circle = document.getElementById('fwStageCircle');
+        var percentEl = document.getElementById('fwStagePercent');
+        var timerEl = document.getElementById('fwStageTimer');
+        var barEl = document.getElementById('fwStageBar');
+
+        if (title && titleEl) titleEl.textContent = title;
+        
+        var subMessages = [
+            "Encrypting applicant credentials (SHA-256)...",
+            "Synchronizing with Fiinway Banking Vault...",
+            "Validating Zero-CIBIL institutional risk limits...",
+            "Securing active credit session...",
+            "Finalizing stage transition..."
+        ];
+        var subIdx = 0;
+        if (subEl) subEl.textContent = subtitle || subMessages[0];
+
+        modal.style.display = 'flex';
+        var totalCircumference = 264;
+        var startTime = Date.now();
+        var durationMs = durationSeconds * 1000;
+
+        var interval = setInterval(function() {
+            var elapsed = Date.now() - startTime;
+            var progress = Math.min(1, elapsed / durationMs);
+            var percent = Math.floor(progress * 100);
+            var remainingSec = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
+
+            if (percentEl) percentEl.textContent = percent + '%';
+            if (timerEl) timerEl.textContent = remainingSec + 's';
+            if (circle) circle.style.strokeDashoffset = totalCircumference - (totalCircumference * progress);
+            if (barEl) barEl.style.width = percent + '%';
+
+            var newSubIdx = Math.min(subMessages.length - 1, Math.floor(progress * subMessages.length));
+            if (newSubIdx !== subIdx && subEl && !subtitle) {
+                subIdx = newSubIdx;
+                subEl.textContent = subMessages[subIdx];
+            }
+
+            if (progress >= 1) {
+                clearInterval(interval);
+                setTimeout(function() {
+                    if (typeof onComplete === 'function') {
+                        onComplete();
+                    }
+                }, 300);
+            }
+        }, 100);
+    };
+    </script>
 
     @stack('scripts')
 </body>

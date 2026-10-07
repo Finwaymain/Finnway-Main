@@ -16,6 +16,8 @@ class FinanceCustomer extends Model
         'user_id',
         'driver_id',
         'phone',
+        'alternate_phone',
+        'whatsapp_phone',
         'name',
         'email',
         'dob',

@@ -173,10 +173,30 @@ class FinanceWebController extends Controller
         $razorpayMerchantName = $loanRzp['merchant_name'] ?: 'Fiinway Loan & Credit';
 
         $documents = [];
+        $uploadedDocs = [];
         $customerDocuments = collect();
         if ($customer) {
             $customerDocuments = FinanceDocument::where('customer_id', $customer->id)->get();
             $documents = $customerDocuments->pluck('file_path', 'document_type')->toArray();
+            foreach ($customerDocuments as $doc) {
+                $uploadedDocs[$doc->document_type] = [
+                    'id' => $doc->id,
+                    'file_name' => $doc->file_name ?? basename($doc->file_path),
+                    'file_path' => asset('storage/' . $doc->file_path),
+                    'status' => $doc->status,
+                    'verified' => in_array($doc->status, ['verified', 'approved']),
+                ];
+            }
+        }
+
+        // Determine if loan is approved or disbursed (for conditional bottom navigation)
+        $isDisbursedOrApproved = false;
+        if ($application && in_array($application->application_status, ['LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+            $isDisbursedOrApproved = true;
+        } elseif (!empty($disbursedLoan) && in_array($disbursedLoan->application_status, ['DISBURSED', 'ACTIVE'])) {
+            $isDisbursedOrApproved = true;
+        } elseif ($customer && FinanceWallet::where('customer_id', $customer->id)->where('status', 'active')->exists()) {
+            $isDisbursedOrApproved = true;
         }
 
         // Active additional document request if any
@@ -304,7 +324,9 @@ class FinanceWebController extends Controller
             'razorpayKey' => $razorpayKey,
             'razorpayMerchantName' => $razorpayMerchantName,
             'documents' => $documents,
+            'uploadedDocs' => $uploadedDocs,
             'customerDocuments' => $customerDocuments,
+            'isDisbursedOrApproved' => $isDisbursedOrApproved,
             'activeDocRequest' => $activeDocRequest,
             'requestedDocs' => $requestedDocs,
             'docRequestRemark' => $docRequestRemark,
@@ -330,10 +352,13 @@ class FinanceWebController extends Controller
             $stepMap = [
                 'KYC_PENDING'    => route('finance.zero_cibil.s02_kyc', ['phone' => $phone]),
                 'AMOUNT_PENDING' => route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]),
+                'DOCS_VERIFYING' => route('finance.zero_cibil.s03b_doc_verification', ['phone' => $phone]),
                 'SANCTIONED'     => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
                 'FEE_PENDING'    => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
                 'UNDERWRITING'   => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
                 'FEE_PAID'       => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'LOAN_APPROVED'  => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
+                'DISBURSED'      => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
                 'ACTIVE'         => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
             ];
             return $stepMap[$status] ?? null;
@@ -818,26 +843,72 @@ class FinanceWebController extends Controller
     {
         $phone = $request->input('phone', $request->query('phone'));
         $name = $request->input('applicant_name', 'Customer');
-        $pan = strtoupper($request->input('pan_number', ''));
-        $aadhaar = $request->input('aadhaar_number', '');
+        $pan = strtoupper(trim($request->input('pan_number', '')));
+        $aadhaar = trim($request->input('aadhaar_number', ''));
+        $email = trim($request->input('email', ''));
+        $altPhone = trim($request->input('alternate_phone', ''));
+        $waPhone = trim($request->input('whatsapp_phone', ''));
+
+        // Normalize 10-digit Indian phones for strict exclusivity check
+        $cleanDigits = function ($p) {
+            $digits = preg_replace('/\D/', '', (string)$p);
+            return strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+        };
+
+        $normPrimary = $cleanDigits($phone);
+        $normAlt = $cleanDigits($altPhone);
+        $normWa = $cleanDigits($waPhone);
+
+        // Strict Mutual Exclusivity Validation
+        $errors = [];
+        if ($altPhone) {
+            if (strlen($normAlt) !== 10) {
+                $errors[] = 'Alternate number must be a valid 10-digit phone number.';
+            } elseif ($normAlt === $normPrimary) {
+                $errors[] = 'Alternate number cannot be the same as your Primary registered number.';
+            }
+        }
+        if ($waPhone) {
+            if (strlen($normWa) !== 10) {
+                $errors[] = 'WhatsApp number must be a valid 10-digit phone number.';
+            } elseif ($normWa === $normPrimary) {
+                $errors[] = 'WhatsApp number cannot be the same as your Primary registered number.';
+            } elseif ($altPhone && $normWa === $normAlt) {
+                $errors[] = 'WhatsApp number cannot be the same as your Alternate number.';
+            }
+        }
+
+        if (!empty($errors)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $errors));
+        }
 
         $customer = null;
         if ($phone) {
-            $customer = FinanceCustomer::firstOrCreate(
-                ['phone' => $phone],
-                [
+            $variants = \App\Services\PhoneService::getVariants($phone);
+            $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+            if (!$customer) {
+                $customer = FinanceCustomer::create([
+                    'phone' => $phone,
                     'name' => $name,
                     'pan' => $pan,
                     'aadhaar' => $aadhaar,
+                    'email' => $email ?: null,
+                    'alternate_phone' => $altPhone ?: null,
+                    'whatsapp_phone' => $waPhone ?: null,
                     'user_type' => 'customer',
                     'status' => 'active',
-                ]
-            );
-            $customer->update([
-                'name' => $name,
-                'pan' => $pan,
-                'aadhaar' => $aadhaar,
-            ]);
+                ]);
+            } else {
+                $customerUpdates = [
+                    'name' => $name,
+                    'pan' => $pan,
+                    'aadhaar' => $aadhaar,
+                ];
+                if ($altPhone) $customerUpdates['alternate_phone'] = $altPhone;
+                if ($waPhone) $customerUpdates['whatsapp_phone'] = $waPhone;
+                if ($email) $customerUpdates['email'] = $email;
+                $customer->update($customerUpdates);
+            }
 
             $docTypes = ['aadhaar_front', 'aadhaar_back', 'pan_card'];
             foreach ($docTypes as $dt) {
@@ -857,6 +928,50 @@ class FinanceWebController extends Controller
                     );
                 }
             }
+
+            // Immediately create/update application to persist state across app closures
+            $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                ->where('loan_category', 'zero_cibil_micro')
+                ->whereNotIn('application_status', ['REJECTED', 'CLOSED', 'WITHDRAWN'])
+                ->latest('id')
+                ->first();
+
+            $applicantDetails = [
+                'name' => $name,
+                'pan' => $pan,
+                'aadhaar' => $aadhaar,
+                'email' => $email,
+                'alternate_phone' => $altPhone,
+                'whatsapp_phone' => $waPhone,
+                'last_stage' => 'AMOUNT_PENDING',
+            ];
+
+            if (!$application) {
+                $product = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
+                FinanceLoanApplication::create([
+                    'customer_id' => $customer->id,
+                    'loan_product_id' => $product->id ?? 1,
+                    'application_number' => 'FIIN-ZC-' . strtoupper(uniqid()),
+                    'applicant_name' => $name,
+                    'applicant_phone' => $customer->phone,
+                    'loan_category' => 'zero_cibil_micro',
+                    'requested_amount' => 25000,
+                    'tenure_months' => 1,
+                    'application_status' => 'AMOUNT_PENDING',
+                    'partner_lock_status' => 'unlocked',
+                    'applicant_details' => $applicantDetails,
+                ]);
+            } else {
+                $existingDetails = is_array($application->applicant_details)
+                    ? $application->applicant_details
+                    : (json_decode($application->applicant_details ?? '[]', true) ?: []);
+                $mergedDetails = array_merge($existingDetails, $applicantDetails);
+                $application->update([
+                    'applicant_name' => $name,
+                    'application_status' => 'AMOUNT_PENDING',
+                    'applicant_details' => $mergedDetails,
+                ]);
+            }
         }
 
         return redirect()->route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]);
@@ -868,31 +983,55 @@ class FinanceWebController extends Controller
         $amount = floatval($request->input('amount', 25000));
         if ($amount <= 0) $amount = 25000;
 
-        $customer = $phone ? FinanceCustomer::where('phone', $phone)->first() : null;
+        $customer = null;
+        if ($phone) {
+            $variants = \App\Services\PhoneService::getVariants($phone);
+            $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+        }
+
         if ($customer) {
             $product = FinanceLoanProduct::where('code', 'zero_cibil_daily')->first();
             $baseFee = $product ? floatval($product->processing_fee_value) : 2500.00;
             $tax = round($baseFee * 0.18, 2);
 
-            FinanceLoanApplication::create([
-                'customer_id' => $customer->id,
+            $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                ->where('loan_category', 'zero_cibil_micro')
+                ->whereNotIn('application_status', ['REJECTED', 'CLOSED', 'WITHDRAWN'])
+                ->latest('id')
+                ->first();
+
+            $appData = [
                 'loan_product_id' => $product->id ?? 1,
-                'application_number' => 'FIIN-ZC-' . strtoupper(uniqid()),
                 'applicant_name' => $customer->name ?? 'Applicant',
                 'applicant_phone' => $customer->phone,
                 'loan_category' => 'zero_cibil_micro',
                 'requested_amount' => $amount,
                 'tenure_months' => 1,
-                'application_status' => 'DRAFT',
+                'application_status' => 'DOCS_VERIFYING',
                 'partner_lock_status' => 'unlocked',
                 'processing_fee_base' => $baseFee,
                 'processing_fee_tax' => $tax,
                 'processing_fee_total' => $baseFee + $tax,
                 'fee_payment_status' => 'pending',
-            ]);
+            ];
+
+            if ($application) {
+                $details = is_array($application->applicant_details)
+                    ? $application->applicant_details
+                    : (json_decode($application->applicant_details ?? '[]', true) ?: []);
+                $details['amount'] = $amount;
+                $details['last_stage'] = 'DOCS_VERIFYING';
+                $appData['applicant_details'] = $details;
+                $application->update($appData);
+            } else {
+                $appData['customer_id'] = $customer->id;
+                $appData['application_number'] = 'FIIN-ZC-' . strtoupper(uniqid());
+                $appData['applicant_details'] = ['amount' => $amount, 'last_stage' => 'DOCS_VERIFYING'];
+                FinanceLoanApplication::create($appData);
+            }
         }
 
-        return redirect()->route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]);
+        return redirect()->route('finance.zero_cibil.s03b_doc_verification', ['phone' => $phone]);
     }
 
     public function verifyFeePayment(Request $request)
@@ -1455,6 +1594,43 @@ class FinanceWebController extends Controller
     }
     public function zeroCibilKyc(Request $request)          { return view('finance.zero_cibil.s02_kyc', $this->resolveContext($request)); }
     public function zeroCibilAmountSelect(Request $request) { return view('finance.zero_cibil.s03_amount_select', $this->resolveContext($request)); }
+    public function zeroCibilDocVerification(Request $request) { return view('finance.zero_cibil.s03b_doc_verification', $this->resolveContext($request)); }
+
+    public function completeZeroCibilDocVerification(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        if ($phone) {
+            $variants = \App\Services\PhoneService::getVariants($phone);
+            $customer = FinanceCustomer::whereIn('phone', $variants)->first();
+            if ($customer) {
+                $application = FinanceLoanApplication::where('customer_id', $customer->id)
+                    ->where('loan_category', 'zero_cibil_micro')
+                    ->whereNotIn('application_status', ['REJECTED', 'CLOSED', 'WITHDRAWN'])
+                    ->latest('id')
+                    ->first();
+                if ($application) {
+                    $details = is_array($application->applicant_details)
+                        ? $application->applicant_details
+                        : (json_decode($application->applicant_details ?? '[]', true) ?: []);
+                    $details['last_stage'] = 'FEE_PENDING';
+                    $application->update([
+                        'application_status' => 'FEE_PENDING',
+                        'applicant_details' => $details,
+                    ]);
+                }
+            }
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'redirect_url' => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone]),
+            ]);
+        }
+
+        return redirect()->route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone]);
+    }
+
     public function zeroCibilFeePayment(Request $request)   { return view('finance.zero_cibil.s04_fee_payment', $this->resolveContext($request)); }
     public function zeroCibilPending(Request $request)      { return view('finance.zero_cibil.s05_pending', $this->resolveContext($request)); }
     public function zeroCibilWalletActive(Request $request) {
