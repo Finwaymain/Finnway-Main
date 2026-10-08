@@ -1416,6 +1416,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
     Route::prefix('business-loan')->name('business_loan.')->group(function () {
         Route::get('/apply',             [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanApply'])->name('s01_apply');
         Route::get('/business-details',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanDetails'])->name('s02_business_details');
+        Route::post('/business-details', [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveBusinessLoanDetails'])->name('save_business_details');
         Route::get('/loan-requirement',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanRequirement'])->name('s03_loan_requirement');
         Route::get('/eligibility',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanEligibility'])->name('s04_eligibility');
         Route::get('/amount-tenure',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'businessLoanAmountTenure'])->name('s05_amount_tenure');
@@ -1464,7 +1465,9 @@ Route::prefix('finance')->name('finance.')->group(function () {
     // Virtual Loan (5 screens)
     Route::prefix('virtual-loan')->name('virtual_loan.')->group(function () {
         Route::get('/apply',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanApply'])->name('s01_apply');
+        Route::post('/save-apply',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveVirtualLoanApply'])->name('save_apply');
         Route::get('/kyc',           [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanKyc'])->name('s02_kyc');
+        Route::post('/save-kyc',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveVirtualLoanKyc'])->name('save_kyc');
         Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanFeePayment'])->name('s03_fee_payment');
         Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanPending'])->name('s04_pending');
         Route::get('/dashboard',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanDashboard'])->name('s05_dashboard');
@@ -1473,7 +1476,9 @@ Route::prefix('finance')->name('finance.')->group(function () {
     // Student Credit (9 screens)
     Route::prefix('student-credit')->name('student_credit.')->group(function () {
         Route::get('/apply',          [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditApply'])->name('s01_apply');
+        Route::post('/save-apply',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveStudentCreditApply'])->name('save_apply');
         Route::get('/kyc',            [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditKyc'])->name('s02_kyc');
+        Route::post('/save-kyc',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'saveStudentCreditKyc'])->name('save_kyc');
         Route::get('/fee-payment',    [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditFeePayment'])->name('s03_fee_payment');
         Route::get('/pending',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditPending'])->name('s04_pending');
         Route::get('/additional-docs',[\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditAdditionalDocs'])->name('s05_additional_docs');

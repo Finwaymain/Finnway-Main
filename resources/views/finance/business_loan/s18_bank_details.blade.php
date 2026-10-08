@@ -34,11 +34,11 @@
         </div>
         <div class="fw-form-group">
             <label>Account Number <span style="color:red;">*</span></label>
-            <input type="password" name="account_number" class="fw-input" placeholder="Enter Bank Account Number" value="{{ old('account_number', $application->disbursement_account_number ?? '') }}" required>
+            <input type="password" id="account_number" name="account_number" class="fw-input" placeholder="Enter Bank Account Number" value="{{ old('account_number', $application->disbursement_account_number ?? '') }}" required>
         </div>
         <div class="fw-form-group">
             <label>Confirm Account Number <span style="color:red;">*</span></label>
-            <input type="text" name="confirm_account_number" class="fw-input" placeholder="Re-enter Bank Account Number" value="{{ old('confirm_account_number', $application->disbursement_account_number ?? '') }}" required>
+            <input type="text" id="confirm_account_number" name="confirm_account_number" class="fw-input" placeholder="Re-enter Bank Account Number" value="{{ old('confirm_account_number', $application->disbursement_account_number ?? '') }}" required>
         </div>
         <div class="fw-form-group">
             <label>IFSC Code <span style="color:red;">*</span></label>
@@ -68,3 +68,65 @@
     </button>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('bizBankDetailsForm');
+    if (!form) return;
+
+    var v = window.FiinwayValidator;
+    var nameInp = form.querySelector('input[name="account_holder_name"]');
+    var bankInp = form.querySelector('input[name="bank_name"]');
+    var accInp = document.getElementById('account_number');
+    var confirmInp = document.getElementById('confirm_account_number');
+    var ifscInp = form.querySelector('input[name="ifsc_code"]');
+
+    if (accInp) v.setupLiveDigits(accInp, 18);
+    if (confirmInp) v.setupLiveDigits(confirmInp, 18);
+    if (ifscInp) v.setupLiveIfsc(ifscInp);
+
+    form.addEventListener('submit', function(e) {
+        var firstInvalid = null;
+
+        [nameInp, bankInp, accInp, confirmInp, ifscInp].forEach(function(inp) {
+            if (inp) v.clearError(inp);
+        });
+
+        if (nameInp && !v.isValidName(nameInp.value)) {
+            v.showError(nameInp, 'Enter a valid account holder / business name (min 3 characters).');
+            if (!firstInvalid) firstInvalid = nameInp;
+        }
+
+        if (bankInp && bankInp.value.trim().length < 2) {
+            v.showError(bankInp, 'Enter a valid bank name.');
+            if (!firstInvalid) firstInvalid = bankInp;
+        }
+
+        var accVal = v.cleanDigits(accInp ? accInp.value : '');
+        if (!accVal || accVal.length < 9 || accVal.length > 18) {
+            v.showError(accInp, 'Account number must be between 9 and 18 digits.');
+            if (!firstInvalid) firstInvalid = accInp;
+        }
+
+        var confirmVal = v.cleanDigits(confirmInp ? confirmInp.value : '');
+        if (confirmVal !== accVal) {
+            v.showError(confirmInp, 'Confirm account number must match account number exactly.');
+            if (!firstInvalid) firstInvalid = confirmInp;
+        }
+
+        if (ifscInp && !v.isValidIfsc(ifscInp.value)) {
+            v.showError(ifscInp, 'Enter a valid 11-character IFSC code (e.g. HDFC0001234).');
+            if (!firstInvalid) firstInvalid = ifscInp;
+        }
+
+        if (firstInvalid) {
+            e.preventDefault();
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+    });
+});
+</script>
+@endpush

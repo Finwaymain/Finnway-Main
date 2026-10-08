@@ -89,6 +89,11 @@
             transition: all 0.2s ease;
         }
         .fw-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(26, 95, 168, 0.12); }
+        .fw-input.is-invalid { border-color: #ef4444 !important; background-color: #fffaf0; }
+        .fw-input.is-invalid:focus { border-color: #dc2626 !important; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important; }
+        .fw-input.is-valid { border-color: #10b981 !important; }
+        .fw-field-error { display: none; color: #dc2626; font-size: 11px; font-weight: 700; margin-top: 4px; line-height: 1.3; }
+        .fw-field-error.visible { display: block; }
         .fw-input-group { margin-bottom: 16px; }
         select.fw-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 38px; }
 
@@ -565,8 +570,97 @@
                     }
                 }, 300);
             }
-        }, 100);
     };
+
+    window.FiinwayValidator = {
+        cleanDigits: function(v) { return (v || '').toString().replace(/\D/g, ''); },
+        isValidPhone: function(v) {
+            var digits = this.cleanDigits(v);
+            return digits.length === 10 && /^[6-9]\d{9}$/.test(digits);
+        },
+        isValidEmail: function(v) {
+            return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test((v || '').trim());
+        },
+        isValidPan: function(v) {
+            return /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test((v || '').trim().toUpperCase());
+        },
+        isValidAadhaar: function(v) {
+            var digits = this.cleanDigits(v);
+            return digits.length === 12 && !/^(\d)\1{11}$/.test(digits);
+        },
+        isValidIfsc: function(v) {
+            return /^[A-Z]{4}0[A-Z0-9]{6}$/.test((v || '').trim().toUpperCase());
+        },
+        isValidPin: function(v) {
+            return /^[1-9][0-9]{5}$/.test(this.cleanDigits(v));
+        },
+        isValidName: function(v) {
+            var s = (v || '').trim();
+            return s.length >= 3 && /^[a-zA-Z\s\.\'-]{3,100}$/.test(s);
+        },
+        getAge: function(dobString) {
+            if (!dobString) return 0;
+            var birthDate = new Date(dobString);
+            if (isNaN(birthDate.getTime())) return 0;
+            var today = new Date();
+            var age = today.getFullYear() - birthDate.getFullYear();
+            var m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+            return age;
+        },
+        showError: function(input, message) {
+            if (!input) return;
+            input.classList.add('is-invalid');
+            input.classList.remove('is-valid');
+            var parent = input.closest('.fw-input-group') || input.closest('.fw-form-group') || input.parentElement;
+            if (parent) {
+                var errEl = parent.querySelector('.fw-field-error');
+                if (!errEl) {
+                    errEl = document.createElement('div');
+                    errEl.className = 'fw-field-error';
+                    parent.appendChild(errEl);
+                }
+                errEl.textContent = '⚠️ ' + message;
+                errEl.classList.add('visible');
+            }
+        },
+        clearError: function(input) {
+            if (!input) return;
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+            var parent = input.closest('.fw-input-group') || input.closest('.fw-form-group') || input.parentElement;
+            if (parent) {
+                var errEl = parent.querySelector('.fw-field-error');
+                if (errEl) {
+                    errEl.classList.remove('visible');
+                    errEl.textContent = '';
+                }
+            }
+        },
+        setupLiveFormatters: function() {
+            // Auto-uppercase PAN and IFSC inputs
+            document.querySelectorAll('input[data-format="pan"], input[data-format="ifsc"], input[name*="pan"], input[name*="ifsc"]').forEach(function(inp) {
+                inp.addEventListener('input', function() {
+                    var start = this.selectionStart, end = this.selectionEnd;
+                    this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    this.setSelectionRange(start, end);
+                });
+            });
+            // Numbers-only on phone, aadhaar, pin, account numbers
+            document.querySelectorAll('input[type="tel"], input[data-format="digits"], input[name*="phone"], input[name*="aadhaar"], input[name*="pin"], input[name*="account_number"]').forEach(function(inp) {
+                inp.addEventListener('input', function() {
+                    var max = parseInt(this.getAttribute('maxlength'), 10);
+                    var digits = this.value.replace(/\D/g, '');
+                    if (max && digits.length > max) digits = digits.slice(0, max);
+                    this.value = digits;
+                });
+            });
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        window.FiinwayValidator.setupLiveFormatters();
+    });
     </script>
 
     @stack('scripts')

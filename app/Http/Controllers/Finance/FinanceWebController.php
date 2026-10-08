@@ -869,14 +869,46 @@ class FinanceWebController extends Controller
         }
 
         if ($step === 's03') {
-            $name = $request->input('applicant_name', 'Customer');
-            $pan = strtoupper($request->input('pan_number', ''));
-            $email = $request->input('email', '');
+            $name = trim($request->input('applicant_name', ''));
+            $pan = strtoupper(trim($request->input('pan_number', '')));
+            $email = trim($request->input('email', ''));
             $dob = $request->input('dob', null);
             $income = floatval($request->input('monthly_income', 0));
             $loanType = $application ? ($application->loan_type ?? 'low_cibil') : $request->input('loan_type', 'low_cibil');
             $maxLimit = in_array($loanType, ['good_cibil', 'prime_cash']) ? 2000000 : 400000;
             $reqAmt = floatval($request->input('requested_amount', 25000));
+
+            $errors = [];
+            if (empty($name) || strlen($name) < 3 || !preg_match("/^[a-zA-Z\s\.\'-]{3,100}$/", $name)) {
+                $errors[] = 'Full Name must be at least 3 characters and contain only letters and spaces.';
+            }
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Please provide a valid email address (e.g. name@domain.com).';
+            }
+            if (empty($pan) || !preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $pan)) {
+                $errors[] = 'PAN Number must be a valid 10-character code in format ABCDE1234F.';
+            }
+            if ($dob) {
+                try {
+                    $birthDate = \Carbon\Carbon::parse($dob);
+                    $age = $birthDate->age;
+                    if ($age < 18 || $age > 75) {
+                        $errors[] = 'Applicant age must be between 18 and 75 years.';
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = 'Invalid date of birth provided.';
+                }
+            } else {
+                $errors[] = 'Date of birth is required.';
+            }
+            if ($income < 5000) {
+                $errors[] = 'Net monthly take-home income must be at least ₹5,000.';
+            }
+
+            if (!empty($errors)) {
+                return redirect()->back()->withInput()->with('error', implode(' ', $errors));
+            }
+
             if ($reqAmt <= 0) $reqAmt = 25000;
             if ($reqAmt > $maxLimit) $reqAmt = $maxLimit;
 
@@ -1008,19 +1040,35 @@ class FinanceWebController extends Controller
         $normPrimary = $cleanDigits($phone);
         $normAlt = $cleanDigits($altPhone);
         $normWa = $cleanDigits($waPhone);
+        $normAadhaar = preg_replace('/\D/', '', $aadhaar);
 
-        // Strict Mutual Exclusivity Validation
+        // Strict Validation Across All KYC Fields
         $errors = [];
+        if (empty($name) || strlen($name) < 3 || !preg_match("/^[a-zA-Z\s\.\'-]{3,100}$/", $name)) {
+            $errors[] = 'Full Name must be at least 3 characters and contain only letters.';
+        }
+        if (empty($pan) || !preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $pan)) {
+            $errors[] = 'PAN Number must be valid 10 characters in format ABCDE1234F.';
+        }
+        if (strlen($normAadhaar) !== 12 || preg_match('/^(\d)\1{11}$/', $normAadhaar)) {
+            $errors[] = 'Aadhaar Number must be exactly 12 numeric digits.';
+        }
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid email address (e.g. name@domain.com).';
+        }
+        if (strlen($normPrimary) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normPrimary)) {
+            $errors[] = 'Primary registered phone must be a valid 10-digit mobile number.';
+        }
         if ($altPhone) {
-            if (strlen($normAlt) !== 10) {
-                $errors[] = 'Alternate number must be a valid 10-digit phone number.';
+            if (strlen($normAlt) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normAlt)) {
+                $errors[] = 'Alternate number must be a valid 10-digit phone number starting with 6, 7, 8, or 9.';
             } elseif ($normAlt === $normPrimary) {
                 $errors[] = 'Alternate number cannot be the same as your Primary registered number.';
             }
         }
         if ($waPhone) {
-            if (strlen($normWa) !== 10) {
-                $errors[] = 'WhatsApp number must be a valid 10-digit phone number.';
+            if (strlen($normWa) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normWa)) {
+                $errors[] = 'WhatsApp number must be a valid 10-digit phone number starting with 6, 7, 8, or 9.';
             } elseif ($normWa === $normPrimary) {
                 $errors[] = 'WhatsApp number cannot be the same as your Primary registered number.';
             } elseif ($altPhone && $normWa === $normAlt) {
@@ -1567,12 +1615,17 @@ class FinanceWebController extends Controller
         $application = $ctx['application'];
 
         $request->validate([
-            'account_holder_name'    => 'required|string|max:190',
-            'bank_name'              => 'required|string|max:190',
-            'account_number'         => 'required|string|min:6|max:35',
+            'account_holder_name'    => 'required|string|min:3|max:100|regex:/^[a-zA-Z\s\.\'-]+$/',
+            'bank_name'              => 'required|string|min:2|max:100',
+            'account_number'         => 'required|regex:/^[0-9]{9,18}$/',
             'confirm_account_number' => 'required|same:account_number',
-            'ifsc_code'              => 'required|string|min:4|max:20',
-            'account_type'           => 'nullable|string|max:30',
+            'ifsc_code'              => 'required|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/',
+            'account_type'           => 'required|in:Savings,Current,Salary',
+        ], [
+            'account_holder_name.regex' => 'Account holder name must contain only letters and spaces.',
+            'account_number.regex' => 'Account number must be between 9 and 18 digits.',
+            'confirm_account_number.same' => 'Confirm account number must match account number exactly.',
+            'ifsc_code.regex' => 'IFSC Code must be valid 11 characters (e.g. HDFC0001234).',
         ]);
 
         if ($application) {
@@ -1722,6 +1775,94 @@ class FinanceWebController extends Controller
         return view('finance.business_loan.s01_apply', $ctx);
     }
     public function businessLoanDetails(Request $request)          { return view('finance.business_loan.s02_business_details', $this->resolveContext($request)); }
+
+    public function saveBusinessLoanDetails(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $bName = trim($request->input('business_name', ''));
+        $ownerName = trim($request->input('owner_name', ''));
+        $mobile = trim($request->input('mobile', $phone));
+        $email = trim($request->input('email', ''));
+        $pan = strtoupper(trim($request->input('pan_number', '')));
+        $gst = strtoupper(trim($request->input('gst_number', '')));
+        $pin = trim($request->input('pincode', ''));
+        $city = trim($request->input('city', ''));
+        $state = trim($request->input('state', ''));
+        $vintage = intval($request->input('business_vintage', 0));
+        $turnover = floatval($request->input('annual_turnover', 0));
+
+        $cleanDigits = function ($p) {
+            $digits = preg_replace('/\D/', '', (string)$p);
+            return strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+        };
+        $normMobile = $cleanDigits($mobile);
+
+        $errors = [];
+        if (empty($bName) || strlen($bName) < 3) {
+            $errors[] = 'Business/Company Name must be at least 3 characters.';
+        }
+        if (empty($ownerName) || strlen($ownerName) < 3 || !preg_match("/^[a-zA-Z\s\.\'-]{3,100}$/", $ownerName)) {
+            $errors[] = 'Owner/Director Name must be at least 3 characters and contain letters only.';
+        }
+        if (strlen($normMobile) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normMobile)) {
+            $errors[] = 'Mobile number must be a valid 10-digit number starting with 6, 7, 8, or 9.';
+        }
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid email address (e.g. name@domain.com).';
+        }
+        if (empty($pan) || !preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $pan)) {
+            $errors[] = 'PAN Number must be valid 10 characters (e.g. ABCDE1234F).';
+        }
+        if (!empty($gst) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/', $gst)) {
+            $errors[] = 'GSTIN format is invalid (15 alphanumeric characters required).';
+        }
+        if (!empty($pin) && !preg_match('/^[1-9][0-9]{5}$/', $pin)) {
+            $errors[] = 'PIN Code must be a valid 6-digit postal code.';
+        }
+        if ($turnover < 50000) {
+            $errors[] = 'Annual turnover must be at least ₹50,000 for business loan.';
+        }
+
+        if (!empty($errors)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $errors));
+        }
+
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if ($customer) {
+            $customer->update([
+                'name' => $ownerName,
+                'email' => $email,
+                'pan' => $pan,
+                'company_name' => $bName,
+            ]);
+        }
+        if ($app) {
+            $details = is_array($app->applicant_details) ? $app->applicant_details : [];
+            $details['business_name'] = $bName;
+            $details['business_type'] = $request->input('business_type', 'Proprietorship');
+            $details['owner_name'] = $ownerName;
+            $details['mobile'] = $normMobile;
+            $details['email'] = $email;
+            $details['pan'] = $pan;
+            $details['gst'] = $gst;
+            $details['city'] = $city;
+            $details['state'] = $state;
+            $details['pincode'] = $pin;
+            $details['vintage'] = $vintage;
+            $details['turnover'] = $turnover;
+            $app->update([
+                'applicant_name' => $ownerName,
+                'pan_number' => $pan,
+                'applicant_details' => $details,
+                'application_status' => 'DETAILS_SAVED',
+            ]);
+        }
+
+        return redirect()->route('finance.business_loan.s03_loan_requirement', ['phone' => $phone]);
+    }
     public function businessLoanRequirement(Request $request)      { return view('finance.business_loan.s03_loan_requirement', $this->resolveContext($request)); }
     public function businessLoanEligibility(Request $request)      { return view('finance.business_loan.s04_eligibility', $this->resolveContext($request)); }
     public function businessLoanAmountTenure(Request $request)     { return view('finance.business_loan.s05_tenure', $this->resolveContext($request)); }
@@ -1746,12 +1887,17 @@ class FinanceWebController extends Controller
         $application = $ctx['application'];
 
         $request->validate([
-            'account_holder_name'    => 'required|string|max:190',
-            'bank_name'              => 'required|string|max:190',
-            'account_number'         => 'required|string|min:6|max:35',
+            'account_holder_name'    => 'required|string|min:3|max:100|regex:/^[a-zA-Z\s\.\'-]+$/',
+            'bank_name'              => 'required|string|min:2|max:100',
+            'account_number'         => 'required|regex:/^[0-9]{9,18}$/',
             'confirm_account_number' => 'required|same:account_number',
-            'ifsc_code'              => 'required|string|min:4|max:20',
-            'account_type'           => 'nullable|string|max:30',
+            'ifsc_code'              => 'required|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/',
+            'account_type'           => 'required|in:Savings,Current,Salary',
+        ], [
+            'account_holder_name.regex' => 'Account holder name must contain only letters and spaces.',
+            'account_number.regex' => 'Account number must be between 9 and 18 digits.',
+            'confirm_account_number.same' => 'Confirm account number must match account number exactly.',
+            'ifsc_code.regex' => 'IFSC Code must be valid 11 characters (e.g. HDFC0001234).',
         ]);
 
         if ($application) {
@@ -2040,7 +2186,130 @@ class FinanceWebController extends Controller
 
         return view('finance.virtual_loan.s01_apply', $this->resolveContext($request));
     }
+
+    public function saveVirtualLoanApply(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $name = trim($request->input('applicant_name', ''));
+        $mobile = trim($request->input('mobile', $phone));
+        $aadhaar = trim($request->input('aadhaar_number', ''));
+        $pan = strtoupper(trim($request->input('pan_number', '')));
+        $amount = floatval($request->input('loan_amount', 15000));
+        $consent = $request->input('consent');
+
+        $cleanDigits = function ($p) {
+            $digits = preg_replace('/\D/', '', (string)$p);
+            return strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+        };
+        $normMobile = $cleanDigits($mobile);
+        $normAadhaar = preg_replace('/\D/', '', $aadhaar);
+
+        $errors = [];
+        if (empty($name) || strlen($name) < 3 || !preg_match("/^[a-zA-Z\s\.\'-]{3,100}$/", $name)) {
+            $errors[] = 'Full Name must be at least 3 characters and contain letters only.';
+        }
+        if (strlen($normMobile) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normMobile)) {
+            $errors[] = 'Mobile number must be a valid 10-digit number starting with 6, 7, 8, or 9.';
+        }
+        if (strlen($normAadhaar) !== 12 || preg_match('/^(\d)\1{11}$/', $normAadhaar)) {
+            $errors[] = 'Aadhaar Number must be exactly 12 numeric digits.';
+        }
+        if (empty($pan) || !preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/', $pan)) {
+            $errors[] = 'PAN Number must be valid 10 characters (e.g. ABCDE1234F).';
+        }
+        if (!in_array($amount, [15000, 20000, 30000, 35000, 45000])) {
+            $errors[] = 'Please select a valid pre-approved loan slab.';
+        }
+        if (!$consent) {
+            $errors[] = 'You must authorize Fiinway to verify credit details.';
+        }
+
+        if (!empty($errors)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $errors));
+        }
+
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if ($customer) {
+            $customer->update([
+                'name' => $name,
+                'pan' => $pan,
+                'aadhaar' => $normAadhaar,
+            ]);
+        }
+        if ($app) {
+            $details = is_array($app->applicant_details) ? $app->applicant_details : [];
+            $details['name'] = $name;
+            $details['pan'] = $pan;
+            $details['aadhaar'] = $normAadhaar;
+            $details['slab_amount'] = $amount;
+            $app->update([
+                'applicant_name' => $name,
+                'pan_number' => $pan,
+                'requested_amount' => $amount,
+                'applicant_details' => $details,
+                'application_status' => 'KYC_PENDING',
+            ]);
+        }
+
+        return redirect()->route('finance.virtual_loan.s02_kyc', ['phone' => $phone]);
+    }
+
     public function virtualLoanKyc(Request $request)        { return view('finance.virtual_loan.s02_kyc', $this->resolveContext($request)); }
+
+    public function saveVirtualLoanKyc(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if (!$customer) {
+            return redirect()->route('finance.hub', ['phone' => $phone])->with('error', 'Session expired. Please restart.');
+        }
+
+        $requiredDocs = ['aadhaar_front', 'aadhaar_back', 'pan'];
+        $missing = [];
+        foreach ($requiredDocs as $doc) {
+            $hasFile = $request->hasFile($doc);
+            $hasExisting = FinanceDocument::where('customer_id', $customer->id)->where('document_type', $doc)->exists();
+            if (!$hasFile && !$hasExisting) {
+                $missing[] = ucwords(str_replace('_', ' ', $doc));
+            }
+        }
+
+        if (!empty($missing)) {
+            return redirect()->back()->with('error', 'Please upload required documents: ' . implode(', ', $missing));
+        }
+
+        foreach ($requiredDocs as $docType) {
+            if ($request->hasFile($docType)) {
+                $file = $request->file($docType);
+                if ($file && $file->isValid()) {
+                    $path = $file->store('finance_docs', 'public');
+                    FinanceDocument::updateOrCreate(
+                        ['customer_id' => $customer->id, 'document_type' => $docType],
+                        [
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'is_reusable' => true,
+                            'reuse_valid_until' => now()->addDays(5),
+                        ]
+                    );
+                }
+            }
+        }
+
+        if ($app) {
+            $app->update(['application_status' => 'SANCTIONED']);
+        }
+
+        return redirect()->route('finance.virtual_loan.s03_fee_payment', ['phone' => $phone]);
+    }
+
     public function virtualLoanFeePayment(Request $request) { return view('finance.virtual_loan.s03_fee_payment', $this->resolveContext($request)); }
     public function virtualLoanPending(Request $request)    { return view('finance.virtual_loan.s04_pending', $this->resolveContext($request)); }
     public function virtualLoanDashboard(Request $request)  {
@@ -2066,7 +2335,163 @@ class FinanceWebController extends Controller
 
         return view('finance.student_credit.s01_apply', $this->resolveContext($request));
     }
+
+    public function saveStudentCreditApply(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $name = trim($request->input('applicant_name', ''));
+        $dob = $request->input('dob', null);
+        $mobile = trim($request->input('mobile', $phone));
+        $aadhaar = trim($request->input('aadhaar_number', ''));
+        $studentType = $request->input('student_type', 'domestic');
+        $college = trim($request->input('college_name', ''));
+        $course = trim($request->input('course_name', ''));
+        $studentId = trim($request->input('student_id', ''));
+        $expiry = $request->input('student_id_expiry', null);
+        $amount = floatval($request->input('credit_amount', 25000));
+        $consent = $request->input('consent');
+
+        $cleanDigits = function ($p) {
+            $digits = preg_replace('/\D/', '', (string)$p);
+            return strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+        };
+        $normMobile = $cleanDigits($mobile);
+        $normAadhaar = preg_replace('/\D/', '', $aadhaar);
+
+        $errors = [];
+        if (empty($name) || strlen($name) < 3 || !preg_match("/^[a-zA-Z\s\.\'-]{3,100}$/", $name)) {
+            $errors[] = 'Full Name must be at least 3 characters and contain letters only.';
+        }
+        if ($dob) {
+            try {
+                $birthDate = \Carbon\Carbon::parse($dob);
+                $age = $birthDate->age;
+                if ($age < 16 || $age > 26) {
+                    $errors[] = 'Student must be between 16 and 26 years of age (Current age: ' . $age . ').';
+                }
+            } catch (\Exception $e) {
+                $errors[] = 'Invalid date of birth provided.';
+            }
+        } else {
+            $errors[] = 'Date of birth is required.';
+        }
+        if (strlen($normMobile) !== 10 || !preg_match('/^[6-9]\d{9}$/', $normMobile)) {
+            $errors[] = 'Mobile number must be a valid 10-digit number starting with 6, 7, 8, or 9.';
+        }
+        if (strlen($normAadhaar) !== 12 || preg_match('/^(\d)\1{11}$/', $normAadhaar)) {
+            $errors[] = 'Aadhaar Number must be exactly 12 numeric digits.';
+        }
+        if (empty($college) || strlen($college) < 2) {
+            $errors[] = 'College / University Name is required.';
+        }
+        if (empty($course) || strlen($course) < 2) {
+            $errors[] = 'Course Name is required.';
+        }
+        if (empty($studentId)) {
+            $errors[] = 'Student ID Number is required.';
+        }
+        if ($amount < 1000 || $amount > 75000) {
+            $errors[] = 'Requested credit amount must be between ₹1,000 and ₹75,000.';
+        }
+        if (!$consent) {
+            $errors[] = 'You must confirm student eligibility and authorization.';
+        }
+
+        if (!empty($errors)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $errors));
+        }
+
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if ($customer) {
+            $customer->update([
+                'name' => $name,
+                'dob' => $dob,
+                'aadhaar' => $normAadhaar,
+            ]);
+        }
+        if ($app) {
+            $details = is_array($app->applicant_details) ? $app->applicant_details : [];
+            $details['name'] = $name;
+            $details['dob'] = $dob;
+            $details['aadhaar'] = $normAadhaar;
+            $details['student_type'] = $studentType;
+            $details['college_name'] = $college;
+            $details['course_name'] = $course;
+            $details['student_id'] = $studentId;
+            $details['student_id_expiry'] = $expiry;
+            $app->update([
+                'applicant_name' => $name,
+                'requested_amount' => $amount,
+                'applicant_details' => $details,
+                'application_status' => 'KYC_PENDING',
+            ]);
+        }
+
+        return redirect()->route('finance.student_credit.s02_kyc', ['phone' => $phone]);
+    }
+
     public function studentCreditKyc(Request $request)            { return view('finance.student_credit.s02_kyc', $this->resolveContext($request)); }
+
+    public function saveStudentCreditKyc(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if (!$customer) {
+            return redirect()->route('finance.hub', ['phone' => $phone])->with('error', 'Session expired. Please restart.');
+        }
+
+        $requiredDocs = ['aadhaar_front', 'aadhaar_back', 'student_id'];
+        $missing = [];
+        foreach ($requiredDocs as $doc) {
+            $hasFile = $request->hasFile($doc) || ($doc === 'student_id' && $request->hasFile('student_id_card'));
+            $hasExisting = FinanceDocument::where('customer_id', $customer->id)
+                ->where(function($q) use ($doc) {
+                    $q->where('document_type', $doc);
+                    if ($doc === 'student_id') {
+                        $q->orWhere('document_type', 'student_id_card');
+                    }
+                })->exists();
+            if (!$hasFile && !$hasExisting) {
+                $missing[] = ucwords(str_replace('_', ' ', $doc));
+            }
+        }
+
+        if (!empty($missing)) {
+            return redirect()->back()->with('error', 'Please upload required documents: ' . implode(', ', $missing));
+        }
+
+        foreach (['aadhaar_front', 'aadhaar_back', 'student_id', 'student_id_card'] as $docType) {
+            if ($request->hasFile($docType)) {
+                $file = $request->file($docType);
+                if ($file && $file->isValid()) {
+                    $path = $file->store('finance_docs', 'public');
+                    $savedType = ($docType === 'student_id_card') ? 'student_id' : $docType;
+                    FinanceDocument::updateOrCreate(
+                        ['customer_id' => $customer->id, 'document_type' => $savedType],
+                        [
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'is_reusable' => true,
+                            'reuse_valid_until' => now()->addDays(5),
+                        ]
+                    );
+                }
+            }
+        }
+
+        if ($app) {
+            $app->update(['application_status' => 'SANCTIONED']);
+        }
+
+        return redirect()->route('finance.student_credit.s03_fee_payment', ['phone' => $phone]);
+    }
     public function studentCreditFeePayment(Request $request)      { return view('finance.student_credit.s03_fee_payment', $this->resolveContext($request)); }
     public function studentCreditPending(Request $request)         { return view('finance.student_credit.s04_pending', $this->resolveContext($request)); }
     public function studentCreditAdditionalDocs(Request $request) { return view('finance.student_credit.s05_additional_docs', $this->resolveContext($request)); }

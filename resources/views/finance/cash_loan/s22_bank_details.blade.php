@@ -75,3 +75,58 @@
     </button>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('bankDetailsForm');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        var v = window.FiinwayValidator;
+        var nameInp = form.querySelector('input[name="account_holder_name"]');
+        var bankInp = form.querySelector('input[name="bank_name"]');
+        var accInp = document.getElementById('account_number');
+        var confirmInp = document.getElementById('confirm_account_number');
+        var ifscInp = form.querySelector('input[name="ifsc_code"]');
+        var firstInvalid = null;
+
+        [nameInp, bankInp, accInp, confirmInp, ifscInp].forEach(function(inp) { if (inp) v.clearError(inp); });
+
+        if (nameInp && !v.isValidName(nameInp.value)) {
+            v.showError(nameInp, 'Enter a valid account holder name (min 3 characters, letters only).');
+            if (!firstInvalid) firstInvalid = nameInp;
+        }
+
+        if (bankInp && bankInp.value.trim().length < 2) {
+            v.showError(bankInp, 'Enter a valid bank name.');
+            if (!firstInvalid) firstInvalid = bankInp;
+        }
+
+        var accVal = v.cleanDigits(accInp ? accInp.value : '');
+        if (!accVal || accVal.length < 9 || accVal.length > 18) {
+            v.showError(accInp, 'Account number must be between 9 and 18 digits.');
+            if (!firstInvalid) firstInvalid = accInp;
+        }
+
+        var confirmVal = v.cleanDigits(confirmInp ? confirmInp.value : '');
+        if (confirmVal !== accVal) {
+            v.showError(confirmInp, 'Confirm account number must match account number exactly.');
+            if (!firstInvalid) firstInvalid = confirmInp;
+        }
+
+        if (ifscInp && !v.isValidIfsc(ifscInp.value)) {
+            v.showError(ifscInp, 'Enter a valid 11-character IFSC code (e.g. HDFC0001234).');
+            if (!firstInvalid) firstInvalid = ifscInp;
+        }
+
+        if (firstInvalid) {
+            e.preventDefault();
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+    });
+});
+</script>
+@endpush

@@ -216,34 +216,76 @@ function validateAndSubmitKyc() {
         return;
     }
 
-    var primary = cleanDigits(document.getElementById('primary_phone').value);
-    var alt = cleanDigits(document.getElementById('alternate_phone').value);
-    var wa = cleanDigits(document.getElementById('whatsapp_phone').value);
+    var v = window.FiinwayValidator;
+    var nameInp = form.querySelector('input[name="applicant_name"]');
+    var panInp = form.querySelector('input[name="pan_number"]');
+    var aadhaarInp = form.querySelector('input[name="aadhaar_number"]');
+    var emailInp = document.getElementById('email');
+    var altInp = document.getElementById('alternate_phone');
+    var waInp = document.getElementById('whatsapp_phone');
 
-    // Strict validation
-    if (alt.length !== 10) {
-        errBox.textContent = 'Alternate phone must be a valid 10-digit number.';
+    var primary = v.cleanDigits(document.getElementById('primary_phone').value);
+    var alt = v.cleanDigits(altInp ? altInp.value : '');
+    var wa = v.cleanDigits(waInp ? waInp.value : '');
+    var aadhaar = v.cleanDigits(aadhaarInp ? aadhaarInp.value : '');
+
+    if (nameInp && !v.isValidName(nameInp.value)) {
+        errBox.textContent = 'Full Name must be at least 3 characters and contain letters only.';
         errBox.style.display = 'block';
+        nameInp.focus();
         return;
     }
-    if (wa.length !== 10) {
-        errBox.textContent = 'WhatsApp phone must be a valid 10-digit number.';
+
+    if (panInp && !v.isValidPan(panInp.value)) {
+        errBox.textContent = 'PAN Number must be a valid 10-character code (e.g. ABCDE1234F).';
         errBox.style.display = 'block';
+        panInp.focus();
+        return;
+    }
+
+    if (!aadhaar || aadhaar.length !== 12 || /^(\d)\1{11}$/.test(aadhaar)) {
+        errBox.textContent = 'Aadhaar Number must be exactly 12 numeric digits.';
+        errBox.style.display = 'block';
+        if (aadhaarInp) aadhaarInp.focus();
+        return;
+    }
+
+    if (emailInp && !v.isValidEmail(emailInp.value)) {
+        errBox.textContent = 'Please enter a valid email address (e.g. name@domain.com).';
+        errBox.style.display = 'block';
+        emailInp.focus();
+        return;
+    }
+
+    // Strict phone validation
+    if (alt.length !== 10 || !/^[6-9]\d{9}$/.test(alt)) {
+        errBox.textContent = 'Alternate phone must be a valid 10-digit number starting with 6, 7, 8, or 9.';
+        errBox.style.display = 'block';
+        if (altInp) altInp.focus();
+        return;
+    }
+    if (wa.length !== 10 || !/^[6-9]\d{9}$/.test(wa)) {
+        errBox.textContent = 'WhatsApp phone must be a valid 10-digit number starting with 6, 7, 8, or 9.';
+        errBox.style.display = 'block';
+        if (waInp) waInp.focus();
         return;
     }
     if (alt === primary) {
         errBox.textContent = 'Alternate number cannot be identical to your Primary registered number (' + primary + ').';
         errBox.style.display = 'block';
+        if (altInp) altInp.focus();
         return;
     }
     if (wa === primary) {
         errBox.textContent = 'WhatsApp number cannot be identical to your Primary registered number (' + primary + ').';
         errBox.style.display = 'block';
+        if (waInp) waInp.focus();
         return;
     }
     if (wa === alt) {
         errBox.textContent = 'WhatsApp number and Alternate number must be different from each other.';
         errBox.style.display = 'block';
+        if (waInp) waInp.focus();
         return;
     }
 

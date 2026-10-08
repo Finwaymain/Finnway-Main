@@ -20,6 +20,13 @@
     <input type="hidden" name="phone" value="{{ $phone }}">
     <input type="hidden" name="loan_type" value="{{ $loanType ?? 'low_cibil' }}">
 
+    @if(session('error'))
+        <div class="fw-alert fw-alert-error" style="padding:10px 14px; margin-bottom:12px; font-size:13px; font-weight:600; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:8px;">
+            ⚠️ {{ session('error') }}
+        </div>
+    @endif
+    <div id="clientErrorBox" class="fw-alert fw-alert-error" style="display:none; padding:10px 14px; margin-bottom:12px; font-size:13px; font-weight:600; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:8px;"></div>
+
     <div class="fw-card mt-2 mb-4 pb-3">
         <h3 class="fw-section-title mb-1">Applicant Profile</h3>
         <p class="fw-section-sub">Enter primary borrower identity details as per PAN card.</p>
@@ -151,12 +158,58 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('applicantForm').addEventListener('submit', function(e) {
+        var v = window.FiinwayValidator;
+        var nameInp = document.querySelector('input[name="applicant_name"]');
+        var emailInp = document.querySelector('input[name="email"]');
+        var panInp = document.querySelector('input[name="pan_number"]');
+        var dobInp = document.querySelector('input[name="dob"]');
+        var incInp = document.querySelector('input[name="monthly_income"]');
+        var firstInvalid = null;
+
+        // Reset errors
+        [nameInp, emailInp, panInp, dobInp, incInp].forEach(function(inp) { if (inp) v.clearError(inp); });
+
+        if (nameInp && !v.isValidName(nameInp.value)) {
+            v.showError(nameInp, 'Enter a valid full name (letters only, min 3 characters).');
+            if (!firstInvalid) firstInvalid = nameInp;
+        }
+
+        if (emailInp && !v.isValidEmail(emailInp.value)) {
+            v.showError(emailInp, 'Enter a valid email address (e.g. name@domain.com).');
+            if (!firstInvalid) firstInvalid = emailInp;
+        }
+
+        if (panInp && !v.isValidPan(panInp.value)) {
+            v.showError(panInp, 'Enter a valid 10-character PAN (e.g. ABCDE1234F).');
+            if (!firstInvalid) firstInvalid = panInp;
+        }
+
+        if (dobInp) {
+            var age = v.getAge(dobInp.value);
+            if (!dobInp.value || age < 18 || age > 75) {
+                v.showError(dobInp, 'Applicant must be at least 18 years of age (Current age: ' + age + ').');
+                if (!firstInvalid) firstInvalid = dobInp;
+            }
+        }
+
+        if (incInp && (parseFloat(incInp.value) || 0) < 5000) {
+            v.showError(incInp, 'Net monthly take-home must be at least ₹5,000.');
+            if (!firstInvalid) firstInvalid = incInp;
+        }
+
         const val = parseFloat(amtInput.value) || 0;
         if (val > maxLimit) {
-            e.preventDefault();
             amtInput.value = maxLimit;
             checkAmount();
             alert('Requested amount cannot exceed your pre-sanctioned limit of ₹ ' + new Intl.NumberFormat('en-IN').format(maxLimit));
+            if (!firstInvalid) firstInvalid = amtInput;
+        }
+
+        if (firstInvalid) {
+            e.preventDefault();
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
         }
     });
 });
