@@ -294,7 +294,14 @@ class FinanceWebController extends Controller
             $isDisbursedOrApproved = true;
         }
 
-        // Active additional document request if any
+        // Active additional document request or individual reupload requests
+        $reuploadDocs = collect();
+        if ($customer) {
+            $reuploadDocs = FinanceDocument::where('customer_id', $customer->id)
+                ->where('status', 'reupload_required')
+                ->get();
+        }
+
         $activeDocRequest = null;
         if ($customer) {
             $activeDocRequest = \App\Models\Finance\FinanceDocumentRequest::where('customer_id', $customer->id)
@@ -303,14 +310,19 @@ class FinanceWebController extends Controller
                         $q->where('application_id', $application->id)->orWhereNull('application_id');
                     }
                 })
+                ->where('status', 'pending')
                 ->orderBy('id', 'desc')
                 ->first();
         }
 
-        $rawRequestedDocs = $activeDocRequest ? ($activeDocRequest->requested_documents ?? []) : [];
-        if (is_string($rawRequestedDocs)) {
-            $decoded = json_decode($rawRequestedDocs, true);
-            $rawRequestedDocs = is_array($decoded) ? $decoded : (trim($rawRequestedDocs) ? [trim($rawRequestedDocs)] : []);
+        $appStatus = $application->application_status ?? 'UNDERWRITING';
+        $hasDocRequest = ($appStatus === 'ADDITIONAL_DOCS_REQUESTED')
+            || ($activeDocRequest && $activeDocRequest->status === 'pending')
+            || $reuploadDocs->isNotEmpty();
+
+        // If documents already resubmitted and no new pending request
+        if ($appStatus === 'DOCS_RESUBMITTED' && $reuploadDocs->isEmpty() && (!$activeDocRequest || $activeDocRequest->status !== 'pending')) {
+            $hasDocRequest = false;
         }
 
         $docCodeLabelMap = [
@@ -322,32 +334,69 @@ class FinanceWebController extends Controller
             'gst_certificate' => 'GST / Business Certificate',
             'bonafide_certificate' => 'Bonafide / Enrollment Certificate',
             'aadhaar' => 'Full Aadhaar Card (Front & Back)',
+            'aadhaar_front' => 'Aadhaar Card (Front Side)',
+            'aadhaar_back' => 'Aadhaar Card (Back Side)',
             'pan' => 'PAN Card Copy',
+            'pan_card' => 'PAN Card Copy',
             'selfie' => 'Clear Front Selfie with ID Card',
             'address_proof' => 'Electricity Bill / Rent Agreement',
             'other' => 'Additional Supporting Document',
         ];
 
-        $requestedDocs = [];
+        $requestedDocsList = [];
+
+        // 1. Documents explicitly marked for reupload by Admin
+        foreach ($reuploadDocs as $rDoc) {
+            $label = $docCodeLabelMap[$rDoc->document_type] ?? ucwords(str_replace('_', ' ', $rDoc->document_type));
+            $requestedDocsList[] = [
+                'label' => $label,
+                'doc_id' => $rDoc->id,
+                'doc_type' => $rDoc->document_type,
+                'remark' => $rDoc->admin_remark ?: 'Please upload a clearer copy.',
+            ];
+        }
+
+        // 2. Documents requested via Document Request batch
+        $rawRequestedDocs = $activeDocRequest ? ($activeDocRequest->requested_documents ?? []) : [];
+        if (is_string($rawRequestedDocs)) {
+            $decoded = json_decode($rawRequestedDocs, true);
+            $rawRequestedDocs = is_array($decoded) ? $decoded : (trim($rawRequestedDocs) ? [trim($rawRequestedDocs)] : []);
+        }
+
         if (!empty($rawRequestedDocs) && is_array($rawRequestedDocs)) {
             foreach ($rawRequestedDocs as $item) {
                 if (is_string($item)) {
                     $key = strtolower(trim($item));
-                    if (isset($docCodeLabelMap[$key])) {
-                        $requestedDocs[] = $docCodeLabelMap[$key];
-                    } elseif (trim($item) !== '') {
-                        $requestedDocs[] = ucwords(str_replace('_', ' ', trim($item)));
+                    $label = $docCodeLabelMap[$key] ?? ucwords(str_replace('_', ' ', trim($item)));
+                    $already = false;
+                    foreach ($requestedDocsList as $existing) {
+                        if (strtolower($existing['label']) === strtolower($label)) {
+                            $already = true;
+                            break;
+                        }
+                    }
+                    if (!$already) {
+                        $requestedDocsList[] = [
+                            'label' => $label,
+                            'doc_id' => null,
+                            'doc_type' => $key,
+                            'remark' => $activeDocRequest->admin_remark ?: null,
+                        ];
                     }
                 }
             }
         }
 
-        // Only if NO document request exists at all
-        if (empty($requestedDocs)) {
-            $requestedDocs = ['Additional Verification Document'];
+        if ($hasDocRequest && empty($requestedDocsList)) {
+            $requestedDocsList[] = [
+                'label' => 'Additional Verification Document',
+                'doc_id' => null,
+                'doc_type' => 'additional_supporting_doc',
+                'remark' => $activeDocRequest->admin_remark ?? 'Additional verification document requested by administration.',
+            ];
         }
 
-        $docRequestRemark = $activeDocRequest ? $activeDocRequest->admin_remark : null;
+        $docRequestRemark = $activeDocRequest ? $activeDocRequest->admin_remark : ($reuploadDocs->first() ? $reuploadDocs->first()->admin_remark : null);
 
         if ($request->has('hide_header') || $request->has('app')) {
             session(['finance_hide_header' => true]);
@@ -424,7 +473,10 @@ class FinanceWebController extends Controller
             'customerDocuments' => $customerDocuments,
             'isDisbursedOrApproved' => $isDisbursedOrApproved,
             'activeDocRequest' => $activeDocRequest,
-            'requestedDocs' => $requestedDocs,
+            'hasDocRequest' => $hasDocRequest,
+            'reuploadDocs' => $reuploadDocs,
+            'requestedDocsList' => $requestedDocsList,
+            'requestedDocs' => $requestedDocsList,
             'docRequestRemark' => $docRequestRemark,
             'hideHeader' => $hideHeader,
             'maxLimit' => $maxLimit,
@@ -446,16 +498,18 @@ class FinanceWebController extends Controller
 
         if (in_array($cat, ['zero_cibil', 'zero_cibil_micro', 'zero_cibil_daily'])) {
             $stepMap = [
-                'KYC_PENDING'    => route('finance.zero_cibil.s02_kyc', ['phone' => $phone]),
-                'AMOUNT_PENDING' => route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]),
-                'DOCS_VERIFYING' => route('finance.zero_cibil.s03b_doc_verification', ['phone' => $phone]),
-                'SANCTIONED'     => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
-                'FEE_PENDING'    => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
-                'UNDERWRITING'   => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
-                'FEE_PAID'       => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
-                'LOAN_APPROVED'  => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
-                'DISBURSED'      => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
-                'ACTIVE'         => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
+                'KYC_PENDING'               => route('finance.zero_cibil.s02_kyc', ['phone' => $phone]),
+                'AMOUNT_PENDING'            => route('finance.zero_cibil.s03_amount_select', ['phone' => $phone]),
+                'DOCS_VERIFYING'            => route('finance.zero_cibil.s03b_doc_verification', ['phone' => $phone]),
+                'SANCTIONED'                => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'FEE_PENDING'               => route('finance.zero_cibil.s04_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'UNDERWRITING'              => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'FEE_PAID'                  => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'ADDITIONAL_DOCS_REQUESTED' => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'DOCS_RESUBMITTED'          => route('finance.zero_cibil.s05_pending', ['phone' => $phone]),
+                'LOAN_APPROVED'             => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
+                'DISBURSED'                 => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
+                'ACTIVE'                    => route('finance.zero_cibil.s06_wallet_active', ['phone' => $phone]),
             ];
             return $stepMap[$status] ?? null;
         }
@@ -1556,23 +1610,48 @@ class FinanceWebController extends Controller
         if ($request->hasFile('doc_files')) {
             $files = $request->file('doc_files');
             $names = $request->input('doc_names', []);
+            $docIds = $request->input('doc_ids', []);
+            $docTypes = $request->input('doc_types', []);
 
             foreach ($files as $idx => $file) {
                 if ($file && $file->isValid()) {
                     $rawName = $names[$idx] ?? ('Additional Doc ' . ($idx + 1));
-                    $slugType = \Illuminate\Support\Str::slug($rawName, '_');
+                    $docId = !empty($docIds[$idx]) ? intval($docIds[$idx]) : null;
+                    $docType = !empty($docTypes[$idx]) ? $docTypes[$idx] : null;
                     $path = $file->store('finance_docs', 'public');
 
-                    FinanceDocument::create([
-                        'customer_id' => $customer->id,
-                        'document_type' => $slugType,
-                        'file_path' => $path,
-                        'file_name' => $file->getClientOriginalName(),
-                        'status' => 'pending',
-                        'admin_remark' => 'Uploaded by borrower in response to Admin request: ' . $rawName,
-                        'is_reusable' => true,
-                        'reuse_valid_until' => now()->addDays(5),
-                    ]);
+                    $existingDoc = null;
+                    if ($docId) {
+                        $existingDoc = FinanceDocument::where('customer_id', $customer->id)->where('id', $docId)->first();
+                    }
+                    if (!$existingDoc && $docType) {
+                        $existingDoc = FinanceDocument::where('customer_id', $customer->id)
+                            ->where('document_type', $docType)
+                            ->where('status', 'reupload_required')
+                            ->latest('id')
+                            ->first();
+                    }
+
+                    if ($existingDoc) {
+                        $existingDoc->update([
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'admin_remark' => 'Re-uploaded by borrower: ' . $rawName,
+                        ]);
+                    } else {
+                        $slugType = $docType ?: \Illuminate\Support\Str::slug($rawName, '_');
+                        FinanceDocument::create([
+                            'customer_id' => $customer->id,
+                            'document_type' => $slugType,
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'admin_remark' => 'Uploaded by borrower in response to Admin request: ' . $rawName,
+                            'is_reusable' => true,
+                            'reuse_valid_until' => now()->addDays(5),
+                        ]);
+                    }
                     $uploadedCount++;
                 }
             }
@@ -1717,7 +1796,7 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $app = $ctx['application'];
         // If approved or fee pending or further, no back navigation allowed
-        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'ADDITIONAL_DOCS_REQUESTED', 'DOCS_RESUBMITTED', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
             $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
             if ($resume) return redirect($resume);
         }
@@ -1729,7 +1808,7 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $app = $ctx['application'];
         // If approved or fee pending or further, no back navigation allowed
-        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+        if ($app && in_array($app->application_status, ['DOCS_VERIFYING', 'SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'ADDITIONAL_DOCS_REQUESTED', 'DOCS_RESUBMITTED', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
             $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
             if ($resume) return redirect($resume);
         }
@@ -1741,7 +1820,7 @@ class FinanceWebController extends Controller
         $ctx = $this->resolveContext($request);
         $app = $ctx['application'];
         // If already fee pending or past verification, forward to current step
-        if ($app && in_array($app->application_status, ['SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+        if ($app && in_array($app->application_status, ['SANCTIONED', 'FEE_PENDING', 'UNDERWRITING', 'FEE_PAID', 'ADDITIONAL_DOCS_REQUESTED', 'DOCS_RESUBMITTED', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
             $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
             if ($resume) return redirect($resume);
         }
@@ -1787,13 +1866,139 @@ class FinanceWebController extends Controller
     {
         $ctx = $this->resolveContext($request);
         $app = $ctx['application'];
-        if ($app && in_array($app->application_status, ['UNDERWRITING', 'FEE_PAID', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
+        if ($app && in_array($app->application_status, ['UNDERWRITING', 'FEE_PAID', 'ADDITIONAL_DOCS_REQUESTED', 'DOCS_RESUBMITTED', 'LOAN_APPROVED', 'DISBURSED', 'ACTIVE'])) {
             $resume = $this->getResumeUrlForApplication($app, $ctx['phone']);
             if ($resume) return redirect($resume);
         }
         return view('finance.zero_cibil.s04_fee_payment', $ctx);
     }
     public function zeroCibilPending(Request $request)      { return view('finance.zero_cibil.s05_pending', $this->resolveContext($request)); }
+
+    public function zeroCibilAdditionalDocsSubmit(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+        $phone = $ctx['phone'];
+
+        if (!$customer) {
+            return redirect()->route('finance.hub', ['phone' => $phone])->with('error', 'Session expired. Please restart.');
+        }
+
+        $uploadedCount = 0;
+
+        // 1. Process array of requested documents
+        if ($request->hasFile('doc_files')) {
+            $files = $request->file('doc_files');
+            $names = $request->input('doc_names', []);
+            $docIds = $request->input('doc_ids', []);
+            $docTypes = $request->input('doc_types', []);
+
+            foreach ($files as $idx => $file) {
+                if ($file && $file->isValid()) {
+                    $rawName = $names[$idx] ?? ('Additional Doc ' . ($idx + 1));
+                    $docId = !empty($docIds[$idx]) ? intval($docIds[$idx]) : null;
+                    $docType = !empty($docTypes[$idx]) ? $docTypes[$idx] : null;
+                    $path = $file->store('finance_docs', 'public');
+
+                    $existingDoc = null;
+                    if ($docId) {
+                        $existingDoc = FinanceDocument::where('customer_id', $customer->id)->where('id', $docId)->first();
+                    }
+                    if (!$existingDoc && $docType) {
+                        $existingDoc = FinanceDocument::where('customer_id', $customer->id)
+                            ->where('document_type', $docType)
+                            ->where('status', 'reupload_required')
+                            ->latest('id')
+                            ->first();
+                    }
+
+                    if ($existingDoc) {
+                        $existingDoc->update([
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'admin_remark' => 'Re-uploaded by borrower: ' . $rawName,
+                        ]);
+                    } else {
+                        $slugType = $docType ?: \Illuminate\Support\Str::slug($rawName, '_');
+                        FinanceDocument::create([
+                            'customer_id' => $customer->id,
+                            'document_type' => $slugType,
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'status' => 'pending',
+                            'admin_remark' => 'Uploaded by borrower in response to Admin request: ' . $rawName,
+                            'is_reusable' => true,
+                            'reuse_valid_until' => now()->addDays(5),
+                        ]);
+                    }
+                    $uploadedCount++;
+                }
+            }
+        }
+
+        // 2. Process optional extra document
+        if ($request->hasFile('extra_doc')) {
+            $file = $request->file('extra_doc');
+            if ($file && $file->isValid()) {
+                $path = $file->store('finance_docs', 'public');
+                FinanceDocument::create([
+                    'customer_id' => $customer->id,
+                    'document_type' => 'additional_supporting_doc',
+                    'file_path' => $path,
+                    'file_name' => $file->getClientOriginalName(),
+                    'status' => 'pending',
+                    'admin_remark' => 'Supporting document uploaded by borrower.',
+                    'is_reusable' => true,
+                    'reuse_valid_until' => now()->addDays(5),
+                ]);
+                $uploadedCount++;
+            }
+        }
+
+        // 3. Mark document request as submitted
+        \App\Models\Finance\FinanceDocumentRequest::where('customer_id', $customer->id)
+            ->where(function ($q) use ($app) {
+                if ($app) {
+                    $q->where('application_id', $app->id)->orWhereNull('application_id');
+                }
+            })
+            ->where('status', 'pending')
+            ->update(['status' => 'submitted']);
+
+        // 4. Update Application status to DOCS_RESUBMITTED
+        if ($app) {
+            $app->update([
+                'application_status' => 'DOCS_RESUBMITTED',
+                'admin_remarks' => 'Applicant re-submitted required documents on ' . now()->toDayDateTimeString(),
+            ]);
+        }
+
+        return redirect()->route('finance.zero_cibil.s05_pending', ['phone' => $phone])
+            ->with('success', "{$uploadedCount} document(s) uploaded successfully. Your files are now under review by administration.");
+    }
+
+    public function zeroCibilStatusCheck(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        $wallet = $ctx['wallet'] ?? null;
+
+        $isApproved = ($app && in_array($app->application_status, ['LOAN_APPROVED', 'DISBURSED', 'ACTIVE']))
+            || ($wallet && $wallet->status === 'active');
+        $isRejected = ($app && $app->application_status === 'REJECTED');
+        $status = $app ? $app->application_status : 'UNKNOWN';
+        $hasDocRequest = $ctx['hasDocRequest'] ?? false;
+
+        return response()->json([
+            'status' => $status,
+            'is_approved' => $isApproved,
+            'is_rejected' => $isRejected,
+            'has_doc_request' => $hasDocRequest,
+            'redirect_url' => $isApproved ? route('finance.zero_cibil.s06_wallet_active', ['phone' => $ctx['phone']]) : null,
+        ]);
+    }
     public function zeroCibilWalletActive(Request $request) {
         $phone = $request->query('phone');
         $wallet = null;

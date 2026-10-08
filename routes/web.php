@@ -1455,6 +1455,8 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::post('/doc-verification/complete', [\App\Http\Controllers\Finance\FinanceWebController::class, 'completeZeroCibilDocVerification'])->name('complete_doc_verification');
         Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilFeePayment'])->name('s04_fee_payment');
         Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilPending'])->name('s05_pending');
+        Route::post('/additional-docs/submit', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilAdditionalDocsSubmit'])->name('additional_docs_submit');
+        Route::get('/status-check',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilStatusCheck'])->name('status_check');
         Route::get('/wallet-active', [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilWalletActive'])->name('s06_wallet_active');
         Route::get('/qr-pay',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'zeroCibilQrPay'])->name('s07_qr_pay');
     });
