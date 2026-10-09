@@ -411,6 +411,11 @@ class OnboardingController extends Controller
                         if ($vehIsBike && (int)$passengerVal > 2) {
                             $passengerVal = '1';
                         }
+                        $vFront = $this->extractVehiclePhoto($request, $veh['id'] ?? null, 'front_photo');
+                        $vBack = $this->extractVehiclePhoto($request, $veh['id'] ?? null, 'back_photo');
+                        $vSide = $this->extractVehiclePhoto($request, $veh['id'] ?? null, 'side_photo');
+                        $vPlate = $this->extractVehiclePhoto($request, $veh['id'] ?? null, 'numberplate_photo');
+
                         DB::table('tj_vehicule')->insert([
                             'brand' => $veh['brand'],
                             'model' => $veh['model'],
@@ -422,6 +427,10 @@ class OnboardingController extends Controller
                             'km' => $veh['km'] ?? '0',
                             'color' => $veh['color'] ?? 'N/A',
                             'passenger' => $passengerVal,
+                            'front_photo' => $vFront,
+                            'back_photo' => $vBack,
+                            'side_photo' => $vSide,
+                            'numberplate_photo' => $vPlate,
                             'statut' => 'yes',
                             'creer' => now(),
                             'updated_at' => now()
@@ -434,6 +443,11 @@ class OnboardingController extends Controller
                     if ($vehIsBike && (int)$passengerVal > 2) {
                         $passengerVal = '1';
                     }
+                    $vFront = $this->extractVehiclePhoto($request, $firstVeh['id'] ?? null, 'front_photo');
+                    $vBack = $this->extractVehiclePhoto($request, $firstVeh['id'] ?? null, 'back_photo');
+                    $vSide = $this->extractVehiclePhoto($request, $firstVeh['id'] ?? null, 'side_photo');
+                    $vPlate = $this->extractVehiclePhoto($request, $firstVeh['id'] ?? null, 'numberplate_photo');
+
                     DB::table('tj_vehicule')->insert([
                         'brand' => $firstVeh['brand'],
                         'model' => $firstVeh['model'],
@@ -445,6 +459,10 @@ class OnboardingController extends Controller
                         'km' => $firstVeh['km'] ?? '0',
                         'color' => $firstVeh['color'] ?? 'N/A',
                         'passenger' => $passengerVal,
+                        'front_photo' => $vFront,
+                        'back_photo' => $vBack,
+                        'side_photo' => $vSide,
+                        'numberplate_photo' => $vPlate,
                         'statut' => 'yes',
                         'creer' => now(),
                         'updated_at' => now()
@@ -537,6 +555,7 @@ class OnboardingController extends Controller
                 }
 
                 $this->saveHomeProviderDocuments($request, $driverId, $topLevelCategory);
+                $this->saveVehiclePhotosToDriverDocuments($request, $driverId);
             }
 
             if (Schema::hasColumn('tj_conducteur', 'onboarding_completed')) {
@@ -940,6 +959,108 @@ class OnboardingController extends Controller
                 }
             }
         }
+    }
+
+    private function saveVehiclePhotosToDriverDocuments(Request $request, int $driverId): void
+    {
+        $map = [
+            'vehicle_front_photo' => 'Vehicle Front Photo',
+            'vehicle_back_photo' => 'Vehicle Back Photo',
+            'vehicle_side_photo' => 'Vehicle Side Photo',
+            'vehicle_numberplate_photo' => 'Vehicle Number Plate Photo',
+            'vehicle_number_plate_photo' => 'Vehicle Number Plate Photo',
+        ];
+
+        foreach ($map as $inputName => $title) {
+            if ($request->hasFile($inputName)) {
+                $docId = $this->resolveAdminDocumentId($title);
+                if ($docId) {
+                    $this->storeDriverDocumentUpload($request->file($inputName), $driverId, $docId, $title);
+                }
+            }
+        }
+
+        foreach ($request->allFiles() as $key => $file) {
+            if (str_starts_with($key, 'vehicle_') && !isset($map[$key])) {
+                $title = null;
+                if (str_contains($key, 'front_photo')) {
+                    $title = 'Vehicle Front Photo';
+                } elseif (str_contains($key, 'back_photo')) {
+                    $title = 'Vehicle Back Photo';
+                } elseif (str_contains($key, 'side_photo')) {
+                    $title = 'Vehicle Side Photo';
+                } elseif (str_contains($key, 'numberplate_photo') || str_contains($key, 'number_plate_photo')) {
+                    $title = 'Vehicle Number Plate Photo';
+                }
+
+                if ($title) {
+                    $docId = $this->resolveAdminDocumentId($title);
+                    if ($docId) {
+                        $this->storeDriverDocumentUpload($file, $driverId, $docId, $title);
+                    }
+                }
+            }
+        }
+    }
+
+    private function extractVehiclePhoto(Request $request, $vehId, string $type): ?string
+    {
+        $candidates = [
+            "vehicle_{$vehId}_{$type}",
+            "vehicle_{$type}",
+            $type,
+        ];
+        if ($type === 'numberplate_photo') {
+            $candidates[] = "vehicle_{$vehId}_number_plate_photo";
+            $candidates[] = "vehicle_number_plate_photo";
+            $candidates[] = "number_plate_photo";
+        }
+
+        foreach ($candidates as $cand) {
+            if ($request->hasFile($cand)) {
+                $file = $request->file($cand);
+                if ($file && $file->isValid()) {
+                    return $this->saveLocalVehicleFile($file, $type);
+                }
+            }
+        }
+        return null;
+    }
+
+    private function saveLocalVehicleFile($file, string $type): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $filename = 'vehicle_' . $type . '_' . time() . '_' . rand(100, 999) . '.' . $extension;
+
+        if (!empty(config('imagekit.private_key'))) {
+            try {
+                $uploadedUrl = $this->uploadToImageKit($file, '/driver/vehicles');
+                if ($uploadedUrl) {
+                    return $uploadedUrl;
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('ImageKit upload for vehicle photo failed: ' . $e->getMessage());
+            }
+        }
+
+        $targetDir = public_path('assets/images/driver/documents');
+        if (!file_exists($targetDir)) {
+            @mkdir($targetDir, 0777, true);
+        }
+        @chmod($targetDir, 0777);
+
+        try {
+            $file->move($targetDir, $filename);
+        } catch (\Throwable $e) {
+            $storageDir = storage_path('app/public/driver/documents');
+            if (!file_exists($storageDir)) {
+                @mkdir($storageDir, 0777, true);
+            }
+            @chmod($storageDir, 0777);
+            $file->move($storageDir, $filename);
+        }
+
+        return $filename;
     }
 
   /**

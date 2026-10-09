@@ -28,7 +28,10 @@ class Vehicle extends Authenticatable
         'statut',
         'creer',
         'modifier',
-
+        'front_photo',
+        'back_photo',
+        'side_photo',
+        'numberplate_photo',
     ];
     protected $casts = [
         'id' => 'string',
