@@ -924,13 +924,41 @@ class DriverController extends Controller
     public function documentView($id)
     {
         $driver = Driver::where('id', "=", $id)->first();
+        if (!$driver) {
+            return redirect('drivers')->with('error', 'Driver not found.');
+        }
 
-        $admin_documents = DB::table('admin_documents')->where('admin_documents.is_enabled', 'Yes')->get();
+        // Fetch only documents uploaded by this driver with a non-empty file path
+        $driver_docs = DB::table('driver_document')
+            ->where('driver_id', $id)
+            ->whereNotNull('document_path')
+            ->where('document_path', '!=', '')
+            ->orderBy('id', 'desc')
+            ->get();
 
-        $admin_documents->map(function ($admin_document, $key) use ($id) {
-            $driver_document = DB::table('driver_document')->where('driver_id', $id)->where('document_id', $admin_document->id)->first();
-            $admin_document->driver_document = $driver_document;
-            return $admin_document;
+        // Deduplicate in case driver uploaded multiple times for same document_id
+        $unique_docs = collect();
+        $seen = [];
+        foreach ($driver_docs as $ddoc) {
+            $key = !empty($ddoc->document_id) ? 'doc_' . $ddoc->document_id : 'id_' . $ddoc->id;
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $unique_docs->push($ddoc);
+            }
+        }
+        $unique_docs = $unique_docs->reverse()->values();
+
+        $admin_documents = $unique_docs->map(function ($driver_document) {
+            $admin_doc = null;
+            if (!empty($driver_document->document_id)) {
+                $admin_doc = DB::table('admin_documents')->where('id', $driver_document->document_id)->first();
+            }
+
+            $doc = new \stdClass();
+            $doc->id = $admin_doc ? $admin_doc->id : $driver_document->document_id;
+            $doc->title = $admin_doc ? $admin_doc->title : (isset($driver_document->title) && $driver_document->title ? $driver_document->title : 'Document #' . $driver_document->id);
+            $doc->driver_document = $driver_document;
+            return $doc;
         });
 
         $vehicles = DB::table('tj_vehicule')

@@ -6,7 +6,12 @@
         <div class="row page-titles">
             <div class="col-md-5 align-self-center">
 
-                <h3 class="text-themecolor">{{trans('lang.document_details')}}</h3>
+                <h3 class="text-themecolor">
+                    <a href="{!! url('drivers') !!}" class="btn btn-outline-secondary btn-sm mr-2" style="vertical-align: middle;">
+                        <i class="fa fa-arrow-left mr-1"></i> Back
+                    </a>
+                    {{trans('lang.document_details')}}
+                </h3>
 
             </div>
 
@@ -29,6 +34,9 @@
                 </ol>
                 
                 <div class="mt-3 text-right d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                    <a href="{!! url('drivers') !!}" class="btn btn-outline-secondary mr-2">
+                        <i class="fa fa-arrow-left mr-1"></i> Back to Drivers
+                    </a>
                     <a href="{{ route('driver.approveAllDocuments', ['id' => $driver->id]) }}" class="btn btn-primary text-white mr-2" onclick="return confirm('Are you sure you want to approve all documents and activate this driver?');">
                         <i class="fa fa-check-double mr-1"></i> Approve All Documents & Activate
                     </a>
@@ -174,15 +182,22 @@
 	                                                            <td>{{$document->driver_document?$document->driver_document->comment:''}}</td>
 	                                                            
 	                                                            @if($document->driver_document)
+	                                                            @php
+	                                                                $modalId = $document->driver_document ? $document->driver_document->id : $document->id;
+	                                                                $docPath = $document->driver_document->document_path ?? '';
+	                                                                $docUrl = filter_var($docPath, FILTER_VALIDATE_URL) ? $docPath : asset('assets/images/driver/documents/' . $docPath);
+	                                                                $isImage = preg_match('/\.(jpg|jpeg|png|webp|gif)$/i', $docPath);
+	                                                            @endphp
 	                                                            <td>
-	    	                                                    	<a href="#" data-toggle="modal" data-target="#exampleModal_{{$document->id}}" class="open-image btn btn-sm btn-outline-info" title="View Document"><i class="imageresource fas fa fa-file-image-o mr-1"></i> View</a>
+	    	                                                    	<a href="#" data-toggle="modal" data-target="#exampleModal_{{$modalId}}" class="open-image btn btn-sm btn-outline-info" title="View Document"><i class="imageresource fas fa fa-file-image-o mr-1"></i> View</a>
 																	<a class="btn btn-sm btn-outline-secondary ml-1" href="{{ url('driver/uploaddocument',['id' => $document->driver_document?$document->driver_document->driver_id:$driver->id,'document_id'=>$document->id]) }}" title="Re-upload"><i class="fa fa-edit"></i></a>
 																	
-																	<div class="modal fade" id="exampleModal_{{$document->id}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-				                                                        <div class="modal-dialog" role="document" style="max-width: 50%;">
+																	<div class="modal fade" id="exampleModal_{{$modalId}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+				                                                        <div class="modal-dialog modal-lg" role="document" style="max-width: 60%;">
 				                                                        	<div class="modal-content">
 				                                                        
 				                                                                <div class="modal-header">
+				                                                                    <h5 class="modal-title font-weight-bold">{{ $document->title }}</h5>
 				                                                                    <button type="button" class="close"
 				                                                                            data-dismiss="modal"
 				                                                                            aria-label="Close">
@@ -190,22 +205,26 @@
 				                                                                    </button>
 				                                                                </div>
 				                                                        
-				                                                                <div class="modal-body">
-				                                                                    <div class="form-group">
-			                                                                            <embed
-			                                                                                src="{{ filter_var($document->driver_document->document_path, FILTER_VALIDATE_URL) ? $document->driver_document->document_path : asset('assets/images/driver/documents').'/'.$document->driver_document->document_path }}"
-			                                                                                frameBorder="0"
-			                                                                                scrolling="auto"
-			                                                                                height="100%"
-			                                                                                width="100%"
-			                                                                                style="height: 540px;"
-			                                                                            ></embed>
+				                                                                <div class="modal-body text-center" style="background: #f8f9fa;">
+				                                                                    <div class="form-group mb-0">
+				                                                                        @if($isImage)
+				                                                                            <img src="{{ $docUrl }}" class="img-fluid rounded shadow-sm" style="max-height: 540px; width: auto; object-fit: contain;" alt="{{ $document->title }}" />
+				                                                                        @else
+			                                                                                <embed
+			                                                                                    src="{{ $docUrl }}"
+			                                                                                    frameBorder="0"
+			                                                                                    scrolling="auto"
+			                                                                                    height="100%"
+			                                                                                    width="100%"
+			                                                                                    style="height: 540px;"
+			                                                                                ></embed>
+				                                                                        @endif
 				                                                                    </div>
-				                                                                    
-				                                                                    <div class="modal-footer">
-				                                                                        <a class="btn btn-primary" href="{{ filter_var($document->driver_document->document_path, FILTER_VALIDATE_URL) ? $document->driver_document->document_path : asset('assets/images/driver/documents').'/'.$document->driver_document->document_path }}" target="_blank">Download</a>
-				                                                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">{{trans('lang.close')}}</button>
-				                                                                    </div>
+				                                                                </div>
+				                                                                
+				                                                                <div class="modal-footer">
+				                                                                    <a class="btn btn-primary" href="{{ $docUrl }}" target="_blank"><i class="fa fa-external-link mr-1"></i> Open / Download</a>
+				                                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">{{trans('lang.close')}}</button>
 				                                                                </div>
 				                                                            </div>
 				                                                        </div>
@@ -233,7 +252,7 @@
 	                                                    	
 														@endforeach
 													 @else
-													 	<tr><td colspan="6" align="center">{{trans('lang.no_result')}}</td></tr>
+													 	<tr><td colspan="6" align="center" class="text-muted py-4"><i class="fa fa-info-circle mr-1"></i> No documents uploaded by this driver yet.</td></tr>
 													 @endif
 																
                                                     </tbody>
