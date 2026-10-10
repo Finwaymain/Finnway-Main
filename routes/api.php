@@ -1025,6 +1025,7 @@ require __DIR__ . '/finance_api.php';
 Route::post('v1/payments/razorpay/qr-webhook', [RazorpayWebhookController::class, 'handleWebhook']);
 Route::post('v1/payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
 Route::post('payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
+Route::any('deploy/webhook', [\App\Http\Controllers\API\v1\DeployWebhookController::class, 'handle']);
 
 
 
