@@ -2716,7 +2716,7 @@ class FinanceWebController extends Controller
     }
 
     /**
-     * Direct Partner Lender Loans — Marketplace & Profile Form
+     * Direct Partner Lender Loans — Step 1: User Profile & Optional Referral Code Form
      */
     public function lenderLoansIndex(Request $request)
     {
@@ -2740,13 +2740,40 @@ class FinanceWebController extends Controller
             $applicantPhone = $customer->phone ?? '';
         }
 
+        return view('finance.partner_lenders.index', array_merge($ctx, [
+            'applicantName' => $applicantName,
+            'applicantEmail' => $applicantEmail,
+            'applicantPhone' => $applicantPhone,
+            'referralCode' => $referralCode,
+        ]));
+    }
+
+    /**
+     * Direct Partner Lender Loans — Step 2: Choose Affiliate Lender Card
+     */
+    public function lenderLoansStep2(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'] ?? $request->query('phone', '');
+
+        $applicantName = trim((string)$request->input('name', $request->query('name', '')));
+        $applicantPhone = trim((string)$request->input('phone', $request->query('phone', $phone)));
+        $applicantEmail = trim((string)$request->input('email', $request->query('email', '')));
+        $referralCode = trim((string)$request->input('referral_code', $request->query('referral_code', '')));
+
+        if (empty($applicantName) || empty($applicantPhone)) {
+            return redirect()->route('finance.lender_loans.index', ['phone' => $phone])
+                ->with('error', 'Please provide your Full Name and Mobile Number.')
+                ->withInput();
+        }
+
         // Active affiliate lending partners configured by Admin in the Affiliate Lenders page
         $lenders = FinanceAffiliateLender::where('status', 'active')
             ->orderBy('sort_order')
             ->orderBy('id', 'asc')
             ->get();
 
-        return view('finance.partner_lenders.index', array_merge($ctx, [
+        return view('finance.partner_lenders.step2', array_merge($ctx, [
             'applicantName' => $applicantName,
             'applicantEmail' => $applicantEmail,
             'applicantPhone' => $applicantPhone,
