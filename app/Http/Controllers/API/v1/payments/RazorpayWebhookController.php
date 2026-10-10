@@ -120,7 +120,21 @@ class RazorpayWebhookController extends Controller
             $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? null;
         }
 
-        // 3. Check description / reference for pocket number
+        // 4. Check payment entity top-level fields (tn, transaction_note, description, etc.)
+        if (empty($acNo)) {
+            $tnCandidate = $paymentEntity['tn'] 
+                ?? $paymentEntity['transaction_note'] 
+                ?? ($paymentEntity['acquirer_data']['tn'] ?? null) 
+                ?? ($paymentEntity['acquirer_data']['transaction_note'] ?? null);
+            if (!empty($tnCandidate)) {
+                $extracted = UpiQrService::extractAcNoFromScannedString($tnCandidate);
+                if (!empty($extracted) && preg_match('/^[0-9]{10,14}$/', $extracted)) {
+                    $acNo = $extracted;
+                }
+            }
+        }
+
+        // 5. Check description / reference for pocket number
         if (empty($acNo)) {
             $desc = ($paymentEntity['description'] ?? '') . ' ' . ($paymentEntity['order_id'] ?? '');
             $extracted = UpiQrService::extractAcNoFromScannedString($desc);
@@ -129,9 +143,18 @@ class RazorpayWebhookController extends Controller
             }
         }
 
+        // 6. Deep scan entire raw payload for pocket account number (7080XXXXXXXX or 7060XXXXXXXX)
+        if (empty($acNo)) {
+            $extracted = UpiQrService::extractAcNoFromScannedString($rawPayload);
+            if (!empty($extracted) && preg_match('/^[0-9]{10,14}$/', $extracted)) {
+                $acNo = $extracted;
+            }
+        }
+
         if (empty($acNo)) {
             Log::warning('Razorpay Webhook: Could not resolve recipient ac_no for payment ' . $paymentId, [
                 'payment' => $paymentEntity,
+                'raw_payload' => $rawPayload,
             ]);
             return response()->json(['status' => 'error', 'message' => 'Recipient ac_no not found in notes'], 200);
         }
