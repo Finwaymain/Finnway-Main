@@ -40,15 +40,15 @@ class UpiQrService
 
         $mc = !empty($config['merchant_mc']) ? $config['merchant_mc'] : '5817';
 
-        // Standard NPCI UPI URI Format:
-        // pa = Payee VPA
+        // Verified NPCI UPI URI Format with Registered Razorpay Standee Terminal ID:
+        // pa = Payee VPA (fiinway782717.rzp@rxairtel)
         // pn = Payee Name
-        // mc = Merchant Category Code
+        // mc = Merchant Category Code (5817)
         // mode = UPI transfer mode (19 for Razorpay merchant standee)
-        // tr = Transaction Reference (used to map back to User A's ac_no)
-        // tn = Transaction Note
+        // tr = Active Razorpay Standee Terminal ID (Tm8NeVRNVXdRRaqrv2)
+        // tn = Transaction Note with User A's clean pocket number
         // cu = Currency (INR)
-        return "upi://pay?pa={$vpa}&pn={$encodedPn}&mc={$mc}&mode=19&tr={$cleanAcNo}&tn={$encodedTn}&cu=INR";
+        return "upi://pay?cu=INR&mc={$mc}&mode=19&pa={$vpa}&pn={$encodedPn}&tr=Tm8NeVRNVXdRRaqrv2&tn={$encodedTn}";
     }
 
     /**

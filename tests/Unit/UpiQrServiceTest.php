@@ -17,10 +17,11 @@ class UpiQrServiceTest extends TestCase
         $uri = UpiQrService::generateUpiStringForUser('708012345678', 'Rahul Sharma');
 
         $this->assertStringStartsWith('upi://pay?', $uri);
-        $this->assertStringContainsString('tr=708012345678', $uri);
+        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
-        $this->assertStringContainsString('pa=', $uri);
-        $this->assertStringContainsString('mc=', $uri);
+        $this->assertStringContainsString('pa=fiinway782717.rzp@rxairtel', $uri);
+        $this->assertStringContainsString('mc=5817', $uri);
+        $this->assertStringContainsString('mode=19', $uri);
         $this->assertMatchesRegularExpression('/Rahul(%20|\+)Sharma/', $uri);
         $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)708012345678/', $uri);
     }
@@ -30,8 +31,9 @@ class UpiQrServiceTest extends TestCase
         $uri = UpiQrService::generateUpiStringForUser('706099887766');
 
         $this->assertStringStartsWith('upi://pay?', $uri);
-        $this->assertStringContainsString('tr=706099887766', $uri);
+        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
+        $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)706099887766/', $uri);
     }
 
     public function test_generate_upi_string_with_empty_or_null_ac_no()
@@ -46,7 +48,8 @@ class UpiQrServiceTest extends TestCase
         $uri = UpiQrService::generateUpiStringForUser('708011223344', 'Amit & Sumit Services');
 
         $this->assertStringStartsWith('upi://pay?', $uri);
-        $this->assertStringContainsString('tr=708011223344', $uri);
+        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2', $uri);
+        $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)708011223344/', $uri);
         // Special characters should be URL encoded
         $this->assertStringNotContainsString(' ', $uri);
     }
