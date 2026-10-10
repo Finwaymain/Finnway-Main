@@ -90,16 +90,15 @@ class UpiQrService
 
             if (!empty($queryStr)) {
                 parse_str($queryStr, $params);
-                // Check 'tr' (transaction reference) first
+                // Check 'tr' (transaction reference) first for a valid 10-14 digit account number
                 if (!empty($params['tr'])) {
                     $tr = trim((string) $params['tr']);
                     if (preg_match('/[0-9]{10,14}/', $tr, $m)) {
                         return $m[0];
                     }
-                    return $tr;
                 }
 
-                // Check 'tn' (transaction note)
+                // Check 'tn' (transaction note) if tr did not contain a pocket number
                 if (!empty($params['tn'])) {
                     if (preg_match('/(7080|7060)[0-9]{8}/', $params['tn'], $m)) {
                         return $m[0];
@@ -107,6 +106,10 @@ class UpiQrService
                     if (preg_match('/[0-9]{12}/', $params['tn'], $m)) {
                         return $m[0];
                     }
+                }
+
+                if (!empty($params['tr'])) {
+                    return trim((string) $params['tr']);
                 }
             }
         }
