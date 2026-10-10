@@ -658,6 +658,7 @@ class AuthOtpController extends Controller
 
         $row['accesstoken'] = $accesstoken;
         $row['id']          = (string)$user->id;
+        $row['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($row['ac_no'] ?? null, trim(($row['prenom'] ?? '') . ' ' . ($row['nom'] ?? '')));
 
         return response()->json([
             'success' => 'success',
@@ -867,6 +868,7 @@ class AuthOtpController extends Controller
 
         $row['accesstoken'] = $accesstoken;
         $row['id']          = (string)$user->id;
+        $row['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($row['ac_no'] ?? null, trim(($row['prenom'] ?? '') . ' ' . ($row['nom'] ?? '')));
 
         return response()->json([
             'success' => 'success',

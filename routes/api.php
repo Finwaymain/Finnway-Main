@@ -110,6 +110,7 @@ use App\Http\Controllers\API\v1\PaymentMethodController;
 use App\Http\Controllers\API\v1\payments\PaymentController;
 
 use App\Http\Controllers\API\v1\payments\RazorPayController;
+use App\Http\Controllers\API\v1\payments\RazorpayWebhookController;
 
 use App\Http\Controllers\API\v1\PaymentSettingController;
 
@@ -665,6 +666,8 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
     Route::post('v1/payments/stripepaymentintent', [PaymentController::class, 'createStripePaymentIntent']);
 
     Route::post('v1/payments/razorpay/createorder', [RazorPayController::class, 'createOrderid']);
+    Route::post('v1/payments/razorpay/qr-webhook', [RazorpayWebhookController::class, 'handleWebhook']);
+    Route::post('v1/payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
 
     Route::post('v1/pay-requete/', [PayRequeteController::class, 'UpdatePayRequete']);
 

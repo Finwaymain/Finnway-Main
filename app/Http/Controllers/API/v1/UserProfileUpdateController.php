@@ -738,8 +738,8 @@ class UserProfileUpdateController extends Controller
     public function transfer_to_wallet(Request $request)
     {
         // Step 1: Validate the incoming request data
-        $sender_ac_no   = $request->sender_ac_no;
-        $receiver_ac_no = $request->receiver_ac_no;
+        $sender_ac_no   = \App\Services\UpiQrService::extractAcNoFromScannedString($request->sender_ac_no);
+        $receiver_ac_no = \App\Services\UpiQrService::extractAcNoFromScannedString($request->receiver_ac_no);
         $amount         = $request->amount;
         $rawSenderType = strtolower($request->sender_type ?? 'customer');
         $sender_type   = ($rawSenderType === 'driver') ? 'driver' : 'customer';
@@ -1393,7 +1393,7 @@ class UserProfileUpdateController extends Controller
             ], 422);
         }
 
-        $ac_no = $request->ac_no;
+        $ac_no = \App\Services\UpiQrService::extractAcNoFromScannedString($request->ac_no);
 
         // Step 1: ac_no se common_user_base me user dhundo
         $receiver = DB::table('common_user_base')
@@ -1411,6 +1411,7 @@ class UserProfileUpdateController extends Controller
                 $userArr = (array) $user;
                 $userType = isset($user->statut_vehicule) ? 'driver' : 'customer';
                 $userArr['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$user->id, $userType);
+                $userArr['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($user->ac_no ?? $ac_no, trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')));
                 return response()->json([
                     'res'  => 'success',
                     'msg'  => 'User found successfully',
@@ -1523,6 +1524,7 @@ class UserProfileUpdateController extends Controller
         }
 
         $userArray['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$userId, $userType);
+        $userArray['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($userArray['ac_no'] ?? $ac_no, trim(($userArray['prenom'] ?? '') . ' ' . ($userArray['nom'] ?? '')));
 
         return response()->json([
             'res'  => 'success',
@@ -2274,6 +2276,22 @@ class UserProfileUpdateController extends Controller
             $paidTo        = $counterparty;
             $iconType      = 'transfer';
             $deductionType = '0';
+        } elseif (
+            strcasecmp($paymentMethod, 'UPI') === 0 ||
+            stripos($desc, 'via upi') !== false ||
+            stripos($desc, 'upi payment') !== false ||
+            stripos($note, 'upi payment') !== false
+        ) {
+            $categoryTitle = 'UPI Payment Received';
+            $pName = !empty($row->counterparty) ? trim($row->counterparty) : '';
+            if (empty($pName) && preg_match('/from\s+([^(]+)/i', $desc, $m)) {
+                $pName = trim($m[1]);
+            }
+            $counterparty  = !empty($pName) ? ('From ' . $pName) : 'From UPI Payer';
+            $paidFrom      = !empty($pName) ? $pName : 'UPI App';
+            $paidTo        = 'Your Wallet';
+            $iconType      = 'upi';
+            $deductionType = '1';
         } elseif (preg_match('/Received\s+.+?\s+from\s+(.+)$/i', $desc, $matches)) {
             $categoryTitle = 'Money Received';
             $counterparty  = trim($matches[1]);
