@@ -216,9 +216,9 @@ class TransactionController extends Controller
             $query->whereDate('upi_qr_transactions.created_at', '<=', $request->input('date_to'));
         }
 
-        // Summary stats
-        $totalVolume = (clone $query)->sum('amount');
-        $totalTransactions = (clone $query)->count();
+        // Summary stats (qualify with table name to prevent ambiguous column error)
+        $totalVolume = (clone $query)->sum('upi_qr_transactions.amount');
+        $totalTransactions = (clone $query)->count('upi_qr_transactions.id');
 
         $transactions = $query
             ->orderByDesc('upi_qr_transactions.created_at')
