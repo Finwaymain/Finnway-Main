@@ -101,13 +101,20 @@ class RazorpayWebhookController extends Controller
         // Target Receiver (User A) ac_no identification
         $acNo = null;
 
-        // 1. Check payment notes
+        // 1. Check payment notes (including 'comment' from razorpay.me payment handles)
         if (!empty($paymentEntity['notes'])) {
             $notes = $paymentEntity['notes'];
-            $acNo = $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? null;
+            $acNo = $notes['comment'] ?? $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? null;
         }
 
-        // 2. Check QR notes
+        // 2. Check payment_link notes if this was paid via a payment link
+        $paymentLinkEntity = $payloadData['payment_link']['entity'] ?? null;
+        if (empty($acNo) && !empty($paymentLinkEntity['notes'])) {
+            $plNotes = $paymentLinkEntity['notes'];
+            $acNo = $plNotes['comment'] ?? $plNotes['ac_no'] ?? $plNotes['account_no'] ?? null;
+        }
+
+        // 3. Check QR notes
         if (empty($acNo) && !empty($qrEntity['notes'])) {
             $qrNotes = $qrEntity['notes'];
             $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? null;
