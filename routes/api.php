@@ -666,8 +666,6 @@ Route::group(['middleware' => ['apiKeyAuth']], function () {
     Route::post('v1/payments/stripepaymentintent', [PaymentController::class, 'createStripePaymentIntent']);
 
     Route::post('v1/payments/razorpay/createorder', [RazorPayController::class, 'createOrderid']);
-    Route::post('v1/payments/razorpay/qr-webhook', [RazorpayWebhookController::class, 'handleWebhook']);
-    Route::post('v1/payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
 
     Route::post('v1/pay-requete/', [PayRequeteController::class, 'UpdatePayRequete']);
 
@@ -1022,6 +1020,11 @@ require __DIR__ . '/food_api.php';
 
 // ── Fiinway Finance & Loan APIs ────────────────────────────────────────────
 require __DIR__ . '/finance_api.php';
+
+// ── Razorpay Webhook Routes (Public, verified via HMAC signature) ───────────
+Route::post('v1/payments/razorpay/qr-webhook', [RazorpayWebhookController::class, 'handleWebhook']);
+Route::post('v1/payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
+Route::post('payments/razorpay/webhook', [RazorpayWebhookController::class, 'handleWebhook']);
 
 
 
