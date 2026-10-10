@@ -144,6 +144,95 @@ class TransactionController extends Controller
         return $query;
     }
 
+    public function upiPayments(Request $request)
+    {
+        $query = DB::table('upi_qr_transactions')
+            ->select(
+                'upi_qr_transactions.*',
+                DB::raw("CASE 
+                    WHEN upi_qr_transactions.user_type = 'driver' THEN CONCAT(COALESCE(tj_conducteur.prenom, ''), ' ', COALESCE(tj_conducteur.nom, ''))
+                    ELSE CONCAT(COALESCE(tj_user_app.prenom, ''), ' ', COALESCE(tj_user_app.nom, ''))
+                END as user_full_name"),
+                DB::raw("CASE 
+                    WHEN upi_qr_transactions.user_type = 'driver' THEN tj_conducteur.phone
+                    ELSE tj_user_app.phone
+                END as user_phone")
+            )
+            ->leftJoin('tj_user_app', function ($join) {
+                $join->on('tj_user_app.id', '=', 'upi_qr_transactions.user_id')
+                    ->where('upi_qr_transactions.user_type', '=', 'customer');
+            })
+            ->leftJoin('tj_conducteur', function ($join) {
+                $join->on('tj_conducteur.id', '=', 'upi_qr_transactions.user_id')
+                    ->where('upi_qr_transactions.user_type', '=', 'driver');
+            });
+
+        // Search & Filter
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $field = $request->input('selected_search', 'all');
+
+            $query->where(function ($q) use ($search, $field) {
+                if ($field === 'payment_id') {
+                    $q->where('upi_qr_transactions.razorpay_payment_id', 'LIKE', "%{$search}%");
+                } elseif ($field === 'ac_no') {
+                    $q->where('upi_qr_transactions.ac_no', 'LIKE', "%{$search}%");
+                } elseif ($field === 'payer_name') {
+                    $q->where('upi_qr_transactions.payer_name', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.payer_vpa', 'LIKE', "%{$search}%");
+                } elseif ($field === 'user') {
+                    $q->where('tj_user_app.prenom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_user_app.nom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_conducteur.prenom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_conducteur.nom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_user_app.phone', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_conducteur.phone', 'LIKE', "%{$search}%");
+                } else {
+                    $q->where('upi_qr_transactions.razorpay_payment_id', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.ac_no', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.payer_name', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.payer_vpa', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_user_app.prenom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_user_app.nom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_conducteur.prenom', 'LIKE', "%{$search}%")
+                      ->orWhere('tj_conducteur.nom', 'LIKE', "%{$search}%");
+                }
+            });
+        }
+
+        if ($request->filled('user_type') && in_array($request->input('user_type'), ['customer', 'driver'])) {
+            $query->where('upi_qr_transactions.user_type', $request->input('user_type'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('upi_qr_transactions.status', $request->input('status'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('upi_qr_transactions.created_at', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('upi_qr_transactions.created_at', '<=', $request->input('date_to'));
+        }
+
+        // Summary stats
+        $totalVolume = (clone $query)->sum('amount');
+        $totalTransactions = (clone $query)->count();
+
+        $transactions = $query
+            ->orderByDesc('upi_qr_transactions.created_at')
+            ->paginate(20)
+            ->appends($request->all());
+
+        $currency = Currency::where('statut', 'yes')->first();
+        if (!$currency) {
+            $currency = (object)['symbole' => '₹', 'symbol_at_right' => 'false', 'decimal_digit' => 2];
+        }
+
+        return view('transactions.upi_payments', compact('transactions', 'currency', 'totalVolume', 'totalTransactions'));
+    }
+
     private function applyTransactionFilters($query, Request $request, string $table): void
     {
         if ($request->filled('search') && $request->get('selected_search') === 'transaction_id') {

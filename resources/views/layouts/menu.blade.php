@@ -164,6 +164,7 @@
             <ul aria-expanded="false" class="collapse">
                 <li><a href="{!! url('walletstransaction') !!}">User Transactions</a></li>
                 <li><a href="{!! url('walletstransactions/driver') !!}">Driver Transactions</a></li>
+                <li><a href="{!! route('walletstransactions.upi') !!}">UPI Payments (QR)</a></li>
                 <li><a href="{!! route('wallet-growth.index') !!}">Wallet Growth Engine</a></li>
                 <li><a href="{!! url('payoutRequest') !!}">Payout Requests</a></li>
                 <li><a href="{!! url('driversPayouts') !!}">Drivers Payouts</a></li>

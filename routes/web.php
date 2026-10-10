@@ -700,6 +700,8 @@ Route::get('/walletstransaction/{id}', [App\Http\Controllers\TransactionControll
 
 Route::get('walletstransactions/driver/{id?}', [App\Http\Controllers\TransactionController::class, 'driverWallet'])->name('walletstransactions.driver');
 
+Route::get('walletstransactions/upi', [App\Http\Controllers\TransactionController::class, 'upiPayments'])->name('walletstransactions.upi');
+
 
 
 Route::prefix('settings')->group(function () {
