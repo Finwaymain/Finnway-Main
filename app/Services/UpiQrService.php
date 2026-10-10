@@ -38,13 +38,16 @@ class UpiQrService
         $encodedPn = rawurlencode($displayName);
         $encodedTn = rawurlencode('Fiinway Wallet ' . $cleanAcNo);
 
+        $mc = !empty($config['merchant_mc']) ? $config['merchant_mc'] : '5411';
+
         // Standard NPCI UPI URI Format:
         // pa = Payee VPA
         // pn = Payee Name
+        // mc = Merchant Category Code (Mandatory when tr is present)
         // tr = Transaction Reference (used to map back to User A's ac_no)
         // tn = Transaction Note
         // cu = Currency (INR)
-        return "upi://pay?pa={$vpa}&pn={$encodedPn}&tr={$cleanAcNo}&tn={$encodedTn}&cu=INR";
+        return "upi://pay?pa={$vpa}&pn={$encodedPn}&mc={$mc}&tr={$cleanAcNo}&tn={$encodedTn}&cu=INR";
     }
 
     /**

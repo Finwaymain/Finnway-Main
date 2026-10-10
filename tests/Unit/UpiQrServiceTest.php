@@ -20,6 +20,7 @@ class UpiQrServiceTest extends TestCase
         $this->assertStringContainsString('tr=708012345678', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
         $this->assertStringContainsString('pa=', $uri);
+        $this->assertStringContainsString('mc=', $uri);
         $this->assertMatchesRegularExpression('/Rahul(%20|\+)Sharma/', $uri);
         $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)708012345678/', $uri);
     }
