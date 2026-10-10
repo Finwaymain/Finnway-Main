@@ -433,27 +433,52 @@ class RazorpayWebhookController extends Controller
     }
 
     /**
-     * Send real-time FCM notification to User A.
+     * Send real-time FCM notification to User A and persist in tj_notification.
      */
     private function notifyUserOfCredit($user, string $userType, float $amount, string $payerName): void
     {
         try {
             $fcmId = $user->fcm_id ?? null;
-            if (empty($fcmId)) {
-                return;
+            $userId = $user->id ?? null;
+            $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+
+            $title = 'Fiinway';
+            $formattedAmount = number_format($amount, 2);
+            $messageBody = "Your Fiinway account has been credited with ₹{$formattedAmount} from {$payerName} via UPI.";
+
+            // 1. Send FCM push notification via GcmController
+            if (!empty($fcmId)) {
+                $notifPayload = [
+                    'title'     => $title,
+                    'body'      => $messageBody,
+                    'sound'     => 'default',
+                    'tag'       => 'wallet_topup',
+                    'type'      => 'wallet',
+                    'amount'    => (string) $amount,
+                    'user_type' => $userType,
+                ];
+
+                \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmId, $notifPayload);
+                Log::info("Razorpay Webhook: Sent FCM push notification to {$userType} ID {$userId} (fcm: " . substr($fcmId, 0, 15) . "...)");
+            } else {
+                Log::warning("Razorpay Webhook: User {$userId} does not have an active fcm_id token.");
             }
 
-            $title = 'Money Received in Wallet';
-            $body = '₹' . number_format($amount, 2) . ' received from ' . $payerName . ' via UPI!';
-
-            if (class_exists(\App\Services\FirebaseNotificationService::class)) {
-                \App\Services\FirebaseNotificationService::sendNotification($fcmId, $title, $body, [
-                    'type'   => 'wallet_credit',
-                    'amount' => (string) $amount,
+            // 2. Persist in tj_notification table so it shows in app notification list
+            if ($userId && Schema::hasTable('tj_notification')) {
+                DB::table('tj_notification')->insert([
+                    'titre'    => $title,
+                    'message'  => $messageBody,
+                    'statut'   => 'yes',
+                    'creer'    => $nowDateTime,
+                    'modifier' => $nowDateTime,
+                    'to_id'    => $userId,
+                    'from_id'  => 0,
+                    'type'     => 'wallet_topup',
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::warning('Could not send wallet credit push notification: ' . $e->getMessage());
+            Log::warning('Could not send wallet credit notification: ' . $e->getMessage());
         }
     }
 }

@@ -262,6 +262,15 @@
                                                                     <i class="fa fa-user-plus mr-1"></i> Assign &amp; Credit
                                                                 </button>
                                                             @endif
+                                                            @if($row->wallet_credited && !empty($row->user_id))
+                                                                <form action="{{ route('walletstransactions.upi.resend-notification') }}" method="POST" style="display:inline;" onsubmit="return confirm('Send push notification to recipient device?');">
+                                                                    @csrf
+                                                                    <input type="hidden" name="id" value="{{ $row->id }}">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-info" title="Send / Resend Push Notification to User">
+                                                                        <i class="fa fa-bell"></i>
+                                                                    </button>
+                                                                </form>
+                                                            @endif
                                                             @if(!empty($row->raw_payload))
                                                                 <button type="button" class="btn btn-sm btn-outline-secondary btn-view-payload"
                                                                         data-payment-id="{{ $row->razorpay_payment_id }}"

@@ -703,6 +703,7 @@ Route::get('walletstransactions/driver/{id?}', [App\Http\Controllers\Transaction
 Route::get('walletstransactions/upi', [App\Http\Controllers\TransactionController::class, 'upiPayments'])->name('walletstransactions.upi');
 Route::post('walletstransactions/upi/assign', [App\Http\Controllers\TransactionController::class, 'assignUpiPayment'])->name('walletstransactions.upi.assign');
 Route::post('walletstransactions/upi/manual-credit', [App\Http\Controllers\TransactionController::class, 'manualCreditUpi'])->name('walletstransactions.upi.manual-credit');
+Route::post('walletstransactions/upi/resend-notification', [App\Http\Controllers\TransactionController::class, 'resendUpiNotification'])->name('walletstransactions.upi.resend-notification');
 Route::get('walletstransactions/upi/search-users', [App\Http\Controllers\TransactionController::class, 'searchUsersForUpi'])->name('walletstransactions.upi.search-users');
 
 

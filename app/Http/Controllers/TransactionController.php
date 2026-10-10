@@ -319,16 +319,35 @@ class TransactionController extends Controller
             return back()->with('error', 'Error crediting wallet: ' . $e->getMessage());
         }
 
-        // Notify user via push
+        // Notify user via FCM push and persist in tj_notification
         try {
             $fcmId = $user->fcm_id ?? null;
-            if (!empty($fcmId) && class_exists(\App\Services\FirebaseNotificationService::class)) {
-                \App\Services\FirebaseNotificationService::sendNotification(
-                    $fcmId,
-                    'Money Received in Wallet',
-                    '₹' . number_format($amountInRupees, 2) . ' credited to your wallet via UPI!',
-                    ['type' => 'wallet_credit', 'amount' => (string)$amountInRupees]
-                );
+            $formattedAmount = number_format($amountInRupees, 2);
+            $msg = "Your Fiinway account has been credited with ₹{$formattedAmount} from {$payerName} via UPI.";
+
+            if (!empty($fcmId)) {
+                \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmId, [
+                    'title'     => 'Fiinway',
+                    'body'      => $msg,
+                    'sound'     => 'default',
+                    'tag'       => 'wallet_topup',
+                    'type'      => 'wallet',
+                    'amount'    => (string) $amountInRupees,
+                    'user_type' => $userType,
+                ]);
+            }
+
+            if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+                DB::table('tj_notification')->insert([
+                    'titre'    => 'Fiinway',
+                    'message'  => $msg,
+                    'statut'   => 'yes',
+                    'creer'    => $nowDateTime,
+                    'modifier' => $nowDateTime,
+                    'to_id'    => $userId,
+                    'from_id'  => 0,
+                    'type'     => 'wallet_topup',
+                ]);
             }
         } catch (\Throwable $e) {}
 
@@ -423,20 +442,91 @@ class TransactionController extends Controller
             return back()->with('error', 'Database error: ' . $e->getMessage());
         }
 
-        // Notify user via push
+        // Notify user via FCM push and persist in tj_notification
         try {
             $fcmId = $user->fcm_id ?? null;
-            if (!empty($fcmId) && class_exists(\App\Services\FirebaseNotificationService::class)) {
-                \App\Services\FirebaseNotificationService::sendNotification(
-                    $fcmId,
-                    'Money Received in Wallet',
-                    '₹' . number_format($amountInRupees, 2) . ' credited to your wallet via UPI!',
-                    ['type' => 'wallet_credit', 'amount' => (string)$amountInRupees]
-                );
+            $formattedAmount = number_format($amountInRupees, 2);
+            $msg = "Your Fiinway account has been credited with ₹{$formattedAmount} from {$payerName} via UPI.";
+
+            if (!empty($fcmId)) {
+                \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmId, [
+                    'title'     => 'Fiinway',
+                    'body'      => $msg,
+                    'sound'     => 'default',
+                    'tag'       => 'wallet_topup',
+                    'type'      => 'wallet',
+                    'amount'    => (string) $amountInRupees,
+                    'user_type' => $userType,
+                ]);
+            }
+
+            if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+                DB::table('tj_notification')->insert([
+                    'titre'    => 'Fiinway',
+                    'message'  => $msg,
+                    'statut'   => 'yes',
+                    'creer'    => $nowDateTime,
+                    'modifier' => $nowDateTime,
+                    'to_id'    => $userId,
+                    'from_id'  => 0,
+                    'type'     => 'wallet_topup',
+                ]);
             }
         } catch (\Throwable $e) {}
 
         return back()->with('success', "₹{$amountInRupees} credited to {$user->prenom} {$user->nom} for payment {$paymentId}!");
+    }
+
+    /**
+     * Resend push notification for an existing credited transaction.
+     */
+    public function resendUpiNotification(Request $request)
+    {
+        $id = $request->input('id');
+        $txn = DB::table('upi_qr_transactions')->where('id', $id)->first();
+        if (!$txn || !$txn->user_id) {
+            return back()->with('error', 'Transaction or recipient user not found.');
+        }
+
+        $table = ($txn->user_type === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+        $user = DB::table($table)->where('id', $txn->user_id)->first();
+        if (!$user) {
+            return back()->with('error', 'User not found in database.');
+        }
+
+        $fcmId = $user->fcm_id ?? null;
+        $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+        $amount = number_format((float)$txn->amount, 2);
+        $payer = $txn->payer_name ?: 'UPI Payer';
+        $msg = "Your Fiinway account has been credited with ₹{$amount} from {$payer} via UPI.";
+
+        if (!empty($fcmId)) {
+            \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmId, [
+                'title'     => 'Fiinway',
+                'body'      => $msg,
+                'sound'     => 'default',
+                'tag'       => 'wallet_topup',
+                'type'      => 'wallet',
+                'amount'    => (string) $txn->amount,
+                'user_type' => $txn->user_type,
+            ]);
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+            DB::table('tj_notification')->insert([
+                'titre'    => 'Fiinway',
+                'message'  => $msg,
+                'statut'   => 'yes',
+                'creer'    => $nowDateTime,
+                'modifier' => $nowDateTime,
+                'to_id'    => $user->id,
+                'from_id'  => 0,
+                'type'     => 'wallet_topup',
+            ]);
+        }
+
+        $tokenStatus = !empty($fcmId) ? 'Push notification dispatched to device!' : 'Saved in app notifications (Note: User has not registered an FCM device token yet).';
+        return back()->with('success', "Notification sent to {$user->prenom} {$user->nom}! {$tokenStatus}");
     }
 
     /**

@@ -27,24 +27,24 @@ class NotificationListController extends Controller
     $user_id =$request->get('user_id');
     $driver_id =$request->get('driver_id');
 
-    if(!empty($driver_id)){
-        $sql = DB::table('tj_notification')
-        ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
-        ->select('tj_notification.*', 'tj_conducteur.nom', 'tj_conducteur.prenom', 'tj_conducteur.photo_path')
-        ->where('tj_notification.to_id','=',$driver_id)
-        ->whereIn('tj_notification.type',['ridenewrider', 'userconfirmed', 'forgotitem', 'paymentcompleted', 'marketplace', 'marketplace_order_status'])
-        ->orderBy('tj_notification.id','desc')
-        ->get();
+        if(!empty($driver_id)){
+            $sql = DB::table('tj_notification')
+            ->leftJoin('tj_conducteur', 'tj_conducteur.id', '=', 'tj_notification.to_id')
+            ->select('tj_notification.*', 'tj_conducteur.nom', 'tj_conducteur.prenom', 'tj_conducteur.photo_path')
+            ->where('tj_notification.to_id','=',$driver_id)
+            ->whereIn('tj_notification.type',['ridenewrider', 'userconfirmed', 'forgotitem', 'paymentcompleted', 'marketplace', 'marketplace_order_status', 'wallet', 'wallet_topup', 'wallet_credit'])
+            ->orderBy('tj_notification.id','desc')
+            ->get();
 
-    }else{
-        $sql = DB::table('tj_notification')
-        ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'tj_notification.to_id')
-        ->select('tj_notification.*', 'tj_user_app.nom', 'tj_user_app.prenom', 'tj_user_app.photo_path')
-        ->where('tj_notification.to_id','=',$user_id)
-        ->whereIn('tj_notification.type',['riderejected', 'rideonride', 'rideconfirmed', 'ridecompleted', 'marketplace', 'marketplace_order_status'])
-        ->orderBy('tj_notification.id','desc')
-        ->get();
-    }
+        }else{
+            $sql = DB::table('tj_notification')
+            ->leftJoin('tj_user_app', 'tj_user_app.id', '=', 'tj_notification.to_id')
+            ->select('tj_notification.*', 'tj_user_app.nom', 'tj_user_app.prenom', 'tj_user_app.photo_path')
+            ->where('tj_notification.to_id','=',$user_id)
+            ->whereIn('tj_notification.type',['riderejected', 'rideonride', 'rideconfirmed', 'ridecompleted', 'marketplace', 'marketplace_order_status', 'paymentcompleted', 'wallet', 'wallet_topup', 'wallet_credit'])
+            ->orderBy('tj_notification.id','desc')
+            ->get();
+        }
     // output data of each row
     $output = array();
     foreach($sql as $row)

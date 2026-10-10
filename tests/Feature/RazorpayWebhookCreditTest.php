@@ -404,4 +404,59 @@ class RazorpayWebhookCreditTest extends TestCase
         $response->assertSee('Total QR Transactions');
         $response->assertSee('Total Collected Volume');
     }
+
+    /**
+     * 11. Test notification record created in tj_notification and admin can resend
+     */
+    public function test_webhook_creates_notification_record_and_admin_can_resend()
+    {
+        $user = DB::table('tj_user_app')->whereNotNull('phone')->first();
+        if (!$user) {
+            $this->markTestSkipped('No user found');
+        }
+
+        $testPaymentId = 'pay_notif_' . time() . '_' . rand(100, 999);
+        $amountRupees = 45.00;
+
+        $payload = [
+            'event'   => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id'      => $testPaymentId,
+                        'amount'  => $amountRupees * 100,
+                        'status'  => 'captured',
+                        'contact' => $user->phone,
+                        'notes'   => [],
+                    ],
+                ],
+            ],
+        ];
+
+        $initNotifCount = DB::table('tj_notification')->where('to_id', $user->id)->count();
+
+        $response = $this->postJson('/api/v1/payments/razorpay/webhook', $payload);
+        $response->assertStatus(200);
+        $response->assertJson(['status' => 'success']);
+
+        // Verify notification entry created in tj_notification
+        $newNotifCount = DB::table('tj_notification')->where('to_id', $user->id)->count();
+        $this->assertEquals($initNotifCount + 1, $newNotifCount);
+
+        $latestNotif = DB::table('tj_notification')->where('to_id', $user->id)->latest('id')->first();
+        $this->assertStringContainsString('45.00', $latestNotif->message);
+
+        // Test Admin resend notification endpoint
+        $adminUser = \App\Models\User::first() ?: \App\Models\User::factory()->create();
+        $this->actingAs($adminUser);
+
+        $txn = DB::table('upi_qr_transactions')->where('razorpay_payment_id', $testPaymentId)->first();
+        $resendResponse = $this->post('/walletstransactions/upi/resend-notification', [
+            'id' => $txn->id,
+        ]);
+        $resendResponse->assertRedirect();
+
+        $afterResendCount = DB::table('tj_notification')->where('to_id', $user->id)->count();
+        $this->assertEquals($newNotifCount + 1, $afterResendCount);
+    }
 }
