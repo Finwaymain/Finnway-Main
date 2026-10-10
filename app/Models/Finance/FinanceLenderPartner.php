@@ -32,4 +32,9 @@ class FinanceLenderPartner extends Model
     {
         return $query->where('status', 'active');
     }
+
+    public function leads()
+    {
+        return $this->hasMany(FinanceLenderLead::class, 'lender_id');
+    }
 }

@@ -7,6 +7,7 @@ use App\Models\Finance\FinanceCustomer;
 use App\Models\Finance\FinanceDailySchedule;
 use App\Models\Finance\FinanceDocument;
 use App\Models\Finance\FinanceDocumentRequest;
+use App\Models\Finance\FinanceLenderLead;
 use App\Models\Finance\FinanceLenderPartner;
 use App\Models\Finance\FinanceLoanApplication;
 use App\Models\Finance\FinanceLoanProduct;
@@ -173,10 +174,41 @@ class AdminFinanceController extends Controller
         return back()->with('success', "Application updated to {$status}.");
     }
 
-    public function lenderPartners()
+    public function lenderPartners(Request $request)
     {
-        $partners = FinanceLenderPartner::orderBy('sort_order')->get();
-        return view('admin.finance.lenders', compact('partners'));
+        $partners = FinanceLenderPartner::orderBy('sort_order')->orderBy('id', 'asc')->get();
+
+        $leadsQuery = FinanceLenderLead::with('lender')->latest();
+
+        // Search by applicant name, phone, referral code, or lender name
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $leadsQuery->where(function ($q) use ($search) {
+                $q->where('applicant_name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('referral_code', 'like', "%{$search}%")
+                  ->orWhere('lender_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by Lender
+        if ($request->filled('lender_id')) {
+            $leadsQuery->where('lender_id', $request->input('lender_id'));
+        }
+
+        // Filter by Referrer Type
+        if ($request->filled('referrer_type')) {
+            $leadsQuery->where('referrer_type', $request->input('referrer_type'));
+        }
+
+        $leads = $leadsQuery->paginate(20)->withQueryString();
+
+        $totalLeads = FinanceLenderLead::count();
+        $todayLeads = FinanceLenderLead::whereDate('created_at', date('Y-m-d'))->count();
+        $referredLeads = FinanceLenderLead::whereNotNull('referral_code')->where('referral_code', '!=', '')->count();
+
+        return view('admin.finance.lenders', compact('partners', 'leads', 'totalLeads', 'todayLeads', 'referredLeads'));
     }
 
     public function saveLenderPartner(Request $request, $id = null)

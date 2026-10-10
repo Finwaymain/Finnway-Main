@@ -237,6 +237,17 @@
         <div class="fw-product-arrow">›</div>
     </a>
 
+    <a href="{{ route('finance.lender_loans.index', ['phone' => request('phone')]) }}"
+       class="fw-product-card"
+       style="border-left:4px solid #0284c7;">
+        <div class="fw-product-icon" style="background:#0284c7;">🤝</div>
+        <div class="fw-product-body">
+            <div class="fw-product-title">Direct Partner Lender Loans</div>
+            <div class="fw-product-sub">Instant Referral &amp; Portal Apply · Top NBFC &amp; Bank Partners</div>
+        </div>
+        <div class="fw-product-arrow">›</div>
+    </a>
+
     {{-- Flow B: Fiinway Internal Credit --}}
     <div class="fw-section-label" style="margin-top:20px;">Fiinway Credit Products</div>
 

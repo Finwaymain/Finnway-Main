@@ -154,7 +154,32 @@ class ReferralCodeService
             }
         }
 
-        // 4. Legacy FIIN numeric fallback
+        // 4. Match in marketing_vendors (vendor / sub-vendor / head-vendor)
+        if (Schema::hasTable('marketing_vendors') && Schema::hasColumn('marketing_vendors', 'vendor_code')) {
+            $vendorMatch = DB::table('marketing_vendors')->where(DB::raw('UPPER(vendor_code)'), $code)->first();
+            if ($vendorMatch) {
+                return [
+                    'user_id' => (int)$vendorMatch->user_id,
+                    'user_type' => $vendorMatch->hierarchy_level > 0 ? 'sub_vendor' : 'vendor',
+                    'vendor_id' => (int)$vendorMatch->id,
+                ];
+            }
+        }
+
+        // 5. Match in marketing_team_members (freelancer / agent)
+        if (Schema::hasTable('marketing_team_members') && Schema::hasColumn('marketing_team_members', 'member_code')) {
+            $memberMatch = DB::table('marketing_team_members')->where(DB::raw('UPPER(member_code)'), $code)->first();
+            if ($memberMatch) {
+                return [
+                    'user_id' => (int)$memberMatch->user_id,
+                    'user_type' => 'freelance',
+                    'vendor_id' => (int)$memberMatch->vendor_id,
+                    'member_id' => (int)$memberMatch->id,
+                ];
+            }
+        }
+
+        // 6. Legacy FIIN numeric fallback
         $cleanNumeric = preg_replace('/^(FIINC|FIINB|FIINU|FIIN)0*/i', '', $code);
         if (is_numeric($cleanNumeric) && (int)$cleanNumeric > 0) {
             $targetId = (int)$cleanNumeric;

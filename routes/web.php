@@ -1489,4 +1489,11 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/dashboard',      [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditDashboard'])->name('s08_dashboard');
         Route::get('/qr-pay',         [\App\Http\Controllers\Finance\FinanceWebController::class, 'studentCreditQrPay'])->name('s09_qr_pay');
     });
+
+    // Partner Lender Loans (Marketplace with Referral Tracking)
+    Route::prefix('lender-loans')->name('lender_loans.')->group(function () {
+        Route::get('/',              [\App\Http\Controllers\Finance\FinanceWebController::class, 'lenderLoansIndex'])->name('index');
+        Route::match(['get', 'post'], '/apply/{lender_id}', [\App\Http\Controllers\Finance\FinanceWebController::class, 'applyLenderLoan'])->name('apply');
+    });
 });
+

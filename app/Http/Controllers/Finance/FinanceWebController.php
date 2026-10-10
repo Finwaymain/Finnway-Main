@@ -2713,4 +2713,107 @@ class FinanceWebController extends Controller
             'loan' => $loan,
         ]));
     }
+
+    /**
+     * Direct Partner Lender Loans — Marketplace & Profile Form
+     */
+    public function lenderLoansIndex(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'] ?? $request->query('phone', '');
+        $customer = $ctx['customer'];
+
+        // Autofill name, email, phone from existing customer/driver/user
+        $applicantName = $request->input('name', $request->query('name', ''));
+        $applicantEmail = $request->input('email', $request->query('email', ''));
+        $applicantPhone = $phone ?: $request->input('phone', $request->query('phone', ''));
+        $referralCode = $request->input('referral_code', $request->query('referral_code', ''));
+
+        if (empty($applicantName) && $customer) {
+            $applicantName = $customer->name ?? '';
+        }
+        if (empty($applicantEmail) && $customer) {
+            $applicantEmail = $customer->email ?? '';
+        }
+        if (empty($applicantPhone) && $customer) {
+            $applicantPhone = $customer->phone ?? '';
+        }
+
+        // Active lending partners configured by Admin
+        $lenders = FinanceLenderPartner::where('status', 'active')
+            ->orderBy('sort_order')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        return view('finance.partner_lenders.index', array_merge($ctx, [
+            'applicantName' => $applicantName,
+            'applicantEmail' => $applicantEmail,
+            'applicantPhone' => $applicantPhone,
+            'referralCode' => $referralCode,
+            'lenders' => $lenders,
+        ]));
+    }
+
+    /**
+     * Handle user selection of a partner lender:
+     * 1. Validate referral code (optional; check users, drivers, vendors, freelancers, sub-vendors)
+     * 2. Log lead with applicant details to finance_lender_leads
+     * 3. Redirect to lender affiliate URL in browser
+     */
+    public function applyLenderLoan(Request $request, $lender_id)
+    {
+        $lender = FinanceLenderPartner::findOrFail($lender_id);
+
+        $name = trim((string) $request->input('name', $request->query('name', '')));
+        $phone = trim((string) $request->input('phone', $request->query('phone', '')));
+        $email = trim((string) $request->input('email', $request->query('email', '')));
+        $referralCode = trim((string) $request->input('referral_code', $request->query('referral_code', '')));
+
+        if (empty($name) || empty($phone)) {
+            return back()->with('error', 'Please provide your Full Name and Mobile Number before proceeding.')->withInput();
+        }
+
+        // Referral Code Validation (Optional, supports customer, driver, vendor, freelance, sub-vendor)
+        $referrerType = null;
+        $referrerId = null;
+
+        if (!empty($referralCode)) {
+            $resolved = \App\Services\ReferralCodeService::resolveReferrer($referralCode);
+            if ($resolved) {
+                $referrerType = $resolved['user_type'] ?? 'user';
+                $referrerId = $resolved['user_id'] ?? null;
+            } else {
+                // If code is typed but invalid, we can allow it as a generic tracking code or flag
+                $referrerType = 'unregistered_code';
+            }
+        }
+
+        // Save lead in finance_lender_leads table
+        $lead = \App\Models\Finance\FinanceLenderLead::create([
+            'lender_id' => $lender->id,
+            'lender_name' => $lender->name,
+            'applicant_name' => $name,
+            'phone' => $phone,
+            'email' => $email ?: null,
+            'referral_code' => $referralCode ?: null,
+            'referrer_type' => $referrerType,
+            'referrer_id' => $referrerId,
+            'affiliate_url' => $lender->application_url,
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string)$request->userAgent(), 0, 500),
+        ]);
+
+        // If AJAX request, return redirect URL as JSON
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'redirect_url' => $lender->application_url,
+                'lead_id' => $lead->id,
+            ]);
+        }
+
+        // Redirect directly in browser to lender portal
+        return redirect()->away($lender->application_url);
+    }
 }
+
