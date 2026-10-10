@@ -35,8 +35,8 @@ class UpiQrService
             $displayName = $merchantName . ' - ' . trim($userName);
         }
 
-        $encodedPn = urlencode($displayName);
-        $encodedTn = urlencode('Fiinway Wallet ' . $cleanAcNo);
+        $encodedPn = rawurlencode($displayName);
+        $encodedTn = rawurlencode('Fiinway Wallet ' . $cleanAcNo);
 
         // Standard NPCI UPI URI Format:
         // pa = Payee VPA

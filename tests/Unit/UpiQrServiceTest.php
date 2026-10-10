@@ -20,8 +20,8 @@ class UpiQrServiceTest extends TestCase
         $this->assertStringContainsString('tr=708012345678', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
         $this->assertStringContainsString('pa=', $uri);
-        $this->assertStringContainsString('Rahul+Sharma', $uri);
-        $this->assertStringContainsString('Fiinway+Wallet+708012345678', $uri);
+        $this->assertMatchesRegularExpression('/Rahul(%20|\+)Sharma/', $uri);
+        $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)708012345678/', $uri);
     }
 
     public function test_generate_upi_string_without_user_name()
