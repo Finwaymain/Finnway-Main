@@ -72,7 +72,7 @@ class RazorpayConfig
 
         // If merchant VPA is still empty, derive a default handle from key or merchant name
         if (empty($merchantVpa)) {
-            $merchantVpa = env('UPI_MERCHANT_VPA', 'fiinway@icici');
+            $merchantVpa = env('UPI_MERCHANT_VPA', 'fiinway782717.rzp@rxairtel');
         }
 
         return [

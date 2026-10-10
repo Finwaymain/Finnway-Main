@@ -23,10 +23,10 @@ class UpiQrService
 
         try {
             $config = RazorpayConfig::resolve();
-            $vpa = !empty($config['merchant_vpa']) ? $config['merchant_vpa'] : 'fiinway@icici';
+            $vpa = !empty($config['merchant_vpa']) ? $config['merchant_vpa'] : 'fiinway782717.rzp@rxairtel';
             $merchantName = !empty($config['merchant_name']) ? $config['merchant_name'] : 'Fiinway';
         } catch (\Throwable $e) {
-            $vpa = env('UPI_MERCHANT_VPA', 'fiinway@icici');
+            $vpa = env('UPI_MERCHANT_VPA', 'fiinway782717.rzp@rxairtel');
             $merchantName = env('RAZORPAY_MERCHANT_NAME', 'Fiinway');
         }
 
@@ -38,16 +38,17 @@ class UpiQrService
         $encodedPn = rawurlencode($displayName);
         $encodedTn = rawurlencode('Fiinway Wallet ' . $cleanAcNo);
 
-        $mc = !empty($config['merchant_mc']) ? $config['merchant_mc'] : '5411';
+        $mc = !empty($config['merchant_mc']) ? $config['merchant_mc'] : '5817';
 
         // Standard NPCI UPI URI Format:
         // pa = Payee VPA
         // pn = Payee Name
-        // mc = Merchant Category Code (Mandatory when tr is present)
+        // mc = Merchant Category Code
+        // mode = UPI transfer mode (19 for Razorpay merchant standee)
         // tr = Transaction Reference (used to map back to User A's ac_no)
         // tn = Transaction Note
         // cu = Currency (INR)
-        return "upi://pay?pa={$vpa}&pn={$encodedPn}&mc={$mc}&tr={$cleanAcNo}&tn={$encodedTn}&cu=INR";
+        return "upi://pay?pa={$vpa}&pn={$encodedPn}&mc={$mc}&mode=19&tr={$cleanAcNo}&tn={$encodedTn}&cu=INR";
     }
 
     /**
