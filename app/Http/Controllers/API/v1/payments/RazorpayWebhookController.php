@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API\v1\payments;
 
 use App\Helpers\RazorpayConfig;
 use App\Http\Controllers\Controller;
+use App\Services\PhoneService;
 use App\Services\UpiQrService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -46,7 +47,10 @@ class RazorpayWebhookController extends Controller
         $eventType = $event['event'];
         Log::info('Razorpay Webhook Event: ' . $eventType);
 
-        // We process payment.captured, payment.authorized, qr_code.credited, virtual_account.credited
+        // Self-healing schema: ensure user_id and ac_no are nullable in upi_qr_transactions
+        $this->ensureSchemaNullable();
+
+        // Extract entities from payload
         $payloadData = $event['payload'] ?? [];
         $paymentEntity = $payloadData['payment']['entity'] ?? null;
         $qrEntity = $payloadData['qr_code']['entity'] ?? null;
@@ -61,29 +65,20 @@ class RazorpayWebhookController extends Controller
         }
 
         // Amount in Razorpay is sent in paise (e.g. 50000 = ₹500.00)
-        $rawAmount = $paymentEntity['amount'] ?? ($qrEntity['payment_amount'] ?? 0);
+        $rawAmount = $paymentEntity['amount'] ?? ($qrEntity['payment_amount'] ?? ($qrEntity['amount'] ?? 0));
         $amountInRupees = round(floatval($rawAmount) / 100.0, 2);
 
         if ($amountInRupees <= 0) {
             return response()->json(['status' => 'ignored', 'message' => 'Zero amount'], 200);
         }
 
-        // Idempotency guard: prevent duplicate crediting
-        if (Schema::hasTable('upi_qr_transactions')) {
-            $alreadyProcessed = DB::table('upi_qr_transactions')
-                ->where('razorpay_payment_id', $paymentId)
-                ->where('wallet_credited', true)
-                ->exists();
+        $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+        $currentDate = Carbon::now('Asia/Kolkata')->format('Y-m-d');
 
-            if ($alreadyProcessed) {
-                Log::info('Razorpay Webhook: Payment ID ' . $paymentId . ' already processed.');
-                return response()->json(['status' => 'success', 'message' => 'Already processed'], 200);
-            }
-        }
-
-        // Payer information (User B)
+        // Payer information
         $payerVpa   = $paymentEntity['vpa'] ?? '';
         $payerPhone = $paymentEntity['contact'] ?? '';
+        $payerEmail = $paymentEntity['email'] ?? '';
         $payerName  = $paymentEntity['notes']['payer_name'] ?? ($paymentEntity['acquirer_data']['bank_transaction_id'] ?? null);
 
         // Derive friendly Payer Name if not explicitly provided
@@ -98,16 +93,187 @@ class RazorpayWebhookController extends Controller
             }
         }
 
-        // Target Receiver (User A) ac_no identification
-        $acNo = null;
-
-        // 1. Check payment notes (including 'comment' from razorpay.me payment handles)
-        if (!empty($paymentEntity['notes'])) {
-            $notes = $paymentEntity['notes'];
-            $acNo = $notes['comment'] ?? $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? null;
+        // Handle payment failure event
+        if ($eventType === 'payment.failed') {
+            if (Schema::hasTable('upi_qr_transactions')) {
+                DB::table('upi_qr_transactions')->updateOrInsert(
+                    ['razorpay_payment_id' => $paymentId],
+                    [
+                        'amount'          => $amountInRupees,
+                        'payer_name'      => $payerName,
+                        'payer_vpa'       => $payerVpa,
+                        'payer_phone'     => $payerPhone,
+                        'status'          => 'failed',
+                        'wallet_credited' => false,
+                        'raw_payload'     => $rawPayload,
+                        'updated_at'      => $nowDateTime,
+                    ]
+                );
+            }
+            return response()->json(['status' => 'success', 'message' => 'Recorded failed payment'], 200);
         }
 
-        // 2. Check payment_link notes if this was paid via a payment link
+        // Idempotency guard: prevent duplicate crediting if already credited
+        if (Schema::hasTable('upi_qr_transactions')) {
+            $existing = DB::table('upi_qr_transactions')
+                ->where('razorpay_payment_id', $paymentId)
+                ->first();
+
+            if ($existing && $existing->wallet_credited) {
+                Log::info('Razorpay Webhook: Payment ID ' . $paymentId . ' already credited.');
+                return response()->json(['status' => 'success', 'message' => 'Already processed and credited'], 200);
+            }
+        }
+
+        // ── Resolve Recipient User & Account ────────────────────────────────────
+        $resolved = $this->resolveRecipient($paymentEntity, $qrEntity, $payloadData, $rawPayload, $payerPhone, $payerVpa, $payerEmail);
+        $user     = $resolved['user'];
+        $userType = $resolved['user_type'];
+        $acNo     = $resolved['ac_no'];
+
+        // ── If User Found: Execute Credit & Record ──────────────────────────────
+        if ($user) {
+            $userId = $user->id;
+            DB::beginTransaction();
+            try {
+                // 1. Increment wallet balance
+                if ($userType === 'driver') {
+                    DB::table('tj_conducteur')->where('id', $userId)->increment('amount', $amountInRupees);
+                } else {
+                    DB::table('tj_user_app')->where('id', $userId)->increment('amount', $amountInRupees);
+                }
+
+                // 2. Insert wallet transaction record
+                $txnData = [
+                    'amount'          => (string) $amountInRupees,
+                    'type'            => 'credit',
+                    'deduction_type'  => 1, // 1 = Credit
+                    'payment_method'  => 'UPI',
+                    'counterparty'    => $payerName,
+                    'payment_status'  => 'success',
+                    'txn_id'          => $paymentId,
+                    'description'     => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
+                    'date'            => $currentDate,
+                    'creer'           => $nowDateTime,
+                    'modifier'        => $nowDateTime,
+                ];
+
+                if ($userType === 'driver') {
+                    $txnData['id_conducteur'] = $userId;
+                    DB::table('tj_conducteur_transaction')->insert($txnData);
+                } else {
+                    $txnData['id_user_app'] = $userId;
+                    $txnData['ac_no']       = $user->ac_no ?? $acNo;
+                    DB::table('tj_transaction')->insert($txnData);
+                }
+
+                // 3. Upsert into upi_qr_transactions
+                if (Schema::hasTable('upi_qr_transactions')) {
+                    DB::table('upi_qr_transactions')->updateOrInsert(
+                        ['razorpay_payment_id' => $paymentId],
+                        [
+                            'razorpay_order_id'   => $paymentEntity['order_id'] ?? null,
+                            'ac_no'               => $user->ac_no ?? $acNo,
+                            'user_id'             => $userId,
+                            'user_type'           => $userType,
+                            'amount'              => $amountInRupees,
+                            'fee'                 => round(floatval($paymentEntity['fee'] ?? 0) / 100.0, 2),
+                            'tax'                 => round(floatval($paymentEntity['tax'] ?? 0) / 100.0, 2),
+                            'payer_name'          => $payerName,
+                            'payer_vpa'           => $payerVpa,
+                            'payer_phone'         => $payerPhone,
+                            'payment_method'      => 'UPI',
+                            'status'              => 'captured',
+                            'wallet_credited'     => true,
+                            'raw_payload'         => $rawPayload,
+                            'created_at'          => $nowDateTime,
+                            'updated_at'          => $nowDateTime,
+                        ]
+                    );
+                }
+
+                DB::commit();
+                Log::info("Razorpay Webhook: Successfully credited ₹{$amountInRupees} to {$userType} ID {$userId} ({$acNo})");
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                Log::error('Razorpay Webhook DB Error: ' . $e->getMessage());
+                return response()->json(['status' => 'error', 'message' => 'Database error'], 500);
+            }
+
+            // Send real-time FCM push notification
+            $this->notifyUserOfCredit($user, $userType, $amountInRupees, $payerName);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Wallet credited successfully',
+                'user_id' => $userId,
+                'amount'  => $amountInRupees,
+            ], 200);
+        }
+
+        // ── If User Not Yet Identified: Record as Unassigned ─────────────────────
+        // Transaction is safely saved so Admin sees it in the table and can manually assign/credit it
+        Log::warning('Razorpay Webhook: Recipient could not be auto-resolved for payment ' . $paymentId . '. Recording as unassigned.', [
+            'payment' => $paymentEntity,
+            'payerPhone' => $payerPhone,
+            'payerVpa' => $payerVpa,
+        ]);
+
+        if (Schema::hasTable('upi_qr_transactions')) {
+            DB::table('upi_qr_transactions')->updateOrInsert(
+                ['razorpay_payment_id' => $paymentId],
+                [
+                    'razorpay_order_id'   => $paymentEntity['order_id'] ?? null,
+                    'ac_no'               => $acNo,
+                    'user_id'             => null,
+                    'user_type'           => 'customer',
+                    'amount'              => $amountInRupees,
+                    'fee'                 => round(floatval($paymentEntity['fee'] ?? 0) / 100.0, 2),
+                    'tax'                 => round(floatval($paymentEntity['tax'] ?? 0) / 100.0, 2),
+                    'payer_name'          => $payerName,
+                    'payer_vpa'           => $payerVpa,
+                    'payer_phone'         => $payerPhone,
+                    'payment_method'      => 'UPI',
+                    'status'              => 'unassigned',
+                    'wallet_credited'     => false,
+                    'raw_payload'         => $rawPayload,
+                    'created_at'          => $nowDateTime,
+                    'updated_at'          => $nowDateTime,
+                ]
+            );
+        }
+
+        return response()->json([
+            'status'  => 'recorded_unassigned',
+            'message' => 'Payment recorded in admin panel pending user assignment',
+            'payment_id' => $paymentId,
+            'amount'  => $amountInRupees,
+        ], 200);
+    }
+
+    /**
+     * Resolve recipient user through multi-level waterfall strategy.
+     */
+    private function resolveRecipient($paymentEntity, $qrEntity, array $payloadData, string $rawPayload, ?string $payerPhone, ?string $payerVpa, ?string $payerEmail): array
+    {
+        $acNo = null;
+
+        // 1. Check payment entity notes
+        if (!empty($paymentEntity['notes'])) {
+            $notes = $paymentEntity['notes'];
+            $acNo = $notes['comment'] ?? $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? $notes['recipient_ac_no'] ?? null;
+            if (empty($acNo)) {
+                foreach ($notes as $val) {
+                    $candidate = UpiQrService::extractAcNoFromScannedString((string)$val);
+                    if (!empty($candidate) && preg_match('/^[0-9]{10,14}$/', $candidate)) {
+                        $acNo = $candidate;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. Check payment_link notes
         $paymentLinkEntity = $payloadData['payment_link']['entity'] ?? null;
         if (empty($acNo) && !empty($paymentLinkEntity['notes'])) {
             $plNotes = $paymentLinkEntity['notes'];
@@ -120,7 +286,7 @@ class RazorpayWebhookController extends Controller
             $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? null;
         }
 
-        // 4. Check payment entity top-level fields (tn, transaction_note, description, etc.)
+        // 4. Check payment entity top-level fields (tn, transaction_note, etc.)
         if (empty($acNo)) {
             $tnCandidate = $paymentEntity['tn'] 
                 ?? $paymentEntity['transaction_note'] 
@@ -151,122 +317,119 @@ class RazorpayWebhookController extends Controller
             }
         }
 
-        if (empty($acNo)) {
-            Log::warning('Razorpay Webhook: Could not resolve recipient ac_no for payment ' . $paymentId, [
-                'payment' => $paymentEntity,
-                'raw_payload' => $rawPayload,
-            ]);
-            return response()->json(['status' => 'error', 'message' => 'Recipient ac_no not found in notes'], 200);
+        // Clean extracted acNo if any
+        if (!empty($acNo)) {
+            $acNo = UpiQrService::extractAcNoFromScannedString($acNo);
         }
 
-        $acNo = UpiQrService::extractAcNoFromScannedString($acNo);
-
-        // Resolve User A in database (either customer or driver)
+        // Try looking up user by ac_no
         $user = null;
         $userType = 'customer';
 
-        $common = DB::table('common_user_base')->where('ac_no', $acNo)->first();
-        if ($common) {
-            $userType = ($common->user_type === 'driver') ? 'driver' : 'customer';
-            $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
-            $user = DB::table($table)->where('id', $common->user_id)->first();
-        }
+        if (!empty($acNo)) {
+            $common = DB::table('common_user_base')->where('ac_no', $acNo)->first();
+            if ($common) {
+                $userType = ($common->user_type === 'driver') ? 'driver' : 'customer';
+                $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+                $user = DB::table($table)->where('id', $common->user_id)->first();
+            }
 
-        if (!$user) {
-            $user = DB::table('tj_user_app')->where('ac_no', $acNo)->orWhere('phone', $acNo)->first();
-            if ($user) {
-                $userType = 'customer';
-            } else {
-                $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->orWhere('phone', $acNo)->first();
+            if (!$user) {
+                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
                 if ($user) {
-                    $userType = 'driver';
+                    $userType = 'customer';
+                } else {
+                    $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                    }
                 }
             }
         }
 
-        if (!$user) {
-            Log::error('Razorpay Webhook: User not found for ac_no ' . $acNo);
-            return response()->json(['status' => 'error', 'message' => 'User not found'], 200);
+        // 7. Fallback: Lookup by Payer Contact Phone Number
+        if (!$user && !empty($payerPhone)) {
+            $phoneVariants = PhoneService::getVariants($payerPhone);
+            $digits10 = PhoneService::getLast10($payerPhone);
+            if (!empty($digits10)) {
+                $phoneVariants[] = $digits10;
+                $phoneVariants[] = '+91' . $digits10;
+                $phoneVariants[] = '91' . $digits10;
+                $phoneVariants[] = '0' . $digits10;
+            }
+            $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
+
+            $user = DB::table('tj_user_app')->whereIn('phone', $phoneVariants)->first();
+            if ($user) {
+                $userType = 'customer';
+                $acNo = $user->ac_no ?? $acNo;
+            } else {
+                $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVariants)->first();
+                if ($user) {
+                    $userType = 'driver';
+                    $acNo = $user->ac_no ?? $acNo;
+                }
+            }
         }
 
-        $userId = $user->id;
-        $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
-        $currentDate = Carbon::now('Asia/Kolkata')->format('Y-m-d');
+        // 8. Fallback: Lookup by 10-digit mobile embedded in Payer VPA (e.g. 9876543210@ybl)
+        if (!$user && !empty($payerVpa)) {
+            if (preg_match('/^([6-9]\d{9})@/i', $payerVpa, $vpaMatch)) {
+                $vpaPhone = $vpaMatch[1];
+                $vpaVariants = PhoneService::getVariants($vpaPhone);
+                $vpaVariants[] = $vpaPhone;
+                $vpaVariants[] = '+91' . $vpaPhone;
+                $vpaVariants = array_values(array_unique(array_filter($vpaVariants)));
 
-        // Execute atomic wallet crediting
-        DB::beginTransaction();
-        try {
-            // 1. Increment wallet balance
-            if ($userType === 'driver') {
-                DB::table('tj_conducteur')->where('id', $userId)->increment('amount', $amountInRupees);
-            } else {
-                DB::table('tj_user_app')->where('id', $userId)->increment('amount', $amountInRupees);
+                $user = DB::table('tj_user_app')->whereIn('phone', $vpaVariants)->first();
+                if ($user) {
+                    $userType = 'customer';
+                    $acNo = $user->ac_no ?? $acNo;
+                } else {
+                    $user = DB::table('tj_conducteur')->whereIn('phone', $vpaVariants)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                        $acNo = $user->ac_no ?? $acNo;
+                    }
+                }
             }
-
-            // 2. Insert into wallet transactions
-            $txnData = [
-                'amount'          => (string) $amountInRupees,
-                'type'            => 'credit',
-                'deduction_type'  => 1, // 1 = Credit
-                'payment_method'  => 'UPI',
-                'counterparty'    => $payerName,
-                'payment_status'  => 'success',
-                'txn_id'          => $paymentId,
-                'description'     => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
-                'date'            => $currentDate,
-                'creer'           => $nowDateTime,
-                'modifier'        => $nowDateTime,
-            ];
-
-            if ($userType === 'driver') {
-                $txnData['id_conducteur'] = $userId;
-                DB::table('tj_conducteur_transaction')->insert($txnData);
-            } else {
-                $txnData['id_user_app'] = $userId;
-                $txnData['ac_no']       = $user->ac_no ?? $acNo;
-                DB::table('tj_transaction')->insert($txnData);
-            }
-
-            // 3. Record in upi_qr_transactions if table exists
-            if (Schema::hasTable('upi_qr_transactions')) {
-                DB::table('upi_qr_transactions')->insert([
-                    'razorpay_payment_id' => $paymentId,
-                    'razorpay_order_id'   => $paymentEntity['order_id'] ?? null,
-                    'ac_no'               => $user->ac_no ?? $acNo,
-                    'user_id'             => $userId,
-                    'user_type'           => $userType,
-                    'amount'              => $amountInRupees,
-                    'fee'                 => round(floatval($paymentEntity['fee'] ?? 0) / 100.0, 2),
-                    'tax'                 => round(floatval($paymentEntity['tax'] ?? 0) / 100.0, 2),
-                    'payer_name'          => $payerName,
-                    'payer_vpa'           => $payerVpa,
-                    'payer_phone'         => $payerPhone,
-                    'payment_method'      => 'UPI',
-                    'status'              => 'captured',
-                    'wallet_credited'     => true,
-                    'raw_payload'         => $rawPayload,
-                    'created_at'          => $nowDateTime,
-                    'updated_at'          => $nowDateTime,
-                ]);
-            }
-
-            DB::commit();
-            Log::info("Razorpay Webhook: Successfully credited ₹{$amountInRupees} to {$userType} ID {$userId} ({$acNo})");
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            Log::error('Razorpay Webhook DB Error: ' . $e->getMessage());
-            return response()->json(['status' => 'error', 'message' => 'Database error'], 500);
         }
 
-        // Send Push Notification asynchronously / best-effort
-        $this->notifyUserOfCredit($user, $userType, $amountInRupees, $payerName);
+        // 9. Fallback: Lookup by Payer Email
+        if (!$user && !empty($payerEmail)) {
+            $user = DB::table('tj_user_app')->where('email', $payerEmail)->first();
+            if ($user) {
+                $userType = 'customer';
+                $acNo = $user->ac_no ?? $acNo;
+            } else {
+                $user = DB::table('tj_conducteur')->where('email', $payerEmail)->first();
+                if ($user) {
+                    $userType = 'driver';
+                    $acNo = $user->ac_no ?? $acNo;
+                }
+            }
+        }
 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Wallet credited successfully',
-            'user_id' => $userId,
-            'amount'  => $amountInRupees,
-        ], 200);
+        return [
+            'user'      => $user,
+            'user_type' => $userType,
+            'ac_no'     => $acNo ?? ($user->ac_no ?? null),
+        ];
+    }
+
+    /**
+     * Ensure user_id and ac_no are nullable in database.
+     */
+    private function ensureSchemaNullable(): void
+    {
+        if (Schema::hasTable('upi_qr_transactions')) {
+            try {
+                DB::statement("ALTER TABLE `upi_qr_transactions` MODIFY `user_id` BIGINT UNSIGNED NULL");
+            } catch (\Throwable $e) {}
+            try {
+                DB::statement("ALTER TABLE `upi_qr_transactions` MODIFY `ac_no` VARCHAR(50) NULL");
+            } catch (\Throwable $e) {}
+        }
     }
 
     /**
@@ -283,7 +446,6 @@ class RazorpayWebhookController extends Controller
             $title = 'Money Received in Wallet';
             $body = '₹' . number_format($amount, 2) . ' received from ' . $payerName . ' via UPI!';
 
-            // Check if Firebase service helper exists
             if (class_exists(\App\Services\FirebaseNotificationService::class)) {
                 \App\Services\FirebaseNotificationService::sendNotification($fcmId, $title, $body, [
                     'type'   => 'wallet_credit',

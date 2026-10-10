@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Currency;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -150,12 +151,14 @@ class TransactionController extends Controller
             ->select(
                 'upi_qr_transactions.*',
                 DB::raw("CASE 
-                    WHEN upi_qr_transactions.user_type = 'driver' THEN CONCAT(COALESCE(tj_conducteur.prenom, ''), ' ', COALESCE(tj_conducteur.nom, ''))
-                    ELSE CONCAT(COALESCE(tj_user_app.prenom, ''), ' ', COALESCE(tj_user_app.nom, ''))
+                    WHEN upi_qr_transactions.user_type = 'driver' AND upi_qr_transactions.user_id IS NOT NULL THEN CONCAT(COALESCE(tj_conducteur.prenom, ''), ' ', COALESCE(tj_conducteur.nom, ''))
+                    WHEN upi_qr_transactions.user_id IS NOT NULL THEN CONCAT(COALESCE(tj_user_app.prenom, ''), ' ', COALESCE(tj_user_app.nom, ''))
+                    ELSE NULL
                 END as user_full_name"),
                 DB::raw("CASE 
-                    WHEN upi_qr_transactions.user_type = 'driver' THEN tj_conducteur.phone
-                    ELSE tj_user_app.phone
+                    WHEN upi_qr_transactions.user_type = 'driver' AND upi_qr_transactions.user_id IS NOT NULL THEN tj_conducteur.phone
+                    WHEN upi_qr_transactions.user_id IS NOT NULL THEN tj_user_app.phone
+                    ELSE NULL
                 END as user_phone")
             )
             ->leftJoin('tj_user_app', function ($join) {
@@ -179,7 +182,8 @@ class TransactionController extends Controller
                     $q->where('upi_qr_transactions.ac_no', 'LIKE', "%{$search}%");
                 } elseif ($field === 'payer_name') {
                     $q->where('upi_qr_transactions.payer_name', 'LIKE', "%{$search}%")
-                      ->orWhere('upi_qr_transactions.payer_vpa', 'LIKE', "%{$search}%");
+                      ->orWhere('upi_qr_transactions.payer_vpa', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.payer_phone', 'LIKE', "%{$search}%");
                 } elseif ($field === 'user') {
                     $q->where('tj_user_app.prenom', 'LIKE', "%{$search}%")
                       ->orWhere('tj_user_app.nom', 'LIKE', "%{$search}%")
@@ -192,6 +196,7 @@ class TransactionController extends Controller
                       ->orWhere('upi_qr_transactions.ac_no', 'LIKE', "%{$search}%")
                       ->orWhere('upi_qr_transactions.payer_name', 'LIKE', "%{$search}%")
                       ->orWhere('upi_qr_transactions.payer_vpa', 'LIKE', "%{$search}%")
+                      ->orWhere('upi_qr_transactions.payer_phone', 'LIKE', "%{$search}%")
                       ->orWhere('tj_user_app.prenom', 'LIKE', "%{$search}%")
                       ->orWhere('tj_user_app.nom', 'LIKE', "%{$search}%")
                       ->orWhere('tj_conducteur.prenom', 'LIKE', "%{$search}%")
@@ -231,6 +236,272 @@ class TransactionController extends Controller
         }
 
         return view('transactions.upi_payments', compact('transactions', 'currency', 'totalVolume', 'totalTransactions'));
+    }
+
+    /**
+     * Manually assign an unassigned UPI transaction to a user and credit their wallet.
+     */
+    public function assignUpiPayment(Request $request)
+    {
+        $request->validate([
+            'id'        => 'required|integer',
+            'user_id'   => 'required|integer',
+            'user_type' => 'required|in:customer,driver',
+        ]);
+
+        $txn = DB::table('upi_qr_transactions')->where('id', $request->input('id'))->first();
+        if (!$txn) {
+            return back()->with('error', 'Transaction not found.');
+        }
+
+        if ($txn->wallet_credited) {
+            return back()->with('error', 'Transaction is already credited.');
+        }
+
+        $userId   = (int) $request->input('user_id');
+        $userType = $request->input('user_type');
+        $table    = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+        $user     = DB::table($table)->where('id', $userId)->first();
+
+        if (!$user) {
+            return back()->with('error', 'Selected recipient user not found.');
+        }
+
+        $amountInRupees = floatval($txn->amount);
+        $payerName      = $txn->payer_name ?: 'UPI Payer';
+        $paymentId      = $txn->razorpay_payment_id;
+        $nowDateTime    = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+        $currentDate    = Carbon::now('Asia/Kolkata')->format('Y-m-d');
+        $acNo           = $user->ac_no ?? $txn->ac_no;
+
+        DB::beginTransaction();
+        try {
+            // 1. Increment wallet balance
+            DB::table($table)->where('id', $userId)->increment('amount', $amountInRupees);
+
+            // 2. Insert wallet transaction record
+            $txnData = [
+                'amount'         => (string) $amountInRupees,
+                'type'           => 'credit',
+                'deduction_type' => 1,
+                'payment_method' => 'UPI',
+                'counterparty'   => $payerName,
+                'payment_status' => 'success',
+                'txn_id'         => $paymentId,
+                'description'    => 'UPI Payment from ' . $payerName . ($txn->payer_vpa ? ' (' . $txn->payer_vpa . ')' : '') . ' (Admin Assigned)',
+                'date'           => $currentDate,
+                'creer'          => $nowDateTime,
+                'modifier'       => $nowDateTime,
+            ];
+
+            if ($userType === 'driver') {
+                $txnData['id_conducteur'] = $userId;
+                DB::table('tj_conducteur_transaction')->insert($txnData);
+            } else {
+                $txnData['id_user_app'] = $userId;
+                $txnData['ac_no']       = $acNo;
+                DB::table('tj_transaction')->insert($txnData);
+            }
+
+            // 3. Update upi_qr_transactions
+            DB::table('upi_qr_transactions')->where('id', $txn->id)->update([
+                'user_id'         => $userId,
+                'user_type'       => $userType,
+                'ac_no'           => $acNo,
+                'wallet_credited' => true,
+                'status'          => 'captured',
+                'updated_at'      => $nowDateTime,
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error crediting wallet: ' . $e->getMessage());
+        }
+
+        // Notify user via push
+        try {
+            $fcmId = $user->fcm_id ?? null;
+            if (!empty($fcmId) && class_exists(\App\Services\FirebaseNotificationService::class)) {
+                \App\Services\FirebaseNotificationService::sendNotification(
+                    $fcmId,
+                    'Money Received in Wallet',
+                    '₹' . number_format($amountInRupees, 2) . ' credited to your wallet via UPI!',
+                    ['type' => 'wallet_credit', 'amount' => (string)$amountInRupees]
+                );
+            }
+        } catch (\Throwable $e) {}
+
+        return back()->with('success', "₹{$amountInRupees} successfully credited to {$user->prenom} {$user->nom} ({$userType})!");
+    }
+
+    /**
+     * Manually credit a UPI payment directly using Razorpay Payment ID.
+     */
+    public function manualCreditUpi(Request $request)
+    {
+        $request->validate([
+            'razorpay_payment_id' => 'required|string|max:100',
+            'amount'              => 'required|numeric|min:0.01',
+            'user_id'             => 'required|integer',
+            'user_type'           => 'required|in:customer,driver',
+            'payer_name'          => 'nullable|string|max:150',
+            'payer_phone'         => 'nullable|string|max:50',
+        ]);
+
+        $paymentId      = trim($request->input('razorpay_payment_id'));
+        $amountInRupees = round(floatval($request->input('amount')), 2);
+        $userId         = (int) $request->input('user_id');
+        $userType       = $request->input('user_type');
+        $payerName      = trim($request->input('payer_name')) ?: 'UPI Payer';
+        $payerPhone     = trim($request->input('payer_phone')) ?: null;
+
+        // Check if already exists and credited
+        $existing = DB::table('upi_qr_transactions')->where('razorpay_payment_id', $paymentId)->first();
+        if ($existing && $existing->wallet_credited) {
+            return back()->with('error', "Payment ID {$paymentId} has already been credited to user ID {$existing->user_id}.");
+        }
+
+        $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+        $user  = DB::table($table)->where('id', $userId)->first();
+        if (!$user) {
+            return back()->with('error', 'Selected user not found.');
+        }
+
+        $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+        $currentDate = Carbon::now('Asia/Kolkata')->format('Y-m-d');
+        $acNo        = $user->ac_no ?? null;
+
+        DB::beginTransaction();
+        try {
+            DB::table($table)->where('id', $userId)->increment('amount', $amountInRupees);
+
+            $txnData = [
+                'amount'         => (string) $amountInRupees,
+                'type'           => 'credit',
+                'deduction_type' => 1,
+                'payment_method' => 'UPI',
+                'counterparty'   => $payerName,
+                'payment_status' => 'success',
+                'txn_id'         => $paymentId,
+                'description'    => 'Manual UPI Credit by Admin: ' . $payerName,
+                'date'           => $currentDate,
+                'creer'          => $nowDateTime,
+                'modifier'       => $nowDateTime,
+            ];
+
+            if ($userType === 'driver') {
+                $txnData['id_conducteur'] = $userId;
+                DB::table('tj_conducteur_transaction')->insert($txnData);
+            } else {
+                $txnData['id_user_app'] = $userId;
+                $txnData['ac_no']       = $acNo;
+                DB::table('tj_transaction')->insert($txnData);
+            }
+
+            DB::table('upi_qr_transactions')->updateOrInsert(
+                ['razorpay_payment_id' => $paymentId],
+                [
+                    'user_id'         => $userId,
+                    'user_type'       => $userType,
+                    'ac_no'           => $acNo,
+                    'amount'          => $amountInRupees,
+                    'payer_name'      => $payerName,
+                    'payer_phone'     => $payerPhone,
+                    'payment_method'  => 'UPI',
+                    'status'          => 'captured',
+                    'wallet_credited' => true,
+                    'raw_payload'     => json_encode(['source' => 'admin_manual_credit', 'timestamp' => $nowDateTime]),
+                    'updated_at'      => $nowDateTime,
+                    'created_at'      => $nowDateTime,
+                ]
+            );
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->with('error', 'Database error: ' . $e->getMessage());
+        }
+
+        // Notify user via push
+        try {
+            $fcmId = $user->fcm_id ?? null;
+            if (!empty($fcmId) && class_exists(\App\Services\FirebaseNotificationService::class)) {
+                \App\Services\FirebaseNotificationService::sendNotification(
+                    $fcmId,
+                    'Money Received in Wallet',
+                    '₹' . number_format($amountInRupees, 2) . ' credited to your wallet via UPI!',
+                    ['type' => 'wallet_credit', 'amount' => (string)$amountInRupees]
+                );
+            }
+        } catch (\Throwable $e) {}
+
+        return back()->with('success', "₹{$amountInRupees} credited to {$user->prenom} {$user->nom} for payment {$paymentId}!");
+    }
+
+    /**
+     * Search users and drivers for assignment modal dropdown.
+     */
+    public function searchUsersForUpi(Request $request)
+    {
+        $q = trim($request->input('q', ''));
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $results = [];
+
+        // Search customers
+        $customers = DB::table('tj_user_app')
+            ->select('id', 'prenom', 'nom', 'phone', 'ac_no', 'amount')
+            ->where(function ($query) use ($q) {
+                $query->where('prenom', 'LIKE', "%{$q}%")
+                    ->orWhere('nom', 'LIKE', "%{$q}%")
+                    ->orWhere('phone', 'LIKE', "%{$q}%")
+                    ->orWhere('ac_no', 'LIKE', "%{$q}%");
+            })
+            ->limit(15)
+            ->get();
+
+        foreach ($customers as $c) {
+            $name = trim(($c->prenom ?? '') . ' ' . ($c->nom ?? '')) ?: 'Customer #' . $c->id;
+            $results[] = [
+                'id'        => $c->id,
+                'user_type' => 'customer',
+                'name'      => $name,
+                'phone'     => $c->phone,
+                'ac_no'     => $c->ac_no,
+                'amount'    => number_format((float)$c->amount, 2),
+                'label'     => "{$name} (Customer) | Ph: {$c->phone} | A/C: {$c->ac_no} | Bal: ₹{$c->amount}",
+            ];
+        }
+
+        // Search drivers
+        $drivers = DB::table('tj_conducteur')
+            ->select('id', 'prenom', 'nom', 'phone', 'ac_no', 'amount')
+            ->where(function ($query) use ($q) {
+                $query->where('prenom', 'LIKE', "%{$q}%")
+                    ->orWhere('nom', 'LIKE', "%{$q}%")
+                    ->orWhere('phone', 'LIKE', "%{$q}%")
+                    ->orWhere('ac_no', 'LIKE', "%{$q}%");
+            })
+            ->limit(15)
+            ->get();
+
+        foreach ($drivers as $d) {
+            $name = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: 'Driver #' . $d->id;
+            $results[] = [
+                'id'        => $d->id,
+                'user_type' => 'driver',
+                'name'      => $name,
+                'phone'     => $d->phone,
+                'ac_no'     => $d->ac_no,
+                'amount'    => number_format((float)$d->amount, 2),
+                'label'     => "{$name} (Driver) | Ph: {$d->phone} | A/C: {$d->ac_no} | Bal: ₹{$d->amount}",
+            ];
+        }
+
+        return response()->json($results);
     }
 
     private function applyTransactionFilters($query, Request $request, string $table): void
