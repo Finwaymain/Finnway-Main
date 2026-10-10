@@ -1302,6 +1302,9 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/applications/{id}/verify-all-documents', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'verifyAllDocuments'])->name('applications.verify-all-docs');
     Route::get('/lenders', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'lenderPartners'])->name('lenders');
     Route::post('/lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveLenderPartner'])->name('lenders.save');
+    Route::get('/affiliate-lenders', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'affiliateLenders'])->name('affiliate_lenders');
+    Route::post('/affiliate-lenders/save/{id?}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveAffiliateLender'])->name('affiliate_lenders.save');
+    Route::post('/affiliate-lenders/delete/{id}', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'deleteAffiliateLender'])->name('affiliate_lenders.delete');
     Route::get('/recovery', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'recoveryCenter'])->name('recovery');
     Route::post('/customers/{id}/toggle-lock', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'toggleUsageLock'])->name('toggle-lock');
     Route::get('/products', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'products'])->name('products');

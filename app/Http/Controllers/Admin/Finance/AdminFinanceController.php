@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\FinanceAffiliateLender;
 use App\Models\Finance\FinanceCustomer;
 use App\Models\Finance\FinanceDailySchedule;
 use App\Models\Finance\FinanceDocument;
@@ -174,13 +175,34 @@ class AdminFinanceController extends Controller
         return back()->with('success', "Application updated to {$status}.");
     }
 
-    public function lenderPartners(Request $request)
+    public function lenderPartners()
     {
         $partners = FinanceLenderPartner::orderBy('sort_order')->orderBy('id', 'asc')->get();
+        return view('admin.finance.lenders', compact('partners'));
+    }
+
+    public function saveLenderPartner(Request $request, $id = null)
+    {
+        $partner = $id ? FinanceLenderPartner::findOrFail($id) : new FinanceLenderPartner();
+        $partner->fill($request->only([
+            'name', 'logo', 'min_loan_amount', 'max_loan_amount', 'interest_rate_display',
+            'tenure_display', 'processing_fee_display', 'application_url', 'status', 'sort_order'
+        ]));
+        $partner->save();
+
+        return redirect()->route('admin.finance.lenders')->with('success', 'Cash loan partner saved.');
+    }
+
+    /**
+     * Affiliate Lenders Management Page & Referral Leads Tracking
+     */
+    public function affiliateLenders(Request $request)
+    {
+        $affiliateLenders = FinanceAffiliateLender::orderBy('sort_order')->orderBy('id', 'asc')->get();
 
         $leadsQuery = FinanceLenderLead::with('lender')->latest();
 
-        // Search by applicant name, phone, referral code, or lender name
+        // Search by applicant name, phone, email, referral code, or lender name
         if ($request->filled('search')) {
             $search = trim($request->input('search'));
             $leadsQuery->where(function ($q) use ($search) {
@@ -192,7 +214,7 @@ class AdminFinanceController extends Controller
             });
         }
 
-        // Filter by Lender
+        // Filter by Affiliate Lender
         if ($request->filled('lender_id')) {
             $leadsQuery->where('lender_id', $request->input('lender_id'));
         }
@@ -208,19 +230,33 @@ class AdminFinanceController extends Controller
         $todayLeads = FinanceLenderLead::whereDate('created_at', date('Y-m-d'))->count();
         $referredLeads = FinanceLenderLead::whereNotNull('referral_code')->where('referral_code', '!=', '')->count();
 
-        return view('admin.finance.lenders', compact('partners', 'leads', 'totalLeads', 'todayLeads', 'referredLeads'));
+        return view('admin.finance.affiliate_lenders', compact(
+            'affiliateLenders',
+            'leads',
+            'totalLeads',
+            'todayLeads',
+            'referredLeads'
+        ));
     }
 
-    public function saveLenderPartner(Request $request, $id = null)
+    public function saveAffiliateLender(Request $request, $id = null)
     {
-        $partner = $id ? FinanceLenderPartner::findOrFail($id) : new FinanceLenderPartner();
-        $partner->fill($request->only([
+        $affiliate = $id ? FinanceAffiliateLender::findOrFail($id) : new FinanceAffiliateLender();
+        $affiliate->fill($request->only([
             'name', 'logo', 'min_loan_amount', 'max_loan_amount', 'interest_rate_display',
-            'tenure_display', 'processing_fee_display', 'application_url', 'status', 'sort_order'
+            'tenure_display', 'processing_fee_display', 'affiliate_url', 'status', 'sort_order'
         ]));
-        $partner->save();
+        $affiliate->save();
 
-        return redirect()->route('admin.finance.lenders')->with('success', 'Lender partner saved.');
+        return redirect()->route('admin.finance.affiliate_lenders')->with('success', 'Affiliate lender saved successfully.');
+    }
+
+    public function deleteAffiliateLender($id)
+    {
+        $affiliate = FinanceAffiliateLender::findOrFail($id);
+        $affiliate->delete();
+
+        return redirect()->route('admin.finance.affiliate_lenders')->with('success', 'Affiliate lender removed.');
     }
 
     public function recoveryCenter()

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\FinanceAffiliateLender;
 use App\Models\Finance\FinanceCustomer;
 use App\Models\Finance\FinanceDailySchedule;
 use App\Models\Finance\FinanceDocument;
@@ -2739,8 +2740,8 @@ class FinanceWebController extends Controller
             $applicantPhone = $customer->phone ?? '';
         }
 
-        // Active lending partners configured by Admin
-        $lenders = FinanceLenderPartner::where('status', 'active')
+        // Active affiliate lending partners configured by Admin in the Affiliate Lenders page
+        $lenders = FinanceAffiliateLender::where('status', 'active')
             ->orderBy('sort_order')
             ->orderBy('id', 'asc')
             ->get();
@@ -2755,14 +2756,14 @@ class FinanceWebController extends Controller
     }
 
     /**
-     * Handle user selection of a partner lender:
+     * Handle user selection of an affiliate lender:
      * 1. Validate referral code (optional; check users, drivers, vendors, freelancers, sub-vendors)
      * 2. Log lead with applicant details to finance_lender_leads
-     * 3. Redirect to lender affiliate URL in browser
+     * 3. Redirect to affiliate lender affiliate_url in browser
      */
     public function applyLenderLoan(Request $request, $lender_id)
     {
-        $lender = FinanceLenderPartner::findOrFail($lender_id);
+        $lender = FinanceAffiliateLender::findOrFail($lender_id);
 
         $name = trim((string) $request->input('name', $request->query('name', '')));
         $phone = trim((string) $request->input('phone', $request->query('phone', '')));
@@ -2783,7 +2784,6 @@ class FinanceWebController extends Controller
                 $referrerType = $resolved['user_type'] ?? 'user';
                 $referrerId = $resolved['user_id'] ?? null;
             } else {
-                // If code is typed but invalid, we can allow it as a generic tracking code or flag
                 $referrerType = 'unregistered_code';
             }
         }
@@ -2798,7 +2798,7 @@ class FinanceWebController extends Controller
             'referral_code' => $referralCode ?: null,
             'referrer_type' => $referrerType,
             'referrer_id' => $referrerId,
-            'affiliate_url' => $lender->application_url,
+            'affiliate_url' => $lender->affiliate_url,
             'ip_address' => $request->ip(),
             'user_agent' => substr((string)$request->userAgent(), 0, 500),
         ]);
@@ -2807,13 +2807,13 @@ class FinanceWebController extends Controller
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'redirect_url' => $lender->application_url,
+                'redirect_url' => $lender->affiliate_url,
                 'lead_id' => $lead->id,
             ]);
         }
 
-        // Redirect directly in browser to lender portal
-        return redirect()->away($lender->application_url);
+        // Redirect directly in browser to affiliate lender portal
+        return redirect()->away($lender->affiliate_url);
     }
 }
 

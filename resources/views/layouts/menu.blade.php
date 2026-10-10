@@ -185,6 +185,7 @@
                 <li><a href="{!! route('admin.finance.applications') !!}">Loan Applications</a></li>
                 <li><a href="{!! route('admin.finance.recovery') !!}">Daily Recovery & Locks</a></li>
                 <li><a href="{!! route('admin.finance.lenders') !!}">Lender Partners</a></li>
+                <li><a href="{!! route('admin.finance.affiliate_lenders') !!}">Affiliate Lenders &amp; Leads</a></li>
                 <li><a href="{!! route('admin.finance.settings.payment') !!}">Razorpay Gateway</a></li>
             </ul>
         </li>

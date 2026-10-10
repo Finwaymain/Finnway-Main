@@ -24,6 +24,11 @@ class FinanceLenderLead extends Model
 
     public function lender()
     {
+        return $this->belongsTo(FinanceAffiliateLender::class, 'lender_id');
+    }
+
+    public function partnerLender()
+    {
         return $this->belongsTo(FinanceLenderPartner::class, 'lender_id');
     }
 }
