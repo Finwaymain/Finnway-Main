@@ -147,6 +147,13 @@ class TransactionController extends Controller
 
     public function upiPayments(Request $request)
     {
+        // 0. Automate reconciliation on page load without admin check
+        try {
+            \App\Http\Controllers\API\v1\payments\RazorpayWebhookController::autoReconcilePendingTransactions();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Auto-reconcile on upiPayments load: " . $e->getMessage());
+        }
+
         $query = DB::table('upi_qr_transactions')
             ->select(
                 'upi_qr_transactions.*',
@@ -236,6 +243,22 @@ class TransactionController extends Controller
         }
 
         return view('transactions.upi_payments', compact('transactions', 'currency', 'totalVolume', 'totalTransactions'));
+    }
+
+    /**
+     * Trigger automatic reconciliation of all pending unassigned transactions.
+     */
+    public function autoReconcileUpi(Request $request)
+    {
+        try {
+            $count = \App\Http\Controllers\API\v1\payments\RazorpayWebhookController::autoReconcilePendingTransactions();
+            if ($count > 0) {
+                return back()->with('success', "Auto-reconciled and credited {$count} pending transactions successfully!");
+            }
+            return back()->with('success', "Auto-reconciliation completed. All pending transactions are up to date.");
+        } catch (\Throwable $e) {
+            return back()->with('error', "Reconciliation error: " . $e->getMessage());
+        }
     }
 
     /**

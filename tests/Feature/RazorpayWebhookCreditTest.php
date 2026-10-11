@@ -459,4 +459,92 @@ class RazorpayWebhookCreditTest extends TestCase
         $afterResendCount = DB::table('tj_notification')->where('to_id', $user->id)->count();
         $this->assertEquals($newNotifCount + 1, $afterResendCount);
     }
+
+    /**
+     * 12. Test VPA with trailing hyphen suffix (e.g. 9669454554-1@naviaxis) auto-credits recipient
+     */
+    public function test_webhook_credits_user_via_vpa_with_hyphen_suffix()
+    {
+        $user = DB::table('tj_user_app')->whereNotNull('phone')->first();
+        if (!$user) {
+            $this->markTestSkipped('No user found');
+        }
+
+        $clean10 = \App\Services\PhoneService::getLast10($user->phone);
+        $initAmount = floatval($user->amount);
+        $testPaymentId = 'pay_vpa_hyphen_' . time() . '_' . rand(100, 999);
+        $amountRupees = 12.00;
+
+        $payload = [
+            'event'   => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id'      => $testPaymentId,
+                        'amount'  => $amountRupees * 100,
+                        'status'  => 'captured',
+                        'contact' => '+910000000000', // Unrelated contact
+                        'vpa'     => "{$clean10}-1@naviaxis", // VPA with trailing suffix
+                        'notes'   => [],
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/api/v1/payments/razorpay/webhook', $payload);
+        $response->assertStatus(200);
+        $response->assertJson(['status' => 'success']);
+
+        $updatedUser = DB::table('tj_user_app')->where('id', $user->id)->first();
+        $this->assertEquals($initAmount + $amountRupees, floatval($updatedUser->amount));
+    }
+
+    /**
+     * 13. Test automated reconciliation of pending unassigned payments without admin check
+     */
+    public function test_auto_reconcile_pending_transactions_automates_without_admin_check()
+    {
+        $user = DB::table('tj_user_app')->whereNotNull('phone')->first();
+        if (!$user) {
+            $this->markTestSkipped('No user found');
+        }
+
+        $clean10 = \App\Services\PhoneService::getLast10($user->phone);
+        $testPaymentId = 'pay_pending_auto_' . time() . '_' . rand(100, 999);
+        $amountRupees = 30.00;
+
+        // Seed an unassigned transaction with receiver account or payer phone set to the user's phone
+        DB::table('upi_qr_transactions')->insert([
+            'razorpay_payment_id' => $testPaymentId,
+            'ac_no'               => '91' . $clean10, // 12-digit mobile stored as ac_no
+            'user_id'             => null,
+            'user_type'           => 'customer',
+            'amount'              => $amountRupees,
+            'payer_name'          => 'UPI Test Payer',
+            'payer_phone'         => '+91' . $clean10,
+            'payer_vpa'           => "{$clean10}@oksbi",
+            'payment_method'      => 'UPI',
+            'status'              => 'unassigned',
+            'wallet_credited'     => false,
+            'created_at'          => now(),
+            'updated_at'          => now(),
+        ]);
+
+        $initAmount = floatval($user->amount);
+
+        // Run auto-reconciliation directly
+        $reconciledCount = \App\Http\Controllers\API\v1\payments\RazorpayWebhookController::autoReconcilePendingTransactions();
+        $this->assertGreaterThanOrEqual(1, $reconciledCount);
+
+        // Check transaction is now captured and credited
+        $txn = DB::table('upi_qr_transactions')->where('razorpay_payment_id', $testPaymentId)->first();
+        $this->assertEquals('captured', $txn->status);
+        $this->assertTrue((bool)$txn->wallet_credited);
+        $this->assertEquals($user->id, $txn->user_id);
+
+        // Check user amount was incremented
+        $updatedUser = DB::table('tj_user_app')->where('id', $user->id)->first();
+        $this->assertEquals($initAmount + $amountRupees, floatval($updatedUser->amount));
+    }
 }
+

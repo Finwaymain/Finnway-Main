@@ -95,10 +95,78 @@
                                     </a>
                                 </li>
                             </ul>
-                            <div class="my-2">
-                                <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#manualCreditModal">
-                                    <i class="fa fa-plus-circle mr-1"></i> Credit by Razorpay Payment ID
+                            <div class="my-2 d-flex align-items-center">
+                                <form action="{{ route('walletstransactions.upi.auto-reconcile') }}" method="POST" class="mr-2 d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-success" title="Scan and automatically assign & credit all pending transactions to matched users">
+                                        <i class="fa fa-magic mr-1"></i> Auto-Reconcile Pending
+                                    </button>
+                                </form>
+                                <button type="button" class="btn btn-sm btn-primary" data-toggle="collapse" data-target="#manualCreditPanel" aria-expanded="false" aria-controls="manualCreditPanel">
+                                    <i class="fa fa-plus-circle mr-1"></i> Credit by Payment ID
                                 </button>
+                            </div>
+                        </div>
+
+                        {{-- INLINE PANEL: Credit by Razorpay Payment ID (No Modal Blocker) --}}
+                        <div class="collapse border-bottom bg-light" id="manualCreditPanel">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="font-bold text-primary mb-0">
+                                        <i class="fa fa-plus-circle mr-2"></i>Credit by Razorpay Payment ID
+                                    </h5>
+                                    <button type="button" class="close text-muted" data-toggle="collapse" data-target="#manualCreditPanel" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <p class="text-muted small">Credit a captured Razorpay UPI payment directly to a user's wallet without blocking popups.</p>
+                                
+                                <form action="{{ route('walletstransactions.upi.manual-credit') }}" method="POST">
+                                    @csrf
+                                    <input type="hidden" name="user_id" id="manual_user_id">
+                                    <input type="hidden" name="user_type" id="manual_user_type">
+
+                                    <div class="row">
+                                        <div class="col-md-3 form-group">
+                                            <label class="font-weight-bold">Razorpay Payment ID <span class="text-danger">*</span></label>
+                                            <input type="text" name="razorpay_payment_id" class="form-control font-mono" placeholder="pay_TmKGRWIH2BQy6T" required>
+                                        </div>
+                                        <div class="col-md-2 form-group">
+                                            <label class="font-weight-bold">Amount (₹) <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="10.00" required>
+                                        </div>
+                                        <div class="col-md-4 form-group">
+                                            <label class="font-weight-bold">Recipient User / Driver <span class="text-danger">*</span></label>
+                                            <input type="text" id="manual_user_search" class="form-control" placeholder="Type user name, mobile or account number..." autocomplete="off">
+                                            <div id="manual_search_results" class="list-group mt-1" style="max-height: 180px; overflow-y: auto; display: none; position: absolute; z-index: 1050; width: 90%;"></div>
+                                            
+                                            <div id="manual_selected_user_box" class="p-2 bg-light-primary border border-primary rounded mt-1" style="display: none;">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong class="text-primary" id="manual_selected_name">User Name</strong>
+                                                        <br><small class="text-muted" id="manual_selected_details">Ph: - | A/C: -</small>
+                                                    </div>
+                                                    <button type="button" class="btn btn-xs btn-outline-danger" id="manual_clear_user">Change</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 form-group align-self-end">
+                                            <button type="submit" class="btn btn-primary btn-block" id="manual_submit_btn" disabled>
+                                                <i class="fa fa-check mr-1"></i> Credit Wallet Now
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-3 form-group mb-0">
+                                            <label class="small text-muted mb-1">Payer Name (Optional)</label>
+                                            <input type="text" name="payer_name" class="form-control form-control-sm" placeholder="e.g. UPI Payer">
+                                        </div>
+                                        <div class="col-md-3 form-group mb-0">
+                                            <label class="small text-muted mb-1">Payer Phone (Optional)</label>
+                                            <input type="text" name="payer_phone" class="form-control form-control-sm" placeholder="e.g. 9876543210">
+                                        </div>
+                                    </div>
+                                </form>
                             </div>
                         </div>
 
@@ -309,151 +377,72 @@
         </div>
     </div>
 
-    {{-- MODAL: Assign & Credit Unassigned Payment --}}
-    <div class="modal fade" id="assignModal" tabindex="-1" role="dialog" aria-labelledby="assignModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-                <form action="{{ route('walletstransactions.upi.assign') }}" method="POST">
-                    @csrf
-                    <input type="hidden" name="id" id="assign_txn_id">
-                    <input type="hidden" name="user_id" id="assign_user_id">
-                    <input type="hidden" name="user_type" id="assign_user_type">
+    {{-- INLINE ACTION PANEL: Assign & Credit Pending Transaction (NO MODAL / NO BACKDROP) --}}
+    <div id="inlineAssignPanel" class="card border-success m-b-20" style="display: none;">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-white"><i class="fa fa-user-plus mr-2"></i>Assign &amp; Credit UPI Payment</h5>
+            <button type="button" class="btn btn-sm btn-outline-light" id="inline_assign_close_btn"><i class="fa fa-times"></i> Close</button>
+        </div>
+        <div class="card-body bg-light">
+            <form action="{{ route('walletstransactions.upi.assign') }}" method="POST">
+                @csrf
+                <input type="hidden" name="id" id="assign_txn_id">
+                <input type="hidden" name="user_id" id="assign_user_id">
+                <input type="hidden" name="user_type" id="assign_user_type">
 
-                    <div class="modal-header bg-success text-white">
-                        <h5 class="modal-title" id="assignModalLabel"><i class="fa fa-user-plus mr-2"></i>Assign &amp; Credit UPI Payment</h5>
-                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+                <div class="alert alert-white border mb-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <span class="text-muted">Razorpay Payment ID:</span><br>
+                            <strong id="assign_display_payment_id" class="font-mono text-dark">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="text-muted">Amount to Credit:</span><br>
+                            <strong class="text-success font-20" id="assign_display_amount">₹0.00</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="text-muted">Payer:</span><br>
+                            <span id="assign_display_payer" class="text-dark font-weight-bold">-</span>
+                        </div>
                     </div>
-                    <div class="modal-body">
-                        <div class="alert alert-light border mb-3">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span class="text-muted">Razorpay Payment ID:</span>
-                                <strong id="assign_display_payment_id" class="font-mono text-dark">-</strong>
-                            </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <span class="text-muted">Amount to Credit:</span>
-                                <strong class="text-success font-18" id="assign_display_amount">₹0.00</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Payer:</span>
-                                <span id="assign_display_payer" class="text-dark">-</span>
-                            </div>
-                        </div>
+                </div>
 
-                        <div class="form-group">
-                            <label class="font-weight-bold">Select Recipient User or Driver <span class="text-danger">*</span></label>
-                            <input type="text" id="assign_user_search" class="form-control" placeholder="Type user name, mobile number, or account number..." autocomplete="off">
-                            <small class="text-muted">Search customers and drivers to receive this payment.</small>
-                            <div id="assign_search_results" class="list-group mt-2" style="max-height: 200px; overflow-y: auto; display: none;"></div>
-                        </div>
+                <div class="row align-items-end">
+                    <div class="col-md-8 form-group mb-0">
+                        <label class="font-weight-bold">Search Recipient User or Driver <span class="text-danger">*</span></label>
+                        <input type="text" id="assign_user_search" class="form-control" placeholder="Type user name, mobile number, or account number..." autocomplete="off">
+                        <small class="text-muted">Select from auto-suggest list below.</small>
+                        <div id="assign_search_results" class="list-group mt-1" style="max-height: 180px; overflow-y: auto; display: none; position: absolute; z-index: 1050; width: 95%;"></div>
 
-                        {{-- Selected User Banner --}}
-                        <div id="assign_selected_user_box" class="p-3 bg-light-success border border-success rounded mb-3" style="display: none;">
+                        {{-- Selected User Box --}}
+                        <div id="assign_selected_user_box" class="p-2 bg-light-success border border-success rounded mt-2" style="display: none;">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h6 class="font-weight-bold text-success mb-0" id="assign_selected_name">User Name</h6>
-                                    <small class="text-muted" id="assign_selected_details">Ph: - | A/C: -</small>
+                                    <strong class="text-success" id="assign_selected_name">User Name</strong>
+                                    <br><small class="text-muted" id="assign_selected_details">Ph: - | A/C: -</small>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-danger" id="assign_clear_user">Change</button>
+                                <button type="button" class="btn btn-xs btn-outline-danger" id="assign_clear_user">Change</button>
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success" id="assign_submit_btn" disabled>
+                    <div class="col-md-4 form-group mb-0">
+                        <button type="submit" class="btn btn-success btn-block" id="assign_submit_btn" disabled>
                             <i class="fa fa-check mr-1"></i> Confirm &amp; Credit Wallet
                         </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </div>
 
-    {{-- MODAL: Manual Credit by Payment ID --}}
-    <div class="modal fade" id="manualCreditModal" tabindex="-1" role="dialog" aria-labelledby="manualCreditModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-                <form action="{{ route('walletstransactions.upi.manual-credit') }}" method="POST">
-                    @csrf
-                    <input type="hidden" name="user_id" id="manual_user_id">
-                    <input type="hidden" name="user_type" id="manual_user_type">
-
-                    <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title" id="manualCreditModalLabel"><i class="fa fa-plus-circle mr-2"></i>Manual Credit by Razorpay Payment ID</h5>
-                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-muted small">Use this to credit a payment directly if it was captured in Razorpay Dashboard but did not credit automatically.</p>
-
-                        <div class="form-group">
-                            <label class="font-weight-bold">Razorpay Payment ID <span class="text-danger">*</span></label>
-                            <input type="text" name="razorpay_payment_id" class="form-control font-mono" placeholder="e.g. pay_PXXXXXXXXXXXXX" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="font-weight-bold">Amount (₹) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="e.g. 50.00" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="font-weight-bold">Recipient User / Driver <span class="text-danger">*</span></label>
-                            <input type="text" id="manual_user_search" class="form-control" placeholder="Type user name, mobile or account number..." autocomplete="off">
-                            <div id="manual_search_results" class="list-group mt-2" style="max-height: 200px; overflow-y: auto; display: none;"></div>
-                        </div>
-
-                        {{-- Selected User Box --}}
-                        <div id="manual_selected_user_box" class="p-3 bg-light-primary border border-primary rounded mb-3" style="display: none;">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="font-weight-bold text-primary mb-0" id="manual_selected_name">User Name</h6>
-                                    <small class="text-muted" id="manual_selected_details">Ph: - | A/C: -</small>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-danger" id="manual_clear_user">Change</button>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 form-group">
-                                <label>Payer Name (Optional)</label>
-                                <input type="text" name="payer_name" class="form-control" placeholder="e.g. Amit Kumar">
-                            </div>
-                            <div class="col-md-6 form-group">
-                                <label>Payer Phone (Optional)</label>
-                                <input type="text" name="payer_phone" class="form-control" placeholder="e.g. 9876543210">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="manual_submit_btn" disabled>
-                            <i class="fa fa-check mr-1"></i> Credit Wallet Now
-                        </button>
-                    </div>
-                </form>
-            </div>
+    {{-- INLINE PANEL: Inspect Raw Webhook Payload --}}
+    <div id="inlinePayloadPanel" class="card border-dark m-b-20" style="display: none;">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-white"><i class="fa fa-code mr-2"></i>Raw Webhook Payload (<span id="payload_payment_id" class="font-mono"></span>)</h5>
+            <button type="button" class="btn btn-sm btn-outline-light" id="inline_payload_close_btn"><i class="fa fa-times"></i> Close</button>
         </div>
-    </div>
-
-    {{-- MODAL: View Raw Webhook Payload --}}
-    <div class="modal fade" id="payloadModal" tabindex="-1" role="dialog" aria-labelledby="payloadModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title" id="payloadModalLabel"><i class="fa fa-code mr-2"></i>Raw Webhook Payload (<span id="payload_payment_id" class="font-mono"></span>)</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body p-0">
-                    <pre id="payload_content" class="bg-dark text-success p-3 m-0" style="max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 13px;"></pre>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                </div>
-            </div>
+        <div class="card-body p-0">
+            <pre id="payload_content" class="bg-dark text-success p-3 m-0" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;"></pre>
         </div>
     </div>
 @endsection
@@ -463,7 +452,7 @@
 $(document).ready(function() {
     var searchUsersUrl = "{{ route('walletstransactions.upi.search-users') }}";
 
-    // Open Assign Modal
+    // Open Inline Assign Panel (Without blocking modal backdrop)
     $('.btn-assign-action').on('click', function() {
         var id = $(this).data('id');
         var paymentId = $(this).data('payment-id');
@@ -482,10 +471,17 @@ $(document).ready(function() {
         $('#assign_search_results').hide().empty();
         $('#assign_submit_btn').prop('disabled', true);
 
-        $('#assignModal').modal('show');
+        $('#inlineAssignPanel').slideDown(200);
+        $('html, body').animate({
+            scrollTop: $('#inlineAssignPanel').offset().top - 80
+        }, 300);
     });
 
-    // View Payload Modal
+    $('#inline_assign_close_btn').on('click', function() {
+        $('#inlineAssignPanel').slideUp(200);
+    });
+
+    // View Payload Inline
     $('.btn-view-payload').on('click', function() {
         var paymentId = $(this).data('payment-id');
         var raw = $(this).attr('data-payload');
@@ -496,7 +492,14 @@ $(document).ready(function() {
         } catch(e) {
             $('#payload_content').text(raw);
         }
-        $('#payloadModal').modal('show');
+        $('#inlinePayloadPanel').slideDown(200);
+        $('html, body').animate({
+            scrollTop: $('#inlinePayloadPanel').offset().top - 80
+        }, 300);
+    });
+
+    $('#inline_payload_close_btn').on('click', function() {
+        $('#inlinePayloadPanel').slideUp(200);
     });
 
     // Helper for AJAX User Searching
@@ -540,7 +543,7 @@ $(document).ready(function() {
         });
     }
 
-    // Initialize Assign Modal Search
+    // Initialize Assign Search
     setupUserSearch(
         '#assign_user_search',
         '#assign_search_results',
@@ -560,7 +563,7 @@ $(document).ready(function() {
         $('#assign_submit_btn').prop('disabled', true);
     });
 
-    // Initialize Manual Credit Modal Search
+    // Initialize Manual Credit Search
     setupUserSearch(
         '#manual_user_search',
         '#manual_search_results',

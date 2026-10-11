@@ -701,6 +701,7 @@ Route::get('/walletstransaction/{id}', [App\Http\Controllers\TransactionControll
 Route::get('walletstransactions/driver/{id?}', [App\Http\Controllers\TransactionController::class, 'driverWallet'])->name('walletstransactions.driver');
 
 Route::get('walletstransactions/upi', [App\Http\Controllers\TransactionController::class, 'upiPayments'])->name('walletstransactions.upi');
+Route::post('walletstransactions/upi/auto-reconcile', [App\Http\Controllers\TransactionController::class, 'autoReconcileUpi'])->name('walletstransactions.upi.auto-reconcile');
 Route::post('walletstransactions/upi/assign', [App\Http\Controllers\TransactionController::class, 'assignUpiPayment'])->name('walletstransactions.upi.assign');
 Route::post('walletstransactions/upi/manual-credit', [App\Http\Controllers\TransactionController::class, 'manualCreditUpi'])->name('walletstransactions.upi.manual-credit');
 Route::post('walletstransactions/upi/resend-notification', [App\Http\Controllers\TransactionController::class, 'resendUpiNotification'])->name('walletstransactions.upi.resend-notification');

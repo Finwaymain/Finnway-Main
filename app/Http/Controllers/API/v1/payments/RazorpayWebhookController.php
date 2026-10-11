@@ -345,6 +345,32 @@ class RazorpayWebhookController extends Controller
                     }
                 }
             }
+
+            // CRITICAL FALLBACK: If ac_no did not match any account number,
+            // check if the ac_no string itself is actually a phone number (e.g. 916307014149 or 6307014149)!
+            if (!$user && preg_match('/^[0-9]{10,13}$/', $acNo)) {
+                $acPhoneVariants = PhoneService::getVariants($acNo);
+                $acDigits10 = PhoneService::getLast10($acNo);
+                if (!empty($acDigits10)) {
+                    $acPhoneVariants[] = $acDigits10;
+                    $acPhoneVariants[] = '+91' . $acDigits10;
+                    $acPhoneVariants[] = '91' . $acDigits10;
+                    $acPhoneVariants[] = '0' . $acDigits10;
+                }
+                $acPhoneVariants = array_values(array_unique(array_filter($acPhoneVariants)));
+
+                $user = DB::table('tj_user_app')->whereIn('phone', $acPhoneVariants)->first();
+                if ($user) {
+                    $userType = 'customer';
+                    $acNo = $user->ac_no ?? $acNo;
+                } else {
+                    $user = DB::table('tj_conducteur')->whereIn('phone', $acPhoneVariants)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                        $acNo = $user->ac_no ?? $acNo;
+                    }
+                }
+            }
         }
 
         // 7. Fallback: Lookup by Payer Contact Phone Number
@@ -372,13 +398,17 @@ class RazorpayWebhookController extends Controller
             }
         }
 
-        // 8. Fallback: Lookup by 10-digit mobile embedded in Payer VPA (e.g. 9876543210@ybl)
+        // 8. Fallback: Lookup by 10-digit mobile embedded in Payer VPA (e.g. 9430083275-1@naviaxis or 9876543210@ybl)
         if (!$user && !empty($payerVpa)) {
-            if (preg_match('/^([6-9]\d{9})@/i', $payerVpa, $vpaMatch)) {
+            $vpaUsername = explode('@', $payerVpa)[0] ?? '';
+            // Extract any 10-digit mobile sequence in the username (handles trailing -1, -2, etc.)
+            if (preg_match('/([6-9]\d{9})/', $vpaUsername, $vpaMatch)) {
                 $vpaPhone = $vpaMatch[1];
                 $vpaVariants = PhoneService::getVariants($vpaPhone);
                 $vpaVariants[] = $vpaPhone;
                 $vpaVariants[] = '+91' . $vpaPhone;
+                $vpaVariants[] = '91' . $vpaPhone;
+                $vpaVariants[] = '0' . $vpaPhone;
                 $vpaVariants = array_values(array_unique(array_filter($vpaVariants)));
 
                 $user = DB::table('tj_user_app')->whereIn('phone', $vpaVariants)->first();
@@ -433,9 +463,215 @@ class RazorpayWebhookController extends Controller
     }
 
     /**
+     * Credit wallet and dispatch notifications for a resolved user.
+     * Can be invoked by webhook handler, auto-reconciliation, or manual admin action.
+     */
+    public static function creditAndNotify($txn, $user, string $userType, ?string $customPayerName = null): bool
+    {
+        $userId = (int) $user->id;
+        $amountInRupees = round(floatval($txn->amount ?? 0), 2);
+        if ($amountInRupees <= 0) {
+            return false;
+        }
+
+        $paymentId = $txn->razorpay_payment_id;
+        $payerName = $customPayerName ?: ($txn->payer_name ?: 'UPI Payer');
+        $payerVpa = $txn->payer_vpa ?? null;
+        $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+        $currentDate = Carbon::now('Asia/Kolkata')->format('Y-m-d');
+        $acNo = $user->ac_no ?? ($txn->ac_no ?? null);
+
+        DB::beginTransaction();
+        try {
+            $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+            DB::table($table)->where('id', $userId)->increment('amount', $amountInRupees);
+
+            $txnData = [
+                'amount'          => (string) $amountInRupees,
+                'type'            => 'credit',
+                'deduction_type'  => 1, // 1 = Credit
+                'payment_method'  => 'UPI',
+                'counterparty'    => $payerName,
+                'payment_status'  => 'success',
+                'txn_id'          => $paymentId,
+                'description'     => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
+                'date'            => $currentDate,
+                'creer'           => $nowDateTime,
+                'modifier'        => $nowDateTime,
+            ];
+
+            if ($userType === 'driver') {
+                $txnData['id_conducteur'] = $userId;
+                DB::table('tj_conducteur_transaction')->insert($txnData);
+            } else {
+                $txnData['id_user_app'] = $userId;
+                $txnData['ac_no']       = $acNo;
+                DB::table('tj_transaction')->insert($txnData);
+            }
+
+            if (Schema::hasTable('upi_qr_transactions')) {
+                DB::table('upi_qr_transactions')->where('id', $txn->id)->update([
+                    'user_id'         => $userId,
+                    'user_type'       => $userType,
+                    'ac_no'           => $acNo,
+                    'status'          => 'captured',
+                    'wallet_credited' => true,
+                    'updated_at'      => $nowDateTime,
+                ]);
+            }
+
+            DB::commit();
+            Log::info("creditAndNotify: Credited ₹{$amountInRupees} to {$userType} ID {$userId} ({$acNo}) for {$paymentId}");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("creditAndNotify error: " . $e->getMessage());
+            return false;
+        }
+
+        self::dispatchPushAndNotification($user, $userType, $amountInRupees, $payerName);
+        return true;
+    }
+
+    /**
+     * Auto-reconcile all pending unassigned transactions in upi_qr_transactions.
+     * Matches against users by ac_no, phone variants, and VPA without requiring any admin check.
+     */
+    public static function autoReconcilePendingTransactions(): int
+    {
+        if (!Schema::hasTable('upi_qr_transactions')) {
+            return 0;
+        }
+
+        $pending = DB::table('upi_qr_transactions')
+            ->where(function($q) {
+                $q->where('wallet_credited', false)
+                  ->orWhereNull('wallet_credited')
+                  ->orWhere('status', 'unassigned');
+            })
+            ->where('status', '!=', 'failed')
+            ->get();
+
+        $reconciledCount = 0;
+
+        foreach ($pending as $txn) {
+            $user = null;
+            $userType = 'customer';
+            $acNo = $txn->ac_no ?? null;
+
+            // 1. Try matching by ac_no (pocket account number)
+            if (!empty($acNo)) {
+                $user = DB::table('tj_user_app')->where('ac_no', $acNo)->first();
+                if ($user) {
+                    $userType = 'customer';
+                } else {
+                    $user = DB::table('tj_conducteur')->where('ac_no', $acNo)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                    }
+                }
+
+                // If ac_no looks like phone digits, try phone lookup
+                if (!$user && preg_match('/^[0-9]{10,13}$/', $acNo)) {
+                    $phoneVars = PhoneService::getVariants($acNo);
+                    $d10 = PhoneService::getLast10($acNo);
+                    if (!empty($d10)) {
+                        $phoneVars[] = $d10;
+                        $phoneVars[] = '+91' . $d10;
+                        $phoneVars[] = '91' . $d10;
+                        $phoneVars[] = '0' . $d10;
+                    }
+                    $phoneVars = array_values(array_unique(array_filter($phoneVars)));
+
+                    $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
+                    if ($user) {
+                        $userType = 'customer';
+                    } else {
+                        $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
+                        if ($user) {
+                            $userType = 'driver';
+                        }
+                    }
+                }
+            }
+
+            // 2. Try matching by payer_phone
+            if (!$user && !empty($txn->payer_phone)) {
+                $phoneVars = PhoneService::getVariants($txn->payer_phone);
+                $d10 = PhoneService::getLast10($txn->payer_phone);
+                if (!empty($d10)) {
+                    $phoneVars[] = $d10;
+                    $phoneVars[] = '+91' . $d10;
+                    $phoneVars[] = '91' . $d10;
+                    $phoneVars[] = '0' . $d10;
+                }
+                $phoneVars = array_values(array_unique(array_filter($phoneVars)));
+
+                $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
+                if ($user) {
+                    $userType = 'customer';
+                } else {
+                    $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                    }
+                }
+            }
+
+            // 3. Try matching by payer_vpa
+            if (!$user && !empty($txn->payer_vpa)) {
+                $vpaUsername = explode('@', $txn->payer_vpa)[0] ?? '';
+                if (preg_match('/([6-9]\d{9})/', $vpaUsername, $m)) {
+                    $vpaPhone = $m[1];
+                    $phoneVars = PhoneService::getVariants($vpaPhone);
+                    $phoneVars[] = $vpaPhone;
+                    $phoneVars[] = '+91' . $vpaPhone;
+                    $phoneVars[] = '91' . $vpaPhone;
+                    $phoneVars[] = '0' . $vpaPhone;
+                    $phoneVars = array_values(array_unique(array_filter($phoneVars)));
+
+                    $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
+                    if ($user) {
+                        $userType = 'customer';
+                    } else {
+                        $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
+                        if ($user) {
+                            $userType = 'driver';
+                        }
+                    }
+                }
+            }
+
+            // 4. Try scanning raw_payload for pocket account number
+            if (!$user && !empty($txn->raw_payload)) {
+                $extractedAc = UpiQrService::extractAcNoFromScannedString($txn->raw_payload);
+                if (!empty($extractedAc) && preg_match('/^[0-9]{10,14}$/', $extractedAc)) {
+                    $user = DB::table('tj_user_app')->where('ac_no', $extractedAc)->first();
+                    if ($user) {
+                        $userType = 'customer';
+                    } else {
+                        $user = DB::table('tj_conducteur')->where('ac_no', $extractedAc)->first();
+                        if ($user) {
+                            $userType = 'driver';
+                        }
+                    }
+                }
+            }
+
+            // If user resolved, auto-credit immediately without admin check
+            if ($user) {
+                if (self::creditAndNotify($txn, $user, $userType)) {
+                    $reconciledCount++;
+                }
+            }
+        }
+
+        return $reconciledCount;
+    }
+
+    /**
      * Send real-time FCM notification to User A and persist in tj_notification.
      */
-    private function notifyUserOfCredit($user, string $userType, float $amount, string $payerName): void
+    public static function dispatchPushAndNotification($user, string $userType, float $amount, string $payerName): void
     {
         try {
             $fcmId = $user->fcm_id ?? null;
@@ -480,5 +716,14 @@ class RazorpayWebhookController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Could not send wallet credit notification: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Send real-time FCM notification to User A and persist in tj_notification.
+     * Backwards-compatible private proxy.
+     */
+    private function notifyUserOfCredit($user, string $userType, float $amount, string $payerName): void
+    {
+        self::dispatchPushAndNotification($user, $userType, $amount, $payerName);
     }
 }
