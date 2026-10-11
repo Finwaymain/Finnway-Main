@@ -286,16 +286,27 @@ class RazorpayWebhookController extends Controller
             $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? null;
         }
 
-        // 4. Check payment entity top-level fields (tn, transaction_note, etc.)
+        // 4. Check payment entity top-level fields (tr, tn, transaction_note, etc.)
         if (empty($acNo)) {
-            $tnCandidate = $paymentEntity['tn'] 
-                ?? $paymentEntity['transaction_note'] 
-                ?? ($paymentEntity['acquirer_data']['tn'] ?? null) 
-                ?? ($paymentEntity['acquirer_data']['transaction_note'] ?? null);
-            if (!empty($tnCandidate)) {
-                $extracted = UpiQrService::extractAcNoFromScannedString($tnCandidate);
-                if (!empty($extracted) && preg_match('/^[0-9]{10,14}$/', $extracted)) {
-                    $acNo = $extracted;
+            $refCandidates = [
+                $paymentEntity['tr'] ?? null,
+                $paymentEntity['tn'] ?? null,
+                $paymentEntity['transaction_note'] ?? null,
+                $paymentEntity['reference_id'] ?? null,
+                $paymentEntity['acquirer_data']['tr'] ?? null,
+                $paymentEntity['acquirer_data']['tn'] ?? null,
+                $paymentEntity['acquirer_data']['transaction_note'] ?? null,
+                $paymentEntity['acquirer_data']['rrn'] ?? null,
+                $paymentEntity['acquirer_data']['bank_transaction_id'] ?? null,
+            ];
+
+            foreach ($refCandidates as $candidate) {
+                if (!empty($candidate)) {
+                    $extracted = UpiQrService::extractAcNoFromScannedString((string)$candidate);
+                    if (!empty($extracted) && preg_match('/^[0-9]{10,14}$/', $extracted)) {
+                        $acNo = $extracted;
+                        break;
+                    }
                 }
             }
         }

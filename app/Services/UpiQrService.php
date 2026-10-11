@@ -45,10 +45,11 @@ class UpiQrService
         // pn = Payee Name
         // mc = Merchant Category Code (5817)
         // mode = UPI transfer mode (19 for Razorpay merchant standee)
-        // tr = Active Razorpay Standee Terminal ID (Tm8NeVRNVXdRRaqrv2)
+        // tr = Active Razorpay Standee Terminal ID with embedded account number (Tm8NeVRNVXdRRaqrv2-{acNo})
         // tn = Transaction Note with User A's clean pocket number
         // cu = Currency (INR)
-        return "upi://pay?cu=INR&mc={$mc}&mode=19&pa={$vpa}&pn={$encodedPn}&tr=Tm8NeVRNVXdRRaqrv2&tn={$encodedTn}";
+        $tr = "Tm8NeVRNVXdRRaqrv2-{$cleanAcNo}";
+        return "upi://pay?cu=INR&mc={$mc}&mode=19&pa={$vpa}&pn={$encodedPn}&tr={$tr}&tn={$encodedTn}";
     }
 
     /**

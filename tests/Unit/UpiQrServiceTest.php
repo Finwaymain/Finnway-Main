@@ -17,7 +17,7 @@ class UpiQrServiceTest extends TestCase
         $uri = UpiQrService::generateUpiStringForUser('708012345678', 'Rahul Sharma');
 
         $this->assertStringStartsWith('upi://pay?', $uri);
-        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2', $uri);
+        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2-708012345678', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
         $this->assertStringContainsString('pa=fiinway782717.rzp@rxairtel', $uri);
         $this->assertStringContainsString('mc=5817', $uri);
@@ -31,7 +31,7 @@ class UpiQrServiceTest extends TestCase
         $uri = UpiQrService::generateUpiStringForUser('706099887766');
 
         $this->assertStringStartsWith('upi://pay?', $uri);
-        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2', $uri);
+        $this->assertStringContainsString('tr=Tm8NeVRNVXdRRaqrv2-706099887766', $uri);
         $this->assertStringContainsString('cu=INR', $uri);
         $this->assertMatchesRegularExpression('/Fiinway(%20|\+)Wallet(%20|\+)706099887766/', $uri);
     }
