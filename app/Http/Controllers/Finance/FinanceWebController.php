@@ -689,13 +689,11 @@ class FinanceWebController extends Controller
             $params = $request->all();
             $isViewDetails = in_array($cardType, ['loans & credit', 'loans', 'view_all', 'all', 'view details', 'details']);
 
-            if ($isRunning) {
+            // If user clicked "View All" or "View Details", stay on the Hub screen
+            if ($isViewDetails) {
+                // Do not redirect away; fall through to render view('finance.hub')
+            } elseif ($isRunning) {
                 $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
-
-                // 1. "on click view details you have to show same screen which is previously there"
-                if ($isViewDetails) {
-                    return $resumeUrl ? redirect($resumeUrl) : redirect()->route('finance.hub', ['phone' => $phone]);
-                }
 
                 // Identify target family of the clicked card
                 $targetFamily = 'cash_loan';
@@ -719,7 +717,7 @@ class FinanceWebController extends Controller
                     return $resumeUrl ? redirect($resumeUrl) : redirect()->route('finance.cash_loan.s01_apply', $params);
                 }
 
-                // 2. "show error on click different card for new process"
+                // "show error on click different card for new process"
                 $currentName = $familyNames[$activeFamily] ?? 'Loan';
                 $errorMsg = "You already have an active {$currentName} application (#{$application->application_number}) in progress. You cannot start a new process for {$targetTitle} until your current application is completed or withdrawn.";
 
@@ -729,11 +727,6 @@ class FinanceWebController extends Controller
                     ->with('active_app_number', $application->application_number)
                     ->with('active_app_family', $currentName)
                     ->with('active_resume_url', $resumeUrl);
-            }
-
-            // If user clicked View Details with an active disbursed loan, keep on hub
-            if ($isViewDetails && $disbursedLoan) {
-                return redirect()->route('finance.hub', ['phone' => $phone]);
             }
 
             // If no running application, open requested product

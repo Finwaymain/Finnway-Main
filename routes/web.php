@@ -1224,7 +1224,7 @@ Route::post('/onboarding/kit-purchase/submit', [App\Http\Controllers\DriverKitWe
 
 // ── Loans & Credit Webview Routes ───────────────────────────────────────────
 Route::get('/loans/coming-soon', [App\Http\Controllers\LoanWebviewController::class, 'comingSoon'])->name('loans.comingSoon');
-Route::get('/finance', [App\Http\Controllers\LoanWebviewController::class, 'portal'])->name('finance.portal');
+Route::get('/finance', [\App\Http\Controllers\Finance\FinanceWebController::class, 'hub'])->name('finance.portal');
 Route::get('/finance/portal', [App\Http\Controllers\LoanWebviewController::class, 'portal']);
 
 // ── Terms & Privacy Direct URL Aliases ─────────────────────────────────────

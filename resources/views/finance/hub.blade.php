@@ -75,40 +75,50 @@
     </div>
     @endif
 
-    {{-- Active Disbursed Loan Dashboard --}}
-    @if(!empty($disbursedLoan))
+    {{-- Active Approved / Disbursed Loan Dashboard --}}
+    @php
+        $activeApprovedFacility = $disbursedLoan ?? ((!empty($application) && in_array($application->application_status ?? '', ['LOAN_APPROVED', 'APPROVED', 'SANCTIONED', 'DISBURSED', 'ACTIVE'])) ? $application : null);
+    @endphp
+    @if(!empty($activeApprovedFacility))
     <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 16px; padding: 20px; margin-bottom: 22px; color: white; border: 1.5px solid #334155; box-shadow: 0 10px 25px rgba(15,23,42,0.25);">
         {{-- Status Header --}}
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px;">
             <div style="display:flex; align-items:center; gap:8px;">
                 <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,0.3);"></span>
                 <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; background: rgba(16, 185, 129, 0.18); color: #34d399; padding: 4px 10px; border-radius: 20px; font-weight: 800; border: 1px solid rgba(16,185,129,0.3);">
+                    @if(($activeApprovedFacility->application_status ?? '') === 'DISBURSED')
                     🟢 Disbursed &amp; Active
+                    @else
+                    🟢 Approved &amp; Active
+                    @endif
                 </span>
             </div>
             <span style="font-size: 11px; color: #94a3b8; font-family: monospace; background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 4px;">
-                {{ $disbursedLoan->application_number }}
+                {{ $activeApprovedFacility->application_number }}
             </span>
         </div>
 
-        {{-- Borrower & Disbursed Amount --}}
+        {{-- Borrower & Approved Amount --}}
         <div style="margin-bottom: 16px;">
             <div style="font-size: 11.5px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Active Loan Facility</div>
             <div style="display:flex; align-items:baseline; gap:8px; margin-top:2px;">
                 <div style="font-size: 32px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
-                    ₹{{ number_format($disbursedLoan->approved_amount ?: $disbursedLoan->requested_amount) }}
+                    ₹{{ number_format($activeApprovedFacility->approved_amount ?: $activeApprovedFacility->requested_amount) }}
                 </div>
-                <div style="font-size: 12px; color: #10b981; font-weight: 700;">✓ Disbursed</div>
+                <div style="font-size: 12px; color: #10b981; font-weight: 700;">✓ {{ ($activeApprovedFacility->application_status ?? '') === 'DISBURSED' ? 'Disbursed' : 'Approved' }}</div>
             </div>
             <div style="font-size: 12px; color: #cbd5e1; margin-top: 3px;">
-                Disbursed on {{ $disbursedLoan->disbursed_at ? $disbursedLoan->disbursed_at->format('d M Y') : 'Recently' }} to <strong>{{ $disbursedLoan->disbursement_bank_name ?: 'Bank Account' }}</strong>
-                @if($disbursedLoan->disbursement_account_number)
-                (••••{{ substr($disbursedLoan->disbursement_account_number, -4) }})
+                {{ ($activeApprovedFacility->application_status ?? '') === 'DISBURSED' ? 'Disbursed' : 'Sanctioned' }} on {{ $activeApprovedFacility->disbursed_at ? $activeApprovedFacility->disbursed_at->format('d M Y') : ($activeApprovedFacility->created_at ? $activeApprovedFacility->created_at->format('d M Y') : 'Recently') }}
+                @if($activeApprovedFacility->disbursement_bank_name)
+                 to <strong>{{ $activeApprovedFacility->disbursement_bank_name }}</strong>
+                @endif
+                @if($activeApprovedFacility->disbursement_account_number)
+                (••••{{ substr($activeApprovedFacility->disbursement_account_number, -4) }})
                 @endif
             </div>
-            @if($disbursedLoan->disbursement_txn_ref)
+            @if($activeApprovedFacility->disbursement_txn_ref)
             <div style="display:inline-block; font-size: 11px; color: #38bdf8; font-family: monospace; background: rgba(56, 189, 248, 0.12); padding: 2px 8px; border-radius: 4px; margin-top: 6px;">
-                Bank UTR: {{ $disbursedLoan->disbursement_txn_ref }}
+                Bank UTR: {{ $activeApprovedFacility->disbursement_txn_ref }}
             </div>
             @endif
         </div>
@@ -118,19 +128,19 @@
             <div>
                 <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Lender Partner</div>
                 <div style="font-size: 13px; font-weight: 700; color: #ffffff; margin-top: 2px;">
-                    {{ $disbursedLoan->selected_lender_name ?? ($disbursedLoan->lender->name ?? 'Lending Partner') }}
+                    {{ $activeApprovedFacility->selected_lender_name ?? ($activeApprovedFacility->lender->name ?? 'Lending Partner') }}
                 </div>
             </div>
             <div>
                 <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Tenure</div>
                 <div style="font-size: 13px; font-weight: 700; color: #ffffff; margin-top: 2px;">
-                    {{ $disbursedLoan->tenure_months ?: 12 }} Months
+                    {{ $activeApprovedFacility->tenure_months ?: 12 }} Months
                 </div>
             </div>
             <div>
                 <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Monthly EMI</div>
                 <div style="font-size: 13px; font-weight: 700; color: #f5a623; margin-top: 2px;">
-                    ₹{{ number_format($disbursedLoan->estimated_emi ?: round(($disbursedLoan->approved_amount ?: 25000) / ($disbursedLoan->tenure_months ?: 12))) }}
+                    ₹{{ number_format($activeApprovedFacility->estimated_emi ?: round(($activeApprovedFacility->approved_amount ?: 25000) / ($activeApprovedFacility->tenure_months ?: 12))) }}
                 </div>
             </div>
             <div>
@@ -177,7 +187,7 @@
     </div>
     @endif
 
-    @if(!empty($disbursedLoan))
+    @if(!empty($activeApprovedFacility))
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:20px;">
         <span style="font-size:12px; font-weight:800; color:var(--navy); text-transform:uppercase; letter-spacing:0.5px;">Explore Other Credit Products</span>
         <span style="font-size:11px; color:#64748b; font-weight:600;">Apply Additional</span>
