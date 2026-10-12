@@ -130,4 +130,108 @@ class UpiQrService
 
         return $str;
     }
+
+    /**
+     * Get or create a dedicated multiple_use Razorpay QR code for a user/driver.
+     * Stored in user's profile and database for 100% bank-stripping immunity.
+     *
+     * @param int $userId
+     * @param string $userType 'customer' or 'driver'
+     * @param string $acNo 12-digit pocket account number
+     * @param string|null $userName
+     * @return array ['qr_id' => string, 'image_url' => string, 'upi_string' => string]
+     */
+    public static function getOrCreateRazorpayQrForUser(int $userId, string $userType, string $acNo, ?string $userName = null): array
+    {
+        $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+        $user = \Illuminate\Support\Facades\DB::table($table)->where('id', $userId)->first();
+
+        // 1. Check if user already has an active Razorpay QR stored
+        if ($user && !empty($user->razorpay_qr_id) && !empty($user->razorpay_qr_image_url)) {
+            return [
+                'qr_id'      => $user->razorpay_qr_id,
+                'image_url'  => $user->razorpay_qr_image_url,
+                'upi_string' => !empty($user->razorpay_upi_string) ? $user->razorpay_upi_string : self::generateUpiStringForUser($acNo, $userName),
+            ];
+        }
+
+        // 2. Call Razorpay API to mint a dedicated multiple_use QR code
+        try {
+            $config = RazorpayConfig::resolve();
+            $key = $config['key'] ?? '';
+            $secret = $config['secret'] ?? '';
+
+            if (empty($key) || empty($secret)) {
+                return [
+                    'qr_id'      => null,
+                    'image_url'  => null,
+                    'upi_string' => self::generateUpiStringForUser($acNo, $userName),
+                ];
+            }
+
+            $displayName = !empty($userName) ? trim($userName) : "User {$userId}";
+            $payload = [
+                'type'         => 'upi_qr',
+                'name'         => substr($displayName, 0, 40),
+                'usage'        => 'multiple_use',
+                'fixed_amount' => false,
+                'description'  => "Fiinway Wallet {$acNo}",
+                'notes'        => [
+                    'ac_no'     => (string) $acNo,
+                    'user_id'   => (string) $userId,
+                    'user_type' => (string) $userType,
+                ],
+            ];
+
+            $ch = curl_init('https://api.razorpay.com/v1/payments/qr_codes');
+            curl_setopt($ch, CURLOPT_USERPWD, "{$key}:{$secret}");
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            $rawResponse = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode >= 200 && $httpCode < 300) {
+                $res = json_decode($rawResponse, true);
+                if (!empty($res['id']) && !empty($res['image_url'])) {
+                    $qrId = $res['id'];
+                    $imageUrl = $res['image_url'];
+                    $upiString = self::generateUpiStringForUser($acNo, $userName);
+
+                    // Ensure columns exist or store gracefully
+                    try {
+                        if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'razorpay_qr_id')) {
+                            \Illuminate\Support\Facades\DB::table($table)->where('id', $userId)->update([
+                                'razorpay_qr_id'        => $qrId,
+                                'razorpay_qr_image_url'  => $imageUrl,
+                                'razorpay_upi_string'   => $upiString,
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning("Could not persist razorpay_qr_id to {$table}: " . $e->getMessage());
+                    }
+
+                    return [
+                        'qr_id'      => $qrId,
+                        'image_url'  => $imageUrl,
+                        'upi_string' => $upiString,
+                    ];
+                }
+            } else {
+                Log::warning("Razorpay QR creation HTTP {$httpCode}: {$rawResponse}");
+            }
+        } catch (\Throwable $e) {
+            Log::error("getOrCreateRazorpayQrForUser exception: " . $e->getMessage());
+        }
+
+        // Fallback to standard UPI intent string
+        return [
+            'qr_id'      => null,
+            'image_url'  => null,
+            'upi_string' => self::generateUpiStringForUser($acNo, $userName),
+        ];
+    }
 }

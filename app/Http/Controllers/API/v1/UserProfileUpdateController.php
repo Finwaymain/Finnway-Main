@@ -1411,7 +1411,10 @@ class UserProfileUpdateController extends Controller
                 $userArr = (array) $user;
                 $userType = isset($user->statut_vehicule) ? 'driver' : 'customer';
                 $userArr['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$user->id, $userType);
-                $userArr['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($user->ac_no ?? $ac_no, trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')));
+                $rzpQr = \App\Services\UpiQrService::getOrCreateRazorpayQrForUser((int)$user->id, $userType, $user->ac_no ?? $ac_no, trim(($user->prenom ?? '') . ' ' . ($user->nom ?? '')));
+                $userArr['upi_qr_data'] = $rzpQr['upi_string'];
+                $userArr['razorpay_qr_id'] = $rzpQr['qr_id'];
+                $userArr['razorpay_qr_image_url'] = $rzpQr['image_url'];
                 return response()->json([
                     'res'  => 'success',
                     'msg'  => 'User found successfully',
@@ -1524,7 +1527,11 @@ class UserProfileUpdateController extends Controller
         }
 
         $userArray['promotional'] = \App\Services\PromotionalService::getUserPromotion((int)$userId, $userType);
-        $userArray['upi_qr_data'] = \App\Services\UpiQrService::generateUpiStringForUser($userArray['ac_no'] ?? $ac_no, trim(($userArray['prenom'] ?? '') . ' ' . ($userArray['nom'] ?? '')));
+        
+        $rzpQr = \App\Services\UpiQrService::getOrCreateRazorpayQrForUser((int)$userId, $userType, $userArray['ac_no'] ?? $ac_no, trim(($userArray['prenom'] ?? '') . ' ' . ($userArray['nom'] ?? '')));
+        $userArray['upi_qr_data'] = $rzpQr['upi_string'];
+        $userArray['razorpay_qr_id'] = $rzpQr['qr_id'];
+        $userArray['razorpay_qr_image_url'] = $rzpQr['image_url'];
 
         return response()->json([
             'res'  => 'success',

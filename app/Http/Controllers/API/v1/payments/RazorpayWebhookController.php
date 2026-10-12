@@ -258,8 +258,41 @@ class RazorpayWebhookController extends Controller
     {
         $acNo = null;
 
-        // 1. Check payment entity notes
-        if (!empty($paymentEntity['notes'])) {
+        // 1. Check QR entity notes and direct QR ID match
+        if (!empty($qrEntity)) {
+            if (!empty($qrEntity['notes'])) {
+                $qrNotes = $qrEntity['notes'];
+                $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? $qrNotes['user_ac_no'] ?? null;
+            }
+
+            // Direct QR ID mapping in database
+            if (empty($acNo) && !empty($qrEntity['id'])) {
+                $qrId = $qrEntity['id'];
+                if (Schema::hasColumn('tj_user_app', 'razorpay_qr_id')) {
+                    $matchedUser = DB::table('tj_user_app')->where('razorpay_qr_id', $qrId)->first();
+                    if ($matchedUser) {
+                        return [
+                            'user'      => $matchedUser,
+                            'user_type' => 'customer',
+                            'ac_no'     => $matchedUser->ac_no ?? null,
+                        ];
+                    }
+                }
+                if (Schema::hasColumn('tj_conducteur', 'razorpay_qr_id')) {
+                    $matchedDriver = DB::table('tj_conducteur')->where('razorpay_qr_id', $qrId)->first();
+                    if ($matchedDriver) {
+                        return [
+                            'user'      => $matchedDriver,
+                            'user_type' => 'driver',
+                            'ac_no'     => $matchedDriver->ac_no ?? null,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 2. Check payment entity notes
+        if (empty($acNo) && !empty($paymentEntity['notes'])) {
             $notes = $paymentEntity['notes'];
             $acNo = $notes['comment'] ?? $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? $notes['recipient_ac_no'] ?? null;
             if (empty($acNo)) {
@@ -273,17 +306,11 @@ class RazorpayWebhookController extends Controller
             }
         }
 
-        // 2. Check payment_link notes
+        // 3. Check payment_link notes
         $paymentLinkEntity = $payloadData['payment_link']['entity'] ?? null;
         if (empty($acNo) && !empty($paymentLinkEntity['notes'])) {
             $plNotes = $paymentLinkEntity['notes'];
             $acNo = $plNotes['comment'] ?? $plNotes['ac_no'] ?? $plNotes['account_no'] ?? null;
-        }
-
-        // 3. Check QR notes
-        if (empty($acNo) && !empty($qrEntity['notes'])) {
-            $qrNotes = $qrEntity['notes'];
-            $acNo = $qrNotes['ac_no'] ?? $qrNotes['account_no'] ?? null;
         }
 
         // 4. Check payment entity top-level fields (tr, tn, transaction_note, etc.)

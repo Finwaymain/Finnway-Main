@@ -546,5 +546,63 @@ class RazorpayWebhookCreditTest extends TestCase
         $updatedUser = DB::table('tj_user_app')->where('id', $user->id)->first();
         $this->assertEquals($initAmount + $amountRupees, floatval($updatedUser->amount));
     }
+
+    /**
+     * 14. Test credit via dedicated Razorpay QR code entity notes (qr_code.credited)
+     */
+    public function test_webhook_credits_user_via_razorpay_qr_code_entity_notes()
+    {
+        $user = DB::table('tj_user_app')->whereNotNull('ac_no')->where('ac_no', '!=', '')->first();
+        if (!$user) {
+            $this->markTestSkipped('No user with ac_no found');
+        }
+
+        $initAmount = floatval($user->amount);
+        $testPaymentId = 'pay_rzp_qr_' . time() . '_' . rand(100, 999);
+        $testQrId = 'qr_test_' . time();
+        $creditAmountRupees = 45.00;
+        $amountPaise = $creditAmountRupees * 100;
+
+        // Payload mimicking qr_code.credited event from Razorpay
+        $payload = [
+            'event'   => 'qr_code.credited',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id'      => $testPaymentId,
+                        'amount'  => $amountPaise,
+                        'status'  => 'captured',
+                        'contact' => '+919999999999',
+                        'vpa'     => 'payer@upi',
+                        'notes'   => [],
+                    ],
+                ],
+                'qr_code' => [
+                    'entity' => [
+                        'id'     => $testQrId,
+                        'name'   => $user->nom,
+                        'notes'  => [
+                            'ac_no'     => $user->ac_no,
+                            'user_id'   => $user->id,
+                            'user_type' => 'customer',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/api/v1/payments/razorpay/webhook', $payload);
+        $response->assertStatus(200);
+        $response->assertJson(['status' => 'success']);
+
+        $updatedUser = DB::table('tj_user_app')->where('id', $user->id)->first();
+        $this->assertEquals($initAmount + $creditAmountRupees, floatval($updatedUser->amount));
+
+        $txn = DB::table('upi_qr_transactions')->where('razorpay_payment_id', $testPaymentId)->first();
+        $this->assertNotNull($txn);
+        $this->assertTrue((bool)$txn->wallet_credited);
+        $this->assertEquals('captured', $txn->status);
+        $this->assertEquals($user->id, $txn->user_id);
+    }
 }
 
