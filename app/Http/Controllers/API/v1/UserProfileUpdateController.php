@@ -1068,6 +1068,43 @@ class UserProfileUpdateController extends Controller
         ];
         // -----------------------------------------------------------
 
+        // Step 14: Send push + in-app notification to receiver
+        try {
+            $nowDateTime = \Carbon\Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
+            $formattedAmount = number_format((float) $amount, 2);
+            $receiverFcmId = $receiver_data->fcm_id ?? null;
+
+            // FCM push to receiver
+            if (!empty($receiverFcmId)) {
+                $notifPayload = [
+                    'title'     => 'Fiinway',
+                    'body'      => "Your wallet has been credited with ₹{$formattedAmount} from {$sender_fullname}.",
+                    'sound'     => 'default',
+                    'tag'       => 'wallet_topup',
+                    'type'      => 'wallet',
+                    'amount'    => (string) $amount,
+                    'user_type' => $receiver_user_type,
+                ];
+                \App\Http\Controllers\API\v1\GcmController::sendNotification($receiverFcmId, $notifPayload);
+            }
+
+            // In-app notification record for receiver
+            if ($receiver_user_id && \Illuminate\Support\Facades\Schema::hasTable('tj_notification')) {
+                DB::table('tj_notification')->insert([
+                    'titre'    => 'Fiinway',
+                    'message'  => "Your wallet has been credited with ₹{$formattedAmount} from {$sender_fullname}.",
+                    'statut'   => 'yes',
+                    'creer'    => $nowDateTime,
+                    'modifier' => $nowDateTime,
+                    'to_id'    => $receiver_user_id,
+                    'from_id'  => $sender->id,
+                    'type'     => 'wallet_topup',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('transfer_to_wallet: notification failed: ' . $e->getMessage());
+        }
+
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Amount transferred to receiver wallet successfully',
@@ -1861,12 +1898,14 @@ class UserProfileUpdateController extends Controller
         } else {
             $query = DB::table('tj_transaction')
                 ->where(function ($q) use ($user) {
+                    // Only match by id_user_app — NOT by ac_no.
+                    // The sender's row stores the receiver's ac_no, so filtering
+                    // by ac_no would incorrectly return the counterparty's debit
+                    // entry in the receiver's history (causing the +/- duplicate bug).
                     $q->where('id_user_app', $user->id)
                       ->orWhere('id_user_app', (string) $user->id);
                     if (!empty($user->ac_no)) {
-                        $q->orWhere('id_user_app', $user->ac_no)
-                          ->orWhere('ac_no', $user->ac_no)
-                          ->orWhere('ac_no', (string) $user->ac_no);
+                        $q->orWhere('id_user_app', $user->ac_no);
                     }
                 })
                 ->orderBy('id', 'desc');
