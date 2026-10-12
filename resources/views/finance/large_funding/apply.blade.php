@@ -6,11 +6,16 @@
 <div style="padding-bottom: 24px;">
 
     <!-- Wizard Header & Indicator -->
-    <div class="fw-card" style="padding: 16px; margin-bottom: 16px; background: #ffffff;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-            <span style="font-size:12px; font-weight:800; color:#4f46e5; text-transform:uppercase; letter-spacing:0.5px;" id="stepBadge">
-                Step 1 of 7: Applicant Details
-            </span>
+    <div class="fw-card" style="padding: 14px 16px; margin-bottom: 16px; background: #ffffff;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" id="topStepBackBtn" onclick="goToStep(currentStep - 1)" style="display:none; background:#f1f5f9; border:none; border-radius:6px; padding:4px 8px; font-size:12px; font-weight:700; color:#475569; cursor:pointer;">
+                    ← Back
+                </button>
+                <span style="font-size:12px; font-weight:800; color:#4f46e5; text-transform:uppercase; letter-spacing:0.5px;" id="stepBadge">
+                    Step 1 of 7: Applicant Details
+                </span>
+            </div>
             <span style="font-size:12px; font-weight:700; color:#64748b;" id="stepPercent">14%</span>
         </div>
         <div style="height: 6px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
@@ -562,9 +567,23 @@
 </style>
 
 <script>
-let currentStep = 1;
+const serverActiveStage = {{ (int)($activeApp->current_stage ?? 1) }};
 const totalSteps = 7;
 const saveStepUrl = "{{ route('finance.large_funding.save_step') }}";
+const storageKeyPrefix = 'fiinway_lf_';
+
+// Resolve current user phone from DOM or blade variable or localStorage
+function getApplicantPhone() {
+    const phoneInput = document.querySelector('input[name="mobile_number"]');
+    if (phoneInput && phoneInput.value && phoneInput.value.trim()) {
+        return phoneInput.value.trim();
+    }
+    const stored = localStorage.getItem(storageKeyPrefix + 'phone');
+    if (stored) return stored;
+    return "{{ $phone ?? '' }}";
+}
+
+let currentStep = 1;
 
 // Validate a specific step container
 function validateStep(stepNum) {
@@ -600,13 +619,97 @@ function validateStep(stepNum) {
     return true;
 }
 
-// Save current step data asynchronously
+// Save all form inputs to LocalStorage for instant offline/back-forward recovery
+function saveAllToLocalStorage() {
+    try {
+        const form = document.getElementById('largeFundingForm');
+        if (!form) return;
+        const formDataObj = {};
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(el => {
+            if (!el.name || el.type === 'file' || el.name === '_token') return;
+            if (el.type === 'checkbox') {
+                formDataObj[el.name] = el.checked ? el.value : '';
+            } else if (el.type === 'radio') {
+                if (el.checked) formDataObj[el.name] = el.value;
+            } else {
+                formDataObj[el.name] = el.value;
+            }
+        });
+        localStorage.setItem(storageKeyPrefix + 'form_data', JSON.stringify(formDataObj));
+        localStorage.setItem(storageKeyPrefix + 'step', currentStep);
+
+        const phone = getApplicantPhone();
+        if (phone) {
+            localStorage.setItem(storageKeyPrefix + 'phone', phone);
+        }
+    } catch (e) {
+        console.warn('LocalStorage save failed:', e);
+    }
+}
+
+// Restore form inputs from LocalStorage if empty
+function restoreFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem(storageKeyPrefix + 'form_data');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return;
+
+        const form = document.getElementById('largeFundingForm');
+        if (!form) return;
+
+        Object.keys(data).forEach(key => {
+            const val = data[key];
+            if (val === undefined || val === null || val === '') return;
+
+            const fields = form.querySelectorAll(`[name="${key}"]`);
+            fields.forEach(el => {
+                if (el.type === 'checkbox') {
+                    if (el.value === val) el.checked = true;
+                } else if (el.type === 'radio') {
+                    if (el.value === val) {
+                        el.checked = true;
+                        if (key === 'business_registration_status' && typeof toggleRegDate === 'function') {
+                            toggleRegDate(val === 'Registered');
+                        }
+                    }
+                } else if (el.type !== 'file') {
+                    if (!el.value || !el.value.trim()) {
+                        el.value = val;
+                    }
+                }
+            });
+        });
+
+        // Restore dynamic founders counter if stored
+        if (data['total_founders_count']) {
+            const count = parseInt(data['total_founders_count'], 10);
+            if (!isNaN(count) && count >= 1 && count <= 10) {
+                foundersCount = count;
+                const counterDisplay = document.getElementById('foundersCountDisplay');
+                if (counterDisplay) counterDisplay.textContent = count;
+                const countInp = document.getElementById('total_founders_count');
+                if (countInp) countInp.value = count;
+                if (typeof renderDynamicFounders === 'function') {
+                    renderDynamicFounders();
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('LocalStorage restore failed:', e);
+    }
+}
+
+// Save current step data asynchronously to database
 function saveStepData(stepNum) {
-    const form = document.getElementById('largeFundingForm');
+    saveAllToLocalStorage();
+
+    const phone = getApplicantPhone();
     const formData = new FormData();
     formData.append('_token', '{{ csrf_token() }}');
     formData.append('step', stepNum);
-    formData.append('phone', "{{ $phone }}");
+    formData.append('phone', phone);
 
     // Gather inputs from the current step
     const currentSection = document.getElementById('sectionStep' + stepNum);
@@ -635,13 +738,16 @@ function saveStepData(stepNum) {
             'X-Requested-With': 'XMLHttpRequest'
         }
     }).then(res => res.json()).then(data => {
-        console.log('Step ' + stepNum + ' autosaved:', data);
+        console.log('Step ' + stepNum + ' autosaved to DB:', data);
     }).catch(err => {
         console.warn('Draft save error:', err);
     });
 }
 
 function goToStepDisplay(step) {
+    if (step < 1) step = 1;
+    if (step > totalSteps) step = totalSteps;
+
     // Hide all
     for (let i = 1; i <= totalSteps; i++) {
         const el = document.getElementById('sectionStep' + i);
@@ -652,6 +758,12 @@ function goToStepDisplay(step) {
     const target = document.getElementById('sectionStep' + step);
     if (target) target.style.display = 'block';
     currentStep = step;
+
+    // Update Top Header Back Button
+    const topBackBtn = document.getElementById('topStepBackBtn');
+    if (topBackBtn) {
+        topBackBtn.style.display = (currentStep > 1) ? 'inline-flex' : 'none';
+    }
 
     // Update Progress Bar & Badge
     const percent = Math.round((currentStep / totalSteps) * 100);
@@ -669,17 +781,27 @@ function goToStepDisplay(step) {
     ];
     document.getElementById('stepBadge').textContent = 'Step ' + currentStep + ' of ' + totalSteps + ': ' + titles[currentStep - 1];
 
+    // Store state
+    localStorage.setItem(storageKeyPrefix + 'step', currentStep);
+    try {
+        window.history.replaceState(null, '', '#step=' + currentStep);
+    } catch(e) {}
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function goToStep(step) {
+    if (step < 1) step = 1;
+
+    // Always autosave previous step data before moving anywhere
+    saveStepData(currentStep);
+
     if (step > currentStep) {
         if (!validateStep(currentStep)) {
             return;
         }
-        // Save step data before navigating forward
-        saveStepData(currentStep);
     }
+
     goToStepDisplay(step);
 }
 
@@ -735,11 +857,12 @@ function adjustFounders(delta) {
     document.getElementById('foundersCountDisplay').textContent = foundersCount;
     document.getElementById('total_founders_count').value = foundersCount;
     renderDynamicFounders();
+    saveAllToLocalStorage();
 }
 
 function renderDynamicFounders() {
     const container = document.getElementById('dynamicFoundersContainer');
-    const mainApplicantName = document.getElementById('main_applicant_name').value || '';
+    const mainApplicantName = document.getElementById('main_applicant_name') ? document.getElementById('main_applicant_name').value : '';
 
     // Collect current values
     const currentValues = [];
@@ -759,9 +882,61 @@ function renderDynamicFounders() {
         `;
     }
     container.innerHTML = html;
+
+    // Attach change listeners to dynamic inputs
+    container.querySelectorAll('.founder-field').forEach(inp => {
+        inp.addEventListener('input', saveAllToLocalStorage);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // 1. Restore cached form data from localStorage
+    restoreFromLocalStorage();
+
+    // 2. Ensure phone number in DOM if blank
+    const phoneInput = document.querySelector('input[name="mobile_number"]');
+    if (phoneInput && (!phoneInput.value || !phoneInput.value.trim())) {
+        const storedPhone = localStorage.getItem(storageKeyPrefix + 'phone') || "{{ $phone ?? '' }}";
+        if (storedPhone) phoneInput.value = storedPhone;
+    }
+
+    // 3. Determine resume step
+    let resumeStep = 1;
+    // Check URL hash first (e.g. #step=3)
+    const hashMatch = window.location.hash.match(/step=(\d+)/);
+    if (hashMatch && hashMatch[1]) {
+        resumeStep = parseInt(hashMatch[1], 10);
+    } else {
+        const localStep = parseInt(localStorage.getItem(storageKeyPrefix + 'step'), 10);
+        if (!isNaN(localStep) && localStep >= 1 && localStep <= totalSteps) {
+            resumeStep = localStep;
+        } else if (serverActiveStage > 1 && serverActiveStage <= totalSteps) {
+            resumeStep = serverActiveStage;
+        }
+    }
+
+    if (resumeStep > 1 && resumeStep <= totalSteps) {
+        goToStepDisplay(resumeStep);
+    } else {
+        goToStepDisplay(1);
+    }
+
+    // 4. Auto-save whenever any input is modified
+    const form = document.getElementById('largeFundingForm');
+    if (form) {
+        form.querySelectorAll('input, select, textarea').forEach(el => {
+            el.addEventListener('change', saveAllToLocalStorage);
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.addEventListener('input', saveAllToLocalStorage);
+            }
+        });
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleFinalSubmit();
+        });
+    }
+
     const mainApplicant = document.getElementById('main_applicant_name');
     if (mainApplicant) {
         mainApplicant.addEventListener('input', function() {
@@ -769,15 +944,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (firstRow && !firstRow.dataset.userEdited) {
                 firstRow.value = this.value;
             }
-        });
-    }
-
-    // Prevent default form submission to ensure handleFinalSubmit controls flow
-    const form = document.getElementById('largeFundingForm');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            handleFinalSubmit();
+            saveAllToLocalStorage();
         });
     }
 });

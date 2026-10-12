@@ -65,6 +65,10 @@ class LargeFundingController extends Controller
     {
         [$phone, $customer, $user, $activeApp] = $this->resolveApplicant($request);
 
+        if (!empty($phone)) {
+            session(['finance_phone' => $phone]);
+        }
+
         if ($activeApp && in_array($activeApp->application_status, ['SUBMITTED', 'DOCUMENTS_VERIFIED', 'FEE_PENDING', 'FEE_PAID', 'FORWARDED_TO_INVESTORS', 'FUNDING_DISCUSSION', 'FINAL_OFFER', 'FUND_APPROVED', 'DISBURSED'])) {
             return redirect()->route('finance.large_funding.status', ['phone' => $phone]);
         }
@@ -83,6 +87,8 @@ class LargeFundingController extends Controller
             if (empty($phone)) {
                 return response()->json(['success' => false, 'message' => 'Valid mobile number is required.'], 400);
             }
+
+            session(['finance_phone' => $phone]);
 
             // Find existing draft or create new
             $draft = LargeFundingApplication::where('mobile_number', 'LIKE', '%' . $phone)
@@ -104,6 +110,9 @@ class LargeFundingController extends Controller
 
             // Collect step inputs
             $step = (int)$request->input('step', 1);
+            if ($step > (int)($draft->current_stage ?? 1)) {
+                $draft->current_stage = $step;
+            }
             $data = $request->except(['_token', 'step']);
 
             if ($step === 1) {
