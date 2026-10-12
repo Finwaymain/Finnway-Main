@@ -18,8 +18,16 @@
             </div>
             <span style="font-size:12px; font-weight:700; color:#64748b;" id="stepPercent">14%</span>
         </div>
-        <div style="height: 6px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+        <div style="height: 6px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 12px;">
             <div id="stepProgressBar" style="height: 100%; width: 14%; background: linear-gradient(90deg, #4f46e5, #7c3aed); border-radius: 4px; transition: width 0.3s ease;"></div>
+        </div>
+        <!-- Step Navigation Pills -->
+        <div style="display:flex; justify-content:space-between; gap:4px; padding-top:2px;">
+            @for($s = 1; $s <= 7; $s++)
+                <button type="button" onclick="goToStep({{ $s }})" id="stepPill{{ $s }}" style="flex:1; border:none; padding:4px 0; border-radius:4px; font-size:11px; font-weight:700; background:{{ $s === 1 ? '#4f46e5' : '#f1f5f9' }}; color:{{ $s === 1 ? '#ffffff' : '#64748b' }}; cursor:pointer; transition:all 0.2s ease;">
+                    {{ $s }}
+                </button>
+            @endfor
         </div>
     </div>
 
@@ -780,6 +788,23 @@ function goToStepDisplay(step) {
         'Consent & Final Submit'
     ];
     document.getElementById('stepBadge').textContent = 'Step ' + currentStep + ' of ' + totalSteps + ': ' + titles[currentStep - 1];
+
+    // Update Step Pills
+    for (let s = 1; s <= totalSteps; s++) {
+        const pill = document.getElementById('stepPill' + s);
+        if (pill) {
+            if (s === currentStep) {
+                pill.style.background = '#4f46e5';
+                pill.style.color = '#ffffff';
+            } else if (s < currentStep) {
+                pill.style.background = '#e0e7ff';
+                pill.style.color = '#4338ca';
+            } else {
+                pill.style.background = '#f1f5f9';
+                pill.style.color = '#64748b';
+            }
+        }
+    }
 
     // Store state
     localStorage.setItem(storageKeyPrefix + 'step', currentStep);

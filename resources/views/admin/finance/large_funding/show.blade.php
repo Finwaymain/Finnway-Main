@@ -24,6 +24,13 @@
                 <span class="badge" style="background: #0f172a; color: #ffffff; font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 6px;">
                     Current: Stage {{ $application->current_stage }} ({{ $application->stage_label }})
                 </span>
+                <form method="POST" action="{{ route('admin.finance.large_funding.destroy', $application->id) }}" onsubmit="return confirm('Permanently delete application {{ $application->application_number }} and all associated files?');" style="display:inline-block; margin:0;">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 7px 12px; cursor: pointer;">
+                        🗑 Delete Application
+                    </button>
+                </form>
             </div>
         </div>
 

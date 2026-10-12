@@ -168,9 +168,18 @@
                                 </span>
                             </td>
                             <td style="padding: 12px 16px; text-align: right;">
-                                <a href="{{ route('admin.finance.large_funding.show', $app->id) }}" class="btn btn-sm" style="background: #4f46e5; color: #ffffff; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 6px 14px; text-decoration: none;">
-                                    Inspect &amp; Manage →
-                                </a>
+                                <div style="display:inline-flex; align-items:center; gap:6px;">
+                                    <a href="{{ route('admin.finance.large_funding.show', $app->id) }}" class="btn btn-sm" style="background: #4f46e5; color: #ffffff; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 6px 12px; text-decoration: none;">
+                                        Inspect →
+                                    </a>
+                                    <form method="POST" action="{{ route('admin.finance.large_funding.destroy', $app->id) }}" onsubmit="return confirm('Are you sure you want to delete application {{ $app->application_number }}? This will permanently wipe all uploaded documents and reset test state.');" style="display:inline-block; margin:0;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 6px 10px; cursor: pointer;">
+                                            🗑 Del
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         @empty

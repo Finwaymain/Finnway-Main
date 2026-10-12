@@ -1329,6 +1329,7 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/large-funding/doc/{id}/review', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'reviewDocument'])->name('large_funding.review_doc');
     Route::post('/large-funding/{id}/update-fee', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'updateFee'])->name('large_funding.update_fee');
     Route::post('/large-funding/{id}/update-stage', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'updateStage'])->name('large_funding.update_stage');
+    Route::delete('/large-funding/{id}', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'destroy'])->name('large_funding.destroy');
 });
 
 // Finance Documents Direct File Serving (Safe Fallback)

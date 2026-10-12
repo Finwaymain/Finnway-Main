@@ -205,4 +205,31 @@ class AdminLargeFundingController extends Controller
 
         return back()->with('success', 'Pipeline Stage progressed to: Stage ' . $stage . ' (' . $application->stage_label . ')');
     }
+
+    /**
+     * Delete application to reset or re-test
+     */
+    public function destroy($id)
+    {
+        try {
+            $application = LargeFundingApplication::findOrFail($id);
+            $appNumber = $application->application_number;
+
+            // Delete associated documents
+            foreach ($application->documents as $doc) {
+                if ($doc->file_path) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($doc->file_path);
+                }
+                $doc->delete();
+            }
+
+            $application->delete();
+
+            return redirect()->route('admin.finance.large_funding.index')
+                ->with('success', 'Application ' . $appNumber . ' has been completely deleted.');
+        } catch (\Exception $e) {
+            Log::error('Error deleting large funding application: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete application: ' . $e->getMessage());
+        }
+    }
 }
