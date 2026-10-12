@@ -447,28 +447,32 @@
 
                 <div class="fw-input-group">
                     <label class="fw-label">1. Cancelled Cheque / Bank Statement <span style="color:#ef4444;">*</span></label>
-                    <input type="file" name="doc_bank_cheque" class="fw-input" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <input type="file" name="doc_bank_cheque" class="fw-input" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png" required>
+                    <span style="font-size:11px; color:#64748b;">Accepted formats: PDF or JPG/PNG Photo</span>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">2. Main Applicant PAN Card <span style="color:#ef4444;">*</span></label>
-                    <input type="file" name="doc_pan_card" class="fw-input" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <input type="file" name="doc_pan_card" class="fw-input" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png" required>
+                    <span style="font-size:11px; color:#64748b;">Accepted formats: PDF or JPG/PNG Photo</span>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">3. Valid Identity Proof (Aadhaar / Passport) <span style="color:#ef4444;">*</span></label>
-                    <input type="file" name="doc_identity_proof" class="fw-input" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <input type="file" name="doc_identity_proof" class="fw-input" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png" required>
+                    <span style="font-size:11px; color:#64748b;">Accepted formats: PDF or JPG/PNG Photo</span>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">4. Business Plan / Pitch Deck <span style="color:#ef4444;">*</span></label>
-                    <input type="file" name="doc_pitch_deck" class="fw-input" accept=".pdf,.ppt,.pptx,.doc,.docx" required>
-                    <span style="font-size:11px; color:#64748b;">PDF or PPT explaining model, market, and financials.</span>
+                    <input type="file" name="doc_pitch_deck" class="fw-input" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/*,.pdf,.ppt,.pptx,.doc,.docx" required>
+                    <span style="font-size:11px; color:#64748b;">Accepted formats: PDF, PPT/PPTX, DOC/DOCX explaining business model & financials</span>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">5. Fund Utilisation Plan <span style="color:#ef4444;">*</span></label>
-                    <input type="file" name="doc_fund_plan" class="fw-input" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                    <input type="file" name="doc_fund_plan" class="fw-input" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*,.pdf,.doc,.docx,.xls,.xlsx" required>
+                    <span style="font-size:11px; color:#64748b;">Accepted formats: PDF, Word (DOC/DOCX), or Excel (XLS/XLSX)</span>
                 </div>
 
                 <div style="font-size:13px; font-weight:800; color:#0f172a; margin:18px 0 10px;">
@@ -477,27 +481,27 @@
 
                 <div class="fw-input-group">
                     <label class="fw-label">Company Registration Certificate (Optional)</label>
-                    <input type="file" name="doc_company_reg" class="fw-input" accept=".pdf,.jpg,.jpeg,.png">
+                    <input type="file" name="doc_company_reg" class="fw-input" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">GST Certificate (Optional)</label>
-                    <input type="file" name="doc_gst_cert" class="fw-input" accept=".pdf,.jpg,.jpeg,.png">
+                    <input type="file" name="doc_gst_cert" class="fw-input" accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">ITR / Financial Statements / Audit Report (Optional)</label>
-                    <input type="file" name="doc_itr_financials" class="fw-input" accept=".pdf,.zip,.rar">
+                    <input type="file" name="doc_itr_financials" class="fw-input" accept="application/pdf,image/*,application/zip,application/x-rar-compressed,.pdf,.jpg,.jpeg,.png,.zip,.rar">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Shareholding Pattern / Cap Table (Optional)</label>
-                    <input type="file" name="doc_cap_table" class="fw-input" accept=".pdf,.xls,.xlsx">
+                    <input type="file" name="doc_cap_table" class="fw-input" accept="application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*,.pdf,.xls,.xlsx">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Other Supporting Documents (Optional)</label>
-                    <input type="file" name="doc_other" class="fw-input" accept=".pdf,.jpg,.jpeg,.png,.zip">
+                    <input type="file" name="doc_other" class="fw-input" accept="*/*,.pdf,.jpg,.jpeg,.png,.zip,.doc,.docx,.xls,.xlsx">
                 </div>
 
                 <div style="display:flex; gap:10px; margin-top:8px;">
