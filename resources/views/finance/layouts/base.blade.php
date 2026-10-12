@@ -570,6 +570,7 @@
                     }
                 }, 300);
             }
+        }, 250);
     };
 
     window.FiinwayValidator = {

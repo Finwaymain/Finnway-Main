@@ -1518,6 +1518,7 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/',                [\App\Http\Controllers\Finance\LargeFundingController::class, 'intro'])->name('intro');
         Route::get('/intro',           [\App\Http\Controllers\Finance\LargeFundingController::class, 'intro'])->name('intro_alt');
         Route::get('/apply',           [\App\Http\Controllers\Finance\LargeFundingController::class, 'apply'])->name('apply');
+        Route::post('/save-step',      [\App\Http\Controllers\Finance\LargeFundingController::class, 'saveStep'])->name('save_step');
         Route::post('/apply',          [\App\Http\Controllers\Finance\LargeFundingController::class, 'submitApplication'])->name('submit');
         Route::get('/status',          [\App\Http\Controllers\Finance\LargeFundingController::class, 'status'])->name('status');
         Route::post('/pay-fee',        [\App\Http\Controllers\Finance\LargeFundingController::class, 'payFee'])->name('pay_fee');

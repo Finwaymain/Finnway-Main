@@ -73,6 +73,140 @@ class LargeFundingController extends Controller
     }
 
     /**
+     * Incremental Draft Saver (Saves each step 1-6 seamlessly via AJAX)
+     */
+    public function saveStep(Request $request)
+    {
+        try {
+            [$phone, $customer, $user, $activeApp] = $this->resolveApplicant($request);
+
+            if (empty($phone)) {
+                return response()->json(['success' => false, 'message' => 'Valid mobile number is required.'], 400);
+            }
+
+            // Find existing draft or create new
+            $draft = LargeFundingApplication::where('mobile_number', 'LIKE', '%' . $phone)
+                ->where('application_status', 'DRAFT')
+                ->latest()
+                ->first();
+
+            if (!$draft) {
+                $appNumber = 'FW-LF-' . date('Y') . '-' . strtoupper(Str::random(6));
+                $draft = new LargeFundingApplication();
+                $draft->application_number = $appNumber;
+                $draft->mobile_number = $phone;
+                $draft->application_status = 'DRAFT';
+                $draft->current_stage = 1;
+                $draft->is_otp_verified = true;
+                $draft->user_id = $user ? $user->id : null;
+                $draft->customer_id = $customer ? $customer->id : null;
+            }
+
+            // Collect step inputs
+            $step = (int)$request->input('step', 1);
+            $data = $request->except(['_token', 'step']);
+
+            if ($step === 1) {
+                if ($request->filled('applicant_name')) $draft->applicant_name = $request->input('applicant_name');
+                if ($request->filled('email')) $draft->email = $request->input('email');
+                if ($request->filled('applicant_role')) $draft->applicant_role = $request->input('applicant_role');
+                if ($request->filled('pan_number')) $draft->pan_number = strtoupper($request->input('pan_number'));
+                if ($request->filled('city')) $draft->city = $request->input('city');
+                if ($request->filled('state')) $draft->state = $request->input('state');
+                if ($request->filled('pincode')) $draft->pincode = $request->input('pincode');
+            } elseif ($step === 2) {
+                if ($request->filled('business_name')) $draft->business_name = $request->input('business_name');
+                if ($request->filled('business_type')) $draft->business_type = $request->input('business_type');
+                if ($request->filled('business_category')) $draft->business_category = $request->input('business_category');
+                if ($request->filled('business_description')) $draft->business_description = $request->input('business_description');
+                if ($request->filled('business_registration_status')) $draft->business_registration_status = $request->input('business_registration_status');
+                if ($request->filled('registration_date')) $draft->registration_date = $request->input('registration_date');
+                if ($request->has('website_or_app_link')) $draft->website_or_app_link = $request->input('website_or_app_link');
+                if ($request->filled('business_address')) $draft->business_address = $request->input('business_address');
+            } elseif ($step === 3) {
+                if ($request->filled('total_founders_count')) $draft->total_founders_count = (int)$request->input('total_founders_count');
+                if ($request->filled('main_applicant_name')) $draft->main_applicant_name = $request->input('main_applicant_name');
+                if ($request->has('founders') && is_array($request->input('founders'))) {
+                    $foundersArray = [];
+                    foreach ($request->input('founders') as $idx => $name) {
+                        if (trim($name)) {
+                            $foundersArray[] = [
+                                'index' => $idx + 1,
+                                'name'  => trim($name),
+                                'role'  => ($idx === 0) ? 'Main Applicant / Founder' : ('Founder / Partner ' . ($idx + 1)),
+                            ];
+                        }
+                    }
+                    $draft->founders_json = $foundersArray;
+                }
+            } elseif ($step === 4) {
+                if ($request->filled('required_funding_amount')) $draft->required_funding_amount = $request->input('required_funding_amount');
+                if ($request->filled('funding_type')) $draft->funding_type = $request->input('funding_type');
+                if ($request->filled('funding_purpose')) $draft->funding_purpose = $request->input('funding_purpose');
+                if ($request->filled('funding_timeline')) $draft->funding_timeline = $request->input('funding_timeline');
+                if ($request->filled('expected_use_of_funds')) $draft->expected_use_of_funds = $request->input('expected_use_of_funds');
+            } elseif ($step === 5) {
+                if ($request->filled('business_stage')) $draft->business_stage = $request->input('business_stage');
+                if ($request->filled('business_start_date')) $draft->business_start_date = $request->input('business_start_date');
+                if ($request->filled('monthly_revenue')) $draft->monthly_revenue = $request->input('monthly_revenue');
+                if ($request->has('annual_turnover')) $draft->annual_turnover = $request->input('annual_turnover');
+                if ($request->has('current_profit_loss')) $draft->current_profit_loss = $request->input('current_profit_loss');
+                if ($request->has('existing_loan_details')) $draft->existing_loan_details = $request->input('existing_loan_details');
+                if ($request->has('expected_revenue_after_funding')) $draft->expected_revenue_after_funding = $request->input('expected_revenue_after_funding');
+            } elseif ($step === 6) {
+                if ($request->filled('bank_account_holder_name')) $draft->bank_account_holder_name = $request->input('bank_account_holder_name');
+                if ($request->filled('bank_account_number')) $draft->bank_account_number = $request->input('bank_account_number');
+                if ($request->filled('bank_ifsc')) $draft->bank_ifsc = strtoupper($request->input('bank_ifsc'));
+                if ($request->filled('bank_name')) $draft->bank_name = $request->input('bank_name');
+
+                // Save any documents uploaded in step 6 draft
+                $docMap = [
+                    'doc_bank_cheque'     => 'bank_cheque',
+                    'doc_pan_card'        => 'pan_card',
+                    'doc_identity_proof'  => 'identity_proof',
+                    'doc_pitch_deck'      => 'pitch_deck',
+                    'doc_fund_plan'       => 'fund_plan',
+                    'doc_company_reg'     => 'company_reg',
+                    'doc_gst_cert'        => 'gst_cert',
+                    'doc_itr_financials'  => 'itr_financials',
+                    'doc_cap_table'       => 'cap_table',
+                    'doc_other'           => 'other',
+                ];
+
+                if ($draft->id) {
+                    foreach ($docMap as $reqKey => $docType) {
+                        if ($request->hasFile($reqKey)) {
+                            $file = $request->file($reqKey);
+                            $path = $file->store('finance_large_funding/' . $draft->id, 'public');
+                            LargeFundingDocument::updateOrCreate(
+                                ['application_id' => $draft->id, 'document_type' => $docType],
+                                [
+                                    'file_path'      => $path,
+                                    'original_name'  => $file->getClientOriginalName(),
+                                    'file_size'      => round($file->getSize() / 1024, 2) . ' KB',
+                                    'status'         => 'pending',
+                                ]
+                            );
+                        }
+                    }
+                }
+            }
+
+            $draft->save();
+
+            return response()->json([
+                'success'        => true,
+                'application_id' => $draft->id,
+                'step_saved'     => $step,
+                'message'        => 'Step ' . $step . ' draft saved.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error saving draft step: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Handle Form Submission (Validations matching clean_docx.txt)
      */
     public function submitApplication(Request $request)
@@ -168,8 +302,13 @@ class LargeFundingController extends Controller
 
         $user = UserApp::where('phone', 'LIKE', '%' . $rawPhone)->first();
 
-        // Generate App Number: FW-LF-YEAR-RANDOM
-        $appNumber = 'FW-LF-' . date('Y') . '-' . strtoupper(Str::random(6));
+        // Check if an existing DRAFT application exists to update
+        $existingDraft = LargeFundingApplication::where('mobile_number', 'LIKE', '%' . $rawPhone)
+            ->where('application_status', 'DRAFT')
+            ->latest()
+            ->first();
+
+        $appNumber = $existingDraft ? $existingDraft->application_number : ('FW-LF-' . date('Y') . '-' . strtoupper(Str::random(6)));
 
         // Format founders JSON
         $foundersArray = [];
@@ -183,7 +322,7 @@ class LargeFundingController extends Controller
 
         DB::beginTransaction();
         try {
-            $application = LargeFundingApplication::create([
+            $appPayload = [
                 'application_number'           => $appNumber,
                 'user_id'                      => $user ? $user->id : null,
                 'customer_id'                  => $customer ? $customer->id : null,
@@ -251,7 +390,14 @@ class LargeFundingController extends Controller
                 'service_fee_gst'              => 4500.00,
                 'service_fee_total'            => 29500.00,
                 'fee_payment_status'           => 'pending',
-            ]);
+            ];
+
+            if ($existingDraft) {
+                $existingDraft->update($appPayload);
+                $application = $existingDraft;
+            } else {
+                $application = LargeFundingApplication::create($appPayload);
+            }
 
             // Save Documents
             $docMap = [

@@ -29,7 +29,7 @@
     </div>
     @endif
 
-    <form method="POST" action="{{ route('finance.large_funding.submit') }}" enctype="multipart/form-data" id="largeFundingForm">
+    <form method="POST" action="{{ route('finance.large_funding.submit') }}" enctype="multipart/form-data" id="largeFundingForm" novalidate>
         @csrf
 
         {{-- =========================================================================
@@ -47,7 +47,7 @@
 
                 <div class="fw-input-group">
                     <label class="fw-label">Applicant / Main Founder Name <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="applicant_name" value="{{ old('applicant_name', $customer->name ?? '') }}" class="fw-input" placeholder="Full Legal Name" required>
+                    <input type="text" name="applicant_name" value="{{ old('applicant_name', $activeApp->applicant_name ?? $customer->name ?? '') }}" class="fw-input" placeholder="Full Legal Name" required>
                 </div>
 
                 <div class="fw-input-group">
@@ -58,41 +58,42 @@
 
                 <div class="fw-input-group">
                     <label class="fw-label">Email ID <span style="color:#ef4444;">*</span></label>
-                    <input type="email" name="email" value="{{ old('email', $customer->email ?? '') }}" class="fw-input" placeholder="founder@company.com" required>
+                    <input type="email" name="email" value="{{ old('email', $activeApp->email ?? $customer->email ?? '') }}" class="fw-input" placeholder="founder@company.com" required>
                 </div>
 
+                @php $curRole = old('applicant_role', $activeApp->applicant_role ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Applicant Role <span style="color:#ef4444;">*</span></label>
                     <select name="applicant_role" class="fw-input" required>
                         <option value="">Select Applicant Role</option>
-                        <option value="Founder" {{ old('applicant_role') === 'Founder' ? 'selected' : '' }}>Founder</option>
-                        <option value="Co-Founder" {{ old('applicant_role') === 'Co-Founder' ? 'selected' : '' }}>Co-Founder</option>
-                        <option value="Director" {{ old('applicant_role') === 'Director' ? 'selected' : '' }}>Director</option>
-                        <option value="Partner" {{ old('applicant_role') === 'Partner' ? 'selected' : '' }}>Partner</option>
-                        <option value="Proprietor" {{ old('applicant_role') === 'Proprietor' ? 'selected' : '' }}>Proprietor</option>
-                        <option value="Authorised Representative" {{ old('applicant_role') === 'Authorised Representative' ? 'selected' : '' }}>Authorised Representative</option>
+                        <option value="Founder" {{ $curRole === 'Founder' ? 'selected' : '' }}>Founder</option>
+                        <option value="Co-Founder" {{ $curRole === 'Co-Founder' ? 'selected' : '' }}>Co-Founder</option>
+                        <option value="Director" {{ $curRole === 'Director' ? 'selected' : '' }}>Director</option>
+                        <option value="Partner" {{ $curRole === 'Partner' ? 'selected' : '' }}>Partner</option>
+                        <option value="Proprietor" {{ $curRole === 'Proprietor' ? 'selected' : '' }}>Proprietor</option>
+                        <option value="Authorised Representative" {{ $curRole === 'Authorised Representative' ? 'selected' : '' }}>Authorised Representative</option>
                     </select>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Applicant PAN Number <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="pan_number" value="{{ old('pan_number', $customer->pan ?? '') }}" class="fw-input" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase;" required>
+                    <input type="text" name="pan_number" value="{{ old('pan_number', $activeApp->pan_number ?? $customer->pan ?? '') }}" class="fw-input" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase;" required>
                 </div>
 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <div class="fw-input-group">
                         <label class="fw-label">City <span style="color:#ef4444;">*</span></label>
-                        <input type="text" name="city" value="{{ old('city', $customer->city ?? '') }}" class="fw-input" placeholder="City" required>
+                        <input type="text" name="city" value="{{ old('city', $activeApp->city ?? $customer->city ?? '') }}" class="fw-input" placeholder="City" required>
                     </div>
                     <div class="fw-input-group">
                         <label class="fw-label">State <span style="color:#ef4444;">*</span></label>
-                        <input type="text" name="state" value="{{ old('state', $customer->state ?? '') }}" class="fw-input" placeholder="State" required>
+                        <input type="text" name="state" value="{{ old('state', $activeApp->state ?? $customer->state ?? '') }}" class="fw-input" placeholder="State" required>
                     </div>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Pincode <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="pincode" value="{{ old('pincode', $customer->pincode ?? '') }}" class="fw-input" placeholder="6-digit Pincode" maxlength="6" required>
+                    <input type="text" name="pincode" value="{{ old('pincode', $activeApp->pincode ?? $customer->pincode ?? '') }}" class="fw-input" placeholder="6-digit Pincode" maxlength="6" required>
                 </div>
 
                 <button type="button" class="btn-step-next" onclick="goToStep(2)" style="width:100%; background:#4f46e5; color:white; font-weight:700; padding:13px; border-radius:10px; border:none; font-size:14px; margin-top:8px;">
@@ -116,66 +117,61 @@
 
                 <div class="fw-input-group">
                     <label class="fw-label">Business / Startup Name <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="business_name" value="{{ old('business_name') }}" class="fw-input" placeholder="e.g. Acme Technologies Pvt Ltd" required>
+                    <input type="text" name="business_name" value="{{ old('business_name', $activeApp->business_name ?? '') }}" class="fw-input" placeholder="e.g. Acme Technologies Pvt Ltd" required>
                 </div>
 
+                @php $curBType = old('business_type', $activeApp->business_type ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Business Type <span style="color:#ef4444;">*</span></label>
                     <select name="business_type" class="fw-input" required>
                         <option value="">Select Business Type</option>
-                        <option value="Startup / New Business" {{ old('business_type') === 'Startup / New Business' ? 'selected' : '' }}>Startup / New Business</option>
-                        <option value="Existing Business" {{ old('business_type') === 'Existing Business' ? 'selected' : '' }}>Existing Business</option>
+                        <option value="Startup / New Business" {{ $curBType === 'Startup / New Business' ? 'selected' : '' }}>Startup / New Business</option>
+                        <option value="Existing Business" {{ $curBType === 'Existing Business' ? 'selected' : '' }}>Existing Business</option>
                     </select>
                 </div>
 
+                @php $curBCat = old('business_category', $activeApp->business_category ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Business Category <span style="color:#ef4444;">*</span></label>
                     <select name="business_category" class="fw-input" required>
                         <option value="">Select Business Category</option>
-                        <option value="Technology / IT">Technology / IT</option>
-                        <option value="Fintech">Fintech</option>
-                        <option value="Healthcare">Healthcare</option>
-                        <option value="Manufacturing">Manufacturing</option>
-                        <option value="Trading / Retail">Trading / Retail</option>
-                        <option value="E-commerce">E-commerce</option>
-                        <option value="Education">Education</option>
-                        <option value="Food / Restaurant">Food / Restaurant</option>
-                        <option value="Real Estate / Construction">Real Estate / Construction</option>
-                        <option value="Agriculture">Agriculture</option>
-                        <option value="Other">Other</option>
+                        @foreach(['Technology / IT', 'Fintech', 'Healthcare', 'Manufacturing', 'Trading / Retail', 'E-commerce', 'Education', 'Food / Restaurant', 'Real Estate / Construction', 'Agriculture', 'Other'] as $cat)
+                            <option value="{{ $cat }}" {{ $curBCat === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Business Description <span style="color:#ef4444;">*</span></label>
-                    <textarea name="business_description" rows="3" class="fw-input" placeholder="Brief summary of your business model, products, and target market..." required>{{ old('business_description') }}</textarea>
+                    <textarea name="business_description" rows="3" class="fw-input" placeholder="Brief summary of your business model, products, and target market..." required>{{ old('business_description', $activeApp->business_description ?? '') }}</textarea>
                 </div>
 
+                @php $curReg = old('business_registration_status', $activeApp->business_registration_status ?? 'Registered'); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Business Registration Status <span style="color:#ef4444;">*</span></label>
                     <div style="display:flex; gap:16px; padding:6px 0;">
                         <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;">
-                            <input type="radio" name="business_registration_status" value="Registered" checked onchange="toggleRegDate(true)"> Registered
+                            <input type="radio" name="business_registration_status" value="Registered" {{ $curReg === 'Registered' ? 'checked' : '' }} onchange="toggleRegDate(true)"> Registered
                         </label>
                         <label style="display:flex; align-items:center; gap:6px; font-weight:600; cursor:pointer;">
-                            <input type="radio" name="business_registration_status" value="Not Registered" onchange="toggleRegDate(false)"> Not Registered
+                            <input type="radio" name="business_registration_status" value="Not Registered" {{ $curReg === 'Not Registered' ? 'checked' : '' }} onchange="toggleRegDate(false)"> Not Registered
                         </label>
                     </div>
                 </div>
 
-                <div class="fw-input-group" id="regDateGroup">
+                <div class="fw-input-group" id="regDateGroup" style="{{ $curReg === 'Not Registered' ? 'display:none;' : '' }}">
                     <label class="fw-label">Registration Date (यदि लागू हो)</label>
-                    <input type="date" name="registration_date" value="{{ old('registration_date') }}" class="fw-input">
+                    <input type="date" name="registration_date" value="{{ old('registration_date', isset($activeApp->registration_date) ? (is_string($activeApp->registration_date) ? substr($activeApp->registration_date, 0, 10) : $activeApp->registration_date->format('Y-m-d')) : '') }}" class="fw-input">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Business Website / App Link (Optional)</label>
-                    <input type="url" name="website_or_app_link" value="{{ old('website_or_app_link') }}" class="fw-input" placeholder="https://example.com">
+                    <input type="url" name="website_or_app_link" value="{{ old('website_or_app_link', $activeApp->website_or_app_link ?? '') }}" class="fw-input" placeholder="https://example.com">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Business Address <span style="color:#ef4444;">*</span></label>
-                    <textarea name="business_address" rows="2" class="fw-input" placeholder="Full Registered or Operating Address" required>{{ old('business_address') }}</textarea>
+                    <textarea name="business_address" rows="2" class="fw-input" placeholder="Full Registered or Operating Address" required>{{ old('business_address', $activeApp->business_address ?? '') }}</textarea>
                 </div>
 
                 <div style="display:flex; gap:10px; margin-top:8px;">
@@ -202,6 +198,15 @@
                     Define the core founding team and equity partners.
                 </p>
 
+                @php
+                    $initFoundersCount = (int)old('total_founders_count', $activeApp->total_founders_count ?? 1);
+                    if ($initFoundersCount < 1) $initFoundersCount = 1;
+                    $existingFounders = old('founders', []);
+                    if (empty($existingFounders) && !empty($activeApp->founders_json) && is_array($activeApp->founders_json)) {
+                        $existingFounders = array_column($activeApp->founders_json, 'name');
+                    }
+                @endphp
+
                 <!-- Dynamic Counter Box -->
                 <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:12px; padding:16px; margin-bottom:18px; text-align:center;">
                     <div style="font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; margin-bottom:8px;">
@@ -209,23 +214,28 @@
                     </div>
                     <div style="display:flex; align-items:center; justify-content:center; gap:16px;">
                         <button type="button" onclick="adjustFounders(-1)" style="width:38px; height:38px; border-radius:50%; border:1.5px solid #cbd5e1; background:white; font-size:20px; font-weight:800; color:#0f172a; cursor:pointer;">-</button>
-                        <span id="foundersCountDisplay" style="font-size:24px; font-weight:800; color:#4f46e5; min-width:32px;">1</span>
+                        <span id="foundersCountDisplay" style="font-size:24px; font-weight:800; color:#4f46e5; min-width:32px;">{{ $initFoundersCount }}</span>
                         <button type="button" onclick="adjustFounders(1)" style="width:38px; height:38px; border-radius:50%; border:1.5px solid #cbd5e1; background:white; font-size:20px; font-weight:800; color:#0f172a; cursor:pointer;">+</button>
                     </div>
-                    <input type="hidden" name="total_founders_count" id="total_founders_count" value="1">
+                    <input type="hidden" name="total_founders_count" id="total_founders_count" value="{{ $initFoundersCount }}">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Main Applicant कौन है? (Main Applicant Name) <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="main_applicant_name" id="main_applicant_name" value="{{ old('main_applicant_name', $customer->name ?? '') }}" class="fw-input" placeholder="Main Founder Name" required>
+                    <input type="text" name="main_applicant_name" id="main_applicant_name" value="{{ old('main_applicant_name', $activeApp->main_applicant_name ?? $activeApp->applicant_name ?? $customer->name ?? '') }}" class="fw-input" placeholder="Main Founder Name" required>
                 </div>
 
                 <!-- Dynamic Name Inputs Container -->
                 <div id="dynamicFoundersContainer">
-                    <div class="fw-input-group founder-input-row" data-index="1">
-                        <label class="fw-label">Main Applicant / Founder Name <span style="color:#ef4444;">*</span></label>
-                        <input type="text" name="founders[]" value="{{ old('applicant_name', $customer->name ?? '') }}" class="fw-input founder-field" placeholder="Full Name" required>
-                    </div>
+                    @for($i = 1; $i <= $initFoundersCount; $i++)
+                        @php
+                            $fname = $existingFounders[$i - 1] ?? ($i === 1 ? ($activeApp->applicant_name ?? $customer->name ?? '') : '');
+                        @endphp
+                        <div class="fw-input-group founder-input-row" data-index="{{ $i }}">
+                            <label class="fw-label">{!! $i === 1 ? 'Main Applicant / Founder Name <span style="color:#ef4444;">*</span>' : 'Founder / Partner ' . $i . ' Name <span style="color:#ef4444;">*</span>' !!}</label>
+                            <input type="text" name="founders[]" value="{{ $fname }}" class="fw-input founder-field" placeholder="Full Name of Partner {{ $i }}" required>
+                        </div>
+                    @endfor
                 </div>
 
                 <div style="display:flex; gap:10px; margin-top:8px;">
@@ -252,57 +262,53 @@
                     Specify capital requirement between ₹2 Crore and ₹100 Crore.
                 </p>
 
+                @php $curReqAmt = old('required_funding_amount', $activeApp->required_funding_amount ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Required Funding Amount <span style="color:#ef4444;">*</span></label>
                     <select name="required_funding_amount" class="fw-input" required style="font-weight:700; color:#1e1b4b;">
                         <option value="">Select Funding Amount</option>
-                        <option value="₹2 Crore – ₹5 Crore">₹2 Crore – ₹5 Crore</option>
-                        <option value="₹5 Crore – ₹10 Crore">₹5 Crore – ₹10 Crore</option>
-                        <option value="₹10 Crore – ₹25 Crore">₹10 Crore – ₹25 Crore</option>
-                        <option value="₹25 Crore – ₹50 Crore">₹25 Crore – ₹50 Crore</option>
-                        <option value="₹50 Crore – ₹100 Crore">₹50 Crore – ₹100 Crore</option>
+                        @foreach(['₹2 Crore – ₹5 Crore', '₹5 Crore – ₹10 Crore', '₹10 Crore – ₹25 Crore', '₹25 Crore – ₹50 Crore', '₹50 Crore – ₹100 Crore'] as $amt)
+                            <option value="{{ $amt }}" {{ $curReqAmt === $amt ? 'selected' : '' }}>{{ $amt }}</option>
+                        @endforeach
                     </select>
                 </div>
 
+                @php $curFType = old('funding_type', $activeApp->funding_type ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Funding Type <span style="color:#ef4444;">*</span></label>
                     <select name="funding_type" class="fw-input" required>
                         <option value="">Select Funding Type</option>
-                        <option value="Private Investor Funding">Private Investor Funding</option>
-                        <option value="Equity Investment">Equity Investment</option>
-                        <option value="Business Loan">Business Loan</option>
-                        <option value="Open to Suitable Funding Option">Open to Suitable Funding Option</option>
+                        @foreach(['Private Investor Funding', 'Equity Investment', 'Business Loan', 'Open to Suitable Funding Option'] as $ft)
+                            <option value="{{ $ft }}" {{ $curFType === $ft ? 'selected' : '' }}>{{ $ft }}</option>
+                        @endforeach
                     </select>
                 </div>
 
+                @php $curFPurpose = old('funding_purpose', $activeApp->funding_purpose ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Funding Purpose <span style="color:#ef4444;">*</span></label>
                     <select name="funding_purpose" class="fw-input" required>
                         <option value="">Select Funding Purpose</option>
-                        <option value="Business Expansion">Business Expansion</option>
-                        <option value="Working Capital">Working Capital</option>
-                        <option value="New Project">New Project</option>
-                        <option value="Product / Technology Development">Product / Technology Development</option>
-                        <option value="Machinery / Infrastructure">Machinery / Infrastructure</option>
-                        <option value="Marketing & Sales">Marketing &amp; Sales</option>
-                        <option value="Other">Other</option>
+                        @foreach(['Business Expansion', 'Working Capital', 'New Project', 'Product / Technology Development', 'Machinery / Infrastructure', 'Marketing & Sales', 'Other'] as $fp)
+                            <option value="{{ $fp }}" {{ $curFPurpose === $fp ? 'selected' : '' }}>{{ $fp }}</option>
+                        @endforeach
                     </select>
                 </div>
 
+                @php $curFTimeline = old('funding_timeline', $activeApp->funding_timeline ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Funding Required Timeline <span style="color:#ef4444;">*</span></label>
                     <select name="funding_timeline" class="fw-input" required>
                         <option value="">Select Timeline</option>
-                        <option value="Immediately">Immediately</option>
-                        <option value="Within 1–3 Months">Within 1–3 Months</option>
-                        <option value="Within 3–6 Months">Within 3–6 Months</option>
-                        <option value="Flexible">Flexible</option>
+                        @foreach(['Immediately', 'Within 1–3 Months', 'Within 3–6 Months', 'Flexible'] as $ftl)
+                            <option value="{{ $ftl }}" {{ $curFTimeline === $ftl ? 'selected' : '' }}>{{ $ftl }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Expected Use of Funds <span style="color:#ef4444;">*</span></label>
-                    <textarea name="expected_use_of_funds" rows="3" class="fw-input" placeholder="Breakdown of capital allocation (e.g. 40% Capex, 30% Marketing, 30% R&D)..." required>{{ old('expected_use_of_funds') }}</textarea>
+                    <textarea name="expected_use_of_funds" rows="3" class="fw-input" placeholder="Breakdown of capital allocation (e.g. 40% Capex, 30% Marketing, 30% R&D)..." required>{{ old('expected_use_of_funds', $activeApp->expected_use_of_funds ?? '') }}</textarea>
                 </div>
 
                 <div style="display:flex; gap:10px; margin-top:8px;">
@@ -329,52 +335,51 @@
                     Financial stage, revenue milestones, and debt status.
                 </p>
 
+                @php $curBStage = old('business_stage', $activeApp->business_stage ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Business Stage <span style="color:#ef4444;">*</span></label>
                     <select name="business_stage" class="fw-input" required>
                         <option value="">Select Stage</option>
-                        <option value="Idea Stage">Idea Stage</option>
-                        <option value="Business Started, No Revenue Yet">Business Started, No Revenue Yet</option>
-                        <option value="Revenue Generating">Revenue Generating</option>
-                        <option value="Established Business">Established Business</option>
+                        @foreach(['Idea Stage', 'Business Started, No Revenue Yet', 'Revenue Generating', 'Established Business'] as $bs)
+                            <option value="{{ $bs }}" {{ $curBStage === $bs ? 'selected' : '' }}>{{ $bs }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Business Start Date / Year <span style="color:#ef4444;">*</span></label>
-                    <input type="text" name="business_start_date" value="{{ old('business_start_date') }}" class="fw-input" placeholder="e.g. March 2023 or 2022" required>
+                    <input type="text" name="business_start_date" value="{{ old('business_start_date', $activeApp->business_start_date ?? '') }}" class="fw-input" placeholder="e.g. March 2023 or 2022" required>
                 </div>
 
+                @php $curMRev = old('monthly_revenue', $activeApp->monthly_revenue ?? ''); @endphp
                 <div class="fw-input-group">
                     <label class="fw-label">Current Monthly Revenue <span style="color:#ef4444;">*</span></label>
                     <select name="monthly_revenue" class="fw-input" required>
                         <option value="">Select Monthly Revenue</option>
-                        <option value="No Revenue Yet">No Revenue Yet</option>
-                        <option value="Below ₹5 Lakh">Below ₹5 Lakh</option>
-                        <option value="₹5–25 Lakh">₹5–25 Lakh</option>
-                        <option value="₹25 Lakh–₹1 Crore">₹25 Lakh–₹1 Crore</option>
-                        <option value="Above ₹1 Crore">Above ₹1 Crore</option>
+                        @foreach(['No Revenue Yet', 'Below ₹5 Lakh', '₹5–25 Lakh', '₹25 Lakh–₹1 Crore', 'Above ₹1 Crore'] as $mr)
+                            <option value="{{ $mr }}" {{ $curMRev === $mr ? 'selected' : '' }}>{{ $mr }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Annual Turnover (यदि उपलब्ध हो)</label>
-                    <input type="text" name="annual_turnover" value="{{ old('annual_turnover') }}" class="fw-input" placeholder="e.g. ₹3.5 Crore">
+                    <input type="text" name="annual_turnover" value="{{ old('annual_turnover', $activeApp->annual_turnover ?? '') }}" class="fw-input" placeholder="e.g. ₹3.5 Crore">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Current Profit / Loss (यदि उपलब्ध हो)</label>
-                    <input type="text" name="current_profit_loss" value="{{ old('current_profit_loss') }}" class="fw-input" placeholder="e.g. ₹25 Lakhs Net Profit or Operational Breakeven">
+                    <input type="text" name="current_profit_loss" value="{{ old('current_profit_loss', $activeApp->current_profit_loss ?? '') }}" class="fw-input" placeholder="e.g. ₹25 Lakhs Net Profit or Operational Breakeven">
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Existing Funding / Loan Details (यदि कोई हो)</label>
-                    <textarea name="existing_loan_details" rows="2" class="fw-input" placeholder="Existing bank CC limits, angel rounds, or debt">{{ old('existing_loan_details') }}</textarea>
+                    <textarea name="existing_loan_details" rows="2" class="fw-input" placeholder="Existing bank CC limits, angel rounds, or debt">{{ old('existing_loan_details', $activeApp->existing_loan_details ?? '') }}</textarea>
                 </div>
 
                 <div class="fw-input-group">
                     <label class="fw-label">Expected Revenue After Funding (Optional)</label>
-                    <input type="text" name="expected_revenue_after_funding" value="{{ old('expected_revenue_after_funding') }}" class="fw-input" placeholder="e.g. ₹50 Crore in Year 3">
+                    <input type="text" name="expected_revenue_after_funding" value="{{ old('expected_revenue_after_funding', $activeApp->expected_revenue_after_funding ?? '') }}" class="fw-input" placeholder="e.g. ₹50 Crore in Year 3">
                 </div>
 
                 <div style="display:flex; gap:10px; margin-top:8px;">
@@ -405,20 +410,20 @@
                     </div>
                     <div class="fw-input-group">
                         <label class="fw-label">Account Holder Name <span style="color:#ef4444;">*</span></label>
-                        <input type="text" name="bank_account_holder_name" value="{{ old('bank_account_holder_name') }}" class="fw-input" placeholder="Name as per Bank" required>
+                        <input type="text" name="bank_account_holder_name" value="{{ old('bank_account_holder_name', $activeApp->bank_account_holder_name ?? '') }}" class="fw-input" placeholder="Name as per Bank" required>
                     </div>
                     <div class="fw-input-group">
                         <label class="fw-label">Bank Account Number <span style="color:#ef4444;">*</span></label>
-                        <input type="text" name="bank_account_number" value="{{ old('bank_account_number') }}" class="fw-input" placeholder="Account Number" required>
+                        <input type="text" name="bank_account_number" value="{{ old('bank_account_number', $activeApp->bank_account_number ?? '') }}" class="fw-input" placeholder="Account Number" required>
                     </div>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                         <div class="fw-input-group">
                             <label class="fw-label">Bank IFSC <span style="color:#ef4444;">*</span></label>
-                            <input type="text" name="bank_ifsc" value="{{ old('bank_ifsc') }}" class="fw-input" placeholder="HDFC0001234" maxlength="11" style="text-transform:uppercase;" required>
+                            <input type="text" name="bank_ifsc" value="{{ old('bank_ifsc', $activeApp->bank_ifsc ?? '') }}" class="fw-input" placeholder="HDFC0001234" maxlength="11" style="text-transform:uppercase;" required>
                         </div>
                         <div class="fw-input-group">
                             <label class="fw-label">Bank Name <span style="color:#ef4444;">*</span></label>
-                            <input type="text" name="bank_name" value="{{ old('bank_name') }}" class="fw-input" placeholder="e.g. HDFC Bank" required>
+                            <input type="text" name="bank_name" value="{{ old('bank_name', $activeApp->bank_name ?? '') }}" class="fw-input" placeholder="e.g. HDFC Bank" required>
                         </div>
                     </div>
                 </div>
@@ -539,8 +544,9 @@
                     <button type="button" onclick="goToStep(6)" style="flex:1; background:#f1f5f9; color:#475569; font-weight:700; padding:14px; border-radius:10px; border:none; font-size:14px;">
                         ← Back
                     </button>
-                    <button type="submit" id="submitBtn" style="flex:2; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color:white; font-weight:800; padding:14px; border-radius:10px; border:none; font-size:15px; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);">
-                        Submit Application (जमा करें) ✓
+                    <button type="button" id="submitBtn" onclick="handleFinalSubmit()" style="flex:2; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color:white; font-weight:800; padding:14px; border-radius:10px; border:none; font-size:15px; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4); display:flex; align-items:center; justify-content:center; gap:8px;">
+                        <span id="submitBtnSpinner" style="display:none; width:16px; height:16px; border:2px solid #ffffff; border-top-color:transparent; border-radius:50%; animation: fwSpin 0.8s linear infinite;"></span>
+                        <span id="submitBtnText">Submit Application (जमा करें) ✓</span>
                     </button>
                 </div>
             </div>
@@ -549,29 +555,93 @@
     </form>
 </div>
 
+<style>
+@keyframes fwSpin {
+    to { transform: rotate(360deg); }
+}
+</style>
+
 <script>
 let currentStep = 1;
 const totalSteps = 7;
+const saveStepUrl = "{{ route('finance.large_funding.save_step') }}";
 
-function goToStep(step) {
-    // Basic client validation on active step
-    const currentSection = document.getElementById('sectionStep' + currentStep);
-    if (step > currentStep) {
-        const requiredInputs = currentSection.querySelectorAll('input[required], select[required], textarea[required]');
-        for (let input of requiredInputs) {
-            if (!input.value.trim() && input.type !== 'file') {
-                input.focus();
-                alert('Please fill all mandatory fields marked with *');
-                return;
+// Validate a specific step container
+function validateStep(stepNum) {
+    const section = document.getElementById('sectionStep' + stepNum);
+    if (!section) return true;
+
+    // Check text, number, select, textarea
+    const requiredFields = section.querySelectorAll('input[required], select[required], textarea[required]');
+    for (let el of requiredFields) {
+        if (el.type === 'file') {
+            if (el.files.length === 0) {
+                alert('Please upload mandatory document: ' + (el.labels && el.labels[0] ? el.labels[0].innerText.replace('*', '').trim() : el.name));
+                goToStepDisplay(stepNum);
+                el.focus();
+                return false;
             }
-            if (input.type === 'file' && input.files.length === 0) {
-                input.focus();
-                alert('Please upload mandatory document: ' + (input.name || 'required document'));
-                return;
+        } else if (el.type === 'checkbox') {
+            if (!el.checked) {
+                alert('Please accept all consent checkboxes before proceeding.');
+                goToStepDisplay(stepNum);
+                el.focus();
+                return false;
+            }
+        } else {
+            if (!el.value || !el.value.trim()) {
+                alert('Please fill mandatory field: ' + (el.labels && el.labels[0] ? el.labels[0].innerText.replace('*', '').trim() : (el.placeholder || el.name)));
+                goToStepDisplay(stepNum);
+                el.focus();
+                return false;
             }
         }
     }
+    return true;
+}
 
+// Save current step data asynchronously
+function saveStepData(stepNum) {
+    const form = document.getElementById('largeFundingForm');
+    const formData = new FormData();
+    formData.append('_token', '{{ csrf_token() }}');
+    formData.append('step', stepNum);
+    formData.append('phone', "{{ $phone }}");
+
+    // Gather inputs from the current step
+    const currentSection = document.getElementById('sectionStep' + stepNum);
+    if (currentSection) {
+        const inputs = currentSection.querySelectorAll('input, select, textarea');
+        inputs.forEach(el => {
+            if (el.type === 'file') {
+                if (el.files.length > 0) {
+                    formData.append(el.name, el.files[0]);
+                }
+            } else if (el.type === 'checkbox') {
+                if (el.checked) formData.append(el.name, el.value);
+            } else if (el.type === 'radio') {
+                if (el.checked) formData.append(el.name, el.value);
+            } else {
+                formData.append(el.name, el.value);
+            }
+        });
+    }
+
+    // Fire non-blocking asynchronous save
+    fetch(saveStepUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(res => res.json()).then(data => {
+        console.log('Step ' + stepNum + ' autosaved:', data);
+    }).catch(err => {
+        console.warn('Draft save error:', err);
+    });
+}
+
+function goToStepDisplay(step) {
     // Hide all
     for (let i = 1; i <= totalSteps; i++) {
         const el = document.getElementById('sectionStep' + i);
@@ -579,10 +649,11 @@ function goToStep(step) {
     }
 
     // Show target
-    document.getElementById('sectionStep' + step).style.display = 'block';
+    const target = document.getElementById('sectionStep' + step);
+    if (target) target.style.display = 'block';
     currentStep = step;
 
-    // Update Progress
+    // Update Progress Bar & Badge
     const percent = Math.round((currentStep / totalSteps) * 100);
     document.getElementById('stepProgressBar').style.width = percent + '%';
     document.getElementById('stepPercent').textContent = percent + '%';
@@ -601,6 +672,54 @@ function goToStep(step) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function goToStep(step) {
+    if (step > currentStep) {
+        if (!validateStep(currentStep)) {
+            return;
+        }
+        // Save step data before navigating forward
+        saveStepData(currentStep);
+    }
+    goToStepDisplay(step);
+}
+
+function handleFinalSubmit() {
+    const btn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('submitBtnSpinner');
+    const text = document.getElementById('submitBtnText');
+    const form = document.getElementById('largeFundingForm');
+
+    // 1. Validate all steps from 1 to 7
+    for (let s = 1; s <= totalSteps; s++) {
+        if (!validateStep(s)) {
+            return;
+        }
+    }
+
+    // 2. Prevent duplicate clicks
+    btn.disabled = true;
+    btn.style.opacity = '0.75';
+    btn.style.pointerEvents = 'none';
+    if (spinner) spinner.style.display = 'inline-block';
+    if (text) text.textContent = 'Submitting Dossier...';
+
+    // 3. Show institutional banking loader if available
+    if (typeof window.showBankingStageLoader === 'function') {
+        window.showBankingStageLoader(
+            'Submitting Private Funding Dossier',
+            'Encrypting financial model, pitch deck & banking verification...',
+            15
+        );
+    }
+
+    // 4. Save step 7 draft & submit form
+    saveStepData(7);
+
+    setTimeout(function() {
+        form.submit();
+    }, 400);
+}
+
 function toggleRegDate(isReg) {
     const grp = document.getElementById('regDateGroup');
     if (grp) {
@@ -608,7 +727,7 @@ function toggleRegDate(isReg) {
     }
 }
 
-let foundersCount = 1;
+let foundersCount = {{ $initFoundersCount ?? 1 }};
 function adjustFounders(delta) {
     const next = foundersCount + delta;
     if (next < 1 || next > 10) return;
@@ -622,10 +741,16 @@ function renderDynamicFounders() {
     const container = document.getElementById('dynamicFoundersContainer');
     const mainApplicantName = document.getElementById('main_applicant_name').value || '';
 
+    // Collect current values
+    const currentValues = [];
+    container.querySelectorAll('.founder-field').forEach(inp => {
+        currentValues.push(inp.value);
+    });
+
     let html = '';
     for (let i = 1; i <= foundersCount; i++) {
         const label = (i === 1) ? 'Main Applicant / Founder Name <span style="color:#ef4444;">*</span>' : ('Founder / Partner ' + i + ' Name <span style="color:#ef4444;">*</span>');
-        const defaultVal = (i === 1) ? mainApplicantName : '';
+        const defaultVal = currentValues[i - 1] !== undefined ? currentValues[i - 1] : ((i === 1) ? mainApplicantName : '');
         html += `
             <div class="fw-input-group founder-input-row" data-index="${i}">
                 <label class="fw-label">${label}</label>
@@ -641,7 +766,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (mainApplicant) {
         mainApplicant.addEventListener('input', function() {
             const firstRow = document.querySelector('.founder-input-row[data-index="1"] input');
-            if (firstRow) firstRow.value = this.value;
+            if (firstRow && !firstRow.dataset.userEdited) {
+                firstRow.value = this.value;
+            }
+        });
+    }
+
+    // Prevent default form submission to ensure handleFinalSubmit controls flow
+    const form = document.getElementById('largeFundingForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleFinalSubmit();
         });
     }
 });
