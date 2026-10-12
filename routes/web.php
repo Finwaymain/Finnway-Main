@@ -1321,6 +1321,14 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'savePaymentSettings'])->name('settings.payment.save');
     Route::post('/settings/payment/test', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'testPaymentSettings'])->name('settings.payment.test');
     Route::post('/settings/flow-timing', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveFlowTimingSettings'])->name('settings.flow-timing');
+
+    // ── Large Business Growth / Private Funding (₹2Cr to ₹100Cr) Admin ────────
+    Route::get('/large-funding', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'index'])->name('large_funding.index');
+    Route::get('/large-funding/{id}', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'show'])->name('large_funding.show');
+    Route::post('/large-funding/{id}/verify-all-docs', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'verifyAllDocuments'])->name('large_funding.verify_all_docs');
+    Route::post('/large-funding/doc/{id}/review', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'reviewDocument'])->name('large_funding.review_doc');
+    Route::post('/large-funding/{id}/update-fee', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'updateFee'])->name('large_funding.update_fee');
+    Route::post('/large-funding/{id}/update-stage', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'updateStage'])->name('large_funding.update_stage');
 });
 
 // Finance Documents Direct File Serving (Safe Fallback)
@@ -1503,6 +1511,16 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/',              [\App\Http\Controllers\Finance\FinanceWebController::class, 'lenderLoansIndex'])->name('index');
         Route::match(['get', 'post'], '/step2', [\App\Http\Controllers\Finance\FinanceWebController::class, 'lenderLoansStep2'])->name('step2');
         Route::match(['get', 'post'], '/apply/{lender_id}', [\App\Http\Controllers\Finance\FinanceWebController::class, 'applyLenderLoan'])->name('apply');
+    });
+
+    // ── Business Loan / Private Funding (₹2 Crore to ₹100 Crore) ─────────────
+    Route::prefix('large-funding')->name('large_funding.')->group(function () {
+        Route::get('/',                [\App\Http\Controllers\Finance\LargeFundingController::class, 'intro'])->name('intro');
+        Route::get('/intro',           [\App\Http\Controllers\Finance\LargeFundingController::class, 'intro'])->name('intro_alt');
+        Route::get('/apply',           [\App\Http\Controllers\Finance\LargeFundingController::class, 'apply'])->name('apply');
+        Route::post('/apply',          [\App\Http\Controllers\Finance\LargeFundingController::class, 'submitApplication'])->name('submit');
+        Route::get('/status',          [\App\Http\Controllers\Finance\LargeFundingController::class, 'status'])->name('status');
+        Route::post('/pay-fee',        [\App\Http\Controllers\Finance\LargeFundingController::class, 'payFee'])->name('pay_fee');
     });
 });
 

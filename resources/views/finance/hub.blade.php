@@ -237,6 +237,24 @@
         <div class="fw-product-arrow">›</div>
     </a>
 
+    {{-- Large Business Growth / Private Investor Funding (₹2Cr to ₹100Cr) --}}
+    <a href="{{ route('finance.large_funding.intro', ['phone' => request('phone')]) }}"
+       class="fw-product-card"
+       style="border-left:4px solid #4f46e5; background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);"
+       onclick="return handleCardClick(event, 'large_funding', 'Business Loan & Private Funding');">
+        <div class="fw-product-icon" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#fff; font-size:16px;">🚀</div>
+        <div class="fw-product-body">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <div class="fw-product-title" style="color:#312e81;">Business Loan &amp; Private Funding</div>
+                <span style="background:#e0e7ff; color:#4338ca; font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:4px; text-transform:uppercase;">Syndicate</span>
+            </div>
+            <div class="fw-product-sub" style="color:#4c1d95; font-weight:600;">
+                ₹2 Crore – ₹100 Crore · Private Investors &amp; Expansion
+            </div>
+        </div>
+        <div class="fw-product-arrow" style="color:#4f46e5;">›</div>
+    </a>
+
     <a href="{{ route('finance.lender_loans.index', ['phone' => request('phone')]) }}"
        class="fw-product-card"
        style="border-left:4px solid #0284c7;">

@@ -183,6 +183,7 @@
                 <li><a href="{!! route('admin.finance.dashboard') !!}">Finance Overview</a></li>
                 <li><a href="{!! route('admin.finance.customers') !!}">Customer 360 & Vault</a></li>
                 <li><a href="{!! route('admin.finance.applications') !!}">Loan Applications</a></li>
+                <li><a href="{!! route('admin.finance.large_funding.index') !!}" style="color: #4f46e5; font-weight: 700;">🚀 Private Funding (₹2Cr–₹100Cr)</a></li>
                 <li><a href="{!! route('admin.finance.recovery') !!}">Daily Recovery & Locks</a></li>
                 <li><a href="{!! route('admin.finance.lenders') !!}">Lender Partners</a></li>
                 <li><a href="{!! route('admin.finance.affiliate_lenders') !!}">Affiliate Lenders &amp; Leads</a></li>
