@@ -1796,6 +1796,61 @@ class UserProfileUpdateController extends Controller
             $promotionalData = \App\Services\PromotionalService::getUserPromotion((int)$user->id, $isDriverReq ? 'driver' : 'customer');
         }
 
+        // Fetch separate Virtual Loan Credit Ledger data (App to App Virtual Loan only)
+        $virtualLoanData = null;
+        $userPhone = null;
+        if ($user) {
+            $userPhone = $user->phone ?? $user->telephone ?? $user->mobile ?? null;
+        }
+        if (!$userPhone && !empty($all['phone'])) {
+            $userPhone = $all['phone'];
+        }
+
+        if ($userPhone) {
+            $cleanPhone = preg_replace('/\D/', '', (string)$userPhone);
+            if (strlen($cleanPhone) >= 10) {
+                $clean10 = substr($cleanPhone, -10);
+                $fCustomer = \App\Models\Finance\FinanceCustomer::where('phone', 'LIKE', "%{$clean10}")->first();
+                if ($fCustomer) {
+                    $vWallet = \App\Models\Finance\FinanceWallet::where('customer_id', $fCustomer->id)
+                        ->where('wallet_type', 'virtual_loan')
+                        ->first();
+
+                    if ($vWallet) {
+                        $today = date('Y-m-d');
+                        $overdueCount = \App\Models\Finance\FinanceDailySchedule::where('customer_id', $fCustomer->id)
+                            ->where('schedule_date', '<', $today)
+                            ->where('status', '!=', 'paid')
+                            ->count();
+                        $overdueAmt = \App\Models\Finance\FinanceDailySchedule::where('customer_id', $fCustomer->id)
+                            ->where('schedule_date', '<', $today)
+                            ->where('status', '!=', 'paid')
+                            ->sum('total_due');
+                        $todaySchedule = \App\Models\Finance\FinanceDailySchedule::where('customer_id', $fCustomer->id)
+                            ->where('schedule_date', $today)
+                            ->first();
+
+                        $isDefaulter = ($overdueCount > 0 || $vWallet->status === 'blocked');
+
+                        $virtualLoanData = [
+                            'has_loan' => true,
+                            'wallet_id' => $vWallet->id,
+                            'available_balance' => (float)$vWallet->available_balance,
+                            'approved_limit' => (float)$vWallet->approved_limit,
+                            'used_amount' => (float)$vWallet->used_amount,
+                            'daily_usage_limit' => (float)$vWallet->daily_usage_limit,
+                            'status' => $isDefaulter ? 'blocked' : $vWallet->status,
+                            'is_defaulter' => $isDefaulter,
+                            'today_due' => (float)($overdueAmt > 0 ? $overdueAmt : ($todaySchedule ? $todaySchedule->total_due : 1000)),
+                            'today_paid' => $todaySchedule && $todaySchedule->status === 'paid',
+                            'overdue_count' => $overdueCount,
+                            'overdue_amount' => (float)$overdueAmt,
+                        ];
+                    }
+                }
+            }
+        }
+
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Wallet amount fetched successfully',
@@ -1805,6 +1860,7 @@ class UserProfileUpdateController extends Controller
                 'earn_amount'    => $totalEarnings,
                 'total_earnings' => $totalEarnings,
                 'promotional'    => $promotionalData,
+                'virtual_loan'   => $virtualLoanData,
             ],
         ]);
     }

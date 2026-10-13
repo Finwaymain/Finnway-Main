@@ -515,6 +515,25 @@ class FinanceWebController extends Controller
             return $stepMap[$status] ?? null;
         }
 
+        if (in_array($cat, ['virtual', 'virtual_loan', 'virtual_credit'])) {
+            $stepMap = [
+                'KYC_PENDING'               => route('finance.virtual_loan.s02_kyc', ['phone' => $phone]),
+                'UNDER_REVIEW'              => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'SUBMITTED'                 => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'APPROVED_FEE_PENDING'      => route('finance.virtual_loan.s03_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'SANCTIONED'                => route('finance.virtual_loan.s03_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'FEE_PENDING'               => route('finance.virtual_loan.s03_fee_payment', ['phone' => $phone, 'amount' => $amount]),
+                'FEE_PAID'                  => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'VERIFICATION_PENDING'      => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'ADDITIONAL_DOCS_REQUESTED' => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'DOCS_RESUBMITTED'          => route('finance.virtual_loan.s04_pending', ['phone' => $phone]),
+                'LOAN_APPROVED'             => route('finance.virtual_loan.s05_dashboard', ['phone' => $phone]),
+                'DISBURSED'                 => route('finance.virtual_loan.s05_dashboard', ['phone' => $phone]),
+                'ACTIVE'                    => route('finance.virtual_loan.s05_dashboard', ['phone' => $phone]),
+            ];
+            return $stepMap[$status] ?? null;
+        }
+
         if (in_array($cat, ['business', 'business_loan', 'business_msme'])) {
             $stepMap = [
                 'DRAFT'                      => route('finance.business_loan.s02_business_details', ['phone' => $phone]),
@@ -1250,13 +1269,71 @@ class FinanceWebController extends Controller
         }
 
         if ($application) {
-            $application->update([
-                'fee_payment_status' => 'paid',
-                'processing_fee_status' => 'paid',
-                'processing_fee_payment_method' => 'razorpay',
-                'processing_fee_txn_id' => $paymentId,
-                'application_status' => 'UNDERWRITING',
-            ]);
+            $isVirtualLoan = in_array($application->loan_category, ['virtual', 'virtual_loan', 'virtual_credit']);
+
+            if ($isVirtualLoan) {
+                $autoVerify = \App\Models\Finance\FinanceSetting::get('virtual_loan.auto_verify', false);
+                $approvedAmt = floatval($application->approved_amount ?: $application->requested_amount ?: 30000);
+
+                if ($autoVerify) {
+                    $application->update([
+                        'fee_payment_status' => 'paid',
+                        'processing_fee_status' => 'paid',
+                        'processing_fee_payment_method' => 'razorpay',
+                        'processing_fee_txn_id' => $paymentId,
+                        'application_status' => 'ACTIVE',
+                    ]);
+
+                    $dailyLimit = floatval(\App\Models\Finance\FinanceSetting::get('virtual_loan.daily_transaction_limit', min(5000, $approvedAmt)));
+                    $dailyRecovery = floatval(\App\Models\Finance\FinanceSetting::get('virtual_loan.daily_repayment_amount', round($approvedAmt / 30, 2)));
+
+                    FinanceWallet::updateOrCreate(
+                        ['customer_id' => $customer->id, 'wallet_type' => 'virtual_loan'],
+                        [
+                            'approved_limit' => $approvedAmt,
+                            'available_balance' => $approvedAmt,
+                            'used_amount' => 0,
+                            'daily_usage_limit' => $dailyLimit,
+                            'used_today' => 0,
+                            'today_usage_permission' => 'ACTIVE',
+                            'status' => 'active',
+                            'valid_until' => now()->addMonths(6),
+                        ]
+                    );
+
+                    for ($d = 1; $d <= 30; $d++) {
+                        FinanceDailySchedule::updateOrCreate(
+                            ['application_id' => $application->id, 'schedule_date' => now()->addDays($d)->toDateString()],
+                            [
+                                'customer_id' => $customer->id,
+                                'day_number' => $d,
+                                'emi_amount' => $dailyRecovery,
+                                'total_due' => $dailyRecovery,
+                                'status' => 'pending',
+                            ]
+                        );
+                    }
+
+                    $nextUrl = route('finance.virtual_loan.s05_dashboard', ['phone' => $phone]);
+                } else {
+                    $application->update([
+                        'fee_payment_status' => 'paid',
+                        'processing_fee_status' => 'paid',
+                        'processing_fee_payment_method' => 'razorpay',
+                        'processing_fee_txn_id' => $paymentId,
+                        'application_status' => 'FEE_PAID',
+                    ]);
+                    $nextUrl = route('finance.virtual_loan.s04_pending', ['phone' => $phone]);
+                }
+            } else {
+                $application->update([
+                    'fee_payment_status' => 'paid',
+                    'processing_fee_status' => 'paid',
+                    'processing_fee_payment_method' => 'razorpay',
+                    'processing_fee_txn_id' => $paymentId,
+                    'application_status' => 'UNDERWRITING',
+                ]);
+            }
 
             FinanceTransaction::create([
                 'customer_id' => $customer->id,
@@ -2292,24 +2369,231 @@ class FinanceWebController extends Controller
         }
 
         if ($app) {
-            $app->update(['application_status' => 'SANCTIONED']);
+            $app->update([
+                'application_status' => 'UNDER_REVIEW',
+                'admin_remarks' => 'KYC uploaded by applicant. Pending admin review.',
+            ]);
         }
 
-        return redirect()->route('finance.virtual_loan.s03_fee_payment', ['phone' => $phone]);
+        return redirect()->route('finance.virtual_loan.s04_pending', ['phone' => $phone])
+            ->with('success', 'Application & KYC submitted successfully! Our team is reviewing your profile.');
     }
 
-    public function virtualLoanFeePayment(Request $request) { return view('finance.virtual_loan.s03_fee_payment', $this->resolveContext($request)); }
-    public function virtualLoanPending(Request $request)    { return view('finance.virtual_loan.s04_pending', $this->resolveContext($request)); }
-    public function virtualLoanDashboard(Request $request)  {
-        $phone = $request->query('phone');
-        $wallet = null;
-        if ($phone) {
-            $customer = FinanceCustomer::where('phone', $phone)->first();
-            if ($customer) {
-                $wallet = FinanceWallet::where('customer_id', $customer->id)->where('status', 'active')->first();
-            }
+    public function virtualLoanFeePayment(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $app = $ctx['application'];
+
+        // Gate: if not yet approved by admin, user CANNOT pay fee yet!
+        if (!$app || !in_array($app->application_status, ['APPROVED_FEE_PENDING', 'SANCTIONED', 'FEE_PENDING'])) {
+            return redirect()->route('finance.virtual_loan.s04_pending', ['phone' => $phone])
+                ->with('error', 'Your application is currently under review. Fee payment will be enabled once approved by admin.');
         }
-        return view('finance.virtual_loan.s05_dashboard', array_merge($this->resolveContext($request), ['wallet' => $wallet]));
+
+        // Calculate dynamic fee from admin settings slab
+        $approvedAmt = floatval($app->approved_amount ?: $app->requested_amount ?: 30000);
+        $slabFees = \App\Models\Finance\FinanceSetting::get('virtual_loan.slab_fees', [
+            15000 => 2000, 20000 => 3000, 30000 => 3000, 35000 => 4000, 45000 => 4000
+        ]);
+        $customFee = $app->processing_fee_total ?: ($slabFees[(int)$approvedAmt] ?? 3000);
+        $baseFee = round($customFee / 1.18, 2);
+        $feeTax = round($customFee - $baseFee, 2);
+
+        $merged = array_merge($ctx, [
+            'amount' => $approvedAmt,
+            'approvedAmount' => $approvedAmt,
+            'baseFee' => $baseFee,
+            'feeTax' => $feeTax,
+            'totalFee' => $customFee,
+        ]);
+
+        return view('finance.virtual_loan.s03_fee_payment', $merged);
+    }
+
+    public function virtualLoanPending(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        return view('finance.virtual_loan.s04_pending', $ctx);
+    }
+
+    public function virtualLoanStatusCheck(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $app = $ctx['application'];
+        $customer = $ctx['customer'];
+        $wallet = null;
+        if ($customer) {
+            $wallet = FinanceWallet::where('customer_id', $customer->id)->where('wallet_type', 'virtual_loan')->first();
+        }
+
+        $status = $app ? $app->application_status : 'UNKNOWN';
+        $isApproved = ($status === 'APPROVED_FEE_PENDING');
+        $isActive = ($status === 'ACTIVE' || ($wallet && $wallet->status === 'active'));
+        $isRejected = ($status === 'REJECTED');
+
+        $redirectUrl = null;
+        if ($isApproved) {
+            $redirectUrl = route('finance.virtual_loan.s03_fee_payment', ['phone' => $ctx['phone']]);
+        } elseif ($isActive) {
+            $redirectUrl = route('finance.virtual_loan.s05_dashboard', ['phone' => $ctx['phone']]);
+        }
+
+        return response()->json([
+            'status' => $status,
+            'is_approved' => $isApproved,
+            'is_active' => $isActive,
+            'is_rejected' => $isRejected,
+            'redirect_url' => $redirectUrl,
+        ]);
+    }
+
+    public function virtualLoanDashboard(Request $request)
+    {
+        $ctx = $this->resolveContext($request);
+        $phone = $ctx['phone'];
+        $customer = $ctx['customer'];
+        $app = $ctx['application'];
+
+        if (!$customer) {
+            return redirect()->route('finance.hub', ['phone' => $phone]);
+        }
+
+        $wallet = FinanceWallet::where('customer_id', $customer->id)
+            ->where('wallet_type', 'virtual_loan')
+            ->first();
+
+        // Gate: If wallet is not active and app is not active, redirect to pending
+        if (!$wallet && (!$app || !in_array($app->application_status, ['ACTIVE', 'DISBURSED', 'LOAN_APPROVED']))) {
+            return redirect()->route('finance.virtual_loan.s04_pending', ['phone' => $phone]);
+        }
+
+        $today = date('Y-m-d');
+        $todaySchedule = FinanceDailySchedule::where('customer_id', $customer->id)
+            ->where('schedule_date', $today)
+            ->first();
+
+        $overdueCount = FinanceDailySchedule::where('customer_id', $customer->id)
+            ->where('schedule_date', '<', $today)
+            ->where('status', '!=', 'paid')
+            ->count();
+
+        $overdueAmount = FinanceDailySchedule::where('customer_id', $customer->id)
+            ->where('schedule_date', '<', $today)
+            ->where('status', '!=', 'paid')
+            ->sum('total_due');
+
+        $isDefaulter = ($overdueCount > 0 || ($wallet && $wallet->status === 'blocked'));
+
+        // Recent Transactions
+        $transactions = FinanceTransaction::where('customer_id', $customer->id)
+            ->where(function($q) use ($wallet, $app) {
+                if ($wallet) $q->where('wallet_id', $wallet->id);
+                if ($app) $q->orWhere('application_id', $app->id);
+            })
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
+        $allowedCategories = \App\Models\Finance\FinanceSetting::get('virtual_loan.allowed_categories', ['food', 'ride', 'parcel', 'marketplace']);
+        $maxPerMerchant = \App\Models\Finance\FinanceSetting::get('virtual_loan.max_per_merchant_amount', 2000);
+        $dailyLimit = \App\Models\Finance\FinanceSetting::get('virtual_loan.daily_transaction_limit', 5000);
+
+        return view('finance.virtual_loan.s05_dashboard', array_merge($ctx, [
+            'wallet' => $wallet,
+            'todaySchedule' => $todaySchedule,
+            'overdueCount' => $overdueCount,
+            'overdueAmount' => floatval($overdueAmount),
+            'isDefaulter' => $isDefaulter,
+            'transactions' => $transactions,
+            'allowedCategories' => $allowedCategories,
+            'maxPerMerchant' => $maxPerMerchant,
+            'dailyLimit' => $dailyLimit,
+        ]));
+    }
+
+    public function virtualLoanRepay(Request $request)
+    {
+        $phone = $request->input('phone', $request->query('phone'));
+        $ctx = $this->resolveContext($request);
+        $customer = $ctx['customer'];
+
+        if (!$customer) {
+            return response()->json(['success' => false, 'error' => 'Customer profile not found.'], 404);
+        }
+
+        $paymentId = $request->input('payment_id', $request->input('razorpay_payment_id', 'REPAY-' . time()));
+        $repayAmount = floatval($request->input('amount', 0));
+        $scheduleId = $request->input('schedule_id');
+
+        $schedule = null;
+        if ($scheduleId) {
+            $schedule = FinanceDailySchedule::where('customer_id', $customer->id)->find($scheduleId);
+        }
+        if (!$schedule) {
+            // Find earliest pending/overdue schedule
+            $schedule = FinanceDailySchedule::where('customer_id', $customer->id)
+                ->where('status', '!=', 'paid')
+                ->orderBy('schedule_date', 'asc')
+                ->first();
+        }
+
+        if (!$schedule) {
+            return response()->json(['success' => false, 'error' => 'No pending scheduled EMI found.'], 404);
+        }
+
+        $payAmount = $repayAmount > 0 ? $repayAmount : floatval($schedule->total_due);
+        $schedule->paid_amount = $payAmount;
+        $schedule->status = 'paid';
+        $schedule->paid_at = now();
+        $schedule->payment_method = 'razorpay';
+        $schedule->txn_id = $paymentId;
+        $schedule->save();
+
+        // Update Wallet Ledger
+        $wallet = FinanceWallet::where('customer_id', $customer->id)
+            ->where('wallet_type', 'virtual_loan')
+            ->first();
+
+        if ($wallet) {
+            $wallet->used_amount = max(0, $wallet->used_amount - $payAmount);
+            $wallet->available_balance = min($wallet->approved_limit, $wallet->available_balance + $payAmount);
+            $wallet->save();
+        }
+
+        // Check if all past & today's schedules are now paid -> Unlock defaulter lock
+        $today = date('Y-m-d');
+        $hasRemainingOverdue = FinanceDailySchedule::where('customer_id', $customer->id)
+            ->where('schedule_date', '<=', $today)
+            ->where('status', '!=', 'paid')
+            ->exists();
+
+        if (!$hasRemainingOverdue && $wallet) {
+            $wallet->status = 'active';
+            $wallet->today_usage_permission = 'ACTIVE';
+            $wallet->save();
+        }
+
+        FinanceTransaction::create([
+            'customer_id' => $customer->id,
+            'application_id' => $schedule->application_id,
+            'wallet_id' => $wallet ? $wallet->id : null,
+            'txn_number' => $paymentId,
+            'txn_type' => 'daily_repayment',
+            'amount' => $payAmount,
+            'direction' => 'credit',
+            'payment_method' => 'razorpay',
+            'payment_gateway_ref' => $paymentId,
+            'status' => 'success',
+            'notes' => 'Virtual Loan Repayment for ' . $schedule->schedule_date . ' via Razorpay',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Repayment successful! Your loan limit and usage have been refreshed.',
+            'unlocked' => !$hasRemainingOverdue,
+            'redirect' => route('finance.virtual_loan.s05_dashboard', ['phone' => $phone]),
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────

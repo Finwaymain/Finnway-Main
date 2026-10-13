@@ -123,6 +123,7 @@ class AdminFinanceController extends Controller
         $app = FinanceLoanApplication::findOrFail($id);
         $status = $request->input('status');
         $remarks = $request->input('remarks');
+        $isVirtualLoan = str_contains($app->loan_category ?? '', 'virtual');
 
         $app->application_status = $status;
         if ($remarks) {
@@ -132,38 +133,67 @@ class AdminFinanceController extends Controller
         if ($status === 'REJECTED') {
             $app->rejection_reason = $request->input('rejection_reason', 'Underwriting criteria not met.');
             $app->reapply_locked_until = now()->addDays(3); // 3-Day Reapply Lock (Doc 2)
-        } elseif ($status === 'LOAN_APPROVED') {
-            $approvedAmt = floatval($request->input('approved_amount', $app->requested_amount));
+        } elseif ($status === 'APPROVED_FEE_PENDING' || ($isVirtualLoan && $status === 'LOAN_APPROVED' && $app->processing_fee_status !== 'paid')) {
+            // Initial Admin Approval: Pre-approve amount and processing fee, but DO NOT credit wallet yet
+            $approvedAmt = floatval($request->input('approved_amount', $app->requested_amount ?: 30000));
+            $customFee = $request->filled('processing_fee') ? floatval($request->input('processing_fee')) : null;
+
+            if ($customFee !== null && $customFee >= 0) {
+                $baseFee = round($customFee / 1.18, 2);
+                $tax = round($customFee - $baseFee, 2);
+                $app->processing_fee_amount = $baseFee;
+                $app->processing_fee_tax = $tax;
+                $app->processing_fee_total = $customFee;
+            } else {
+                $slabFees = \App\Models\Finance\FinanceSetting::get('virtual_loan.slab_fees', [
+                    15000 => 2000, 20000 => 3000, 30000 => 3000, 35000 => 4000, 45000 => 4000
+                ]);
+                $feeVal = $slabFees[(int)$approvedAmt] ?? 3000;
+                $app->processing_fee_amount = round($feeVal / 1.18, 2);
+                $app->processing_fee_tax = round($feeVal - $app->processing_fee_amount, 2);
+                $app->processing_fee_total = $feeVal;
+            }
+
+            $app->approved_amount = $approvedAmt;
+            $app->application_status = 'APPROVED_FEE_PENDING';
+            $app->admin_remarks = $remarks ?: 'Loan application approved by admin. Awaiting processing fee payment to activate.';
+        } elseif ($status === 'ACTIVE' || $status === 'LOAN_APPROVED') {
+            $approvedAmt = floatval($request->input('approved_amount', $app->approved_amount ?: $app->requested_amount));
             $app->approved_amount = $approvedAmt;
 
             // If Virtual Loan or Zero-CIBIL, activate wallet
             if (str_contains($app->loan_category, 'virtual') || str_contains($app->loan_category, 'zero')) {
+                $dailyLimit = floatval(\App\Models\Finance\FinanceSetting::get('virtual_loan.daily_transaction_limit', min(5000, $approvedAmt)));
+                $dailyRecovery = floatval(\App\Models\Finance\FinanceSetting::get('virtual_loan.daily_repayment_amount', round($approvedAmt / 30, 2)));
+
                 FinanceWallet::updateOrCreate(
                     ['customer_id' => $app->customer_id, 'wallet_type' => 'virtual_loan'],
                     [
                         'approved_limit' => $approvedAmt,
                         'available_balance' => $approvedAmt,
-                        'daily_usage_limit' => min(5000, $approvedAmt),
+                        'used_amount' => 0,
+                        'daily_usage_limit' => $dailyLimit,
+                        'used_today' => 0,
                         'today_usage_permission' => 'ACTIVE',
                         'status' => 'active',
                         'valid_until' => now()->addMonths(6),
                     ]
                 );
 
-                // Generate initial 30 days daily recovery schedule (Doc 5)
-                $dailyEmi = round($approvedAmt / 60, 2);
+                // Generate initial 30 days daily recovery schedule
                 for ($d = 1; $d <= 30; $d++) {
                     FinanceDailySchedule::updateOrCreate(
                         ['application_id' => $app->id, 'schedule_date' => now()->addDays($d)->toDateString()],
                         [
                             'customer_id' => $app->customer_id,
                             'day_number' => $d,
-                            'emi_amount' => $dailyEmi,
-                            'total_due' => $dailyEmi,
+                            'emi_amount' => $dailyRecovery,
+                            'total_due' => $dailyRecovery,
                             'status' => 'pending',
                         ]
                     );
                 }
+                $app->application_status = 'ACTIVE';
             }
         } elseif ($status === 'DISBURSED') {
             $app->disbursement_status = 'disbursed';
@@ -172,7 +202,7 @@ class AdminFinanceController extends Controller
         }
 
         $app->save();
-        return back()->with('success', "Application updated to {$status}.");
+        return back()->with('success', "Application updated to {$app->application_status}.");
     }
 
     public function lenderPartners()
@@ -595,6 +625,70 @@ class AdminFinanceController extends Controller
         \App\Models\Finance\FinanceSetting::set('loan_validation_timer_seconds', $seconds, 'loan_flow', 'integer', 'Validation countdown timer duration in seconds');
 
         return back()->with('success', "Loan Validation waiting timer successfully set to {$seconds} seconds (" . round($seconds / 60, 1) . " minutes).");
+    }
+
+    /**
+     * Virtual Loan (App to App) Rules & Category Restrictions Settings Page
+     */
+    public function virtualLoanRules()
+    {
+        $rules = [
+            'auto_verify' => \App\Models\Finance\FinanceSetting::get('virtual_loan.auto_verify', false),
+            'allowed_categories' => \App\Models\Finance\FinanceSetting::get('virtual_loan.allowed_categories', ['food', 'ride', 'parcel', 'marketplace']),
+            'max_per_merchant_amount' => \App\Models\Finance\FinanceSetting::get('virtual_loan.max_per_merchant_amount', 2000),
+            'max_monthly_tx_per_merchant' => \App\Models\Finance\FinanceSetting::get('virtual_loan.max_monthly_tx_per_merchant', 5),
+            'daily_transaction_limit' => \App\Models\Finance\FinanceSetting::get('virtual_loan.daily_transaction_limit', 5000),
+            'daily_repayment_amount' => \App\Models\Finance\FinanceSetting::get('virtual_loan.daily_repayment_amount', 1000),
+            'grace_period_days' => \App\Models\Finance\FinanceSetting::get('virtual_loan.grace_period_days', 1),
+            'late_fee' => \App\Models\Finance\FinanceSetting::get('virtual_loan.late_fee', 100),
+            'penalty_rate' => \App\Models\Finance\FinanceSetting::get('virtual_loan.penalty_rate', 0),
+            'slab_fees' => \App\Models\Finance\FinanceSetting::get('virtual_loan.slab_fees', [
+                15000 => 2000,
+                20000 => 3000,
+                30000 => 3000,
+                35000 => 4000,
+                45000 => 4000,
+            ]),
+        ];
+
+        return view('admin.finance.virtual_loan_rules', compact('rules'));
+    }
+
+    /**
+     * Save Virtual Loan Rules & Category Restrictions
+     */
+    public function saveVirtualLoanRules(Request $request)
+    {
+        $autoVerify = $request->boolean('auto_verify');
+        $allowedCats = $request->input('allowed_categories', ['food', 'ride', 'parcel', 'marketplace']);
+        $maxPerMerchant = floatval($request->input('max_per_merchant_amount', 2000));
+        $maxMonthlyTx = intval($request->input('max_monthly_tx_per_merchant', 5));
+        $dailyLimit = floatval($request->input('daily_transaction_limit', 5000));
+        $dailyRepayment = floatval($request->input('daily_repayment_amount', 1000));
+        $graceDays = intval($request->input('grace_period_days', 1));
+        $lateFee = floatval($request->input('late_fee', 100));
+        $penaltyRate = floatval($request->input('penalty_rate', 0));
+
+        $slabFees = [
+            15000 => floatval($request->input('fee_15000', 2000)),
+            20000 => floatval($request->input('fee_20000', 3000)),
+            30000 => floatval($request->input('fee_30000', 3000)),
+            35000 => floatval($request->input('fee_35000', 4000)),
+            45000 => floatval($request->input('fee_45000', 4000)),
+        ];
+
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.auto_verify', $autoVerify, 'virtual_loan', 'boolean', 'Auto verify and activate loan upon fee payment');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.allowed_categories', $allowedCats, 'virtual_loan', 'json', 'Eligible in-app service categories for virtual loan spending');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.max_per_merchant_amount', $maxPerMerchant, 'virtual_loan', 'float', 'Maximum allowed amount per merchant transaction');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.max_monthly_tx_per_merchant', $maxMonthlyTx, 'virtual_loan', 'integer', 'Monthly transaction count limit for same merchant');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.daily_transaction_limit', $dailyLimit, 'virtual_loan', 'float', 'Daily spending limit across merchants');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.daily_repayment_amount', $dailyRepayment, 'virtual_loan', 'float', 'Daily repayment recovery amount');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.grace_period_days', $graceDays, 'virtual_loan', 'integer', 'Grace period in days before late charges');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.late_fee', $lateFee, 'virtual_loan', 'float', 'Daily late charge amount on missed repayment');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.penalty_rate', $penaltyRate, 'virtual_loan', 'float', 'Penalty / interest percentage');
+        \App\Models\Finance\FinanceSetting::set('virtual_loan.slab_fees', $slabFees, 'virtual_loan', 'json', 'Processing fee custom slabs');
+
+        return back()->with('success', 'Virtual Loan rules, category restrictions, and merchant limits saved successfully.');
     }
 }
 

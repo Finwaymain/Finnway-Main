@@ -302,6 +302,63 @@
                 <div class="card border-0 p-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important; border-radius: 8px;">
                     <h5 class="mb-3" style="font-size: 16px; font-weight: 700; color: #0f172a;">Underwriting Console</h5>
                     
+                    @php
+                        $isVLoan = str_contains($application->loan_category ?? '', 'virtual');
+                    @endphp
+
+                    {{-- Virtual Loan: Step 1 Initial Approval (Allow Fee Payment) --}}
+                    @if($isVLoan && in_array($application->application_status, ['UNDER_REVIEW', 'SUBMITTED', 'KYC_PENDING']))
+                    <div class="card border-0 mb-3 p-3" style="background: #eff6ff; border: 1.5px solid #3b82f6 !important; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1d4ed8; margin-bottom: 4px;">
+                            ⚡ Virtual Loan: Initial Approval Required
+                        </div>
+                        <div style="font-size: 12px; color: #1e3a8a; margin-bottom: 12px;">
+                            Borrower has submitted KYC documents. They cannot pay fee or access credit until you approve here:
+                        </div>
+                        <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="APPROVED_FEE_PENDING">
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #1e3a8a;">Sanctioned Loan Limit (₹):</label>
+                                <input type="number" name="approved_amount" value="{{ $application->approved_amount ?: ($application->requested_amount ?: 30000) }}" class="form-control form-control-sm" style="font-weight: 700; font-size: 13px; border: 1px solid #93c5fd; background: #fff;" required>
+                            </div>
+                            <div class="mb-2">
+                                <label style="font-size: 11px; font-weight: 700; color: #1e3a8a;">Processing Fee (₹):</label>
+                                <input type="number" name="processing_fee" value="{{ $application->processing_fee_total ?: 3000 }}" class="form-control form-control-sm" style="font-weight: 700; font-size: 13px; border: 1px solid #93c5fd; background: #fff;" required>
+                                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">User will pay this fee via Razorpay to activate.</div>
+                            </div>
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="submit" class="btn btn-sm w-100" style="background: #16a34a; color: #fff; font-weight: 700; font-size: 12px; padding: 8px; border-radius: 6px;">
+                                    ✓ Approve &amp; Allow Fee Payment
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" style="font-weight: 600; font-size: 12px; padding: 8px; border-radius: 6px; white-space: nowrap;" onclick="document.getElementById('statusSelect').value='REJECTED'; document.getElementById('rejectionReasonInput').focus();">
+                                    ✕ Reject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    @endif
+
+                    {{-- Virtual Loan: Step 2 Activation (After Fee Paid) --}}
+                    @if($isVLoan && in_array($application->application_status, ['FEE_PAID', 'VERIFICATION_PENDING']))
+                    <div class="card border-0 mb-3 p-3" style="background: #f0fdf4; border: 1.5px solid #22c55e !important; border-radius: 8px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #15803d; margin-bottom: 4px;">
+                            🎉 Processing Fee Paid — Activate Ledger!
+                        </div>
+                        <div style="font-size: 12px; color: #166534; margin-bottom: 12px;">
+                            Processing fee of ₹{{ number_format($application->processing_fee_total ?: 3000) }} confirmed via Razorpay. Click below to activate the Virtual Credit Wallet:
+                        </div>
+                        <form method="POST" action="{{ route('admin.finance.application-status', $application->id) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="ACTIVE">
+                            <input type="hidden" name="approved_amount" value="{{ $application->approved_amount ?: 30000 }}">
+                            <button type="submit" class="btn btn-sm w-100" style="background: #16a34a; color: #fff; font-weight: 700; font-size: 13px; padding: 10px; border-radius: 6px;">
+                                ⚡ Verify &amp; Activate Virtual Credit Wallet Now
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+
                     @if(in_array($application->application_status, ['VALIDATION_PENDING', 'PROOF_SUBMITTED', 'PARTNER_SELECTED']))
                     <div class="card border-0 mb-3 p-3" style="background: #fefce8; border: 1px solid #fef08a !important; border-radius: 8px;">
                         <div style="font-size: 13px; font-weight: 700; color: #854d0e; margin-bottom: 4px;">
@@ -521,6 +578,10 @@
                         <div class="mb-3">
                             <label style="font-size: 12px; font-weight: 600; color: #475569;">Update Status</label>
                             <select name="status" id="statusSelect" class="form-control form-control-sm" style="border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" required>
+                                <option value="UNDER_REVIEW" {{ in_array($application->application_status, ['UNDER_REVIEW', 'SUBMITTED']) ? 'selected' : '' }}>⏳ Under Review (Virtual Loan)</option>
+                                <option value="APPROVED_FEE_PENDING" {{ $application->application_status === 'APPROVED_FEE_PENDING' ? 'selected' : '' }}>✓ Pre-Approved Fee Pending (Virtual Loan)</option>
+                                <option value="FEE_PAID" {{ $application->application_status === 'FEE_PAID' ? 'selected' : '' }}>💰 Fee Paid — Ready to Activate (Virtual Loan)</option>
+                                <option value="ACTIVE" {{ $application->application_status === 'ACTIVE' ? 'selected' : '' }}>⚡ Active Virtual Credit Wallet</option>
                                 <option value="VALIDATION_PENDING" {{ $application->application_status === 'VALIDATION_PENDING' ? 'selected' : '' }}>Validation Pending</option>
                                 <option value="SELFIE_PENDING" {{ in_array($application->application_status, ['SELFIE_PENDING', 'VALIDATION_APPROVED']) ? 'selected' : '' }}>✓ Accept &amp; Require Agent Selfie (Step 17)</option>
                                 <option value="PROCESSING" {{ in_array($application->application_status, ['PROCESSING', 'SELFIE_SUBMITTED', 'UNDERWRITING']) ? 'selected' : '' }}>Underwriting Review in Progress (Step 18)</option>

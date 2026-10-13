@@ -960,7 +960,23 @@ class FinanceApiController extends Controller
 
         // 8-condition gate
         if ($wallet->status !== 'active')
-            return response()->json(['success' => false, 'message' => 'Wallet is not active.'], 422);
+            return response()->json(['success' => false, 'message' => 'Wallet is not active or has been blocked.'], 422);
+
+        // Check overdue / defaulter state
+        $today = now()->toDateString();
+        $overdueCount = FinanceDailySchedule::where('customer_id', $wallet->customer_id)
+            ->where('schedule_date', '<', $today)
+            ->where('status', '!=', 'paid')
+            ->count();
+        if ($overdueCount > 0) {
+            $wallet->status = 'blocked';
+            $wallet->save();
+            return response()->json([
+                'success' => false, 
+                'message' => 'Your virtual credit is locked due to overdue repayment. Please clear pending dues to resume.'
+            ], 422);
+        }
+
         if ($wallet->available_balance < $amount)
             return response()->json(['success' => false, 'message' => 'Insufficient wallet balance.'], 422);
         if ($amount > $wallet->daily_usage_limit)
@@ -968,14 +984,48 @@ class FinanceApiController extends Controller
         if (now()->gt($wallet->expires_at))
             return response()->json(['success' => false, 'message' => 'Wallet has expired.'], 422);
 
+        // Category validation for Virtual Loan
+        $category = strtolower($request->input('category', 'all'));
+        $allowedCategories = \App\Models\Finance\FinanceSetting::get('virtual_loan.allowed_categories', ['food', 'ride', 'parcel', 'marketplace']);
+        if ($category !== 'all' && is_array($allowedCategories) && !in_array($category, $allowedCategories)) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Virtual Credit cannot be used for this category (' . ucfirst($category) . '). Permitted categories: ' . implode(', ', array_map('ucfirst', $allowedCategories))
+            ], 422);
+        }
+
+        // Per-merchant amount limit
+        $maxPerMerchant = (float) \App\Models\Finance\FinanceSetting::get('virtual_loan.max_per_merchant_amount', 2000);
+        if ($maxPerMerchant > 0 && $amount > $maxPerMerchant) {
+            return response()->json([
+                'success' => false, 
+                'message' => "Amount exceeds the maximum allowed limit of ₹{$maxPerMerchant} per merchant transaction."
+            ], 422);
+        }
+
+        // Merchant monthly transaction count check
+        $maxMonthlyTx = (int) \App\Models\Finance\FinanceSetting::get('virtual_loan.max_monthly_tx_per_merchant', 10);
+        if ($maxMonthlyTx > 0 && !empty($validated['merchant_qr'])) {
+            $monthTxCount = FinanceTransaction::where('wallet_id', $wallet->id)
+                ->where('payment_gateway_ref', $validated['merchant_qr'])
+                ->where('created_at', '>=', now()->startOfMonth())
+                ->count();
+            if ($monthTxCount >= $maxMonthlyTx) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => "You have reached the monthly transaction limit ({$maxMonthlyTx}) for this merchant."
+                ], 422);
+            }
+        }
+
         $todaySchedule = FinanceDailySchedule::where('application_id', $wallet->application_id)
-            ->where('schedule_date', now()->toDateString())
+            ->where('schedule_date', $today)
             ->first();
         if ($todaySchedule && $todaySchedule->status === 'pending')
             return response()->json(['success' => false, 'message' => 'Today\'s EMI is pending. Pay EMI to unlock usage.'], 422);
 
         $todaySpent = FinanceTransaction::where('wallet_id', $wallet->id)
-            ->whereDate('created_at', now()->toDateString())
+            ->whereDate('created_at', $today)
             ->where('txn_type', 'qr_payment')
             ->sum('amount');
         if (($todaySpent + $amount) > $wallet->daily_usage_limit)

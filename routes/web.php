@@ -1321,6 +1321,8 @@ Route::middleware(['auth'])->prefix('admin/finance')->name('admin.finance.')->gr
     Route::post('/settings/payment', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'savePaymentSettings'])->name('settings.payment.save');
     Route::post('/settings/payment/test', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'testPaymentSettings'])->name('settings.payment.test');
     Route::post('/settings/flow-timing', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveFlowTimingSettings'])->name('settings.flow-timing');
+    Route::get('/virtual-loan-rules', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'virtualLoanRules'])->name('virtual_loan_rules');
+    Route::post('/virtual-loan-rules', [\App\Http\Controllers\Admin\Finance\AdminFinanceController::class, 'saveVirtualLoanRules'])->name('virtual_loan_rules.save');
 
     // ── Large Business Growth / Private Funding (₹2Cr to ₹100Cr) Admin ────────
     Route::get('/large-funding', [\App\Http\Controllers\Admin\Finance\AdminLargeFundingController::class, 'index'])->name('large_funding.index');
@@ -1490,6 +1492,8 @@ Route::prefix('finance')->name('finance.')->group(function () {
         Route::get('/fee-payment',   [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanFeePayment'])->name('s03_fee_payment');
         Route::get('/pending',       [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanPending'])->name('s04_pending');
         Route::get('/dashboard',     [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanDashboard'])->name('s05_dashboard');
+        Route::post('/repay',        [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanRepay'])->name('repay');
+        Route::get('/status-check',  [\App\Http\Controllers\Finance\FinanceWebController::class, 'virtualLoanStatusCheck'])->name('status_check');
     });
 
     // Student Credit (9 screens)
