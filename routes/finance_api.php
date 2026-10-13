@@ -40,4 +40,7 @@ Route::group(['prefix' => 'v1/finance'], function () {
 
     // ── Resume Step ───────────────────────────────────────────────────
     Route::get('resume-step', [FinanceApiController::class, 'resumeStep']);
+
+    // ── Affiliate Lender Lead Capture ────────────────────────────────
+    Route::post('affiliate-lead', [FinanceApiController::class, 'saveAffiliateLead']);
 });

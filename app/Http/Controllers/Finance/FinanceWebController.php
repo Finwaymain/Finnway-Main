@@ -677,13 +677,7 @@ class FinanceWebController extends Controller
             'student_credit' => 'Student Credit',
         ];
 
-        // Auto-resume active loan application when reopening loans from mobile app or direct link
-        if ($isRunning && !$request->has('explore') && empty($cardType)) {
-            $resumeUrl = $this->getResumeUrlForApplication($application, $phone);
-            if ($resumeUrl) {
-                return redirect($resumeUrl);
-            }
-        }
+        // Do not auto-redirect away from Hub; Hub displays active loan card on top and credit product grid below.
 
         if ($cardType) {
             $params = $request->all();

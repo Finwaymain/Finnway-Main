@@ -192,65 +192,125 @@
         <span style="font-size:12px; font-weight:800; color:var(--navy); text-transform:uppercase; letter-spacing:0.5px;">Explore Other Credit Products</span>
         <span style="font-size:11px; color:#64748b; font-weight:600;">Apply Additional</span>
     </div>
-    @else
-    <p style="color:var(--gray3);font-size:12px;margin-bottom:16px;">Select a product to begin your application.</p>
     @endif
 
-    {{-- Flow A: Bank/NBFC Loans --}}
-    <div class="fw-section-label">Bank & NBFC Loans</div>
+    {{-- Loans & Credit Header --}}
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:14px;">
+        <span style="font-size:16px; font-weight:800; color:#0f172a; letter-spacing:-0.3px;">Loans &amp; Credit</span>
+        <span style="font-size:12.5px; font-weight:700; color:#16a34a;">View Details ›</span>
+    </div>
 
-    <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'cash_loan') ? $resumeUrl : route('finance.cash_loan.s01_apply', ['phone' => request('phone')]) }}"
-       class="fw-product-card"
-       style="border-left:4px solid var(--blue);"
-       onclick="return handleCardClick(event, 'cash_loan', 'Cash Loan — Low CIBIL');">
-        <div class="fw-product-icon" style="background:var(--blue);">₹</div>
-        <div class="fw-product-body">
-            <div class="fw-product-title">Cash Loan — Low CIBIL</div>
-            <div class="fw-product-sub">
-                @if(!empty($resumeUrl) && ($activeFamily ?? '') === 'cash_loan')
-                    <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
-                @else
-                    Up to ₹4,00,000 · Processing fee applicable
-                @endif
+    @php
+        $rawUserPhone = request('phone') ?? ($phone ?? '');
+        $digitsOnly = preg_replace('/[^0-9]/', '', $rawUserPhone);
+        if (strlen($digitsOnly) > 10) {
+            $digitsOnly = substr($digitsOnly, -10);
+        }
+        $affPhone = $digitsOnly ?: 'fiinway';
+    @endphp
+
+    {{-- 4x2 Grid Exactly Matching Reference Design --}}
+    <div class="loans-credit-grid">
+        {{-- Card 1: Interest Free Loan --}}
+        <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'zero_cibil') ? $resumeUrl : route('finance.zero_cibil.s01_intro', ['phone' => request('phone')]) }}"
+           class="loan-grid-card theme-green"
+           onclick="return handleCardClick(event, 'zero_cibil', 'Interest Free Loan');">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/interest_free.png') }}" alt="Interest Free Loan" />
             </div>
-        </div>
-        <div class="fw-product-arrow">›</div>
-    </a>
+            <div class="loan-grid-title">Interest Free<br>Loan</div>
+            <div class="loan-grid-subtitle text-green">Upto ₹2,00,000</div>
+            <div class="loan-grid-btn bg-green">Apply Now ›</div>
+        </a>
 
-    <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'cash_loan') ? $resumeUrl : route('finance.cash_loan.s01_apply', ['phone' => request('phone'), 'type' => 'good_cibil']) }}"
-       class="fw-product-card"
-       style="border-left:4px solid var(--blue2);"
-       onclick="return handleCardClick(event, 'cash_loan', 'Cash Loan — Good CIBIL');">
-        <div class="fw-product-icon" style="background:var(--blue2);">₹</div>
-        <div class="fw-product-body">
-            <div class="fw-product-title">Cash Loan — Good CIBIL</div>
-            <div class="fw-product-sub">Up to ₹50,00,000 · Processing fee applicable</div>
-        </div>
-        <div class="fw-product-arrow">›</div>
-    </a>
-
-    <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'business_loan') ? $resumeUrl : route('finance.business_loan.s01_apply', ['phone' => request('phone')]) }}"
-       class="fw-product-card"
-       style="border-left:4px solid var(--slate);"
-       onclick="return handleCardClick(event, 'business_loan', 'Business Loan');">
-        <div class="fw-product-icon" style="background:var(--slate);">🏢</div>
-        <div class="fw-product-body">
-            <div class="fw-product-title">Business Loan</div>
-            <div class="fw-product-sub">
-                @if(!empty($resumeUrl) && ($activeFamily ?? '') === 'business_loan')
-                    <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
-                @else
-                    ₹5 Lakh – ₹2 Crore · Processing fee applicable
-                @endif
+        {{-- Card 2: 0 CIBIL Loan --}}
+        <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'zero_cibil') ? $resumeUrl : route('finance.zero_cibil.s01_intro', ['phone' => request('phone')]) }}"
+           class="loan-grid-card theme-blue"
+           onclick="return handleCardClick(event, 'zero_cibil', '0 CIBIL Loan');">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/zero_cibil.png') }}" alt="0 CIBIL Loan" />
             </div>
-        </div>
-        <div class="fw-product-arrow">›</div>
-    </a>
+            <div class="loan-grid-title">0 CIBIL<br>Loan</div>
+            <div class="loan-grid-subtitle">Upto ₹5,00,000</div>
+            <div class="loan-grid-btn bg-blue">Apply Now ›</div>
+        </a>
 
-    {{-- Large Business Growth / Private Investor Funding (₹2Cr to ₹100Cr) --}}
+        {{-- Card 3: Low CIBIL Loan --}}
+        <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'cash_loan') ? $resumeUrl : route('finance.cash_loan.s01_apply', ['phone' => request('phone')]) }}"
+           class="loan-grid-card theme-orange"
+           onclick="return handleCardClick(event, 'cash_loan', 'Low CIBIL Loan');">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/low_cibil.png') }}" alt="Low CIBIL Loan" />
+            </div>
+            <div class="loan-grid-title">Low CIBIL<br>Loan</div>
+            <div class="loan-grid-subtitle">Fast Approval</div>
+            <div class="loan-grid-btn bg-orange">Apply Now ›</div>
+        </a>
+
+        {{-- Card 4: CIBIL Score Check --}}
+        <a href="https://EasyPe.o18a.com/c?o=21966472&m=26892&a=761563&sub_aff_id={{ $affPhone }}"
+           target="_blank"
+           class="loan-grid-card theme-purple">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/cibil_check.png') }}" alt="CIBIL Score Check" />
+            </div>
+            <div class="loan-grid-title">CIBIL<br>Score Check</div>
+            <div class="loan-grid-subtitle">Free &amp; Instant</div>
+            <div class="loan-grid-btn bg-purple">Check Now ›</div>
+        </a>
+
+        {{-- Card 5: Novio FD Credit Card --}}
+        <a href="https://EasyPe.o18a.com/c?o=21966470&m=26892&a=761563&sub_aff_id={{ $affPhone }}"
+           target="_blank"
+           class="loan-grid-card theme-green">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/novio_card.png') }}" alt="Novio FD Credit Card" />
+            </div>
+            <div class="loan-grid-title">Novio FD<br>Credit Card</div>
+            <div class="loan-grid-subtitle">FD Backed<br>Easy Approval</div>
+            <div class="loan-grid-btn bg-green">Apply Now ›</div>
+        </a>
+
+        {{-- Card 6: SBI Credit Card --}}
+        <a href="javascript:void(0)"
+           onclick="openSbiModal()"
+           class="loan-grid-card theme-blue">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/sbi_card.png') }}" alt="SBI Credit Card" />
+            </div>
+            <div class="loan-grid-title">SBI<br>Credit Card</div>
+            <div class="loan-grid-subtitle">Multiple Cards<br>Great Rewards</div>
+            <div class="loan-grid-btn bg-blue">Apply Now ›</div>
+        </a>
+
+        {{-- Card 7: Personal Loan --}}
+        <a href="https://EasyPe.o18a.com/c?o=21983875&m=26892&a=761563&sub_aff_id={{ $affPhone }}"
+           target="_blank"
+           class="loan-grid-card theme-orange">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/personal_loan.png') }}" alt="Personal Loan" />
+            </div>
+            <div class="loan-grid-title">Personal<br>Loan</div>
+            <div class="loan-grid-subtitle">Upto ₹50 Lakh</div>
+            <div class="loan-grid-btn bg-orange">Apply Now ›</div>
+        </a>
+
+        {{-- Card 8: Business Loan --}}
+        <a href="{{ route('finance.large_funding.intro', ['phone' => request('phone')]) }}"
+           class="loan-grid-card theme-purple">
+            <div class="loan-grid-icon-box">
+                <img src="{{ asset('images/loans/business_loan.png') }}" alt="Business Loan" />
+            </div>
+            <div class="loan-grid-title">Business<br>Loan</div>
+            <div class="loan-grid-subtitle">Upto ₹1 Crore</div>
+            <div class="loan-grid-btn bg-purple">Apply Now ›</div>
+        </a>
+    </div>
+
+    {{-- Large Business Growth / Private Investor Funding Banner --}}
     <a href="{{ route('finance.large_funding.intro', ['phone' => request('phone')]) }}"
        class="fw-product-card"
-       style="border-left:4px solid #4f46e5; background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);"
+       style="border-left:4px solid #4f46e5; background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%); margin-top: 14px;"
        onclick="return handleCardClick(event, 'large_funding', 'Business Loan & Private Funding');">
         <div class="fw-product-icon" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#fff; font-size:16px;">🚀</div>
         <div class="fw-product-body">
@@ -265,6 +325,7 @@
         <div class="fw-product-arrow" style="color:#4f46e5;">›</div>
     </a>
 
+    {{-- Direct Partner Lenders Banner --}}
     <a href="{{ route('finance.lender_loans.index', ['phone' => request('phone')]) }}"
        class="fw-product-card"
        style="border-left:4px solid #0284c7;">
@@ -276,26 +337,8 @@
         <div class="fw-product-arrow">›</div>
     </a>
 
-    {{-- Flow B: Fiinway Internal Credit --}}
-    <div class="fw-section-label" style="margin-top:20px;">Fiinway Credit Products</div>
-
-    <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'zero_cibil') ? $resumeUrl : route('finance.zero_cibil.s01_intro', ['phone' => request('phone')]) }}"
-       class="fw-product-card"
-       style="border-left:4px solid var(--green);"
-       onclick="return handleCardClick(event, 'zero_cibil', 'Zero-CIBIL Daily Credit');">
-        <div class="fw-product-icon" style="background:var(--green);">0%</div>
-        <div class="fw-product-body">
-            <div class="fw-product-title">Zero-CIBIL Daily Credit</div>
-            <div class="fw-product-sub">
-                @if(!empty($resumeUrl) && ($activeFamily ?? '') === 'zero_cibil')
-                    <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
-                @else
-                    ₹20,000 – ₹2,00,000 · Interest-free · Daily repayment
-                @endif
-            </div>
-        </div>
-        <div class="fw-product-arrow">›</div>
-    </a>
+    {{-- Virtual Loan & Student Credit Quick Links --}}
+    <div class="fw-section-label" style="margin-top:16px;">Other Specialized Facilities</div>
 
     <a href="{{ (!empty($resumeUrl) && ($activeFamily ?? '') === 'virtual_loan') ? $resumeUrl : route('finance.virtual_loan.s01_apply', ['phone' => request('phone')]) }}"
        class="fw-product-card"
@@ -308,7 +351,7 @@
                 @if(!empty($resumeUrl) && ($activeFamily ?? '') === 'virtual_loan')
                     <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
                 @else
-                    ₹15,000 – ₹45,000 · Scan & Pay wallet
+                    ₹15,000 – ₹45,000 · Scan &amp; Pay wallet
                 @endif
             </div>
         </div>
@@ -326,17 +369,138 @@
                 @if(!empty($resumeUrl) && ($activeFamily ?? '') === 'student_credit')
                     <span style="color:#f5a623; font-weight:700;">● Active Application — Tap to Resume</span>
                 @else
-                    Age 16–26 · Domestic & International · App-to-App
+                    Age 16–26 · Domestic &amp; International · App-to-App
                 @endif
             </div>
         </div>
         <div class="fw-product-arrow">›</div>
     </a>
+
+    {{-- SBI Lead Capture Modal --}}
+    <div id="sbiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.65); z-index:9999; backdrop-filter:blur(3px); align-items:flex-end; justify-content:center;">
+        <div style="background:#fff; width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:20px; box-sizing:border-box;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="{{ asset('images/loans/sbi_card.png') }}" style="height:26px; border-radius:4px;" />
+                    <div>
+                        <div style="font-size:15px; font-weight:800; color:#0f172a;">SBI Credit Card Application</div>
+                        <div style="font-size:11px; color:#64748b;">Proceed to official SBI Card portal</div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeSbiModal()" style="background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer;">✕</button>
+            </div>
+            <form id="sbiLeadForm" onsubmit="submitSbiLead(event)">
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11.5px; font-weight:700; color:#334155; display:block; margin-bottom:4px;">Full Name *</label>
+                    <input type="text" id="sbi_name" required value="{{ $applicantName ?? '' }}" placeholder="Enter full name" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;" />
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11.5px; font-weight:700; color:#334155; display:block; margin-bottom:4px;">Mobile Number *</label>
+                    <input type="tel" id="sbi_phone" required maxlength="10" value="{{ $affPhone !== 'fiinway' ? $affPhone : '' }}" placeholder="10-digit mobile number" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;" />
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11.5px; font-weight:700; color:#334155; display:block; margin-bottom:4px;">Email Address (Optional)</label>
+                    <input type="email" id="sbi_email" placeholder="name@example.com" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;" />
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:11.5px; font-weight:700; color:#334155; display:block; margin-bottom:4px;">Referral Code (Optional)</label>
+                    <input type="text" id="sbi_ref" placeholder="Enter referral code" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;" />
+                </div>
+                <button type="submit" id="sbiSubmitBtn" style="width:100%; background:#2563eb; color:#fff; font-weight:700; font-size:14px; padding:12px; border:none; border-radius:10px; cursor:pointer;">
+                    Proceed to SBI Card ›
+                </button>
+            </form>
+        </div>
+    </div>
 </div>
 @endsection
 
 @push('head')
 <style>
+.loans-credit-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.loan-grid-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 8px 5px;
+    border-radius: 12px;
+    border: 1px solid;
+    text-decoration: none;
+    box-sizing: border-box;
+    transition: transform 0.12s ease;
+}
+.loan-grid-card:active {
+    transform: scale(0.97);
+}
+.loan-grid-card.theme-green {
+    background: #F0FDF4;
+    border-color: #DCFCE7;
+}
+.loan-grid-card.theme-blue {
+    background: #EFF6FF;
+    border-color: #DBEAFE;
+}
+.loan-grid-card.theme-orange {
+    background: #FFF7ED;
+    border-color: #FED7AA;
+}
+.loan-grid-card.theme-purple {
+    background: #F5F3FF;
+    border-color: #EDE9FE;
+}
+.loan-grid-icon-box {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+.loan-grid-icon-box img {
+    max-height: 32px;
+    max-width: 100%;
+    object-fit: contain;
+}
+.loan-grid-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #0F172A;
+    line-height: 1.15;
+    min-height: 24px;
+    margin-bottom: 3px;
+}
+.loan-grid-subtitle {
+    font-size: 8.5px;
+    font-weight: 600;
+    color: #64748B;
+    line-height: 1.15;
+    min-height: 22px;
+    margin-bottom: 6px;
+}
+.loan-grid-subtitle.text-green {
+    color: #16A34A;
+}
+.loan-grid-btn {
+    height: 22px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #ffffff;
+    text-decoration: none;
+    width: 100%;
+}
+.loan-grid-btn.bg-green { background: #16A34A; }
+.loan-grid-btn.bg-blue { background: #2563EB; }
+.loan-grid-btn.bg-orange { background: #EA580C; }
+.loan-grid-btn.bg-purple { background: #6366F1; }
+
 .fw-section-label {
     font-size: 10px;
     font-weight: 700;
@@ -390,6 +554,65 @@ function handleCardClick(event, targetFamily, targetTitle) {
     }
     @endif
     return true;
+}
+
+function openSbiModal() {
+    const modal = document.getElementById('sbiModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeSbiModal() {
+    const modal = document.getElementById('sbiModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function submitSbiLead(event) {
+    event.preventDefault();
+    const btn = document.getElementById('sbiSubmitBtn');
+    const name = document.getElementById('sbi_name').value.trim();
+    const phone = document.getElementById('sbi_phone').value.trim();
+    const email = document.getElementById('sbi_email').value.trim();
+    const refCode = document.getElementById('sbi_ref').value.trim();
+
+    if (!name || !phone) {
+        alert('Please enter your Full Name and Mobile Number.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = 'Processing...';
+
+    let redirectUrl = "https://EasyPe.o18a.com/c?o=21983875&m=26892&a=761563&sub_aff_id=" + encodeURIComponent(phone);
+
+    try {
+        const resp = await fetch('/api/v1/finance/affiliate-lead', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                phone: phone,
+                email: email,
+                referral_code: refCode,
+                lender_name: 'SBI Credit Card'
+            })
+        });
+        const res = await resp.json();
+        if (res.redirect_url) {
+            redirectUrl = res.redirect_url;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
+    closeSbiModal();
+    window.location.href = redirectUrl;
 }
 </script>
 @endpush

@@ -1080,4 +1080,88 @@ class FinanceApiController extends Controller
             ],
         ]);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // 23. SAVE AFFILIATE LENDER LEAD  POST .../affiliate-lead
+    // ─────────────────────────────────────────────────────────────
+    public function saveAffiliateLead(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $name = trim((string) $request->input('name', $request->input('applicant_name', '')));
+        $phone = trim((string) $request->input('phone', $request->input('mobile', '')));
+        $email = trim((string) $request->input('email', ''));
+        $referralCode = trim((string) $request->input('referral_code', ''));
+        $lenderName = trim((string) $request->input('lender_name', 'SBI Credit Card'));
+        $lenderId = $request->input('lender_id');
+
+        if (empty($name) || empty($phone)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide Full Name and Mobile Number.',
+            ], 422);
+        }
+
+        // Find or create lender in finance_affiliate_lenders
+        $lender = null;
+        if (!empty($lenderId)) {
+            $lender = \App\Models\Finance\FinanceAffiliateLender::find($lenderId);
+        }
+        if (!$lender && !empty($lenderName)) {
+            $lender = \App\Models\Finance\FinanceAffiliateLender::where('name', 'like', "%{$lenderName}%")->first();
+        }
+        if (!$lender) {
+            $affUrl = 'https://EasyPe.o18a.com/c?o=21983875&m=26892&a=761563&sub_aff_id=' . urlencode($phone);
+            $lender = \App\Models\Finance\FinanceAffiliateLender::create([
+                'name' => $lenderName ?: 'SBI Credit Card',
+                'min_loan_amount' => 0,
+                'max_loan_amount' => 500000,
+                'interest_rate_display' => 'Rewards & Cashback',
+                'tenure_display' => 'Lifetime / Annual',
+                'processing_fee_display' => 'As applicable',
+                'affiliate_url' => $affUrl,
+                'status' => 'active',
+                'sort_order' => 2,
+            ]);
+        }
+
+        // Referral Code Validation (Optional)
+        $referrerType = null;
+        $referrerId = null;
+        if (!empty($referralCode)) {
+            $resolved = \App\Services\ReferralCodeService::resolveReferrer($referralCode);
+            if ($resolved) {
+                $referrerType = $resolved['user_type'] ?? 'user';
+                $referrerId = $resolved['user_id'] ?? null;
+            } else {
+                $referrerType = 'unregistered_code';
+            }
+        }
+
+        $affiliateUrl = $lender->affiliate_url;
+        if (str_contains($affiliateUrl, '{replace_it}')) {
+            $affiliateUrl = str_replace('{replace_it}', urlencode($phone), $affiliateUrl);
+        } elseif (str_contains($affiliateUrl, '{phone}')) {
+            $affiliateUrl = str_replace('{phone}', urlencode($phone), $affiliateUrl);
+        }
+
+        $lead = \App\Models\Finance\FinanceLenderLead::create([
+            'lender_id' => $lender->id,
+            'lender_name' => $lender->name,
+            'applicant_name' => $name,
+            'phone' => $phone,
+            'email' => $email ?: null,
+            'referral_code' => $referralCode ?: null,
+            'referrer_type' => $referrerType,
+            'referrer_id' => $referrerId,
+            'affiliate_url' => $affiliateUrl,
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string)$request->userAgent(), 0, 500),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lead recorded successfully',
+            'redirect_url' => $affiliateUrl,
+            'lead_id' => $lead->id,
+        ]);
+    }
 }
