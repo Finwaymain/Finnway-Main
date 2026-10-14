@@ -1173,7 +1173,9 @@ Route::post('/wallet-growth/run', [App\Http\Controllers\WalletGrowthController::
 // ── Wallet Top-Up Cashback Engine ──────────────────────────────────────────
 Route::prefix('admin/wallet/topup-cashback')->group(function () {
     Route::get('/', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'index'])->name('admin.wallet.topup-cashback.index');
+    Route::get('/create', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'create'])->name('admin.wallet.topup-cashback.create');
     Route::post('/store', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'store'])->name('admin.wallet.topup-cashback.store');
+    Route::get('/edit/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'edit'])->name('admin.wallet.topup-cashback.edit');
     Route::put('/update/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'update'])->name('admin.wallet.topup-cashback.update');
     Route::delete('/destroy/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'destroy'])->name('admin.wallet.topup-cashback.destroy');
     Route::post('/toggle/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'toggleStatus'])->name('admin.wallet.topup-cashback.toggle');

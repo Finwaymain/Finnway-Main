@@ -38,6 +38,14 @@ class WalletTopupCashbackController extends Controller
     }
 
     /**
+     * Show dedicated standalone page for creating a new cashback rule.
+     */
+    public function create()
+    {
+        return view('admin.wallet.topup_cashback_create');
+    }
+
+    /**
      * Store a newly created cashback rule.
      */
     public function store(Request $request)
@@ -71,7 +79,16 @@ class WalletTopupCashbackController extends Controller
             'end_date'             => $request->end_date ? $request->end_date : null,
         ]);
 
-        return redirect()->back()->with('success', 'Wallet Top-Up Cashback rule created successfully.');
+        return redirect()->route('admin.wallet.topup-cashback.index')->with('success', 'Wallet Top-Up Cashback rule created successfully.');
+    }
+
+    /**
+     * Show dedicated standalone page for editing an existing cashback rule.
+     */
+    public function edit($id)
+    {
+        $rule = WalletTopupCashbackRule::findOrFail($id);
+        return view('admin.wallet.topup_cashback_edit', compact('rule'));
     }
 
     /**
@@ -110,23 +127,27 @@ class WalletTopupCashbackController extends Controller
             'end_date'             => $request->end_date ? $request->end_date : null,
         ]);
 
-        return redirect()->back()->with('success', "Cashback rule '{$rule->name}' updated successfully.");
+        return redirect()->route('admin.wallet.topup-cashback.index')->with('success', "Cashback rule '{$rule->name}' updated successfully.");
     }
 
     /**
      * Toggle active/inactive status of a rule.
      */
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
         $rule = WalletTopupCashbackRule::findOrFail($id);
         $rule->is_active = !$rule->is_active;
         $rule->save();
 
-        return response()->json([
-            'success'   => true,
-            'is_active' => $rule->is_active,
-            'message'   => "Rule status updated to " . ($rule->is_active ? 'Active' : 'Inactive'),
-        ]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success'   => true,
+                'is_active' => $rule->is_active,
+                'message'   => "Rule status updated to " . ($rule->is_active ? 'Active' : 'Disabled'),
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Rule '{$rule->name}' status changed to " . ($rule->is_active ? 'Active' : 'Disabled'));
     }
 
     /**
