@@ -154,13 +154,27 @@ class AddAmountController extends Controller
           }
       }
 
-        if(!empty($row)){
+      // Check and award Top-up Cashback
+      $cashbackResult = \App\Services\WalletTopupCashbackService::processTopupCashback(
+          (int)$id_user,
+          'customer',
+          (float)$request->get('amount'),
+          (string)$transaction
+      );
+
+      if(!empty($row)){
+          $latestUser = DB::table('tj_user_app')->where('id', $id_user)->first();
+          if ($latestUser) {
+              $row->amount = $latestUser->amount;
+          }
           $response['success'] = 'success';
           $response['error'] = null;
           $response['message'] = 'successfully';
           $response['data'] = $row;
-
-        }else{
+          if ($cashbackResult) {
+              $response['cashback'] = $cashbackResult;
+          }
+      }else{
           $response['success'] = 'Failed';
           $response['error'] = 'Failed';
 
@@ -278,12 +292,26 @@ class AddAmountController extends Controller
           }
       }
 
+      // Check and award Top-up Cashback
+      $cashbackResult = \App\Services\WalletTopupCashbackService::processTopupCashback(
+          (int)$id_user,
+          'driver',
+          (float)$request->get('amount'),
+          (string)$transaction
+      );
+
       if(!empty($row)){
+          $latestDriver = DB::table('tj_conducteur')->where('id', $id_user)->first();
+          if ($latestDriver) {
+              $row->amount = $latestDriver->amount;
+          }
           $response['success'] = 'success';
           $response['error'] = null;
           $response['message'] = 'successfully';
           $response['data'] = $row;
-
+          if ($cashbackResult) {
+              $response['cashback'] = $cashbackResult;
+          }
         }else
         {
           $response['success'] = 'Failed';

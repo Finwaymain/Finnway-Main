@@ -560,6 +560,18 @@ class RazorpayWebhookController extends Controller
 
             DB::commit();
             Log::info("creditAndNotify: Credited ₹{$amountInRupees} to {$userType} ID {$userId} ({$acNo}) for {$paymentId}");
+
+            // Trigger Top-Up Cashback if applicable
+            try {
+                \App\Services\WalletTopupCashbackService::processTopupCashback(
+                    (int) $userId,
+                    (string) $userType,
+                    (float) $amountInRupees,
+                    (string) $paymentId
+                );
+            } catch (\Throwable $cbErr) {
+                Log::warning("Top-up cashback trigger error: " . $cbErr->getMessage());
+            }
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error("creditAndNotify error: " . $e->getMessage());

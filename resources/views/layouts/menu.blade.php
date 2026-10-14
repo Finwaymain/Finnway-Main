@@ -166,6 +166,7 @@
                 <li><a href="{!! url('walletstransactions/driver') !!}">Driver Transactions</a></li>
                 <li><a href="{!! route('walletstransactions.upi') !!}">UPI Payments (QR)</a></li>
                 <li><a href="{!! route('wallet-growth.index') !!}">Wallet Growth Engine</a></li>
+                <li><a href="{!! route('admin.wallet.topup-cashback.index') !!}"><i class="mdi mdi-cash-multiple text-success mr-1"></i>Top-Up Cashback Engine</a></li>
                 <li><a href="{!! url('payoutRequest') !!}">Payout Requests</a></li>
                 <li><a href="{!! url('driversPayouts') !!}">Drivers Payouts</a></li>
             </ul>
