@@ -222,6 +222,75 @@
                                 </div>
                             </form>
 
+                            {{-- INLINE ACTION PANEL: Assign & Credit Pending Transaction (NO MODAL / NO BACKDROP) --}}
+                            <div id="inlineAssignPanel" class="card border-success m-b-20 shadow-sm" style="display: none; border-width: 2px;">
+                                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0 text-white font-weight-bold"><i class="fa fa-user-plus mr-2"></i>Assign &amp; Credit UPI Payment</h5>
+                                    <button type="button" class="btn btn-sm btn-outline-light" id="inline_assign_close_btn"><i class="fa fa-times mr-1"></i> Close</button>
+                                </div>
+                                <div class="card-body bg-light">
+                                    <form action="{{ route('walletstransactions.upi.assign') }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="id" id="assign_txn_id">
+                                        <input type="hidden" name="user_id" id="assign_user_id">
+                                        <input type="hidden" name="user_type" id="assign_user_type">
+
+                                        <div class="alert alert-white border mb-3">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small">Razorpay Payment ID:</span><br>
+                                                    <strong id="assign_display_payment_id" class="font-mono text-dark font-16">-</strong>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small">Amount to Credit:</span><br>
+                                                    <strong class="text-success font-22" id="assign_display_amount">₹0.00</strong>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <span class="text-muted small">Payer Details:</span><br>
+                                                    <span id="assign_display_payer" class="text-dark font-weight-bold">-</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row align-items-end">
+                                            <div class="col-md-8 form-group mb-0 position-relative">
+                                                <label class="font-weight-bold">Search Recipient User or Driver <span class="text-danger">*</span></label>
+                                                <input type="text" id="assign_user_search" class="form-control" placeholder="Type user name, mobile number, or pocket account number..." autocomplete="off">
+                                                <small class="text-muted">Type name or phone number and select from auto-suggest list.</small>
+                                                <div id="assign_search_results" class="list-group mt-1 shadow" style="max-height: 220px; overflow-y: auto; display: none; position: absolute; z-index: 1050; width: 95%;"></div>
+
+                                                {{-- Selected User Box --}}
+                                                <div id="assign_selected_user_box" class="p-2 bg-light-success border border-success rounded mt-2" style="display: none;">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <strong class="text-success font-16" id="assign_selected_name">User Name</strong>
+                                                            <br><small class="text-dark font-weight-bold" id="assign_selected_details">Ph: - | A/C: -</small>
+                                                        </div>
+                                                        <button type="button" class="btn btn-xs btn-outline-danger" id="assign_clear_user"><i class="fa fa-pencil mr-1"></i> Change</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4 form-group mb-0">
+                                                <button type="submit" class="btn btn-success btn-block py-2 font-weight-bold" id="assign_submit_btn" disabled>
+                                                    <i class="fa fa-check-circle mr-1"></i> Confirm &amp; Credit Wallet
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            {{-- INLINE PANEL: Inspect Raw Webhook Payload --}}
+                            <div id="inlinePayloadPanel" class="card border-dark m-b-20 shadow-sm" style="display: none;">
+                                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0 text-white"><i class="fa fa-code mr-2"></i>Raw Webhook Payload (<span id="payload_payment_id" class="font-mono"></span>)</h5>
+                                    <button type="button" class="btn btn-sm btn-outline-light" id="inline_payload_close_btn"><i class="fa fa-times mr-1"></i> Close</button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <pre id="payload_content" class="bg-dark text-success p-3 m-0" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;"></pre>
+                                </div>
+                            </div>
+
                             {{-- Transactions Table --}}
                             <div class="table-responsive m-t-10">
                                 <table class="display nowrap table table-hover table-striped table-bordered" cellspacing="0" width="100%">
@@ -374,75 +443,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {{-- INLINE ACTION PANEL: Assign & Credit Pending Transaction (NO MODAL / NO BACKDROP) --}}
-    <div id="inlineAssignPanel" class="card border-success m-b-20" style="display: none;">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 text-white"><i class="fa fa-user-plus mr-2"></i>Assign &amp; Credit UPI Payment</h5>
-            <button type="button" class="btn btn-sm btn-outline-light" id="inline_assign_close_btn"><i class="fa fa-times"></i> Close</button>
-        </div>
-        <div class="card-body bg-light">
-            <form action="{{ route('walletstransactions.upi.assign') }}" method="POST">
-                @csrf
-                <input type="hidden" name="id" id="assign_txn_id">
-                <input type="hidden" name="user_id" id="assign_user_id">
-                <input type="hidden" name="user_type" id="assign_user_type">
-
-                <div class="alert alert-white border mb-3">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <span class="text-muted">Razorpay Payment ID:</span><br>
-                            <strong id="assign_display_payment_id" class="font-mono text-dark">-</strong>
-                        </div>
-                        <div class="col-md-4">
-                            <span class="text-muted">Amount to Credit:</span><br>
-                            <strong class="text-success font-20" id="assign_display_amount">₹0.00</strong>
-                        </div>
-                        <div class="col-md-4">
-                            <span class="text-muted">Payer:</span><br>
-                            <span id="assign_display_payer" class="text-dark font-weight-bold">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row align-items-end">
-                    <div class="col-md-8 form-group mb-0">
-                        <label class="font-weight-bold">Search Recipient User or Driver <span class="text-danger">*</span></label>
-                        <input type="text" id="assign_user_search" class="form-control" placeholder="Type user name, mobile number, or account number..." autocomplete="off">
-                        <small class="text-muted">Select from auto-suggest list below.</small>
-                        <div id="assign_search_results" class="list-group mt-1" style="max-height: 180px; overflow-y: auto; display: none; position: absolute; z-index: 1050; width: 95%;"></div>
-
-                        {{-- Selected User Box --}}
-                        <div id="assign_selected_user_box" class="p-2 bg-light-success border border-success rounded mt-2" style="display: none;">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong class="text-success" id="assign_selected_name">User Name</strong>
-                                    <br><small class="text-muted" id="assign_selected_details">Ph: - | A/C: -</small>
-                                </div>
-                                <button type="button" class="btn btn-xs btn-outline-danger" id="assign_clear_user">Change</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 form-group mb-0">
-                        <button type="submit" class="btn btn-success btn-block" id="assign_submit_btn" disabled>
-                            <i class="fa fa-check mr-1"></i> Confirm &amp; Credit Wallet
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    {{-- INLINE PANEL: Inspect Raw Webhook Payload --}}
-    <div id="inlinePayloadPanel" class="card border-dark m-b-20" style="display: none;">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 text-white"><i class="fa fa-code mr-2"></i>Raw Webhook Payload (<span id="payload_payment_id" class="font-mono"></span>)</h5>
-            <button type="button" class="btn btn-sm btn-outline-light" id="inline_payload_close_btn"><i class="fa fa-times"></i> Close</button>
-        </div>
-        <div class="card-body p-0">
-            <pre id="payload_content" class="bg-dark text-success p-3 m-0" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;"></pre>
         </div>
     </div>
 @endsection
