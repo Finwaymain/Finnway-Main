@@ -207,11 +207,11 @@
                                             </td>
                                             {{-- Tot Earn --}}
                                             <td class="text-right font-weight-bold text-success">
-                                                {{ ($user->tot_earn ?? 0) > 0 ? '₹' . number_format($user->tot_earn, 0) : '₹0' }}
+                                                {{ ($user->tot_earn ?? 0) > 0 ? '₹' . number_format($user->tot_earn, 2) : '₹0.00' }}
                                             </td>
                                             {{-- Tod Earn --}}
                                             <td class="text-right font-weight-bold {{ ($user->tod_earn ?? 0) > 0 ? 'text-primary' : 'text-muted' }}">
-                                                {{ ($user->tod_earn ?? 0) > 0 ? '₹' . number_format($user->tod_earn, 0) : '₹0' }}
+                                                {{ ($user->tod_earn ?? 0) > 0 ? '₹' . number_format($user->tod_earn, 2) : '₹0.00' }}
                                             </td>
                                             {{-- Wallet --}}
                                             <td class="text-right">
@@ -220,7 +220,7 @@
                                                 @else
                                                     <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-success badge-compact" title="Wallet">
                                                 @endif
-                                                    ₹{{ number_format(floatval($user->amount ?? 0), 0) }}</a>
+                                                    ₹{{ number_format(floatval($user->amount ?? 0), 2) }}</a>
                                             </td>
                                             {{-- Cashback --}}
                                             <td class="text-right">
@@ -229,14 +229,14 @@
                                                 @else
                                                     <a href="{{ route('walletstransactions.driver', ['id'=>$user->id]) }}" class="badge badge-warning px-1 py-0 text-dark badge-compact" title="Cashback">
                                                 @endif
-                                                    ₹{{ number_format(floatval($user->earn_amount ?? 0), 0) }}</a>
+                                                    ₹{{ number_format(floatval($user->cashback_amount ?? 0), 2) }}</a>
                                             </td>
                                             {{-- Promo Val --}}
                                             <td class="text-right">
                                                 @if(($user->promo_val ?? 0) > 0)
-                                                    <span class="badge badge-primary badge-compact font-weight-bold">₹{{ number_format($user->promo_val, 0) }}</span>
+                                                    <span class="badge badge-primary badge-compact font-weight-bold">₹{{ number_format($user->promo_val, 2) }}</span>
                                                 @else
-                                                    <span class="text-muted small">—</span>
+                                                    <span class="text-muted small">₹0.00</span>
                                                 @endif
                                             </td>
                                             {{-- W/D Req --}}

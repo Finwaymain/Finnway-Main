@@ -1113,12 +1113,12 @@ class UserController extends Controller
 
         // Base Query for Consumers
         $consumersQuery = DB::table('tj_user_app')
-            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'consumer' as user_type"), DB::raw("NULL as business_name"), 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', 'consumer_plan as active_plan', 'm_pin as mpin', 'ac_no', $hasConsumerZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
+            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'consumer' as user_type"), DB::raw("NULL as business_name"), DB::raw("CAST(COALESCE(amount, 0) AS DECIMAL(10,2)) as amount"), DB::raw("CAST(COALESCE(earn_amount, 0) AS DECIMAL(10,2)) as earn_amount"), DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', 'consumer_plan as active_plan', 'm_pin as mpin', 'ac_no', $hasConsumerZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
             ->whereNull('deleted_at');
 
         // Base Query for Drivers
         $driversQuery = DB::table('tj_conducteur')
-            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'driver' as user_type"), 'business_name', 'amount', 'earn_amount', DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', DB::raw("'Vehicle Docs' as active_plan"), 'm_pin as mpin', 'ac_no', $hasDriverZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
+            ->select('id', 'nom', 'prenom', 'phone', 'alternate_phone', 'email', DB::raw("'driver' as user_type"), 'business_name', DB::raw("CAST(COALESCE(amount, 0) AS DECIMAL(10,2)) as amount"), DB::raw("CAST(COALESCE(earn_amount, 0) AS DECIMAL(10,2)) as earn_amount"), DB::raw("0 as referral_amount"), 'kyc_status', 'aadhar_number as aadhar_no', 'statut', DB::raw("'Vehicle Docs' as active_plan"), 'm_pin as mpin', 'ac_no', $hasDriverZone ? DB::raw("CAST(zone_id AS CHAR) as zone_id") : DB::raw("NULL as zone_id"), 'creer')
             ->whereNull('deleted_at');
 
         if ($search != '') {
@@ -1482,15 +1482,152 @@ class UserController extends Controller
         }
 
         // 2. Promotions
-        $promotionsKeyed = collect();
+        $promotionsKeyed = [];
         if (!empty($allIds) && \Illuminate\Support\Facades\Schema::hasTable('user_promotions')) {
-            $promotionsKeyed = DB::table('user_promotions')
+            $promoRows = DB::table('user_promotions')
                 ->whereIn('user_id', $allIds)
-                ->get()
-                ->keyBy(function($item) {
-                    $t = ($item->user_type === 'driver') ? 'driver' : 'consumer';
-                    return $item->user_id . '_' . $t;
-                });
+                ->get();
+            foreach ($promoRows as $p) {
+                $pType = in_array(strtolower(trim($p->user_type ?? '')), ['driver', 'conducteur', 'business']) ? 'driver' : 'consumer';
+                $promotionsKeyed[(string)$p->user_id . '_' . $pType] = $p;
+                $promotionsKeyed[(string)$p->user_id] = $p;
+            }
+        }
+
+        // 2B. Real Cashback Aggregations (from wallet_topup_cashback_logs, tj_transaction, tj_conducteur_transaction, tj_medical_claims)
+        $consumerCashbacks = [];
+        if (!empty($consumerIds)) {
+            $topupCb = \Illuminate\Support\Facades\Schema::hasTable('wallet_topup_cashback_logs')
+                ? DB::table('wallet_topup_cashback_logs')
+                    ->whereIn('user_id', $consumerIds)
+                    ->where('user_type', 'customer')
+                    ->where('status', 'credited')
+                    ->select('user_id', DB::raw('SUM(cashback_amount) as total_cb'))
+                    ->groupBy('user_id')
+                    ->pluck('total_cb', 'user_id')
+                : collect();
+
+            $txnCb = \Illuminate\Support\Facades\Schema::hasTable('tj_transaction')
+                ? DB::table('tj_transaction')
+                    ->whereIn('id_user_app', $consumerIds)
+                    ->where(function($q) {
+                        $q->where('payment_method', 'LIKE', '%Cashback%')
+                          ->orWhere('type', 'cashback')
+                          ->orWhere('description', 'LIKE', '%Cashback%');
+                    })
+                    ->where(function($q) {
+                        $q->whereNull('payment_status')
+                          ->orWhere('payment_status', 'success');
+                    })
+                    ->select('id_user_app', DB::raw('SUM(CAST(amount AS DECIMAL(10,2))) as total_cb'))
+                    ->groupBy('id_user_app')
+                    ->pluck('total_cb', 'id_user_app')
+                : collect();
+
+            $medCb = \Illuminate\Support\Facades\Schema::hasTable('tj_medical_claims')
+                ? DB::table('tj_medical_claims')
+                    ->whereIn('user_id', $consumerIds)
+                    ->where('user_type', 'customer')
+                    ->where('status', 'approved')
+                    ->select('user_id', DB::raw('SUM(approved_amount) as total_cb'))
+                    ->groupBy('user_id')
+                    ->pluck('total_cb', 'user_id')
+                : collect();
+
+            foreach ($consumerIds as $cid) {
+                $cbA = (float)($topupCb[$cid] ?? 0);
+                $cbB = (float)($txnCb[$cid] ?? 0);
+                $cbC = (float)($medCb[$cid] ?? 0);
+                $consumerCashbacks[$cid] = max($cbA, $cbB) + $cbC;
+            }
+        }
+
+        $driverCashbacks = [];
+        if (!empty($driverIds)) {
+            $topupCbD = \Illuminate\Support\Facades\Schema::hasTable('wallet_topup_cashback_logs')
+                ? DB::table('wallet_topup_cashback_logs')
+                    ->whereIn('user_id', $driverIds)
+                    ->where('user_type', 'driver')
+                    ->where('status', 'credited')
+                    ->select('user_id', DB::raw('SUM(cashback_amount) as total_cb'))
+                    ->groupBy('user_id')
+                    ->pluck('total_cb', 'user_id')
+                : collect();
+
+            $txnCbD = \Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction')
+                ? DB::table('tj_conducteur_transaction')
+                    ->whereIn('id_conducteur', $driverIds)
+                    ->where(function($q) {
+                        $q->where('payment_method', 'LIKE', '%Cashback%')
+                          ->orWhere('type', 'cashback')
+                          ->orWhere('description', 'LIKE', '%Cashback%');
+                    })
+                    ->select('id_conducteur', DB::raw('SUM(CAST(amount AS DECIMAL(10,2))) as total_cb'))
+                    ->groupBy('id_conducteur')
+                    ->pluck('total_cb', 'id_conducteur')
+                : collect();
+
+            $medCbD = \Illuminate\Support\Facades\Schema::hasTable('tj_medical_claims')
+                ? DB::table('tj_medical_claims')
+                    ->whereIn('user_id', $driverIds)
+                    ->where('user_type', 'driver')
+                    ->where('status', 'approved')
+                    ->select('user_id', DB::raw('SUM(approved_amount) as total_cb'))
+                    ->groupBy('user_id')
+                    ->pluck('total_cb', 'user_id')
+                : collect();
+
+            foreach ($driverIds as $did) {
+                $cbA = (float)($topupCbD[$did] ?? 0);
+                $cbB = (float)($txnCbD[$did] ?? 0);
+                $cbC = (float)($medCbD[$did] ?? 0);
+                $driverCashbacks[$did] = max($cbA, $cbB) + $cbC;
+            }
+        }
+
+        // 2C. Referral Earnings (for consumers & drivers)
+        $consumerRefEarnings = [];
+        $consumerTodayRefEarnings = [];
+        if (!empty($consumerIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_transaction')) {
+            $refData = DB::table('tj_transaction')
+                ->whereIn('id_user_app', $consumerIds)
+                ->where(function($q) {
+                    $q->where('payment_method', 'LIKE', '%Referral%')
+                      ->orWhere('description', 'LIKE', '%Referral Reward%');
+                })
+                ->select(
+                    'id_user_app',
+                    DB::raw('SUM(CAST(amount AS DECIMAL(10,2))) as total_ref'),
+                    DB::raw("SUM(CASE WHEN (DATE(creer) = '{$today}' OR DATE(date) = '{$today}') THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as today_ref")
+                )
+                ->groupBy('id_user_app')
+                ->get();
+            foreach ($refData as $rd) {
+                $consumerRefEarnings[$rd->id_user_app] = (float)$rd->total_ref;
+                $consumerTodayRefEarnings[$rd->id_user_app] = (float)$rd->today_ref;
+            }
+        }
+
+        $driverRefEarnings = [];
+        $driverTodayRefEarnings = [];
+        if (!empty($driverIds) && \Illuminate\Support\Facades\Schema::hasTable('tj_conducteur_transaction')) {
+            $dRefData = DB::table('tj_conducteur_transaction')
+                ->whereIn('id_conducteur', $driverIds)
+                ->where(function($q) {
+                    $q->where('payment_method', 'LIKE', '%Referral%')
+                      ->orWhere('description', 'LIKE', '%Referral Reward%');
+                })
+                ->select(
+                    'id_conducteur',
+                    DB::raw('SUM(CAST(amount AS DECIMAL(10,2))) as total_ref'),
+                    DB::raw("SUM(CASE WHEN (DATE(creer) = '{$today}' OR DATE(date) = '{$today}') THEN CAST(amount AS DECIMAL(10,2)) ELSE 0 END) as today_ref")
+                )
+                ->groupBy('id_conducteur')
+                ->get();
+            foreach ($dRefData as $rd) {
+                $driverRefEarnings[$rd->id_conducteur] = (float)$rd->total_ref;
+                $driverTodayRefEarnings[$rd->id_conducteur] = (float)$rd->today_ref;
+            }
         }
 
         // 3. Zones Map
@@ -1644,19 +1781,26 @@ class UserController extends Controller
                 $rEarn = (float)($driverRidesKeyed[$uid]->total_earn ?? 0);
                 $sEarn = (float)($driverServicesGrouped->has($uid) ? $driverServicesGrouped[$uid]->sum('total_earn') : 0);
                 $pEarn = (float)($driverParcelsKeyed[$uid]->total_earn ?? 0);
-                $walletEarn = (float)($u->earn_amount ?? 0);
-                $totEarn = $rEarn + $sEarn + $pEarn + $walletEarn;
+                $dRefEarn = (float)($driverRefEarnings[$uid] ?? 0);
+                $driverDbEarn = (float)($u->earn_amount ?? 0);
+                $totEarn = max($rEarn + $sEarn + $pEarn, $driverDbEarn) + $dRefEarn;
 
                 $rTod = (float)($driverRidesKeyed[$uid]->today_earn ?? 0);
                 $sTod = (float)($driverServicesGrouped->has($uid) ? $driverServicesGrouped[$uid]->sum('today_earn') : 0);
                 $pTod = (float)($driverParcelsKeyed[$uid]->today_earn ?? 0);
-                $todEarn = $rTod + $sTod + $pTod;
+                $dRefTod = (float)($driverTodayRefEarnings[$uid] ?? 0);
+                $todEarn = $rTod + $sTod + $pTod + $dRefTod;
             } else {
-                $totEarn = (float)($u->earn_amount ?? 0);
-                $todEarn = 0.0;
+                $cRefEarn = (float)($consumerRefEarnings[$uid] ?? 0);
+                $cDbEarn  = (float)($u->earn_amount ?? 0);
+                $totEarn  = $cRefEarn + $cDbEarn;
+                $todEarn  = (float)($consumerTodayRefEarnings[$uid] ?? 0);
             }
             $u->tot_earn = $totEarn;
             $u->tod_earn = $todEarn;
+
+            // 1B. Real Cashback Amount
+            $u->cashback_amount = $isDriver ? (float)($driverCashbacks[$uid] ?? 0.0) : (float)($consumerCashbacks[$uid] ?? 0.0);
 
             // 2. Total Booking Count
             if ($isDriver) {
@@ -1675,7 +1819,27 @@ class UserController extends Controller
             $u->tot_book = $rCount + $sCount + $pCount + $fCount + $mCount;
 
             // 3. Promotional Value
-            $promoRecord = $promotionsKeyed->get($uid . '_' . $uTypeKey);
+            if (!isset($promotionsKeyed[(string)$uid . '_' . $uTypeKey]) && !isset($promotionsKeyed[(string)$uid])) {
+                try {
+                    if (\App\Services\PromotionalService::getActiveConfig()) {
+                        \App\Services\PromotionalService::grantWelcomeBonus(
+                            $uid,
+                            $isDriver ? 'driver' : 'customer',
+                            $u->referred_by_code ?? null
+                        );
+                        $newPromo = DB::table('user_promotions')
+                            ->where('user_id', $uid)
+                            ->where('user_type', $isDriver ? 'driver' : 'customer')
+                            ->first();
+                        if ($newPromo) {
+                            $promotionsKeyed[(string)$uid . '_' . $uTypeKey] = $newPromo;
+                        }
+                    }
+                } catch (\Throwable $pe) {
+                    // silently proceed
+                }
+            }
+            $promoRecord = $promotionsKeyed[(string)$uid . '_' . $uTypeKey] ?? $promotionsKeyed[(string)$uid] ?? null;
             $u->promo_val = $promoRecord ? max(0, (float)$promoRecord->remaining_bonus) : 0.0;
 
             // 4. Withdrawals

@@ -211,7 +211,7 @@
                         <thead>
                             <tr>
                                 <th>Date/Time</th>
-                                <th>User ID</th>
+                                <th>User / Beneficiary</th>
                                 <th>User Type</th>
                                 <th>Top-Up Amount</th>
                                 <th>Cashback Credited</th>
@@ -223,7 +223,17 @@
                             @forelse($logs as $log)
                             <tr>
                                 <td>{{ $log->created_at->format('d M Y, h:i A') }}</td>
-                                <td><span class="badge badge-light">#{{ $log->user_id }}</span></td>
+                                <td>
+                                    <div>
+                                        <a href="{{ $log->user_url }}" class="font-weight-bold text-dark">{{ $log->user_name }}</a>
+                                        <br>
+                                        <small class="text-muted">{{ $log->user_phone ?: 'No phone' }}</small>
+                                        <span class="badge badge-light">#{{ $log->user_id }}</span>
+                                        @if(!empty($log->user_ac_no))
+                                            <span class="badge badge-secondary" title="Pocket Account">{{ $log->user_ac_no }}</span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td><span class="badge badge-info text-capitalize">{{ $log->user_type }}</span></td>
                                 <td>₹{{ number_format($log->topup_amount, 2) }}</td>
                                 <td class="text-success font-weight-bold">+₹{{ number_format($log->cashback_amount, 2) }}</td>

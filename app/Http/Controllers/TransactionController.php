@@ -340,6 +340,18 @@ class TransactionController extends Controller
             ]);
 
             DB::commit();
+
+            // Trigger Top-Up Cashback if applicable
+            try {
+                \App\Services\WalletTopupCashbackService::processTopupCashback(
+                    (int) $userId,
+                    (string) $userType,
+                    (float) $amountInRupees,
+                    (string) $paymentId
+                );
+            } catch (\Throwable $cbErr) {
+                \Illuminate\Support\Facades\Log::warning("Top-up cashback trigger error in assignUpiPayment: " . $cbErr->getMessage());
+            }
         } catch (\Throwable $e) {
             DB::rollBack();
             return back()->with('error', 'Error crediting wallet: ' . $e->getMessage());
@@ -463,6 +475,18 @@ class TransactionController extends Controller
             );
 
             DB::commit();
+
+            // Trigger Top-Up Cashback if applicable
+            try {
+                \App\Services\WalletTopupCashbackService::processTopupCashback(
+                    (int) $userId,
+                    (string) $userType,
+                    (float) $amountInRupees,
+                    (string) $paymentId
+                );
+            } catch (\Throwable $cbErr) {
+                \Illuminate\Support\Facades\Log::warning("Top-up cashback trigger error in manualCreditUpi: " . $cbErr->getMessage());
+            }
         } catch (\Throwable $e) {
             DB::rollBack();
             return back()->with('error', 'Database error: ' . $e->getMessage());

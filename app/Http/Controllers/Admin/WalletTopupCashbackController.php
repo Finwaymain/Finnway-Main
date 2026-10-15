@@ -20,6 +20,39 @@ class WalletTopupCashbackController extends Controller
      */
     public function index(Request $request)
     {
+        // Auto-reconcile recent top-ups from last 48 hours that may have missed cashback
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('upi_qr_transactions')) {
+                $recentCaptured = DB::table('upi_qr_transactions')
+                    ->where('wallet_credited', true)
+                    ->where('amount', '>', 0)
+                    ->whereNotNull('user_id')
+                    ->where('updated_at', '>=', \Carbon\Carbon::now()->subDays(2))
+                    ->get();
+
+                foreach ($recentCaptured as $rc) {
+                    $uid = (int) $rc->user_id;
+                    $uType = ($rc->user_type === 'driver') ? 'driver' : 'customer';
+                    $amt = (float) $rc->amount;
+                    $txnRef = (string) ($rc->razorpay_payment_id ?? $rc->id);
+
+                    $alreadyLogged = WalletTopupCashbackLog::where('user_id', $uid)
+                        ->where('user_type', $uType)
+                        ->where(function($q) use ($txnRef) {
+                            $q->where('txn_id', $txnRef)
+                              ->orWhere('notes', 'LIKE', "%{$txnRef}%");
+                        })
+                        ->exists();
+
+                    if (!$alreadyLogged && $amt >= 10) {
+                        \App\Services\WalletTopupCashbackService::processTopupCashback($uid, $uType, $amt, $txnRef);
+                    }
+                }
+            }
+        } catch (\Throwable $reconcileErr) {
+            \Illuminate\Support\Facades\Log::warning('Cashback auto-reconcile error: ' . $reconcileErr->getMessage());
+        }
+
         $rules = WalletTopupCashbackRule::orderBy('priority', 'desc')->orderBy('id', 'desc')->get();
 
         $stats = [
@@ -33,6 +66,28 @@ class WalletTopupCashbackController extends Controller
             ->orderBy('id', 'desc')
             ->limit(50)
             ->get();
+
+        $customerIds = $logs->where('user_type', 'customer')->pluck('user_id')->unique()->filter()->values()->all();
+        $driverIds   = $logs->where('user_type', 'driver')->pluck('user_id')->unique()->filter()->values()->all();
+
+        $customers = !empty($customerIds) ? DB::table('tj_user_app')->whereIn('id', $customerIds)->select('id', 'prenom', 'nom', 'phone', 'ac_no')->get()->keyBy('id') : collect();
+        $drivers   = !empty($driverIds) ? DB::table('tj_conducteur')->whereIn('id', $driverIds)->select('id', 'prenom', 'nom', 'phone', 'ac_no')->get()->keyBy('id') : collect();
+
+        foreach ($logs as $log) {
+            if ($log->user_type === 'driver') {
+                $d = $drivers->get($log->user_id);
+                $log->user_name  = $d ? trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) : 'Driver #' . $log->user_id;
+                $log->user_phone = $d->phone ?? null;
+                $log->user_ac_no = $d->ac_no ?? null;
+                $log->user_url   = route('driver.show', ['id' => $log->user_id]);
+            } else {
+                $c = $customers->get($log->user_id);
+                $log->user_name  = $c ? trim(($c->prenom ?? '') . ' ' . ($c->nom ?? '')) : 'User #' . $log->user_id;
+                $log->user_phone = $c->phone ?? null;
+                $log->user_ac_no = $c->ac_no ?? null;
+                $log->user_url   = route('users.show', ['id' => $log->user_id]);
+            }
+        }
 
         return view('admin.wallet.topup_cashback', compact('rules', 'stats', 'logs'));
     }

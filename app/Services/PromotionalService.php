@@ -45,8 +45,11 @@ class PromotionalService
                 ? ($config->applicable_roles_with_code ?? $config->applicable_roles ?? 'all')
                 : ($config->applicable_roles_without_code ?? $config->applicable_roles ?? 'all');
 
-            if (!empty($applicableRoles) && $applicableRoles !== 'all') {
-                if ($applicableRoles !== $userType) {
+            $normUserType = in_array(strtolower(trim($userType)), ['driver', 'conducteur', 'business']) ? 'driver' : 'customer';
+            $normAppRoles = in_array(strtolower(trim((string)$applicableRoles)), ['driver', 'conducteur', 'business']) ? 'driver' : ((string)$applicableRoles === 'all' ? 'all' : 'customer');
+
+            if (!empty($normAppRoles) && $normAppRoles !== 'all') {
+                if ($normAppRoles !== $normUserType) {
                     return false;
                 }
             }
@@ -54,7 +57,13 @@ class PromotionalService
             // Avoid duplicate grants
             $existing = DB::table('user_promotions')
                 ->where('user_id', $userId)
-                ->where('user_type', $userType)
+                ->where(function($q) use ($normUserType) {
+                    if ($normUserType === 'driver') {
+                        $q->whereIn('user_type', ['driver', 'conducteur', 'business']);
+                    } else {
+                        $q->whereIn('user_type', ['customer', 'consumer', 'user']);
+                    }
+                })
                 ->first();
 
             if ($existing) {
