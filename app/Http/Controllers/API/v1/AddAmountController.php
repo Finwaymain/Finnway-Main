@@ -7,6 +7,7 @@ use App\Models\UserApp;
 use App\Models\Driver;
 use Illuminate\Http\Request;
 use App\Http\Controllers\API\v1\GcmController;
+use Carbon\Carbon;
 use DB;
 class AddAmountController extends Controller
 {
@@ -26,7 +27,8 @@ class AddAmountController extends Controller
     $cat_user = strtolower(trim((string)$request->get('cat_user', 'user_app')));
     $amount_init = floatval($request->get('amount'));
     $paymethod = $request->get('paymethod', 'Online');
-    $transaction = $request->get('transaction_id', 'TXN_' . time());
+    $paymentId = $request->get('payment_id') ?? $request->get('razorpay_payment_id') ?? null;
+    $transaction = $request->get('transaction_id') ?: ($paymentId ?: ('TXN_' . time()));
     $payStatus = 'success';
     $date_heure = date('Y-m-d H:i:s');
 
@@ -47,31 +49,82 @@ class AddAmountController extends Controller
     }
 
     $isDriver = ($cat_user === 'driver' || $cat_user === 'conducteur' || $request->has('driver_id'));
+    $isRazorpayOrUpi = (stripos($paymethod, 'razorpay') !== false || stripos($paymethod, 'upi') !== false || !empty($paymentId));
 
     if (!$isDriver) {
-
-        $sql = DB::table('tj_user_app')
-        ->select('amount')
-        ->where('id','=',$id_user)
-        ->get();
-        foreach($sql as $row){
-          $amount_ = $row->amount;
-          $amount = $amount_+$amount_init;
-
-        $updatedata = DB::update('update tj_user_app set amount = ?,modifier = ? where id = ?',[$amount,$date_heure,$id_user]);
-
-        $query = DB::table('tj_transaction')->insert([
-            'amount'         => (string)$amount_init,
-            'deduction_type' => 1,
-            'type'           => 'credit',
-            'payment_method' => $paymethod,
-            'payment_status' => $payStatus,
-            'id_user_app'    => $id_user,
-            'description'    => 'Wallet Top-Up',
-            'creer'          => $date_heure,
-            'modifier'       => $date_heure,
-        ]);
+        $user = DB::table('tj_user_app')->where('id', $id_user)->first();
+        if (!$user) {
+            return response()->json(['success' => 'Failed', 'error' => 'User not found'], 404);
         }
+
+        // Idempotency check 1: Check by exact payment ID (pay_...)
+        $alreadyHandled = false;
+        if (!empty($paymentId)) {
+            $existingTxn = DB::table('tj_transaction')
+                ->where('id_user_app', $id_user)
+                ->where('txn_id', $paymentId)
+                ->first();
+            if ($existingTxn) {
+                $alreadyHandled = true;
+            }
+        }
+
+        // Idempotency check 2: Prevent duplicate if Razorpay Webhook already processed same top-up in last 3 minutes
+        if (!$alreadyHandled && $isRazorpayOrUpi) {
+            $recentCredit = DB::table('tj_transaction')
+                ->where('id_user_app', $id_user)
+                ->where('amount', (string) $amount_init)
+                ->where('creer', '>=', Carbon::now('Asia/Kolkata')->subMinutes(3)->format('Y-m-d H:i:s'))
+                ->where(function ($q) {
+                    $q->where('description', 'LIKE', 'UPI Payment from%')
+                      ->orWhere('payment_method', 'UPI')
+                      ->orWhere('description', 'Wallet Top-Up');
+                })
+                ->orderByDesc('id')
+                ->first();
+
+            if ($recentCredit) {
+                $alreadyHandled = true;
+                if (!empty($paymentId) && empty($recentCredit->txn_id)) {
+                    DB::table('tj_transaction')->where('id', $recentCredit->id)->update(['txn_id' => $paymentId]);
+                }
+            }
+        }
+
+        if ($alreadyHandled) {
+            $latestUser = DB::table('tj_user_app')->where('id', $id_user)->first();
+            return response()->json([
+                'success' => 'success',
+                'error'   => null,
+                'message' => 'Top-up already credited and recorded.',
+                'data'    => $latestUser,
+            ]);
+        }
+
+        // Atomic wallet increment and transaction insert
+        DB::beginTransaction();
+        try {
+            DB::table('tj_user_app')->where('id', $id_user)->increment('amount', $amount_init);
+
+            DB::table('tj_transaction')->insert([
+                'amount'         => (string)$amount_init,
+                'deduction_type' => 1,
+                'type'           => 'credit',
+                'payment_method' => $paymethod,
+                'payment_status' => $payStatus,
+                'id_user_app'    => $id_user,
+                'txn_id'         => $paymentId ?: $transaction,
+                'description'    => 'Wallet Top-Up',
+                'creer'          => $date_heure,
+                'modifier'       => $date_heure,
+            ]);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success' => 'Failed', 'error' => $e->getMessage()], 500);
+        }
+
+        $row = (object)['amount' => $user->amount + $amount_init];
         $sql_notification = UserApp::where('id',$id_user)->first();
         $data = $sql_notification ? $sql_notification->toArray() : [];
         if (!empty($data)) {
@@ -182,29 +235,80 @@ class AddAmountController extends Controller
 
     }
     elseif($cat_user == "driver"){
-        $row = DB::table('tj_conducteur')
-        ->select('amount')
-        ->where('id','=',DB::raw($id_user))
-        ->first();
+        $driver = DB::table('tj_conducteur')->where('id', $id_user)->first();
+        if (!$driver) {
+            return response()->json(['success' => 'Failed', 'error' => 'Driver not found'], 404);
+        }
 
+        // Idempotency check 1: Check by exact payment ID (pay_...)
+        $alreadyHandled = false;
+        if (!empty($paymentId)) {
+            $existingTxn = DB::table('tj_conducteur_transaction')
+                ->where('id_conducteur', $id_user)
+                ->where('txn_id', $paymentId)
+                ->first();
+            if ($existingTxn) {
+                $alreadyHandled = true;
+            }
+        }
 
-          $amount_ = $row->amount;
-          $amount = $amount_+$amount_init;
+        // Idempotency check 2: Prevent duplicate if Razorpay Webhook already processed same top-up in last 3 minutes
+        if (!$alreadyHandled && $isRazorpayOrUpi) {
+            $recentCredit = DB::table('tj_conducteur_transaction')
+                ->where('id_conducteur', $id_user)
+                ->where('amount', (string) $amount_init)
+                ->where('creer', '>=', Carbon::now('Asia/Kolkata')->subMinutes(3)->format('Y-m-d H:i:s'))
+                ->where(function ($q) {
+                    $q->where('description', 'LIKE', 'UPI Payment from%')
+                      ->orWhere('payment_method', 'UPI')
+                      ->orWhere('description', 'Wallet Top-Up');
+                })
+                ->orderByDesc('id')
+                ->first();
 
-          $updatedata = DB::update('update tj_conducteur set amount = ? where id = ?',[$amount,$id_user]);
-          $amount=$amount_init;
+            if ($recentCredit) {
+                $alreadyHandled = true;
+                if (!empty($paymentId) && empty($recentCredit->txn_id)) {
+                    DB::table('tj_conducteur_transaction')->where('id', $recentCredit->id)->update(['txn_id' => $paymentId]);
+                }
+            }
+        }
 
-          DB::table('tj_conducteur_transaction')->insert([
-              'amount'         => (string)$amount_init,
-              'deduction_type' => 1,
-              'type'           => 'credit',
-              'payment_method' => $paymethod,
-              'id_conducteur'  => $id_user,
-              'description'    => 'Wallet Top-Up',
-              'note'           => 'Wallet Top-Up via ' . $paymethod,
-              'creer'          => $date_heure,
-              'modifier'       => $date_heure,
-          ]);
+        if ($alreadyHandled) {
+            $latestDriver = DB::table('tj_conducteur')->where('id', $id_user)->first();
+            return response()->json([
+                'success' => 'success',
+                'error'   => null,
+                'message' => 'Top-up already credited and recorded.',
+                'data'    => $latestDriver,
+            ]);
+        }
+
+        // Atomic driver wallet increment and transaction insert
+        DB::beginTransaction();
+        try {
+            DB::table('tj_conducteur')->where('id', $id_user)->increment('amount', $amount_init);
+
+            DB::table('tj_conducteur_transaction')->insert([
+                'amount'         => (string)$amount_init,
+                'deduction_type' => 1,
+                'type'           => 'credit',
+                'payment_method' => $paymethod,
+                'payment_status' => $payStatus,
+                'id_conducteur'  => $id_user,
+                'txn_id'         => $paymentId ?: $transaction,
+                'description'    => 'Wallet Top-Up',
+                'note'           => 'Wallet Top-Up via ' . $paymethod,
+                'creer'          => $date_heure,
+                'modifier'       => $date_heure,
+            ]);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success' => 'Failed', 'error' => $e->getMessage()], 500);
+        }
+
+        $row = (object)['amount' => $driver->amount + $amount_init];
         
         $sql_notification = Driver::where('id',$id_user)->first();
         $data = $sql_notification->toArray();

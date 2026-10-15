@@ -136,35 +136,70 @@ class RazorpayWebhookController extends Controller
             $userId = $user->id;
             DB::beginTransaction();
             try {
-                // 1. Increment wallet balance
-                if ($userType === 'driver') {
-                    DB::table('tj_conducteur')->where('id', $userId)->increment('amount', $amountInRupees);
-                } else {
-                    DB::table('tj_user_app')->where('id', $userId)->increment('amount', $amountInRupees);
+                $table = ($userType === 'driver') ? 'tj_conducteur_transaction' : 'tj_transaction';
+                $userCol = ($userType === 'driver') ? 'id_conducteur' : 'id_user_app';
+
+                // Check if this payment was already recorded or processed by AddAmountController
+                $existingTxn = DB::table($table)
+                    ->where($userCol, $userId)
+                    ->where('txn_id', $paymentId)
+                    ->first();
+
+                $recentTopup = null;
+                if (!$existingTxn) {
+                    $recentTopup = DB::table($table)
+                        ->where($userCol, $userId)
+                        ->where('amount', (string) $amountInRupees)
+                        ->where('creer', '>=', Carbon::now('Asia/Kolkata')->subMinutes(3)->format('Y-m-d H:i:s'))
+                        ->where('description', 'Wallet Top-Up')
+                        ->orderByDesc('id')
+                        ->first();
                 }
 
-                // 2. Insert wallet transaction record
-                $txnData = [
-                    'amount'          => (string) $amountInRupees,
-                    'type'            => 'credit',
-                    'deduction_type'  => 1, // 1 = Credit
-                    'payment_method'  => 'UPI',
-                    'counterparty'    => $payerName,
-                    'payment_status'  => 'success',
-                    'txn_id'          => $paymentId,
-                    'description'     => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
-                    'date'            => $currentDate,
-                    'creer'           => $nowDateTime,
-                    'modifier'        => $nowDateTime,
-                ];
-
-                if ($userType === 'driver') {
-                    $txnData['id_conducteur'] = $userId;
-                    DB::table('tj_conducteur_transaction')->insert($txnData);
+                if ($existingTxn) {
+                    // Already processed and credited, skip duplicate increment
+                    Log::info("Razorpay Webhook: Payment ID {$paymentId} already credited in {$table} record {$existingTxn->id}.");
+                } elseif ($recentTopup) {
+                    // AddAmountController already created a top-up record and credited the wallet.
+                    // Link the payment details to the existing record instead of creating a duplicate row!
+                    DB::table($table)->where('id', $recentTopup->id)->update([
+                        'txn_id'         => $paymentId,
+                        'payment_method' => 'UPI',
+                        'counterparty'   => $payerName,
+                        'description'    => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
+                        'modifier'       => $nowDateTime,
+                    ]);
+                    Log::info("Razorpay Webhook: Linked payment {$paymentId} to existing top-up record {$recentTopup->id}.");
                 } else {
-                    $txnData['id_user_app'] = $userId;
-                    $txnData['ac_no']       = $user->ac_no ?? $acNo;
-                    DB::table('tj_transaction')->insert($txnData);
+                    // Fresh payment: increment wallet balance and insert record
+                    if ($userType === 'driver') {
+                        DB::table('tj_conducteur')->where('id', $userId)->increment('amount', $amountInRupees);
+                    } else {
+                        DB::table('tj_user_app')->where('id', $userId)->increment('amount', $amountInRupees);
+                    }
+
+                    $txnData = [
+                        'amount'          => (string) $amountInRupees,
+                        'type'            => 'credit',
+                        'deduction_type'  => 1, // 1 = Credit
+                        'payment_method'  => 'UPI',
+                        'counterparty'    => $payerName,
+                        'payment_status'  => 'success',
+                        'txn_id'          => $paymentId,
+                        'description'     => 'UPI Payment from ' . $payerName . ($payerVpa ? ' (' . $payerVpa . ')' : ''),
+                        'date'            => $currentDate,
+                        'creer'           => $nowDateTime,
+                        'modifier'        => $nowDateTime,
+                    ];
+
+                    if ($userType === 'driver') {
+                        $txnData['id_conducteur'] = $userId;
+                        DB::table('tj_conducteur_transaction')->insert($txnData);
+                    } else {
+                        $txnData['id_user_app'] = $userId;
+                        $txnData['ac_no']       = $user->ac_no ?? $acNo;
+                        DB::table('tj_transaction')->insert($txnData);
+                    }
                 }
 
                 // 3. Upsert into upi_qr_transactions

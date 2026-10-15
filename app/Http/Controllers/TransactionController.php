@@ -70,13 +70,7 @@ class TransactionController extends Controller
     private function buildCustomerTransactionsQuery(Request $request, $userId = null)
     {
         $query = DB::table('tj_transaction')
-            ->leftJoin('tj_user_app', function($join) {
-                $join->on('tj_transaction.id_user_app', '=', 'tj_user_app.id')
-                     ->orWhere(function($orQ) {
-                         $orQ->whereNotNull('tj_transaction.ac_no')
-                             ->whereColumn('tj_transaction.ac_no', '=', 'tj_user_app.ac_no');
-                     });
-            })
+            ->leftJoin('tj_user_app', 'tj_transaction.id_user_app', '=', 'tj_user_app.id')
             ->leftJoin('tj_payment_method', 'tj_payment_method.libelle', '=', 'tj_transaction.payment_method')
             ->select(
                 'tj_transaction.id as id',
@@ -99,12 +93,8 @@ class TransactionController extends Controller
 
         if ($userId) {
             $userObj = DB::table('tj_user_app')->where('id', $userId)->orWhere('ac_no', $userId)->first();
-            $query->where(function ($q) use ($userId, $userObj) {
-                $q->where('tj_transaction.id_user_app', '=', $userId);
-                if ($userObj && !empty($userObj->ac_no)) {
-                    $q->orWhere('tj_transaction.ac_no', '=', $userObj->ac_no);
-                }
-            });
+            $targetUserId = $userObj ? $userObj->id : $userId;
+            $query->where('tj_transaction.id_user_app', '=', $targetUserId);
         }
 
         $this->applyTransactionFilters($query, $request, 'tj_transaction');
@@ -258,6 +248,19 @@ class TransactionController extends Controller
             return back()->with('success', "Auto-reconciliation completed. All pending transactions are up to date.");
         } catch (\Throwable $e) {
             return back()->with('error', "Reconciliation error: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Clean up duplicate top-up records and reconcile user wallet balances.
+     */
+    public function cleanDuplicateTopups(Request $request)
+    {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('wallet:reconcile-duplicates');
+            return back()->with('success', 'Cleaned duplicate top-up records and reconciled wallet balances successfully!');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error reconciling duplicate transactions: ' . $e->getMessage());
         }
     }
 

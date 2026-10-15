@@ -706,6 +706,7 @@ Route::post('walletstransactions/upi/assign', [App\Http\Controllers\TransactionC
 Route::post('walletstransactions/upi/manual-credit', [App\Http\Controllers\TransactionController::class, 'manualCreditUpi'])->name('walletstransactions.upi.manual-credit');
 Route::post('walletstransactions/upi/resend-notification', [App\Http\Controllers\TransactionController::class, 'resendUpiNotification'])->name('walletstransactions.upi.resend-notification');
 Route::get('walletstransactions/upi/search-users', [App\Http\Controllers\TransactionController::class, 'searchUsersForUpi'])->name('walletstransactions.upi.search-users');
+Route::post('walletstransactions/reconcile-duplicates', [App\Http\Controllers\TransactionController::class, 'cleanDuplicateTopups'])->name('walletstransactions.reconcile-duplicates');
 
 
 

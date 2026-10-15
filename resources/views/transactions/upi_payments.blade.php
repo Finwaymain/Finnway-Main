@@ -102,6 +102,12 @@
                                         <i class="fa fa-magic mr-1"></i> Auto-Reconcile Pending
                                     </button>
                                 </form>
+                                <form action="{{ route('walletstransactions.reconcile-duplicates') }}" method="POST" class="mr-2 d-inline" onsubmit="return confirm('Clean duplicate top-up records and reconcile user wallet balances?');">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-warning text-dark font-weight-bold" title="Find and clean duplicate top-up entries between webhook and app, and reconcile balances">
+                                        <i class="fa fa-refresh mr-1"></i> Clean Duplicate Top-ups
+                                    </button>
+                                </form>
                                 <button type="button" class="btn btn-sm btn-primary" data-toggle="collapse" data-target="#manualCreditPanel" aria-expanded="false" aria-controls="manualCreditPanel">
                                     <i class="fa fa-plus-circle mr-1"></i> Credit by Payment ID
                                 </button>
