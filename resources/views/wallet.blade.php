@@ -79,7 +79,7 @@
     </div>
 
     <!-- Balance Summary Card -->
-    <div style="background:rgba(106, 167, 32, 0.08); border:1px solid rgba(106, 167, 32, 0.2); border-radius:18px; padding:16px; margin-bottom:16px;">
+    <div style="background:rgba(106, 167, 32, 0.08); border:1px solid rgba(106, 167, 32, 0.2); border-radius:18px; padding:16px; margin-bottom:14px;">
       <div style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
           <span style="font-size:11px; font-weight:600; opacity:0.75; text-transform:uppercase; letter-spacing:0.04em;">Available Cashback</span>
@@ -92,7 +92,7 @@
       </div>
 
       <!-- Progress Bar -->
-      <div style="margin-top:14px;">
+      <div style="margin-top:12px;">
         <div class="cb-progress-track">
           <div id="cb-progress-bar" class="cb-progress-fill" style="width:0%;"></div>
         </div>
@@ -103,8 +103,25 @@
       </div>
     </div>
 
+    <!-- Amount Input Box -->
+    <div style="margin-bottom:14px;">
+      <label style="display:block; font-size:11px; font-weight:700; margin-bottom:6px; opacity:0.8;">Enter Amount to Convert (₹):</label>
+      <div style="position:relative; display:flex; align-items:center;">
+        <span style="position:absolute; left:14px; font-size:15px; font-weight:800; color:#15803D;">₹</span>
+        <input type="number" id="cb-input-amount" step="1" min="1" oninput="handleAmountInput(this.value)" placeholder="0.00" style="width:100%; border-radius:14px; border:1px solid rgba(150,150,150,0.3); background:rgba(150,150,150,0.06); padding:12px 14px 12px 32px; font-size:16px; font-weight:800; color:inherit; outline:none; box-sizing:border-box;">
+        <button type="button" onclick="setFullCashbackAmount()" style="position:absolute; right:8px; border:none; background:rgba(106, 167, 32, 0.15); color:#15803D; font-size:11px; font-weight:800; padding:6px 10px; border-radius:10px; cursor:pointer;">
+          MAX
+        </button>
+      </div>
+      <!-- Projected New Wallet Balance Preview -->
+      <div id="cb-projected-box" style="margin-top:6px; font-size:11px; opacity:0.75; display:flex; justify-content:space-between;">
+        <span>Current Wallet: <strong id="cb-current-wallet-txt">₹0.00</strong></span>
+        <span style="color:#15803D; font-weight:700;">After Conversion: <strong id="cb-projected-wallet-txt">₹0.00</strong></span>
+      </div>
+    </div>
+
     <!-- Status Notice -->
-    <div id="cb-status-box" style="border-radius:12px; padding:10px 12px; font-size:11.5px; line-height:1.4; margin-bottom:18px; background:rgba(234, 179, 8, 0.1); border:1px solid rgba(234, 179, 8, 0.3); color:#B45309;">
+    <div id="cb-status-box" style="border-radius:12px; padding:10px 12px; font-size:11.5px; line-height:1.4; margin-bottom:16px; background:rgba(234, 179, 8, 0.1); border:1px solid rgba(234, 179, 8, 0.3); color:#B45309;">
       <span id="cb-status-msg">Collect at least ₹500 in cashback to convert it into your main wallet balance.</span>
     </div>
 
@@ -123,50 +140,101 @@
 <script>
   window.__cbCurrentAmount = 0;
   window.__cbTargetThreshold = 500;
+  window.__cbWalletBalance = 0;
   window.__cbUserId = null;
   window.__cbIsDriver = false;
 
   window.openCashbackConvertModal = function(amount, walletBalance, userId, isDriver) {
     var rawAmount = Number(amount || 0);
-    // Use threshold from loaded backend data if available, default to 500
     var threshold = window.__MIN_CASHBACK_THRESHOLD || 500;
-    
-    // Check if window.__CURRENT_WALLET_DATA has fresh values
+    var currentWallet = Number(walletBalance || 0);
+
+    // Fetch freshest data from window if available
     if (window.__CURRENT_WALLET_DATA) {
       if (window.__CURRENT_WALLET_DATA.min_cashback_redeem_threshold) {
         threshold = Number(window.__CURRENT_WALLET_DATA.min_cashback_redeem_threshold);
       }
       if (window.__CURRENT_WALLET_DATA.cashback_balance !== undefined) {
         rawAmount = Number(window.__CURRENT_WALLET_DATA.cashback_balance);
+      } else if (window.__CURRENT_WALLET_DATA.earn_amount !== undefined) {
+        rawAmount = Number(window.__CURRENT_WALLET_DATA.earn_amount);
+      }
+      if (window.__CURRENT_WALLET_DATA.amount !== undefined) {
+        currentWallet = Number(window.__CURRENT_WALLET_DATA.amount);
       }
     }
 
+    var params = new URLSearchParams(window.location.search);
     window.__cbCurrentAmount = rawAmount;
     window.__cbTargetThreshold = threshold;
-    window.__cbUserId = userId || (new URLSearchParams(window.location.search).get('id_user') || new URLSearchParams(window.location.search).get('driver_id'));
-    window.__cbIsDriver = !!isDriver || (new URLSearchParams(window.location.search).get('user_cat') === 'driver');
+    window.__cbWalletBalance = currentWallet;
+    window.__cbUserId = userId || (params.get('id_user') || params.get('driver_id') || params.get('user_id'));
+    window.__cbIsDriver = !!isDriver || (params.get('user_cat') === 'driver' || params.get('user_type') === 'driver');
 
     document.getElementById('cb-display-amount').innerText = '₹' + rawAmount.toFixed(2);
     document.getElementById('cb-display-threshold').innerText = '₹' + threshold.toFixed(2);
+    document.getElementById('cb-current-wallet-txt').innerText = '₹' + currentWallet.toFixed(2);
+    document.getElementById('cb-projected-wallet-txt').innerText = '₹' + currentWallet.toFixed(2);
 
     var pct = Math.min(100, Math.max(0, Math.round((rawAmount / threshold) * 100)));
     document.getElementById('cb-progress-bar').style.width = pct + '%';
     document.getElementById('cb-progress-text').innerText = pct + '% Collected';
 
+    var inputEl = document.getElementById('cb-input-amount');
+    inputEl.value = rawAmount > 0 ? rawAmount : '';
+    inputEl.max = rawAmount;
+
+    handleAmountInput(inputEl.value);
+
+    document.getElementById('cashback-convert-sheet').classList.add('active');
+  };
+
+  window.setFullCashbackAmount = function() {
+    var inputEl = document.getElementById('cb-input-amount');
+    inputEl.value = window.__cbCurrentAmount;
+    handleAmountInput(inputEl.value);
+  };
+
+  window.handleAmountInput = function(val) {
+    var amountToConvert = parseFloat(val) || 0;
+    var rawAmount = window.__cbCurrentAmount;
+    var threshold = window.__cbTargetThreshold;
+    var currentWallet = window.__cbWalletBalance;
+
     var btn = document.getElementById('cb-convert-btn');
     var statusBox = document.getElementById('cb-status-box');
     var statusMsg = document.getElementById('cb-status-msg');
     var neededText = document.getElementById('cb-needed-text');
+    var projectedTxt = document.getElementById('cb-projected-wallet-txt');
+
+    // Update projected balance preview
+    var projectedTotal = currentWallet + (amountToConvert > 0 ? amountToConvert : 0);
+    projectedTxt.innerText = '₹' + projectedTotal.toFixed(2);
 
     if (rawAmount >= threshold && rawAmount > 0) {
       neededText.innerText = 'Threshold Reached! Ready to convert';
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.background = 'linear-gradient(135deg, #16A34A, #15803D)';
-      statusBox.style.background = 'rgba(22, 163, 74, 0.1)';
-      statusBox.style.border = '1px solid rgba(22, 163, 74, 0.3)';
-      statusBox.style.color = '#15803D';
-      statusMsg.innerText = 'Awesome! You have accumulated ₹' + rawAmount.toFixed(2) + ' cashback. You can now transfer it into your primary wallet balance.';
+      if (amountToConvert <= 0) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.background = '#6AA720';
+        statusMsg.innerText = 'Please enter an amount to convert (up to ₹' + rawAmount.toFixed(2) + ').';
+      } else if (amountToConvert > rawAmount) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.background = '#6AA720';
+        statusBox.style.background = 'rgba(239, 68, 68, 0.1)';
+        statusBox.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        statusBox.style.color = '#B91C1C';
+        statusMsg.innerText = 'Amount cannot exceed available cashback balance of ₹' + rawAmount.toFixed(2) + '.';
+      } else {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.background = 'linear-gradient(135deg, #16A34A, #15803D)';
+        statusBox.style.background = 'rgba(22, 163, 74, 0.1)';
+        statusBox.style.border = '1px solid rgba(22, 163, 74, 0.3)';
+        statusBox.style.color = '#15803D';
+        statusMsg.innerText = 'Ready to convert ₹' + amountToConvert.toFixed(2) + ' cashback directly into your Smart Value wallet balance.';
+      }
     } else {
       var diff = Math.max(0, threshold - rawAmount);
       neededText.innerText = 'Need ₹' + diff.toFixed(2) + ' more';
@@ -178,8 +246,6 @@
       statusBox.style.color = '#B45309';
       statusMsg.innerText = 'Minimum ₹' + threshold.toFixed(0) + ' cashback collection is required to convert. Collect ₹' + diff.toFixed(2) + ' more through top-ups to unlock conversion.';
     }
-
-    document.getElementById('cashback-convert-sheet').classList.add('active');
   };
 
   window.closeCashbackConvertModal = function() {
@@ -194,6 +260,9 @@
   };
 
   window.executeCashbackConvert = async function() {
+    var inputEl = document.getElementById('cb-input-amount');
+    var convertAmt = parseFloat(inputEl.value) || window.__cbCurrentAmount;
+
     var btn = document.getElementById('cb-convert-btn');
     var btnText = document.getElementById('cb-btn-text');
     btn.disabled = true;
@@ -202,7 +271,7 @@
     var payload = {
       user_id: window.__cbUserId,
       user_type: window.__cbIsDriver ? 'driver' : 'customer',
-      amount: window.__cbCurrentAmount
+      amount: convertAmt
     };
 
     try {
@@ -221,7 +290,6 @@
         btn.style.background = '#15803D';
         alert(data.msg || 'Cashback converted to wallet successfully!');
         window.closeCashbackConvertModal();
-        // Refresh page to update balances cleanly
         window.location.reload();
       } else {
         alert(data.msg || 'Unable to convert cashback at this time.');
@@ -235,18 +303,32 @@
     }
   };
 
-  // Attach auto-click listener to cashback card as a fallback when DOM is mounted
-  document.addEventListener('DOMContentLoaded', function() {
-    var checkTimer = setInterval(function() {
-      var card = document.getElementById('cashback-smart-value-card');
-      if (card) {
-        clearInterval(checkTimer);
-        card.addEventListener('click', function() {
-          var amt = window.__CURRENT_WALLET_DATA ? (window.__CURRENT_WALLET_DATA.cashback_balance || window.__CURRENT_WALLET_DATA.earn_amount) : 0;
-          window.openCashbackConvertModal(amt);
-        });
+  // Robust Global Delegation for Clicking Cashback Card
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    // Check if clicked element or any of its parents is the cashback card
+    var card = target.closest('#cashback-smart-value-card');
+    if (!card) {
+      // Fallback check: find card containing text "Cashback"
+      var potential = target.closest('div');
+      while (potential && potential !== document.body) {
+        if (potential.innerText && potential.innerText.includes('Cashback') && !potential.id.includes('sheet') && !potential.id.includes('convert')) {
+          // If it looks like the small card
+          if (potential.classList && (potential.className.includes('rounded-2xl') || potential.innerText.length < 50)) {
+            card = potential;
+            break;
+          }
+        }
+        potential = potential.parentElement;
       }
-    }, 400);
-  });
+    }
+
+    if (card && !card.closest('#cashback-convert-sheet')) {
+      e.preventDefault();
+      var amt = window.__CURRENT_WALLET_DATA ? (window.__CURRENT_WALLET_DATA.cashback_balance || window.__CURRENT_WALLET_DATA.earn_amount) : 0;
+      var wBal = window.__CURRENT_WALLET_DATA ? window.__CURRENT_WALLET_DATA.amount : 0;
+      window.openCashbackConvertModal(amt, wBal);
+    }
+  }, true);
 </script>
 </body></html>
