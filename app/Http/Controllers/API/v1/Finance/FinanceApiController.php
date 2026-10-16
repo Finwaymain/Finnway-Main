@@ -1159,17 +1159,21 @@ class FinanceApiController extends Controller
             $lender = \App\Models\Finance\FinanceAffiliateLender::where('name', 'like', "%{$lenderName}%")->first();
         }
         if (!$lender) {
-            $affUrl = 'https://EasyPe.o18a.com/c?o=21966470&m=26892&a=761563&sub_aff_id=' . urlencode($phone);
+            $isKotak = stripos((string)$lenderName, 'kotak') !== false;
+            $affUrl = $isKotak
+                ? 'https://EasyPe.o18a.com/c?o=21949291&m=26892&a=761563&sub_aff_id=' . urlencode($phone)
+                : 'https://EasyPe.o18a.com/c?o=21966470&m=26892&a=761563&sub_aff_id=' . urlencode($phone);
+
             $lender = \App\Models\Finance\FinanceAffiliateLender::create([
-                'name' => $lenderName ?: 'SBI Credit Card',
+                'name' => $lenderName ?: ($isKotak ? 'Kotak 811 Account' : 'SBI Credit Card'),
                 'min_loan_amount' => 0,
-                'max_loan_amount' => 500000,
-                'interest_rate_display' => 'Rewards & Cashback',
-                'tenure_display' => 'Lifetime / Annual',
-                'processing_fee_display' => 'As applicable',
+                'max_loan_amount' => $isKotak ? 50000 : 500000,
+                'interest_rate_display' => $isKotak ? 'Zero Balance / Savings' : 'Rewards & Cashback',
+                'tenure_display' => $isKotak ? 'Instant Digital Account' : 'Lifetime / Annual',
+                'processing_fee_display' => $isKotak ? 'Zero Charges' : 'As applicable',
                 'affiliate_url' => $affUrl,
                 'status' => 'active',
-                'sort_order' => 2,
+                'sort_order' => $isKotak ? 3 : 2,
             ]);
         }
 
