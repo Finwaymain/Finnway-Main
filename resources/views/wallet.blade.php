@@ -523,5 +523,99 @@
       window.openCashbackConvertModal(amt, wBal);
     }
   });
+
+  // Runtime Layout & Card Enhancer for Webview
+  (function() {
+    function enforceCompactDefaultAlert() {
+      // 1. Locate TOP UP and WITHDRAW buttons container
+      var buttons = document.querySelectorAll('button');
+      var topUpBtn = null;
+      var withdrawBtn = null;
+      for (var i = 0; i < buttons.length; i++) {
+        var t = buttons[i].innerText ? buttons[i].innerText.trim() : '';
+        if (t === 'TOP UP') topUpBtn = buttons[i];
+        if (t === 'WITHDRAW') withdrawBtn = buttons[i];
+      }
+      var btnGrid = topUpBtn ? (topUpBtn.closest('.grid') || topUpBtn.parentElement) : null;
+
+      // 2. Locate any virtual credit / payment default card
+      var divs = document.querySelectorAll('div');
+      var alertCard = null;
+      for (var j = 0; j < divs.length; j++) {
+        var el = divs[j];
+        if (el.id && el.id.includes('sheet')) continue;
+        var txt = el.innerText || '';
+        if (txt.includes('Payment Default Alert') || 
+            txt.includes('Virtual Credit Ledger') || 
+            txt.includes('Virtual Credit Locked') || 
+            txt.includes('LOCKED (DEFAULTER)') ||
+            txt.includes('Repay Overdue')) {
+          if (el.className && (el.className.includes('rounded-2xl') || el.className.includes('border'))) {
+            if (el.offsetWidth > 0 && el.offsetHeight > 0 && el.offsetHeight < 500 && el.innerText.length < 600) {
+              alertCard = el;
+              break;
+            }
+          }
+        }
+      }
+
+      if (alertCard && btnGrid) {
+        // Ensure it is placed directly BELOW the 2 buttons container
+        if (btnGrid.compareDocumentPosition(alertCard) & Node.DOCUMENT_POSITION_PRECEDING) {
+          btnGrid.parentNode.insertBefore(alertCard, btnGrid.nextSibling);
+        }
+
+        // Transform lengthy card into sleek, small-height card if needed
+        var isLengthy = alertCard.offsetHeight > 80 || 
+                        alertCard.innerText.includes('AVAILABLE CREDIT') || 
+                        alertCard.innerText.includes('In-App Spending Balance') ||
+                        alertCard.innerText.includes('Daily Limit');
+
+        if (isLengthy || !alertCard.getAttribute('data-compact-fixed')) {
+          alertCard.setAttribute('data-compact-fixed', 'true');
+          var params = new URLSearchParams(window.location.search);
+          var phone = params.get('phone') || '';
+          var repayUrl = '/finance/virtual-loan/dashboard?phone=' + encodeURIComponent(phone);
+
+          alertCard.className = 'rounded-2xl p-3 sm:p-3.5 border transition-all bg-rose-50/90 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 shadow-sm mt-3';
+          alertCard.style.cssText = 'padding:12px 14px; border-radius:16px; margin-top:12px; margin-bottom:12px;';
+          alertCard.innerHTML = [
+            '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">',
+              '<div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">',
+                '<div style="width:36px; height:36px; border-radius:50%; background:rgba(225,29,72,0.12); color:#E11D48; display:flex; align-items:center; justify-content:center; flex-shrink:0;">',
+                  '<svg style="width:20px; height:20px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">',
+                    '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />',
+                  '</svg>',
+                '</div>',
+                '<div style="min-width:0; flex:1;">',
+                  '<h4 style="margin:0; font-size:13px; font-weight:800; color:#E11D48; line-height:1.2;">Payment Default Alert</h4>',
+                  '<p style="margin:2px 0 0 0; font-size:11px; color:#64748b; line-height:1.25;">You have an overdue payment. Please clear to continue using all services.</p>',
+                '</div>',
+              '</div>',
+              '<a href="' + repayUrl + '" style="text-decoration:none; flex-shrink:0; background:#E11D48; color:#ffffff; font-size:12px; font-weight:800; padding:8px 14px; border-radius:999px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(225,29,72,0.3);">',
+                '<span>Pay Now</span>',
+                '<svg style="width:12px; height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">',
+                  '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />',
+                '</svg>',
+              '</a>',
+            '</div>'
+          ].join('');
+        }
+      }
+    }
+
+    // Run at multiple lifecycle hooks
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', enforceCompactDefaultAlert);
+    } else {
+      enforceCompactDefaultAlert();
+    }
+    window.addEventListener('load', enforceCompactDefaultAlert);
+
+    var observer = new MutationObserver(enforceCompactDefaultAlert);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setInterval(enforceCompactDefaultAlert, 300);
+  })();
+
 </script>
 </body></html>

@@ -150,6 +150,11 @@ class OnboardingAccess
         } else {
             $content = $script . $content;
         }
+
+        $chunkFile = public_path('onboarding-assets/_next/static/chunks/0r9j0igw2ops5.js');
+        $chunkVer = file_exists($chunkFile) ? filemtime($chunkFile) : time();
+        $content = str_replace('0r9j0igw2ops5.js', '0r9j0igw2ops5.js?v=' . $chunkVer, $content);
+
         return response($content, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
