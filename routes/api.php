@@ -771,6 +771,9 @@ Route::any('v1/showadduser/smart-value', [UserProfileUpdateController::class, 's
 Route::post('v1/user_changepasswordset/smart-value', [UserProfileUpdateController::class, 'UpdateMpin']); // Change MPIN like (change password)
 Route::post('v1/get_profile/smart-value', [UserProfileUpdateController::class, 'GetProfileByAcNo']); // GetProfileByAcNo
 Route::post('v1/show_wallet_amount/smart-value', [UserProfileUpdateController::class, 'show_wallet_amount']); 
+Route::post('v1/convert_cashback_to_wallet/smart-value', [UserProfileUpdateController::class, 'convert_cashback_to_wallet']);
+Route::post('v1/convert_cashback_to_wallet/driver', [UserProfileUpdateController::class, 'convert_cashback_to_wallet']);
+Route::post('v1/cashback/convert-to-wallet', [UserProfileUpdateController::class, 'convert_cashback_to_wallet']);
 Route::post('v1/show_transaction_history/smart-value', [UserProfileUpdateController::class, 'show_transaction_history']);  // show_transaction_history
 Route::post('v1/show_reward_history/smart-value', [UserProfileUpdateController::class, 'show_reward_history']);  // Reward and cashback 
 // CronJob jis din transaction kiya jayega usi din transaction_history se amount nikalke users table me start_date2 and end_date2 ke beech per_sender ka percentage tbl_earning me hit hoga  

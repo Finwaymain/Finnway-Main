@@ -95,6 +95,41 @@
             </div>
         </div>
 
+        <!-- Cashback Conversion Setting Card -->
+        <div class="card border-0 shadow-sm mb-4" style="border-radius:12px; border-left: 4px solid #10B981 !important;">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-lg-7 mb-3 mb-lg-0">
+                        <h4 class="font-weight-bold text-dark mb-1">
+                            <i class="mdi mdi-swap-horizontal-bold text-success mr-1"></i>Cashback-to-Wallet Conversion Rule
+                        </h4>
+                        <p class="text-muted mb-0" style="font-size:13px;">
+                            Top-up cashback accumulates separately in user's cashback balance. Configure the minimum threshold balance required before a customer or driver can convert their collected cashback into their primary wallet balance.
+                        </p>
+                    </div>
+                    <div class="col-lg-5">
+                        <form action="{{ route('admin.wallet.topup-cashback.update-threshold') }}" method="POST" class="d-flex align-items-center">
+                            @csrf
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text font-weight-bold bg-light">₹</span>
+                                </div>
+                                <input type="number" step="1" min="0" name="min_cashback_redeem_threshold" class="form-control font-weight-bold text-dark" value="{{ old('min_cashback_redeem_threshold', $minThreshold ?? 500) }}" placeholder="e.g. 500" required>
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-success font-weight-bold px-3">
+                                        <i class="mdi mdi-check mr-1"></i>Save Threshold
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        <small class="text-muted d-block mt-1">
+                            Current threshold: <strong class="text-success">₹{{ number_format($minThreshold ?? 500, 2) }}</strong> (Users need at least this amount to convert).
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Rules Table Card -->
         <div class="card border-0 shadow-sm mb-4" style="border-radius:12px;">
             <div class="card-body">

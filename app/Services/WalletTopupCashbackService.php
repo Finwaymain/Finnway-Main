@@ -122,23 +122,11 @@ class WalletTopupCashbackService
                     return null;
                 }
 
-                $newBalance = (float) $user->amount + $cashbackAmount;
+                $currentCashback = (float) ($user->cashback_balance ?? 0);
+                $newCashbackBalance = $currentCashback + $cashbackAmount;
                 DB::table('tj_user_app')->where('id', $userId)->update([
-                    'amount'   => $newBalance,
-                    'modifier' => $nowDateTime,
-                ]);
-
-                // Insert into tj_transaction
-                DB::table('tj_transaction')->insert([
-                    'amount'         => (string) $cashbackAmount,
-                    'deduction_type' => 1, // Credit
-                    'type'           => 'credit',
-                    'payment_method' => 'Cashback',
-                    'payment_status' => 'success',
-                    'id_user_app'    => $userId,
-                    'description'    => "Wallet Top-Up Cashback (₹" . number_format($cashbackAmount, 2) . ")",
-                    'creer'          => $nowDateTime,
-                    'modifier'       => $nowDateTime,
+                    'cashback_balance' => $newCashbackBalance,
+                    'modifier'         => $nowDateTime,
                 ]);
 
                 $userFcm = $user->fcm_id ?? null;
@@ -151,23 +139,11 @@ class WalletTopupCashbackService
                     return null;
                 }
 
-                $newBalance = (float) $driver->amount + $cashbackAmount;
+                $currentCashback = (float) ($driver->cashback_balance ?? 0);
+                $newCashbackBalance = $currentCashback + $cashbackAmount;
                 DB::table('tj_conducteur')->where('id', $userId)->update([
-                    'amount'   => $newBalance,
-                    'modifier' => $nowDateTime,
-                ]);
-
-                // Insert into tj_conducteur_transaction
-                DB::table('tj_conducteur_transaction')->insert([
-                    'amount'         => (string) $cashbackAmount,
-                    'deduction_type' => 1,
-                    'type'           => 'credit',
-                    'payment_method' => 'Cashback',
-                    'id_conducteur'  => $userId,
-                    'description'    => "Wallet Top-Up Cashback (₹" . number_format($cashbackAmount, 2) . ")",
-                    'note'           => "Cashback on top-up of ₹" . number_format($topupAmount, 2),
-                    'creer'          => $nowDateTime,
-                    'modifier'       => $nowDateTime,
+                    'cashback_balance' => $newCashbackBalance,
+                    'modifier'         => $nowDateTime,
                 ]);
 
                 $userFcm = $driver->fcm_id ?? null;

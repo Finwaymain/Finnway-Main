@@ -1180,6 +1180,7 @@ Route::prefix('admin/wallet/topup-cashback')->group(function () {
     Route::put('/update/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'update'])->name('admin.wallet.topup-cashback.update');
     Route::delete('/destroy/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'destroy'])->name('admin.wallet.topup-cashback.destroy');
     Route::post('/toggle/{id}', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'toggleStatus'])->name('admin.wallet.topup-cashback.toggle');
+    Route::post('/update-threshold', [App\Http\Controllers\Admin\WalletTopupCashbackController::class, 'updateThreshold'])->name('admin.wallet.topup-cashback.update-threshold');
 });
 
 // ── Referral Engine ────────────────────────────────────────────────────────

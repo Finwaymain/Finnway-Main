@@ -1851,18 +1851,182 @@ class UserProfileUpdateController extends Controller
             }
         }
 
+        // Minimum threshold from settings (default: 500)
+        $minCashbackThreshold = 500.00;
+        if (Schema::hasTable('tj_settings')) {
+            $settingVal = DB::table('tj_settings')->value('min_cashback_redeem_threshold');
+            if ($settingVal !== null && is_numeric($settingVal)) {
+                $minCashbackThreshold = (float) $settingVal;
+            }
+        }
+
+        $cashbackBalance = (float) ($user->cashback_balance ?? 0.00);
+
         return response()->json([
             'res'  => 'success',
             'msg'  => 'Wallet amount fetched successfully',
             'data' => [
-                'amount'         => (string) $userBalance,
-                'wallet_amount'  => (string) $userBalance,
-                'earn_amount'    => $totalEarnings,
-                'total_earnings' => $totalEarnings,
-                'promotional'    => $promotionalData,
-                'virtual_loan'   => $virtualLoanData,
+                'amount'                        => (string) $userBalance,
+                'wallet_amount'                 => (string) $userBalance,
+                'earn_amount'                   => (string) $cashbackBalance,
+                'cashback_balance'              => (string) $cashbackBalance,
+                'min_cashback_redeem_threshold' => (string) $minCashbackThreshold,
+                'total_earnings'                => $totalEarnings,
+                'promotional'                   => $promotionalData,
+                'virtual_loan'                  => $virtualLoanData,
             ],
         ]);
+    }
+
+    /**
+     * Convert accumulated Cashback into primary Wallet Balance.
+     */
+    public function convert_cashback_to_wallet(Request $request)
+    {
+        $all = $request->all();
+        if (empty($all) && $request->getContent()) {
+            $all = json_decode($request->getContent(), true) ?? [];
+        }
+
+        $acNo     = $all['ac_no'] ?? $request->input('ac_no');
+        $userId   = $all['user_id'] ?? $all['id_user'] ?? $all['driver_id'] ?? $all['id'] ?? $request->input('user_id') ?? $request->input('id_user') ?? $request->input('driver_id') ?? $request->input('id');
+        $userType = $all['user_type'] ?? $request->input('user_type');
+
+        $isDriverReq = false;
+        if ($userType === 'driver' || $request->is('*driver*')) {
+            $isDriverReq = true;
+        }
+
+        $userTable = $isDriverReq ? 'tj_conducteur' : 'tj_user_app';
+        $user = null;
+
+        if (!empty($userId)) {
+            $user = DB::table($userTable)->where('id', $userId)->first();
+        }
+        if (!$user && !empty($acNo)) {
+            $user = DB::table($userTable)->where('ac_no', $acNo)->orWhere('id', $acNo)->first();
+        }
+
+        // Cross-check fallback if not found
+        if (!$user && !empty($userId)) {
+            $altTable = $isDriverReq ? 'tj_user_app' : 'tj_conducteur';
+            $altUser = DB::table($altTable)->where('id', $userId)->first();
+            if ($altUser) {
+                $user = $altUser;
+                $userTable = $altTable;
+                $isDriverReq = ($altTable === 'tj_conducteur');
+            }
+        }
+
+        if (!$user) {
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'Account not found.',
+            ], 404);
+        }
+
+        // Fetch minimum threshold
+        $minThreshold = 500.00;
+        if (Schema::hasTable('tj_settings')) {
+            $settingVal = DB::table('tj_settings')->value('min_cashback_redeem_threshold');
+            if ($settingVal !== null && is_numeric($settingVal)) {
+                $minThreshold = (float) $settingVal;
+            }
+        }
+
+        $cashbackBalance = (float) ($user->cashback_balance ?? 0.00);
+
+        if ($cashbackBalance < $minThreshold) {
+            return response()->json([
+                'res' => 'error',
+                'msg' => "Minimum ₹" . number_format($minThreshold, 2) . " cashback required to convert into wallet balance. Your current cashback is ₹" . number_format($cashbackBalance, 2) . ".",
+                'data' => [
+                    'current_cashback' => $cashbackBalance,
+                    'required_min'     => $minThreshold,
+                ]
+            ], 422);
+        }
+
+        // Convert the full available cashback balance (or user requested amount if specified and valid)
+        $requestedConvertAmount = isset($all['amount']) ? (float) $all['amount'] : $cashbackBalance;
+        if ($requestedConvertAmount <= 0 || $requestedConvertAmount > $cashbackBalance) {
+            $requestedConvertAmount = $cashbackBalance;
+        }
+
+        $nowDateTime = date('Y-m-d H:i:s');
+        $convertedAmount = $requestedConvertAmount;
+
+        DB::beginTransaction();
+        try {
+            // Lock and re-read
+            $freshUser = DB::table($userTable)->where('id', $user->id)->lockForUpdate()->first();
+            $freshCashback = (float) ($freshUser->cashback_balance ?? 0.00);
+
+            if ($freshCashback < $convertedAmount || $freshCashback < $minThreshold) {
+                DB::rollBack();
+                return response()->json([
+                    'res' => 'error',
+                    'msg' => "Insufficient cashback balance or balance below minimum threshold.",
+                ], 422);
+            }
+
+            $newCashback = round($freshCashback - $convertedAmount, 2);
+            $newAmount   = round((float) ($freshUser->amount ?? 0.00) + $convertedAmount, 2);
+
+            DB::table($userTable)->where('id', $user->id)->update([
+                'cashback_balance' => $newCashback,
+                'amount'           => $newAmount,
+                'modifier'         => $nowDateTime,
+            ]);
+
+            // Add transaction log
+            if (!$isDriverReq) {
+                DB::table('tj_transaction')->insert([
+                    'amount'         => (string) $convertedAmount,
+                    'deduction_type' => 1, // Credit
+                    'type'           => 'credit',
+                    'payment_method' => 'Cashback Conversion',
+                    'payment_status' => 'success',
+                    'id_user_app'    => $user->id,
+                    'description'    => "Converted ₹" . number_format($convertedAmount, 2) . " Cashback to Wallet Balance",
+                    'creer'          => $nowDateTime,
+                    'modifier'       => $nowDateTime,
+                ]);
+            } else {
+                DB::table('tj_conducteur_transaction')->insert([
+                    'amount'         => (string) $convertedAmount,
+                    'deduction_type' => 1, // Credit
+                    'type'           => 'credit',
+                    'payment_method' => 'Cashback Conversion',
+                    'id_conducteur'  => $user->id,
+                    'description'    => "Converted ₹" . number_format($convertedAmount, 2) . " Cashback to Wallet Balance",
+                    'note'           => "Redeemed from accumulated cashback",
+                    'creer'          => $nowDateTime,
+                    'modifier'       => $nowDateTime,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'res'  => 'success',
+                'msg'  => "₹" . number_format($convertedAmount, 2) . " Cashback successfully converted to your Wallet Balance!",
+                'data' => [
+                    'converted_amount' => $convertedAmount,
+                    'wallet_amount'    => (string) $newAmount,
+                    'amount'           => (string) $newAmount,
+                    'cashback_balance' => (string) $newCashback,
+                    'earn_amount'      => (string) $newCashback,
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'res' => 'error',
+                'msg' => 'Failed to convert cashback: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function show_transaction_history(Request $request)

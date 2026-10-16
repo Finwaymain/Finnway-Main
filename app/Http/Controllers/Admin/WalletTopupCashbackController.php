@@ -89,7 +89,15 @@ class WalletTopupCashbackController extends Controller
             }
         }
 
-        return view('admin.wallet.topup_cashback', compact('rules', 'stats', 'logs'));
+        $minThreshold = 500.00;
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_settings')) {
+            $val = DB::table('tj_settings')->value('min_cashback_redeem_threshold');
+            if ($val !== null && is_numeric($val)) {
+                $minThreshold = (float) $val;
+            }
+        }
+
+        return view('admin.wallet.topup_cashback', compact('rules', 'stats', 'logs', 'minThreshold'));
     }
 
     /**
@@ -215,5 +223,28 @@ class WalletTopupCashbackController extends Controller
         $rule->delete();
 
         return redirect()->back()->with('success', "Cashback rule '{$name}' deleted successfully.");
+    }
+
+    /**
+     * Update minimum cashback conversion threshold in tj_settings.
+     */
+    public function updateThreshold(Request $request)
+    {
+        $validated = $request->validate([
+            'min_cashback_redeem_threshold' => 'required|numeric|min:0',
+        ]);
+
+        $threshold = round((float) $validated['min_cashback_redeem_threshold'], 2);
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('tj_settings')) {
+            $setting = DB::table('tj_settings')->first();
+            if ($setting) {
+                DB::table('tj_settings')->where('id', $setting->id)->update([
+                    'min_cashback_redeem_threshold' => $threshold,
+                ]);
+            }
+        }
+
+        return redirect()->back()->with('success', "Cashback conversion threshold updated to ₹" . number_format($threshold, 2) . " successfully.");
     }
 }
