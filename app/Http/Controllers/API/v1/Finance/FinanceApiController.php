@@ -1159,7 +1159,7 @@ class FinanceApiController extends Controller
             $lender = \App\Models\Finance\FinanceAffiliateLender::where('name', 'like', "%{$lenderName}%")->first();
         }
         if (!$lender) {
-            $affUrl = 'https://EasyPe.o18a.com/c?o=21983875&m=26892&a=761563&sub_aff_id=' . urlencode($phone);
+            $affUrl = 'https://EasyPe.o18a.com/c?o=21966470&m=26892&a=761563&sub_aff_id=' . urlencode($phone);
             $lender = \App\Models\Finance\FinanceAffiliateLender::create([
                 'name' => $lenderName ?: 'SBI Credit Card',
                 'min_loan_amount' => 0,
