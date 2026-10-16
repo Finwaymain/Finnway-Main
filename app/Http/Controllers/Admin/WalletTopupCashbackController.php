@@ -20,49 +20,17 @@ class WalletTopupCashbackController extends Controller
      */
     public function index(Request $request)
     {
-        // Auto-reconcile recent top-ups from last 48 hours that may have missed cashback
-        try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('upi_qr_transactions')) {
-                $recentCaptured = DB::table('upi_qr_transactions')
-                    ->where('wallet_credited', true)
-                    ->where('amount', '>', 0)
-                    ->whereNotNull('user_id')
-                    ->where('updated_at', '>=', \Carbon\Carbon::now()->subDays(2))
-                    ->get();
-
-                foreach ($recentCaptured as $rc) {
-                    $uid = (int) $rc->user_id;
-                    $uType = ($rc->user_type === 'driver') ? 'driver' : 'customer';
-                    $amt = (float) $rc->amount;
-                    $txnRef = (string) ($rc->razorpay_payment_id ?? $rc->id);
-
-                    $alreadyLogged = WalletTopupCashbackLog::where('user_id', $uid)
-                        ->where('user_type', $uType)
-                        ->where(function($q) use ($txnRef) {
-                            $q->where('txn_id', $txnRef)
-                              ->orWhere('notes', 'LIKE', "%{$txnRef}%");
-                        })
-                        ->exists();
-
-                    if (!$alreadyLogged && $amt >= 10) {
-                        \App\Services\WalletTopupCashbackService::processTopupCashback($uid, $uType, $amt, $txnRef);
-                    }
-                }
-            }
-        } catch (\Throwable $reconcileErr) {
-            \Illuminate\Support\Facades\Log::warning('Cashback auto-reconcile error: ' . $reconcileErr->getMessage());
-        }
-
         $rules = WalletTopupCashbackRule::orderBy('priority', 'desc')->orderBy('id', 'desc')->get();
 
         $stats = [
-            'total_cashback_given' => (float) WalletTopupCashbackLog::sum('cashback_amount'),
-            'total_transactions'   => WalletTopupCashbackLog::count(),
-            'unique_users_count'   => WalletTopupCashbackLog::distinct('user_id')->count('user_id'),
+            'total_cashback_given' => (float) WalletTopupCashbackLog::where('status', '!=', 'reverted')->sum('cashback_amount'),
+            'total_transactions'   => WalletTopupCashbackLog::where('status', '!=', 'reverted')->count(),
+            'unique_users_count'   => WalletTopupCashbackLog::where('status', '!=', 'reverted')->distinct('user_id')->count('user_id'),
             'active_rules_count'   => WalletTopupCashbackRule::where('is_active', true)->count(),
         ];
 
         $logs = WalletTopupCashbackLog::with('rule')
+            ->where('status', '!=', 'reverted')
             ->orderBy('id', 'desc')
             ->limit(50)
             ->get();

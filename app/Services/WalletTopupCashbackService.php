@@ -96,6 +96,22 @@ class WalletTopupCashbackService
                 $userType = 'customer';
             }
 
+            // Idempotency guard: prevent duplicate cashback for same transaction reference
+            if (!empty($origTxnId)) {
+                $alreadyAwarded = WalletTopupCashbackLog::where('user_id', $userId)
+                    ->where('user_type', $userType)
+                    ->where(function ($q) use ($origTxnId) {
+                        $q->where('txn_id', $origTxnId)
+                          ->orWhere('notes', 'LIKE', "%Ref: {$origTxnId}%")
+                          ->orWhere('notes', 'LIKE', "%{$origTxnId}%");
+                    })
+                    ->exists();
+
+                if ($alreadyAwarded) {
+                    return null;
+                }
+            }
+
             $rule = self::findMatchingRule($topupAmount, $userType, $userId);
             if (!$rule) {
                 return null;
@@ -107,7 +123,7 @@ class WalletTopupCashbackService
             }
 
             $nowDateTime = Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s');
-            $cashbackTxnId = 'CB_' . time() . '_' . rand(1000, 9999);
+            $cashbackTxnId = !empty($origTxnId) ? ('CB_' . $origTxnId) : ('CB_' . time() . '_' . rand(1000, 9999));
 
             DB::beginTransaction();
 
@@ -150,7 +166,12 @@ class WalletTopupCashbackService
                 $userName = trim(($driver->nom ?? '') . ' ' . ($driver->prenom ?? ''));
             }
 
-            // Create log record
+            // Create log record with explicit reference to original topup transaction
+            $notes = "Rule: {$rule->name} | Topup: ₹{$topupAmount} | Cashback: ₹{$cashbackAmount}";
+            if (!empty($origTxnId)) {
+                $notes .= " | Ref: {$origTxnId}";
+            }
+
             WalletTopupCashbackLog::create([
                 'rule_id'         => $rule->id,
                 'user_id'         => $userId,
@@ -159,7 +180,7 @@ class WalletTopupCashbackService
                 'cashback_amount' => $cashbackAmount,
                 'txn_id'          => $cashbackTxnId,
                 'status'          => 'credited',
-                'notes'           => "Rule: {$rule->name} | Topup: ₹{$topupAmount} | Cashback: ₹{$cashbackAmount}",
+                'notes'           => $notes,
             ]);
 
             DB::commit();

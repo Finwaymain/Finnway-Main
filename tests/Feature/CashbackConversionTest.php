@@ -56,7 +56,15 @@ class CashbackConversionTest extends TestCase
         $this->assertEquals(100.00, (float) $user->amount);
 
         // 5. Assert cashback_balance has been credited with 50.00
+        $user = DB::table('tj_user_app')->where('id', $userId)->first();
         $this->assertEquals(50.00, (float) $user->cashback_balance);
+
+        // 6. Test Idempotency: Repeating with the same transaction reference must return null and not add more cashback
+        $duplicateResult = WalletTopupCashbackService::processTopupCashback($userId, 'customer', 1000.00, 'TEST_TXN_001');
+        $this->assertNull($duplicateResult);
+
+        $userAfterDup = DB::table('tj_user_app')->where('id', $userId)->first();
+        $this->assertEquals(50.00, (float) $userAfterDup->cashback_balance);
 
         // Clean up
         $rule->delete();
