@@ -133,7 +133,18 @@ class OnboardingAccess
         // Static Next.js export: serve file directly (avoid Blade parsing @ / {{ in JS)
         $content = file_get_contents($path);
         $symbol = Helper::getCurrencySymbol();
-        $script = '<script>window.CURRENCY_SYMBOL = ' . json_encode($symbol) . ';</script>';
+        $minThreshold = 1.00;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('tj_settings')) {
+                $val = \Illuminate\Support\Facades\DB::table('tj_settings')->value('min_cashback_redeem_threshold');
+                if ($val !== null && is_numeric($val)) {
+                    $minThreshold = (float) $val;
+                }
+            }
+        } catch (\Throwable $e) {
+            $minThreshold = 1.00;
+        }
+        $script = '<script>window.CURRENCY_SYMBOL = ' . json_encode($symbol) . '; window.__MIN_CASHBACK_THRESHOLD = ' . json_encode($minThreshold) . ';</script>';
         if (str_contains($content, '<head>')) {
             $content = str_replace('<head>', '<head>' . $script, $content);
         } else {
