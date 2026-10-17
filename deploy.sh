@@ -3,6 +3,8 @@ set -e
 
 cd /var/www/fiinway-backend || cd "$(dirname "$0")"
 
+git config --global --add safe.directory /var/www/fiinway-backend 2>/dev/null || true
+
 echo "Pulling latest code from origin main..."
 git fetch origin main
 git reset --hard origin/main
