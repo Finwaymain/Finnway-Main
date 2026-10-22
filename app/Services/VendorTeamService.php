@@ -1291,6 +1291,8 @@ class VendorTeamService
                     $hoursLeft = max(0, (int)$diffHours);
                 }
 
+                $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
+
                 $svAcquisitionsList[] = [
                     'id'                  => $acq->id,
                     'name'                => $acqName,
@@ -1298,6 +1300,7 @@ class VendorTeamService
                     'zone'                => $sv->team_location ?? 'DELHI',
                     'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
                     'user_type'           => $acq->acquired_user_type,
+                    'app_type'            => $isBizAcq ? 'Business App' : 'User App',
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
                     'rejection_reason'    => $acq->rejection_reason ?? null,
@@ -1477,6 +1480,8 @@ class VendorTeamService
                     $hoursLeft = max(0, (int)$diffHours);
                 }
 
+                $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
+
                 $acquisitions[] = [
                     'id'                  => $acq->id,
                     'name'                => $acqName,
@@ -1484,6 +1489,7 @@ class VendorTeamService
                     'zone'                => $vendor->team_location ?? 'DELHI',
                     'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
                     'user_type'           => $acq->acquired_user_type,
+                    'app_type'            => $isBizAcq ? 'Business App' : 'User App',
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
                     'rejection_reason'    => $acq->rejection_reason ?? null,
@@ -1709,13 +1715,16 @@ class VendorTeamService
                 $hoursLeft = max(0, (int)$diffHours);
             }
 
+            $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
+
             $recentAcquisitions[] = [
                 'id'                  => $acq->id,
                 'user_name'           => $name,
                 'phone'               => $maskedPhone,
                 'zone'                => $vendor->team_location ?? 'DELHI',
                 'user_type'           => $acq->acquired_user_type,
-                'user_type_label'     => $acq->acquired_user_type === 'business' ? 'Business Driver' : 'Customer',
+                'app_type'            => $isBizAcq ? 'Business App' : 'User App',
+                'user_type_label'     => $isBizAcq ? 'Business Driver' : 'Customer',
                 'kyc_status'          => $kyc,
                 'verification_status' => $acq->verification_status,
                 'hours_left'          => $hoursLeft,
