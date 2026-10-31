@@ -12,12 +12,14 @@ class DeployWebhookController extends Controller
         $deployScript = base_path('deploy.sh');
         $varDeployScript = '/var/www/fiinway-backend/deploy.sh';
         
+        $envPrefix = "export GIT_CONFIG_GLOBAL=/tmp/.gitconfig; git config --global --add safe.directory '*' 2>/dev/null || true; ";
+        
         if (file_exists($deployScript)) {
-            $output = shell_exec("bash {$deployScript} 2>&1");
+            $output = shell_exec("{$envPrefix} bash {$deployScript} 2>&1");
         } elseif (file_exists($varDeployScript)) {
-            $output = shell_exec("bash {$varDeployScript} 2>&1");
+            $output = shell_exec("{$envPrefix} bash {$varDeployScript} 2>&1");
         } else {
-            $cmd = "cd " . base_path() . " && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1 && php artisan optimize:clear 2>&1 && php artisan optimize 2>&1";
+            $cmd = "{$envPrefix} cd " . base_path() . " && git -c safe.directory='*' fetch origin main 2>&1 && git -c safe.directory='*' reset --hard origin/main 2>&1 && php artisan optimize:clear 2>&1 && php artisan optimize 2>&1";
             $output = shell_exec($cmd);
         }
 

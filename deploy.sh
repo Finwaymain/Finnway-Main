@@ -3,11 +3,14 @@ set -e
 
 cd /var/www/fiinway-backend || cd "$(dirname "$0")"
 
+# Ensure git safe.directory never halts execution regardless of user (root or www-data)
+export GIT_CONFIG_GLOBAL=/tmp/.gitconfig
 git config --global --add safe.directory /var/www/fiinway-backend 2>/dev/null || true
+git config --global --add safe.directory '*' 2>/dev/null || true
 
 echo "Pulling latest code from origin main..."
-git fetch origin main
-git reset --hard origin/main
+git -c safe.directory='*' fetch origin main
+git -c safe.directory='*' reset --hard origin/main
 
 echo "Installing Composer dependencies (if needed)..."
 export COMPOSER_ALLOW_SUPERUSER=1
