@@ -519,11 +519,24 @@ class RestaurantAuthController extends Controller
         // ── 2. CHECK MARKETING FREELANCER CODE (FR...) ──
         if (str_starts_with($referralCode, 'FR')) {
             $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
+            $vendor = null;
             if (!$teamMember) {
                 // Check if vendor has matching freelancer code
                 $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
                 if ($vendor) {
                     $teamMember = \Illuminate\Support\Facades\DB::table('marketing_team_members')->where('vendor_id', $vendor->id)->first();
+                    if (!$teamMember) {
+                        $teamMemberId = \Illuminate\Support\Facades\DB::table('marketing_team_members')->insertGetId([
+                            'vendor_id'   => $vendor->id,
+                            'user_id'     => $vendor->user_id,
+                            'user_type'   => $vendor->user_type,
+                            'member_code' => $vendor->freelancer_code ?: $referralCode,
+                            'status'      => 'active',
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                        $teamMember = \Illuminate\Support\Facades\DB::table('marketing_team_members')->where('id', $teamMemberId)->first();
+                    }
                 }
             }
 
@@ -552,6 +565,64 @@ class RestaurantAuthController extends Controller
                     'referrer' => $referrerDisplay,
                 ]);
             }
+
+            // Fallback: Check if FR code exists in standard referral system
+            $fallbackReferrer = \App\Services\ReferralCodeService::resolveReferrer($referralCode);
+            if ($fallbackReferrer) {
+                $referrerId   = (int)$fallbackReferrer['user_id'];
+                $referrerType = $fallbackReferrer['user_type'] ?? 'customer';
+
+                if ($referrerId === (int)$owner->id && $referrerType === 'restaurant') {
+                    return response()->json(['success' => false, 'error' => 'You cannot use your own referral code.']);
+                }
+
+                $existingReferral = \Illuminate\Support\Facades\DB::table('referral')
+                    ->where('user_id', $owner->id)
+                    ->where('user_type', 'restaurant')
+                    ->first();
+
+                if ($existingReferral) {
+                    $refUpdate = [
+                        'referral_by_id' => $referrerId,
+                        'code_used'      => 'true',
+                    ];
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_type')) {
+                        $refUpdate['referral_by_type'] = $referrerType;
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                        $refUpdate['referral_by_code'] = $referralCode;
+                    }
+                    \Illuminate\Support\Facades\DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+                } else {
+                    $myReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($owner->id, 'restaurant');
+                    $insertData = [
+                        'user_id'        => $owner->id,
+                        'user_type'      => 'restaurant',
+                        'referral_by_id' => $referrerId,
+                        'referral_code'  => $myReferralCode,
+                        'code_used'      => 'true',
+                        'creer'          => date('Y-m-d H:i:s'),
+                    ];
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_type')) {
+                        $insertData['referral_by_type'] = $referrerType;
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                        $insertData['referral_by_code'] = $referralCode;
+                    }
+                    \Illuminate\Support\Facades\DB::table('referral')->insert($insertData);
+                }
+
+                $this->saveAppliedCodeToRestaurant($owner->id, $referralCode);
+
+                $referrerDisplay = $this->resolveReferrerDisplayInfo($referralCode);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Referral code applied successfully!',
+                    'referrer' => $referrerDisplay,
+                ]);
+            }
+
             return response()->json(['success' => false, 'error' => 'Invalid Freelancer / Field Coordinator Code. Please check and try again.']);
         }
 

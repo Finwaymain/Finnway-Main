@@ -558,16 +558,30 @@ class VendorTeamService
             return null;
         }
 
+        // Generate normalized variants (e.g. FR01022 vs FR1022 vs FR001022)
+        $codeVariants = [$code];
+        if (preg_match('/^([A-Z]+)0*(\d+)$/', $code, $m)) {
+            $prefix = $m[1];
+            $cleanNum = ltrim($m[2], '0');
+            $codeVariants[] = $prefix . $cleanNum;
+            $codeVariants[] = $prefix . '0' . $cleanNum;
+            $codeVariants[] = $prefix . sprintf('%05d', (int)$cleanNum);
+        }
+        $codeVariants = array_values(array_unique($codeVariants));
+
         // 1. Direct match on vendor_code, sub_vendor_code, or freelancer_code
         $vendor = DB::table('marketing_vendors')
-            ->where('status', 'approved')
-            ->where(function($q) use ($code) {
-                $q->where('vendor_code', $code);
+            ->where(function($q) {
+                $q->whereNull('status')
+                  ->orWhereIn('status', ['approved', 'active', 'verified']);
+            })
+            ->where(function($q) use ($codeVariants) {
+                $q->whereIn('vendor_code', $codeVariants);
                 if (Schema::hasColumn('marketing_vendors', 'sub_vendor_code')) {
-                    $q->orWhere('sub_vendor_code', $code);
+                    $q->orWhereIn('sub_vendor_code', $codeVariants);
                 }
                 if (Schema::hasColumn('marketing_vendors', 'freelancer_code')) {
-                    $q->orWhere('freelancer_code', $code);
+                    $q->orWhereIn('freelancer_code', $codeVariants);
                 }
             })
             ->first();
@@ -576,17 +590,27 @@ class VendorTeamService
             return $vendor;
         }
 
-        // 2. If code starts with SV or FR, map to VR / TM
+        // 2. If code starts with SV or FR, map to VR / TM variants
         if (str_starts_with($code, 'SV') || str_starts_with($code, 'FR')) {
             $numPart = substr($code, 2);
-            $vrCode  = 'VR' . $numPart;
-            $tmCode  = 'TM' . $numPart;
+            $cleanNum = ltrim($numPart, '0');
+            $vrVariants = [
+                'VR' . $numPart,
+                'VR' . $cleanNum,
+                'VR' . sprintf('%05d', (int)$cleanNum),
+                'TM' . $numPart,
+                'TM' . $cleanNum,
+                'TM' . sprintf('%05d', (int)$cleanNum),
+            ];
+            $vrVariants = array_values(array_unique($vrVariants));
 
             return DB::table('marketing_vendors')
-                ->where('status', 'approved')
-                ->where(function($q) use ($vrCode, $tmCode) {
-                    $q->where('vendor_code', $vrCode)
-                      ->orWhere('vendor_code', $tmCode);
+                ->where(function($q) {
+                    $q->whereNull('status')
+                      ->orWhereIn('status', ['approved', 'active', 'verified']);
+                })
+                ->where(function($q) use ($vrVariants) {
+                    $q->whereIn('vendor_code', $vrVariants);
                 })
                 ->first();
         }
@@ -608,9 +632,21 @@ class VendorTeamService
             return null;
         }
 
+        $codeVariants = [$code];
+        if (preg_match('/^FR0*(\d+)$/', $code, $m)) {
+            $cleanNum = ltrim($m[1], '0');
+            $codeVariants[] = 'FR' . $cleanNum;
+            $codeVariants[] = 'FR0' . $cleanNum;
+            $codeVariants[] = 'FR' . sprintf('%05d', (int)$cleanNum);
+        }
+        $codeVariants = array_values(array_unique($codeVariants));
+
         return DB::table('marketing_team_members')
-            ->where('member_code', $code)
-            ->where('status', 'active')
+            ->whereIn('member_code', $codeVariants)
+            ->where(function($q) {
+                $q->whereNull('status')
+                  ->orWhereIn('status', ['active', 'approved', 'verified']);
+            })
             ->first();
     }
 
