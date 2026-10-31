@@ -184,12 +184,15 @@ class MarketingVendorAdminController extends Controller
 
             $customerIds = [];
             $driverIds = [];
+            $restaurantIds = [];
             $flCustomerIds = [];
             $flDriverIds = [];
 
             foreach ($allUsers as $acq) {
                 if ($acq->acquired_user_type === 'customer') {
                     $customerIds[] = $acq->acquired_user_id;
+                } elseif ($acq->acquired_user_type === 'restaurant') {
+                    $restaurantIds[] = $acq->acquired_user_id;
                 } else {
                     $driverIds[] = $acq->acquired_user_id;
                 }
@@ -205,6 +208,12 @@ class MarketingVendorAdminController extends Controller
 
             $customers = !empty($customerIds) ? DB::table('tj_user_app')->whereIn('id', array_unique($customerIds))->get()->keyBy('id') : collect();
             $drivers = !empty($driverIds) ? DB::table('tj_conducteur')->whereIn('id', array_unique($driverIds))->get()->keyBy('id') : collect();
+            $restaurants = (!empty($restaurantIds) && Schema::hasTable('food_restaurants'))
+                ? DB::table('food_restaurants')->whereIn('id', array_unique($restaurantIds))->orWhereIn('owner_id', array_unique($restaurantIds))->get()->keyBy('owner_id')
+                : collect();
+            $foodOwners = (!empty($restaurantIds) && Schema::hasTable('food_owners'))
+                ? DB::table('food_owners')->whereIn('id', array_unique($restaurantIds))->get()->keyBy('id')
+                : collect();
             $flCustomers = !empty($flCustomerIds) ? DB::table('tj_user_app')->whereIn('id', array_unique($flCustomerIds))->get()->keyBy('id') : collect();
             $flDrivers = !empty($flDriverIds) ? DB::table('tj_conducteur')->whereIn('id', array_unique($flDriverIds))->get()->keyBy('id') : collect();
 
@@ -212,7 +221,21 @@ class MarketingVendorAdminController extends Controller
                 $acqName = 'User';
                 $acqPhone = '';
 
-                if ($acq->acquired_user_type === 'customer') {
+                if ($acq->acquired_user_type === 'restaurant') {
+                    $acqName = 'Restaurant Partner';
+                    $rest = $restaurants->get($acq->acquired_user_id);
+                    if ($rest) {
+                        $acqName = $rest->name ?: 'Restaurant Partner';
+                        $acqPhone = $rest->phone ?? ($rest->owner_phone ?? '');
+                    }
+                    if (empty($acqPhone)) {
+                        $fo = $foodOwners->get($acq->acquired_user_id);
+                        if ($fo) {
+                            $acqName = $acqName !== 'Restaurant Partner' ? $acqName : ($fo->name ?: 'Restaurant Partner');
+                            $acqPhone = $fo->phone ?? '';
+                        }
+                    }
+                } elseif ($acq->acquired_user_type === 'customer') {
                     $u = $customers->get($acq->acquired_user_id);
                     if ($u) {
                         $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
@@ -423,7 +446,24 @@ class MarketingVendorAdminController extends Controller
             $acqPhone = '';
             $acqKyc = 'No';
 
-            if ($acq->acquired_user_type === 'customer') {
+            if ($acq->acquired_user_type === 'restaurant') {
+                $acqName = 'Restaurant Partner';
+                if (Schema::hasTable('food_restaurants')) {
+                    $rest = DB::table('food_restaurants')->where('id', $acq->acquired_user_id)->orWhere('owner_id', $acq->acquired_user_id)->first();
+                    if ($rest) {
+                        $acqName = $rest->name ?: 'Restaurant Partner';
+                        $acqPhone = $rest->phone ?? ($rest->owner_phone ?? '');
+                        $acqKyc = in_array(strtolower((string)$rest->onboarding_status), ['active', 'approved', 'verified']) ? 'Verified' : 'No';
+                    }
+                }
+                if (empty($acqPhone) && Schema::hasTable('food_owners')) {
+                    $fo = DB::table('food_owners')->where('id', $acq->acquired_user_id)->first();
+                    if ($fo) {
+                        $acqName = $acqName !== 'Restaurant Partner' ? $acqName : ($fo->name ?: 'Restaurant Partner');
+                        $acqPhone = $fo->phone ?? '';
+                    }
+                }
+            } elseif ($acq->acquired_user_type === 'customer') {
                 $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
                 if ($u) {
                     $acqName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Consumer';
@@ -469,9 +509,16 @@ class MarketingVendorAdminController extends Controller
             ->where('verification_status', 'verified')
             ->count();
 
+        $restVer = DB::table('marketing_acquisitions')
+            ->where('vendor_id', $vendor->id)
+            ->where('acquired_user_type', 'restaurant')
+            ->where('verification_status', 'verified')
+            ->count();
+
         $totalEarned = round(
             ($custVer * (float)$vendor->rate_per_customer) +
-            ($bizVer * (float)$vendor->rate_per_business),
+            ($bizVer * (float)$vendor->rate_per_business) +
+            ($restVer * (float)($vendor->rate_per_restaurant ?? 0.0)),
             2
         );
 
@@ -506,15 +553,17 @@ class MarketingVendorAdminController extends Controller
     public function approve(Request $request, $id)
     {
         $request->validate([
-            'rate_per_customer' => 'required|numeric|min:0',
-            'rate_per_business' => 'required|numeric|min:0',
+            'rate_per_customer'   => 'required|numeric|min:0',
+            'rate_per_business'   => 'required|numeric|min:0',
+            'rate_per_restaurant' => 'nullable|numeric|min:0',
         ]);
 
         $res = VendorTeamService::approveVendor(
             (int)$id,
             (float)$request->input('rate_per_customer'),
             (float)$request->input('rate_per_business'),
-            Auth::id()
+            Auth::id(),
+            (float)$request->input('rate_per_restaurant', 100.0)
         );
 
         if (!empty($res['success'])) {
@@ -545,15 +594,22 @@ class MarketingVendorAdminController extends Controller
     public function updateRates(Request $request, $id)
     {
         $request->validate([
-            'rate_per_customer' => 'required|numeric|min:0',
-            'rate_per_business' => 'required|numeric|min:0',
+            'rate_per_customer'   => 'required|numeric|min:0',
+            'rate_per_business'   => 'required|numeric|min:0',
+            'rate_per_restaurant' => 'nullable|numeric|min:0',
         ]);
 
-        DB::table('marketing_vendors')->where('id', $id)->update([
+        $updateData = [
             'rate_per_customer' => max(0, (float)$request->input('rate_per_customer')),
             'rate_per_business' => max(0, (float)$request->input('rate_per_business')),
             'updated_at'        => now(),
-        ]);
+        ];
+
+        if (Schema::hasColumn('marketing_vendors', 'rate_per_restaurant')) {
+            $updateData['rate_per_restaurant'] = max(0, (float)$request->input('rate_per_restaurant', 0));
+        }
+
+        DB::table('marketing_vendors')->where('id', $id)->update($updateData);
 
         return redirect()->back()->with('success', 'Vendor payout rates updated successfully.');
     }

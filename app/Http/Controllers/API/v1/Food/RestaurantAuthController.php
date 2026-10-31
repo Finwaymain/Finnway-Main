@@ -362,6 +362,40 @@ class RestaurantAuthController extends Controller
     protected function ownerPayload(FoodOwner $owner, ?string $token = null): array
     {
         $restaurants = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->get();
+
+        // Ensure restaurant owner has a unique referral code (FIINR...)
+        $referralCode = null;
+        try {
+            $referralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($owner->id, 'restaurant');
+        } catch (\Throwable $e) {
+            $referralCode = $owner->referral_code ?? ('FIINR' . strtoupper(substr(md5((string)$owner->id), 0, 6)));
+        }
+
+        // Check if referral code is already applied
+        $refBy = $owner->ref_by ?? null;
+        if (empty($refBy) && \Illuminate\Support\Facades\Schema::hasTable('referral')) {
+            $refBy = \Illuminate\Support\Facades\DB::table('referral')
+                ->where('user_id', $owner->id)
+                ->where('user_type', 'restaurant')
+                ->value('referral_by_code');
+        }
+        if (empty($refBy) && \Illuminate\Support\Facades\Schema::hasTable('marketing_acquisitions')) {
+            $acq = \Illuminate\Support\Facades\DB::table('marketing_acquisitions')
+                ->where('acquired_user_id', $owner->id)
+                ->where('acquired_user_type', 'restaurant')
+                ->first();
+            if ($acq) {
+                if (!empty($acq->team_member_id)) {
+                    $refBy = \Illuminate\Support\Facades\DB::table('marketing_team_members')->where('id', $acq->team_member_id)->value('member_code');
+                }
+                if (empty($refBy) && !empty($acq->vendor_id)) {
+                    $refBy = \Illuminate\Support\Facades\DB::table('marketing_vendors')->where('id', $acq->vendor_id)->value('vendor_code');
+                }
+            }
+        }
+
+        $referrerInfo = !empty($refBy) ? $this->resolveReferrerDisplayInfo($refBy) : null;
+
         return [
             'owner' => [
                 'id' => $owner->id,
@@ -374,12 +408,308 @@ class RestaurantAuthController extends Controller
                 'status' => $owner->status,
                 'has_mpin' => !empty($owner->mpin),
                 'profile_completed' => !empty($owner->name),
+                'referral_code' => $referralCode,
+                'ref_by' => $refBy,
+                'referrer_info' => $referrerInfo,
             ],
             'accesstoken' => $token ?: $owner->access_token,
             'token' => $token ?: $owner->access_token,
             'restaurants' => $restaurants,
             'has_restaurant' => $restaurants->count() > 0,
             'onboarding_required' => $restaurants->where('onboarding_status', 'active')->count() === 0,
+        ];
+    }
+
+    /**
+     * Apply a Referral or Partner Code for Restaurant
+     */
+    public function applyReferral(Request $request)
+    {
+        /** @var FoodOwner $owner */
+        $owner = $request->attributes->get('food_owner');
+        if (!$owner) {
+            return response()->json(['success' => false, 'error' => 'Unauthorized restaurant owner.'], 401);
+        }
+
+        $referralCode = strtoupper(trim((string)($request->input('referral_code') ?? $request->get('referral_code') ?? '')));
+
+        if (empty($referralCode)) {
+            return response()->json(['success' => false, 'error' => 'Referral code is required.']);
+        }
+
+        // Check if referral code is already applied
+        $existingRefBy = $owner->ref_by ?? null;
+        if (empty($existingRefBy) && \Illuminate\Support\Facades\Schema::hasTable('referral')) {
+            $existingRefBy = \Illuminate\Support\Facades\DB::table('referral')
+                ->where('user_id', $owner->id)
+                ->where('user_type', 'restaurant')
+                ->whereNotNull('referral_by_code')
+                ->value('referral_by_code');
+        }
+        if (empty($existingRefBy) && \Illuminate\Support\Facades\Schema::hasTable('marketing_acquisitions')) {
+            $existingAcq = \Illuminate\Support\Facades\DB::table('marketing_acquisitions')
+                ->where('acquired_user_id', $owner->id)
+                ->where('acquired_user_type', 'restaurant')
+                ->first();
+            if ($existingAcq) {
+                return response()->json(['success' => false, 'error' => 'A referral or partner code has already been applied to this restaurant account.']);
+            }
+        }
+        if (!empty($existingRefBy)) {
+            return response()->json(['success' => false, 'error' => 'A referral code has already been applied to this restaurant account.']);
+        }
+
+        // Prevent self-referral
+        $myCode = strtoupper(trim((string)($owner->referral_code ?? '')));
+        if (!empty($myCode) && $myCode === $referralCode) {
+            return response()->json(['success' => false, 'error' => 'You cannot use your own restaurant referral code.']);
+        }
+
+        // ── 1. CHECK MARKETING VENDOR / SUB-VENDOR CODE (VR... / TM... / SV...) ──
+        if (str_starts_with($referralCode, 'VR') || str_starts_with($referralCode, 'TM') || str_starts_with($referralCode, 'SV')) {
+            $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
+            if ($vendor) {
+                // Ensure default team member exists for vendor or get first
+                $defaultMember = \Illuminate\Support\Facades\DB::table('marketing_team_members')
+                    ->where('vendor_id', $vendor->id)
+                    ->orderBy('id', 'asc')
+                    ->first();
+
+                $teamMemberId = $defaultMember ? $defaultMember->id : null;
+                if (!$teamMemberId) {
+                    $teamMemberId = \Illuminate\Support\Facades\DB::table('marketing_team_members')->insertGetId([
+                        'vendor_id'   => $vendor->id,
+                        'user_id'     => $vendor->user_id,
+                        'user_type'   => $vendor->user_type,
+                        'member_code' => $vendor->freelancer_code ?: ('FR' . substr($vendor->vendor_code, 2)),
+                        'status'      => 'active',
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+                }
+
+                // Record acquisition
+                \Illuminate\Support\Facades\DB::table('marketing_acquisitions')->insert([
+                    'vendor_id'            => $vendor->id,
+                    'team_member_id'       => $teamMemberId,
+                    'acquired_user_id'     => $owner->id,
+                    'acquired_user_type'   => 'restaurant',
+                    'verification_status'  => 'pending',
+                    'verified_by'          => null,
+                    'verified_at'          => null,
+                    'payout_rate_applied'  => 0.00,
+                    'payout_status'        => 'unpaid',
+                    'created_at'           => now(),
+                    'updated_at'           => now(),
+                ]);
+
+                $this->saveAppliedCodeToRestaurant($owner->id, $referralCode);
+
+                $referrerDisplay = $this->resolveReferrerDisplayInfo($referralCode);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Successfully linked to Partner: {$vendor->vendor_code}!",
+                    'referrer' => $referrerDisplay,
+                ]);
+            }
+            return response()->json(['success' => false, 'error' => 'Invalid or inactive Partner / Vendor Code. Please check and try again.']);
+        }
+
+        // ── 2. CHECK MARKETING FREELANCER CODE (FR...) ──
+        if (str_starts_with($referralCode, 'FR')) {
+            $teamMember = \App\Services\VendorTeamService::findActiveTeamMemberByCode($referralCode);
+            if (!$teamMember) {
+                // Check if vendor has matching freelancer code
+                $vendor = \App\Services\VendorTeamService::findApprovedVendorByCode($referralCode);
+                if ($vendor) {
+                    $teamMember = \Illuminate\Support\Facades\DB::table('marketing_team_members')->where('vendor_id', $vendor->id)->first();
+                }
+            }
+
+            if ($teamMember) {
+                \Illuminate\Support\Facades\DB::table('marketing_acquisitions')->insert([
+                    'vendor_id'            => $teamMember->vendor_id,
+                    'team_member_id'       => $teamMember->id,
+                    'acquired_user_id'     => $owner->id,
+                    'acquired_user_type'   => 'restaurant',
+                    'verification_status'  => 'pending',
+                    'verified_by'          => null,
+                    'verified_at'          => null,
+                    'payout_rate_applied'  => 0.00,
+                    'payout_status'        => 'unpaid',
+                    'created_at'           => now(),
+                    'updated_at'           => now(),
+                ]);
+
+                $this->saveAppliedCodeToRestaurant($owner->id, $referralCode);
+
+                $referrerDisplay = $this->resolveReferrerDisplayInfo($referralCode);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Successfully linked to Field Coordinator: {$referralCode}!",
+                    'referrer' => $referrerDisplay,
+                ]);
+            }
+            return response()->json(['success' => false, 'error' => 'Invalid Freelancer / Field Coordinator Code. Please check and try again.']);
+        }
+
+        // ── 3. STANDARD PEER-TO-PEER CODE (FIINC... / FIINB... / FIINR...) ──
+        $referrer = \App\Services\ReferralCodeService::resolveReferrer($referralCode);
+        if (!$referrer) {
+            return response()->json(['success' => false, 'error' => 'Invalid referral code. Please check and try again.']);
+        }
+
+        $referrerId   = (int)$referrer['user_id'];
+        $referrerType = $referrer['user_type'] ?? 'customer';
+
+        if ($referrerId === (int)$owner->id && $referrerType === 'restaurant') {
+            return response()->json(['success' => false, 'error' => 'You cannot use your own referral code.']);
+        }
+
+        // Link in referral table
+        $existingReferral = \Illuminate\Support\Facades\DB::table('referral')
+            ->where('user_id', $owner->id)
+            ->where('user_type', 'restaurant')
+            ->first();
+
+        if ($existingReferral) {
+            $refUpdate = [
+                'referral_by_id'   => $referrerId,
+                'code_used'        => 'true',
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_type')) {
+                $refUpdate['referral_by_type'] = $referrerType;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                $refUpdate['referral_by_code'] = $referralCode;
+            }
+            \Illuminate\Support\Facades\DB::table('referral')->where('id', $existingReferral->id)->update($refUpdate);
+        } else {
+            $myReferralCode = \App\Services\ReferralCodeService::getOrCreateReferralCode($owner->id, 'restaurant');
+            $insertData = [
+                'user_id'          => $owner->id,
+                'user_type'        => 'restaurant',
+                'referral_by_id'   => $referrerId,
+                'referral_code'    => $myReferralCode,
+                'code_used'        => 'true',
+                'creer'            => date('Y-m-d H:i:s'),
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_type')) {
+                $insertData['referral_by_type'] = $referrerType;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('referral', 'referral_by_code')) {
+                $insertData['referral_by_code'] = $referralCode;
+            }
+            \Illuminate\Support\Facades\DB::table('referral')->insert($insertData);
+        }
+
+        $this->saveAppliedCodeToRestaurant($owner->id, $referralCode);
+
+        $referrerDisplay = $this->resolveReferrerDisplayInfo($referralCode);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Referral code applied successfully!',
+            'referrer' => $referrerDisplay,
+        ]);
+    }
+
+    /**
+     * Helper to save applied referral code to food_owners and food_restaurants
+     */
+    private function saveAppliedCodeToRestaurant(int $ownerId, string $referralCode): void
+    {
+        if (\Illuminate\Support\Facades\Schema::hasTable('food_owners') && \Illuminate\Support\Facades\Schema::hasColumn('food_owners', 'ref_by')) {
+            \Illuminate\Support\Facades\DB::table('food_owners')->where('id', $ownerId)->update(['ref_by' => $referralCode]);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasTable('food_restaurants') && \Illuminate\Support\Facades\Schema::hasColumn('food_restaurants', 'ref_by')) {
+            \Illuminate\Support\Facades\DB::table('food_restaurants')->where('owner_id', $ownerId)->update(['ref_by' => $referralCode]);
+        }
+    }
+
+    /**
+     * Resolve user-friendly display metadata for a referral code
+     */
+    public function resolveReferrerDisplayInfo(string $referralCode): array
+    {
+        $code = strtoupper(trim($referralCode));
+
+        // 1. Vendor
+        if (str_starts_with($code, 'VR') || str_starts_with($code, 'TM') || str_starts_with($code, 'SV')) {
+            $v = \Illuminate\Support\Facades\DB::table('marketing_vendors')->where(function($q) use ($code) {
+                $q->where('vendor_code', $code)
+                  ->orWhere('sub_vendor_code', $code);
+            })->first();
+
+            if ($v) {
+                $label = ($v->hierarchy_level > 0 || str_starts_with($code, 'SV')) ? 'Sub-Vendor Partner' : 'Head Vendor Partner';
+                return [
+                    'code'       => $code,
+                    'name'       => $v->designation ?: $label,
+                    'type'       => 'vendor',
+                    'type_label' => $label,
+                    'verified'   => $v->status === 'approved',
+                ];
+            }
+        }
+
+        // 2. Freelancer
+        if (str_starts_with($code, 'FR')) {
+            $m = \Illuminate\Support\Facades\DB::table('marketing_team_members')->where('member_code', $code)->first();
+            if ($m) {
+                $mName = 'Field Freelancer';
+                if ($m->user_type === 'customer') {
+                    $u = \Illuminate\Support\Facades\DB::table('tj_user_app')->where('id', $m->user_id)->first();
+                    if ($u) $mName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: $mName;
+                } else {
+                    $d = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $m->user_id)->first();
+                    if ($d) $mName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: $mName;
+                }
+                return [
+                    'code'       => $code,
+                    'name'       => $mName,
+                    'type'       => 'freelancer',
+                    'type_label' => 'Field Coordinator',
+                    'verified'   => $m->status === 'active',
+                ];
+            }
+        }
+
+        // 3. Consumer / Driver / Restaurant
+        $ref = \App\Services\ReferralCodeService::resolveReferrer($code);
+        if ($ref) {
+            $rType = $ref['user_type'] ?? 'customer';
+            $rName = 'Fiinway Member';
+            if ($rType === 'customer') {
+                $u = \Illuminate\Support\Facades\DB::table('tj_user_app')->where('id', $ref['user_id'])->first();
+                if ($u) $rName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: $rName;
+                $label = 'User App Referral';
+            } elseif ($rType === 'restaurant') {
+                $rest = \Illuminate\Support\Facades\DB::table('food_restaurants')->where('id', $ref['user_id'])->orWhere('owner_id', $ref['user_id'])->first();
+                if ($rest) $rName = $rest->name ?: $rName;
+                $label = 'Restaurant Partner';
+            } else {
+                $d = \Illuminate\Support\Facades\DB::table('tj_conducteur')->where('id', $ref['user_id'])->first();
+                if ($d) $rName = trim(($d->prenom ?? '') . ' ' . ($d->nom ?? '')) ?: $rName;
+                $label = 'Business Driver App';
+            }
+            return [
+                'code'       => $code,
+                'name'       => $rName,
+                'type'       => $rType,
+                'type_label' => $label,
+                'verified'   => true,
+            ];
+        }
+
+        return [
+            'code'       => $code,
+            'name'       => 'Partner',
+            'type'       => 'general',
+            'type_label' => 'Referral Code',
+            'verified'   => true,
         ];
     }
 

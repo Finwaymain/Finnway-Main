@@ -473,7 +473,7 @@ class VendorTeamService
     /**
      * Admin Approves Top-Level Vendor Application & Sets Master Rates
      */
-    public static function approveVendor(int $vendorId, float $ratePerCustomer, float $ratePerBusiness, ?int $adminId = null): array
+    public static function approveVendor(int $vendorId, float $ratePerCustomer, float $ratePerBusiness, ?int $adminId = null, float $ratePerRestaurant = 0.0): array
     {
         try {
             $vendor = DB::table('marketing_vendors')->where('id', $vendorId)->first();
@@ -489,7 +489,7 @@ class VendorTeamService
             $subVendorCode  = 'SV' . substr($vendorCode, 2);
             $freelancerCode = 'FR' . substr($vendorCode, 2);
 
-            DB::table('marketing_vendors')->where('id', $vendorId)->update([
+            $updateData = [
                 'status'            => 'approved',
                 'vendor_code'       => $vendorCode,
                 'sub_vendor_code'   => $subVendorCode,
@@ -501,7 +501,13 @@ class VendorTeamService
                 'approved_at'       => now(),
                 'rejection_reason'  => null,
                 'updated_at'        => now(),
-            ]);
+            ];
+
+            if (Schema::hasColumn('marketing_vendors', 'rate_per_restaurant')) {
+                $updateData['rate_per_restaurant'] = max(0, $ratePerRestaurant);
+            }
+
+            DB::table('marketing_vendors')->where('id', $vendorId)->update($updateData);
 
             Log::info("VendorTeamService: Approved Vendor #{$vendorId} with code {$vendorCode}, SV: {$subVendorCode}, FR: {$freelancerCode}. Master Rates: Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}");
 
@@ -1260,10 +1266,26 @@ class VendorTeamService
                 elseif ($acq->verification_status === 'rejected') $svRejCount++;
                 else $svPendCount++;
 
-                $acqName = $acq->acquired_user_type === 'business' ? 'Partner Driver' : 'Customer User';
+                $acqName = 'User';
                 $acqPhone = '';
 
-                if ($acq->acquired_user_type === 'customer') {
+                if ($acq->acquired_user_type === 'restaurant') {
+                    $acqName = 'Restaurant Partner';
+                    if (Schema::hasTable('food_restaurants')) {
+                        $rest = DB::table('food_restaurants')->where('id', $acq->acquired_user_id)->orWhere('owner_id', $acq->acquired_user_id)->first();
+                        if ($rest) {
+                            $acqName = $rest->name ?: 'Restaurant Partner';
+                            $acqPhone = $rest->phone ?? ($rest->owner_phone ?? '');
+                        }
+                    }
+                    if (empty($acqPhone) && Schema::hasTable('food_owners')) {
+                        $fo = DB::table('food_owners')->where('id', $acq->acquired_user_id)->first();
+                        if ($fo) {
+                            $acqName = $acqName !== 'Restaurant Partner' ? $acqName : ($fo->name ?: 'Restaurant Partner');
+                            $acqPhone = $fo->phone ?? '';
+                        }
+                    }
+                } elseif ($acq->acquired_user_type === 'customer') {
                     $au = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
                     if ($au) {
                         $acqName = trim(($au->prenom ?? '') . ' ' . ($au->nom ?? '')) ?: 'Customer User';
@@ -1291,6 +1313,7 @@ class VendorTeamService
                     $hoursLeft = max(0, (int)$diffHours);
                 }
 
+                $isRestAcq = ($acq->acquired_user_type === 'restaurant');
                 $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
 
                 $svAcquisitionsList[] = [
@@ -1300,7 +1323,7 @@ class VendorTeamService
                     'zone'                => $sv->team_location ?? 'DELHI',
                     'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
                     'user_type'           => $acq->acquired_user_type,
-                    'app_type'            => $isBizAcq ? 'Business App' : 'User App',
+                    'app_type'            => $isRestAcq ? 'Restaurant App' : ($isBizAcq ? 'Business App' : 'User App'),
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
                     'rejection_reason'    => $acq->rejection_reason ?? null,
@@ -1354,14 +1377,20 @@ class VendorTeamService
         $businessPending = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->where('verification_status', 'pending')->count();
         $businessRejected = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'business')->where('verification_status', 'rejected')->count();
 
-        $totalVerified = $customerVerified + $businessVerified;
-        $totalPending  = $customerPending + $businessPending;
-        $totalRejected = $customerRejected + $businessRejected;
-        $totalInstall  = $customerJoined + $businessJoined;
+        $restaurantJoined = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'restaurant')->count();
+        $restaurantVerified = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'restaurant')->where('verification_status', 'verified')->count();
+        $restaurantPending = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'restaurant')->where('verification_status', 'pending')->count();
+        $restaurantRejected = DB::table('marketing_acquisitions')->whereIn('vendor_id', $allScopeVendorIds)->where('acquired_user_type', 'restaurant')->where('verification_status', 'rejected')->count();
+
+        $totalVerified = $customerVerified + $businessVerified + $restaurantVerified;
+        $totalPending  = $customerPending + $businessPending + $restaurantPending;
+        $totalRejected = $customerRejected + $businessRejected + $restaurantRejected;
+        $totalInstall  = $customerJoined + $businessJoined + $restaurantJoined;
 
         // Rate privacy: Sub-Vendors do NOT see Admin master rates
         $rateCustomer = (float)$vendor->rate_per_customer;
         $rateBusiness = (float)$vendor->rate_per_business;
+        $rateRestaurant = (float)($vendor->rate_per_restaurant ?? 0.0);
         $isRateVisible = (bool)($vendor->is_rate_visible ?? true);
 
         // Financial Earnings Calculation:
@@ -1374,17 +1403,20 @@ class VendorTeamService
             $pendingPayout = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->sum('pending_amount');
             $customerDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->where('acquired_user_type', 'customer')->sum('earned_amount');
             $businessDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->where('acquired_user_type', 'business')->sum('earned_amount');
+            $restaurantDue = (float)DB::table('marketing_payment_ledgers')->where('vendor_id', $vendorId)->where('acquired_user_type', 'restaurant')->sum('earned_amount');
         } else {
             $customerDue = round($customerVerified * $rateCustomer, 2);
             $businessDue = round($businessVerified * $rateBusiness, 2);
-            $totalEarned = round($customerDue + $businessDue, 2);
+            $restaurantDue = round($restaurantVerified * $rateRestaurant, 2);
+            $totalEarned = round($customerDue + $businessDue + $restaurantDue, 2);
             $paidEarned = (float)DB::table('marketing_acquisitions')->where('vendor_id', $vendorId)->where('payout_status', 'paid')->sum('payout_rate_applied');
             $pendingPayout = max(0, round($totalEarned - $paidEarned, 2));
         }
 
         $customerUpcoming = round($customerPending * $rateCustomer, 2);
         $businessUpcoming = round($businessPending * $rateBusiness, 2);
-        $totalUpcomingIncome = round($customerUpcoming + $businessUpcoming, 2);
+        $restaurantUpcoming = round($restaurantPending * $rateRestaurant, 2);
+        $totalUpcomingIncome = round($customerUpcoming + $businessUpcoming + $restaurantUpcoming, 2);
 
         // Direct Freelancers List with their acquisition items
         self::reconcileVendorTeamMembers($vendorId);
@@ -1432,8 +1464,15 @@ class VendorTeamService
             $mBizTotal = 0; $mBizVer = 0; $mBizPend = 0; $mBizRej = 0;
             $verCount = 0; $pendCount = 0; $rejCount = 0;
 
+            $mRestTotal = 0; $mRestVer = 0; $mRestPend = 0; $mRestRej = 0;
+
             foreach ($acqsRaw as $acq) {
-                if ($acq->acquired_user_type === 'customer') {
+                if ($acq->acquired_user_type === 'restaurant') {
+                    $mRestTotal++;
+                    if ($acq->verification_status === 'verified') $mRestVer++;
+                    elseif ($acq->verification_status === 'rejected') $mRestRej++;
+                    else $mRestPend++;
+                } elseif ($acq->acquired_user_type === 'customer') {
                     $mCustTotal++;
                     if ($acq->verification_status === 'verified') $mCustVer++;
                     elseif ($acq->verification_status === 'rejected') $mCustRej++;
@@ -1449,10 +1488,26 @@ class VendorTeamService
                 elseif ($acq->verification_status === 'rejected') $rejCount++;
                 else $pendCount++;
 
-                $acqName = $acq->acquired_user_type === 'business' ? 'Partner Driver' : 'Customer User';
+                $acqName = 'User';
                 $acqPhone = '';
 
-                if ($acq->acquired_user_type === 'customer') {
+                if ($acq->acquired_user_type === 'restaurant') {
+                    $acqName = 'Restaurant Partner';
+                    if (Schema::hasTable('food_restaurants')) {
+                        $rest = DB::table('food_restaurants')->where('id', $acq->acquired_user_id)->orWhere('owner_id', $acq->acquired_user_id)->first();
+                        if ($rest) {
+                            $acqName = $rest->name ?: 'Restaurant Partner';
+                            $acqPhone = $rest->phone ?? ($rest->owner_phone ?? '');
+                        }
+                    }
+                    if (empty($acqPhone) && Schema::hasTable('food_owners')) {
+                        $fo = DB::table('food_owners')->where('id', $acq->acquired_user_id)->first();
+                        if ($fo) {
+                            $acqName = $acqName !== 'Restaurant Partner' ? $acqName : ($fo->name ?: 'Restaurant Partner');
+                            $acqPhone = $fo->phone ?? '';
+                        }
+                    }
+                } elseif ($acq->acquired_user_type === 'customer') {
                     $au = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
                     if ($au) {
                         $acqName = trim(($au->prenom ?? '') . ' ' . ($au->nom ?? '')) ?: 'Customer User';
@@ -1480,6 +1535,7 @@ class VendorTeamService
                     $hoursLeft = max(0, (int)$diffHours);
                 }
 
+                $isRestAcq = ($acq->acquired_user_type === 'restaurant');
                 $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
 
                 $acquisitions[] = [
@@ -1489,15 +1545,15 @@ class VendorTeamService
                     'zone'                => $vendor->team_location ?? 'DELHI',
                     'date'                => Carbon::parse($acq->created_at)->format('d-m-Y'),
                     'user_type'           => $acq->acquired_user_type,
-                    'app_type'            => $isBizAcq ? 'Business App' : 'User App',
+                    'app_type'            => $isRestAcq ? 'Restaurant App' : ($isBizAcq ? 'Business App' : 'User App'),
                     'verification_status' => $acq->verification_status,
                     'hours_left'          => $hoursLeft,
                     'rejection_reason'    => $acq->rejection_reason ?? null,
                 ];
             }
 
-            $mEarnings = round(($mCustVer * $rateCustomer) + ($mBizVer * $rateBusiness), 2);
-            $mPendingEarnings = round(($mCustPend * $rateCustomer) + ($mBizPend * $rateBusiness), 2);
+            $mEarnings = round(($mCustVer * $rateCustomer) + ($mBizVer * $rateBusiness) + ($mRestVer * $rateRestaurant), 2);
+            $mPendingEarnings = round(($mCustPend * $rateCustomer) + ($mBizPend * $rateBusiness) + ($mRestPend * $rateRestaurant), 2);
 
             $teamMembers[] = [
                 'member_id'           => $m->id,
@@ -1561,6 +1617,7 @@ class VendorTeamService
             // Rate values: redacted if not visible to sub-vendor
             'rate_per_customer'          => ($isHeadVendor || $isRateVisible) ? number_format($rateCustomer, 2, '.', '') : null,
             'rate_per_business'          => ($isHeadVendor || $isRateVisible) ? number_format($rateBusiness, 2, '.', '') : null,
+            'rate_per_restaurant'        => ($isHeadVendor || $isRateVisible) ? number_format($rateRestaurant, 2, '.', '') : null,
 
             // Counts
             'total_sub_vendors'          => count($directSubVendors),
@@ -1586,18 +1643,28 @@ class VendorTeamService
             'business_pending'           => $businessPending,
             'business_rejected'          => $businessRejected,
 
+            'restaurant_joined'          => $restaurantJoined,
+            'total_restaurants'          => $restaurantJoined,
+            'restaurant_verified'        => $restaurantVerified,
+            'verified_restaurants'       => $restaurantVerified,
+            'restaurant_pending'         => $restaurantPending,
+            'restaurant_rejected'        => $restaurantRejected,
+
             'total_verified'             => $totalVerified,
             'total_pending'              => $totalPending,
             'total_rejected'             => $totalRejected,
             'total_install'              => $totalInstall,
+            'total_acquisitions'         => $totalInstall,
             'total_completed_work'       => $totalVerified,
 
             // Financials: redacted if not visible to sub-vendor
             'customer_due'               => ($isHeadVendor || $isRateVisible) ? number_format($customerDue, 2, '.', '') : null,
             'business_due'               => ($isHeadVendor || $isRateVisible) ? number_format($businessDue, 2, '.', '') : null,
+            'restaurant_due'             => ($isHeadVendor || $isRateVisible) ? number_format($restaurantDue, 2, '.', '') : null,
             'total_verified_due'         => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
             'customer_upcoming'          => ($isHeadVendor || $isRateVisible) ? number_format($customerUpcoming, 2, '.', '') : null,
             'business_upcoming'          => ($isHeadVendor || $isRateVisible) ? number_format($businessUpcoming, 2, '.', '') : null,
+            'restaurant_upcoming'        => ($isHeadVendor || $isRateVisible) ? number_format($restaurantUpcoming, 2, '.', '') : null,
             'total_upcoming_income'      => ($isHeadVendor || $isRateVisible) ? number_format($totalUpcomingIncome, 2, '.', '') : null,
             'total_earned'               => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
             'total_earnings'             => ($isHeadVendor || $isRateVisible) ? number_format($totalEarned, 2, '.', '') : null,
@@ -1669,10 +1736,33 @@ class VendorTeamService
             ->where('verification_status', 'rejected')
             ->count();
 
-        $totalVerified = $customerVerified + $businessVerified;
-        $totalPending  = $customerPending + $businessPending;
-        $totalRejected = $customerRejected + $businessRejected;
-        $totalUsers    = $customerTotal + $businessTotal;
+        $restaurantTotal = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'restaurant')
+            ->count();
+
+        $restaurantVerified = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'restaurant')
+            ->where('verification_status', 'verified')
+            ->count();
+
+        $restaurantPending = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'restaurant')
+            ->where('verification_status', 'pending')
+            ->count();
+
+        $restaurantRejected = DB::table('marketing_acquisitions')
+            ->where('team_member_id', $member->id)
+            ->where('acquired_user_type', 'restaurant')
+            ->where('verification_status', 'rejected')
+            ->count();
+
+        $totalVerified = $customerVerified + $businessVerified + $restaurantVerified;
+        $totalPending  = $customerPending + $businessPending + $restaurantPending;
+        $totalRejected = $customerRejected + $businessRejected + $restaurantRejected;
+        $totalUsers    = $customerTotal + $businessTotal + $restaurantTotal;
 
         $acquisitionsRaw = DB::table('marketing_acquisitions')
             ->where('team_member_id', $member->id)
@@ -1681,11 +1771,28 @@ class VendorTeamService
 
         $recentAcquisitions = [];
         foreach ($acquisitionsRaw as $acq) {
-            $name = $acq->acquired_user_type === 'business' ? 'Business Partner' : 'Customer User';
+            $name = 'User';
             $phone = '';
             $kyc = 'Pending';
 
-            if ($acq->acquired_user_type === 'customer') {
+            if ($acq->acquired_user_type === 'restaurant') {
+                $name = 'Restaurant Partner';
+                if (Schema::hasTable('food_restaurants')) {
+                    $rest = DB::table('food_restaurants')->where('id', $acq->acquired_user_id)->orWhere('owner_id', $acq->acquired_user_id)->first();
+                    if ($rest) {
+                        $name = $rest->name ?: 'Restaurant Partner';
+                        $phone = $rest->phone ?? ($rest->owner_phone ?? '');
+                        $kyc = in_array(strtolower((string)$rest->onboarding_status), ['active', 'approved', 'verified']) ? 'Verified' : 'Pending';
+                    }
+                }
+                if (empty($phone) && Schema::hasTable('food_owners')) {
+                    $fo = DB::table('food_owners')->where('id', $acq->acquired_user_id)->first();
+                    if ($fo) {
+                        $name = $name !== 'Restaurant Partner' ? $name : ($fo->name ?: 'Restaurant Partner');
+                        $phone = $fo->phone ?? '';
+                    }
+                }
+            } elseif ($acq->acquired_user_type === 'customer') {
                 $u = DB::table('tj_user_app')->where('id', $acq->acquired_user_id)->first();
                 if ($u) {
                     $name = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Customer User';
@@ -1715,6 +1822,7 @@ class VendorTeamService
                 $hoursLeft = max(0, (int)$diffHours);
             }
 
+            $isRestAcq = ($acq->acquired_user_type === 'restaurant');
             $isBizAcq = in_array($acq->acquired_user_type, ['business', 'driver', 'vendor']);
 
             $recentAcquisitions[] = [
@@ -1723,8 +1831,8 @@ class VendorTeamService
                 'phone'               => $maskedPhone,
                 'zone'                => $vendor->team_location ?? 'DELHI',
                 'user_type'           => $acq->acquired_user_type,
-                'app_type'            => $isBizAcq ? 'Business App' : 'User App',
-                'user_type_label'     => $isBizAcq ? 'Business Driver' : 'Customer',
+                'app_type'            => $isRestAcq ? 'Restaurant App' : ($isBizAcq ? 'Business App' : 'User App'),
+                'user_type_label'     => $isRestAcq ? 'Restaurant Partner' : ($isBizAcq ? 'Business Driver' : 'Customer'),
                 'kyc_status'          => $kyc,
                 'verification_status' => $acq->verification_status,
                 'hours_left'          => $hoursLeft,
@@ -1749,6 +1857,11 @@ class VendorTeamService
             'business_verified'        => $businessVerified,
             'business_pending'         => $businessPending,
             'business_rejected'        => $businessRejected,
+            'restaurant_joined'        => $restaurantTotal,
+            'acquired_restaurants_count'=> $restaurantTotal,
+            'restaurant_verified'      => $restaurantVerified,
+            'restaurant_pending'       => $restaurantPending,
+            'restaurant_rejected'      => $restaurantRejected,
             'total_acquisitions'       => $totalUsers,
             'total_acquisitions_count' => $totalUsers,
             'total_users'              => $totalUsers,
@@ -1776,9 +1889,11 @@ class VendorTeamService
                 return false;
             }
 
-            $rate = $acq->acquired_user_type === 'business'
-                ? (float)$immediateVendor->rate_per_business
-                : (float)$immediateVendor->rate_per_customer;
+            $rate = $acq->acquired_user_type === 'restaurant'
+                ? (float)($immediateVendor->rate_per_restaurant ?? 0.0)
+                : ($acq->acquired_user_type === 'business'
+                    ? (float)$immediateVendor->rate_per_business
+                    : (float)$immediateVendor->rate_per_customer);
 
             DB::table('marketing_acquisitions')->where('id', $acquisitionId)->update([
                 'verification_status' => 'verified',
@@ -1820,13 +1935,16 @@ class VendorTeamService
         }
 
         $headVendor = end($chain) ?: $immediateVendor;
-        $isBiz = ($acq->acquired_user_type === 'business');
+        $isRest = ($acq->acquired_user_type === 'restaurant');
+        $isBiz  = ($acq->acquired_user_type === 'business');
 
         // Traverse from immediate vendor upwards and compute earnings
         $prevChildRate = 0.00;
 
         foreach ($chain as $idx => $v) {
-            $applicableRate = $isBiz ? (float)$v->rate_per_business : (float)$v->rate_per_customer;
+            $applicableRate = $isRest
+                ? (float)($v->rate_per_restaurant ?? 0.0)
+                : ($isBiz ? (float)$v->rate_per_business : (float)$v->rate_per_customer);
 
             if ($idx === 0) {
                 // Immediate vendor earns their direct applicable rate
@@ -1889,10 +2007,26 @@ class VendorTeamService
 
         $result = [];
         foreach ($ledgers as $l) {
-            $userName = $l->acquired_user_type === 'business' ? 'Business Partner' : 'Customer User';
+            $userName = 'User';
             $userPhone = '';
 
-            if ($l->acquired_user_type === 'customer') {
+            if ($l->acquired_user_type === 'restaurant') {
+                $userName = 'Restaurant Partner';
+                if (Schema::hasTable('food_restaurants')) {
+                    $rest = DB::table('food_restaurants')->where('id', $l->acquired_user_id)->orWhere('owner_id', $l->acquired_user_id)->first();
+                    if ($rest) {
+                        $userName = $rest->name ?: 'Restaurant Partner';
+                        $userPhone = $rest->phone ?? ($rest->owner_phone ?? '');
+                    }
+                }
+                if (empty($userPhone) && Schema::hasTable('food_owners')) {
+                    $fo = DB::table('food_owners')->where('id', $l->acquired_user_id)->first();
+                    if ($fo) {
+                        $userName = $userName !== 'Restaurant Partner' ? $userName : ($fo->name ?: 'Restaurant Partner');
+                        $userPhone = $fo->phone ?? '';
+                    }
+                }
+            } elseif ($l->acquired_user_type === 'customer') {
                 $u = DB::table('tj_user_app')->where('id', $l->acquired_user_id)->first();
                 if ($u) {
                     $userName = trim(($u->prenom ?? '') . ' ' . ($u->nom ?? '')) ?: 'Customer User';
@@ -1958,6 +2092,7 @@ class VendorTeamService
 
         $custCount = (clone $acqQuery)->where('acquired_user_type', 'customer')->count();
         $bizCount = (clone $acqQuery)->where('acquired_user_type', 'business')->count();
+        $restCount = (clone $acqQuery)->where('acquired_user_type', 'restaurant')->count();
 
         // Financial totals from ledgers if available
         $totalEarned = 0.00;
@@ -1979,6 +2114,7 @@ class VendorTeamService
             'total_rejected'     => $totalRejected,
             'customers_count'    => $custCount,
             'businesses_count'   => $bizCount,
+            'restaurants_count'  => $restCount,
             'total_earned'       => number_format($totalEarned, 2, '.', ''),
             'total_paid'         => number_format($totalPaid, 2, '.', ''),
             'total_pending_due'  => number_format($totalPendingDue, 2, '.', ''),
@@ -2040,6 +2176,9 @@ class VendorTeamService
     private static function normalizeUserType(string $type): string
     {
         $t = strtolower(trim($type));
+        if (in_array($t, ['restaurant', 'food', 'merchant'], true)) {
+            return 'restaurant';
+        }
         return in_array($t, ['driver', 'conducteur', 'business', 'provider'], true) ? 'business' : 'customer';
     }
 }

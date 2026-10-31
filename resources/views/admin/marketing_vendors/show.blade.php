@@ -169,7 +169,7 @@
                 <form action="{{ route('admin.marketing-vendors.rates', $vendor->id) }}" method="POST">
                     @csrf
                     <div class="row">
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="font-weight-semibold text-dark" style="font-size: 13px;">Rate per Verified Customer (₹) <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
@@ -178,13 +178,22 @@
                             <small class="text-muted">Credited when customer registration is verified by admin.</small>
                         </div>
 
-                        <div class="col-md-5 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="font-weight-semibold text-dark" style="font-size: 13px;">Rate per Verified Business / Partner (₹) <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <div class="input-group-prepend"><span class="input-group-text bg-white">₹</span></div>
                                 <input type="number" step="0.01" min="0" name="rate_per_business" class="form-control" value="{{ $vendor->rate_per_business }}" required>
                             </div>
-                            <small class="text-muted">Credited when driver/business partner onboarding is verified.</small>
+                            <small class="text-muted">Credited when driver/business onboarding is verified.</small>
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-semibold text-dark" style="font-size: 13px;">Rate per Verified Restaurant Partner (₹) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <div class="input-group-prepend"><span class="input-group-text bg-white" style="color: #ea580c; font-weight: bold;">₹</span></div>
+                                <input type="number" step="0.01" min="0" name="rate_per_restaurant" class="form-control" value="{{ $vendor->rate_per_restaurant ?? '100.00' }}" required>
+                            </div>
+                            <small class="text-muted">Credited when a restaurant onboarding is verified by admin.</small>
                         </div>
 
                         <div class="col-md-2 d-flex align-items-center mb-3 pt-md-2">
@@ -275,7 +284,7 @@
                         <span class="font-weight-bold text-success" style="font-size: 24px;">₹{{ number_format($stats['total_earned'], 2) }}</span>
                     </div>
                     <div class="text-muted mt-1" style="font-size: 11px;">
-                        Cust: ₹{{ number_format($vendor->rate_per_customer, 2) }} | Biz: ₹{{ number_format($vendor->rate_per_business, 2) }}
+                        Cust: ₹{{ number_format($vendor->rate_per_customer, 2) }} | Biz: ₹{{ number_format($vendor->rate_per_business, 2) }} | Rest: ₹{{ number_format($vendor->rate_per_restaurant ?? 0, 2) }}
                     </div>
                 </div>
             </div>
@@ -342,7 +351,9 @@
                                         <div class="text-muted" style="font-size: 12px;">{{ $acq->user_phone }}</div>
                                     </td>
                                     <td>
-                                        @if($acq->acquired_user_type === 'customer')
+                                        @if($acq->acquired_user_type === 'restaurant')
+                                            <span class="badge px-2 py-1" style="background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; font-size: 11px;">Restaurant Partner</span>
+                                        @elseif($acq->acquired_user_type === 'customer')
                                             <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 11px;">Customer</span>
                                         @else
                                             <span class="badge bg-info text-white px-2 py-1" style="font-size: 11px;">Business / Driver</span>
@@ -470,6 +481,7 @@
                                         <div style="font-size: 12px;">
                                             <div>Cust: <strong>₹{{ number_format($sv->rate_per_customer, 2) }}</strong></div>
                                             <div>Biz: <strong>₹{{ number_format($sv->rate_per_business, 2) }}</strong></div>
+                                            <div>Rest: <strong style="color: #c2410c;">₹{{ number_format($sv->rate_per_restaurant ?? 0, 2) }}</strong></div>
                                         </div>
                                     </td>
                                     <td>

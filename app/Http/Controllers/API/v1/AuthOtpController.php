@@ -1205,8 +1205,8 @@ class AuthOtpController extends Controller
     public function applyReferral(Request $request)
     {
         $userId       = (int)($request->input('user_id') ?? $request->get('user_id') ?? $request->json('user_id'));
-        $userCatRaw   = $request->input('user_cat') ?? $request->get('user_cat') ?? 'customer';
-        $userCat      = in_array(strtolower(trim((string)$userCatRaw)), ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer';
+        $userCatRaw   = strtolower(trim((string)($request->input('user_cat') ?? $request->get('user_cat') ?? 'customer')));
+        $userCat      = in_array($userCatRaw, ['restaurant', 'food', 'merchant']) ? 'restaurant' : (in_array($userCatRaw, ['driver', 'conducteur', 'business', 'provider']) ? 'driver' : 'customer');
         $referralCode = strtoupper(trim((string)($request->input('referral_code') ?? $request->get('referral_code') ?? $request->json('referral_code') ?? '')));
 
         if (empty($userId) || empty($referralCode)) {

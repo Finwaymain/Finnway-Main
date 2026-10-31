@@ -8,14 +8,17 @@ use Illuminate\Support\Facades\Schema;
 class ReferralCodeService
 {
     /**
-     * Generate a globally unique, distinct referral code for Consumer or Business (Driver) users.
+     * Generate a globally unique, distinct referral code for Consumer, Business (Driver), or Restaurant users.
      * - Consumer (Customer): FIINC + 6 unique uppercase chars (e.g., FIINC8X92K1)
      * - Business (Driver/Provider): FIINB + 6 unique uppercase chars (e.g., FIINB4M7P9Q)
+     * - Restaurant (Merchant): FIINR + 6 unique uppercase chars (e.g., FIINR3K8P9W)
      */
     public static function generateUniqueCode(string $userType = 'customer', ?int $userId = null): string
     {
-        $isDriver = in_array(strtolower(trim($userType)), ['driver', 'conducteur', 'business', 'provider']);
-        $prefix = $isDriver ? 'FIINB' : 'FIINC';
+        $cleanType = strtolower(trim($userType));
+        $isRestaurant = in_array($cleanType, ['restaurant', 'food', 'merchant']);
+        $isDriver = in_array($cleanType, ['driver', 'conducteur', 'business', 'provider']);
+        $prefix = $isRestaurant ? 'FIINR' : ($isDriver ? 'FIINB' : 'FIINC');
         
         // Exclude ambiguous characters 0, O, I, 1 to prevent readability confusion
         $chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -28,27 +31,35 @@ class ReferralCodeService
             }
             $code = $prefix . $randomString;
 
-            // Ensure 100% uniqueness across referral table, tj_user_app, and tj_conducteur
-            $existsInReferral = DB::table('referral')->where('referral_code', $code)->exists();
-            $existsInUser     = Schema::hasColumn('tj_user_app', 'referral_code') 
-                                ? DB::table('tj_user_app')->where('referral_code', $code)->exists() 
-                                : false;
-            $existsInDriver   = Schema::hasColumn('tj_conducteur', 'referral_code') 
-                                ? DB::table('tj_conducteur')->where('referral_code', $code)->exists() 
-                                : false;
+            // Ensure 100% uniqueness across referral table, tj_user_app, tj_conducteur, food_owners, food_restaurants
+            $existsInReferral   = DB::table('referral')->where('referral_code', $code)->exists();
+            $existsInUser       = Schema::hasColumn('tj_user_app', 'referral_code') 
+                                    ? DB::table('tj_user_app')->where('referral_code', $code)->exists() 
+                                    : false;
+            $existsInDriver     = Schema::hasColumn('tj_conducteur', 'referral_code') 
+                                    ? DB::table('tj_conducteur')->where('referral_code', $code)->exists() 
+                                    : false;
+            $existsInFoodOwner  = (Schema::hasTable('food_owners') && Schema::hasColumn('food_owners', 'referral_code'))
+                                    ? DB::table('food_owners')->where('referral_code', $code)->exists()
+                                    : false;
+            $existsInRestaurant = (Schema::hasTable('food_restaurants') && Schema::hasColumn('food_restaurants', 'referral_code'))
+                                    ? DB::table('food_restaurants')->where('referral_code', $code)->exists()
+                                    : false;
 
-        } while ($existsInReferral || $existsInUser || $existsInDriver);
+        } while ($existsInReferral || $existsInUser || $existsInDriver || $existsInFoodOwner || $existsInRestaurant);
 
         return $code;
     }
 
     /**
-     * Get or create a unique referral code for a user/driver and sync it across all tables.
+     * Get or create a unique referral code for a user/driver/restaurant and sync it across all tables.
      */
     public static function getOrCreateReferralCode(int $userId, string $userType = 'customer'): string
     {
-        $isDriver = in_array(strtolower(trim($userType)), ['driver', 'conducteur', 'business', 'provider']);
-        $type = $isDriver ? 'driver' : 'customer';
+        $cleanType = strtolower(trim($userType));
+        $isRestaurant = in_array($cleanType, ['restaurant', 'food', 'merchant']);
+        $isDriver = in_array($cleanType, ['driver', 'conducteur', 'business', 'provider']);
+        $type = $isRestaurant ? 'restaurant' : ($isDriver ? 'driver' : 'customer');
 
         // 1. Check referral table
         $refRow = DB::table('referral')->where('user_id', $userId)->where('user_type', $type)->first();
@@ -69,15 +80,30 @@ class ReferralCodeService
         }
 
         // 2. Check user's own table
-        $table = ($type === 'driver') ? 'tj_conducteur' : 'tj_user_app';
-        if (Schema::hasColumn($table, 'referral_code')) {
-            $userCode = DB::table($table)->where('id', $userId)->value('referral_code');
-            if (!empty($userCode) && $userCode !== 'TEMP') {
-                $userCode = trim($userCode);
-                $duplicateCount = DB::table($table)->where('referral_code', $userCode)->where('id', '!=', $userId)->count();
-                if ($duplicateCount === 0) {
-                    self::syncCodeToReferralTable($userId, $type, $userCode);
-                    return $userCode;
+        if ($type === 'restaurant') {
+            if (Schema::hasTable('food_owners') && Schema::hasColumn('food_owners', 'referral_code')) {
+                $ownerCode = DB::table('food_owners')->where('id', $userId)->value('referral_code');
+                if (!empty($ownerCode) && $ownerCode !== 'TEMP') {
+                    $ownerCode = trim($ownerCode);
+                    $duplicateCount = DB::table('food_owners')->where('referral_code', $ownerCode)->where('id', '!=', $userId)->count();
+                    if ($duplicateCount === 0) {
+                        self::syncCodeToReferralTable($userId, $type, $ownerCode);
+                        self::syncCodeToUserTable($userId, $type, $ownerCode);
+                        return $ownerCode;
+                    }
+                }
+            }
+        } else {
+            $table = ($type === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+            if (Schema::hasColumn($table, 'referral_code')) {
+                $userCode = DB::table($table)->where('id', $userId)->value('referral_code');
+                if (!empty($userCode) && $userCode !== 'TEMP') {
+                    $userCode = trim($userCode);
+                    $duplicateCount = DB::table($table)->where('referral_code', $userCode)->where('id', '!=', $userId)->count();
+                    if ($duplicateCount === 0) {
+                        self::syncCodeToReferralTable($userId, $type, $userCode);
+                        return $userCode;
+                    }
                 }
             }
         }
@@ -111,10 +137,20 @@ class ReferralCodeService
     }
 
     /**
-     * Sync referral code to the user or driver profile table.
+     * Sync referral code to the user, driver, or restaurant profile table.
      */
     public static function syncCodeToUserTable(int $userId, string $userType, string $code): void
     {
+        if ($userType === 'restaurant') {
+            if (Schema::hasTable('food_owners') && Schema::hasColumn('food_owners', 'referral_code')) {
+                DB::table('food_owners')->where('id', $userId)->update(['referral_code' => $code]);
+            }
+            if (Schema::hasTable('food_restaurants') && Schema::hasColumn('food_restaurants', 'referral_code')) {
+                DB::table('food_restaurants')->where('owner_id', $userId)->update(['referral_code' => $code]);
+            }
+            return;
+        }
+
         $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
         if (Schema::hasColumn($table, 'referral_code')) {
             DB::table($table)->where('id', $userId)->update(['referral_code' => $code]);
@@ -154,7 +190,27 @@ class ReferralCodeService
             }
         }
 
-        // 4. Match in marketing_vendors (vendor / sub-vendor / head-vendor)
+        // 4. Direct match in food_owners (restaurant merchant)
+        if (Schema::hasTable('food_owners') && Schema::hasColumn('food_owners', 'referral_code')) {
+            $ownerMatch = DB::table('food_owners')->where(DB::raw('UPPER(referral_code)'), $code)->first();
+            if ($ownerMatch) {
+                return ['user_id' => (int)$ownerMatch->id, 'user_type' => 'restaurant'];
+            }
+        }
+
+        // 5. Direct match in food_restaurants (restaurant outlet)
+        if (Schema::hasTable('food_restaurants') && Schema::hasColumn('food_restaurants', 'referral_code')) {
+            $restMatch = DB::table('food_restaurants')->where(DB::raw('UPPER(referral_code)'), $code)->first();
+            if ($restMatch) {
+                return [
+                    'user_id' => (int)$restMatch->owner_id,
+                    'user_type' => 'restaurant',
+                    'restaurant_id' => (int)$restMatch->id,
+                ];
+            }
+        }
+
+        // 6. Match in marketing_vendors (vendor / sub-vendor / head-vendor)
         if (Schema::hasTable('marketing_vendors') && Schema::hasColumn('marketing_vendors', 'vendor_code')) {
             $vendorMatch = DB::table('marketing_vendors')->where(DB::raw('UPPER(vendor_code)'), $code)->first();
             if ($vendorMatch) {
@@ -166,7 +222,7 @@ class ReferralCodeService
             }
         }
 
-        // 5. Match in marketing_team_members (freelancer / agent)
+        // 7. Match in marketing_team_members (freelancer / agent)
         if (Schema::hasTable('marketing_team_members') && Schema::hasColumn('marketing_team_members', 'member_code')) {
             $memberMatch = DB::table('marketing_team_members')->where(DB::raw('UPPER(member_code)'), $code)->first();
             if ($memberMatch) {
@@ -179,8 +235,8 @@ class ReferralCodeService
             }
         }
 
-        // 6. Legacy FIIN numeric fallback
-        $cleanNumeric = preg_replace('/^(FIINC|FIINB|FIINU|FIIN)0*/i', '', $code);
+        // 8. Legacy FIIN numeric fallback
+        $cleanNumeric = preg_replace('/^(FIINC|FIINB|FIINR|FIINU|FIIN)0*/i', '', $code);
         if (is_numeric($cleanNumeric) && (int)$cleanNumeric > 0) {
             $targetId = (int)$cleanNumeric;
             $refById = DB::table('referral')->where('id', $targetId)->first();

@@ -258,6 +258,7 @@
                                     <div style="font-size: 12px; line-height: 1.4;">
                                         <div><span style="color: #64748b; font-weight: 500;">Cust:</span> <strong style="color: #0f172a;">₹{{ number_format($v->rate_per_customer, 2) }}</strong></div>
                                         <div><span style="color: #64748b; font-weight: 500;">Biz:</span> <strong style="color: #0f172a;">₹{{ number_format($v->rate_per_business, 2) }}</strong></div>
+                                        <div><span style="color: #ea580c; font-weight: 500;">Rest:</span> <strong style="color: #c2410c;">₹{{ number_format($v->rate_per_restaurant ?? 0, 2) }}</strong></div>
                                     </div>
                                     @if(isset($v->is_rate_visible))
                                         <div class="mt-1">
@@ -408,6 +409,16 @@
                                                     <div class="input-group input-group-sm" style="width: 115px;">
                                                         <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold" style="color: #0f172a; font-size: 12px;">₹</span></div>
                                                         <input type="number" step="0.01" min="0" name="rate_per_business" class="form-control form-control-sm font-weight-bold" value="{{ $v->rate_per_business > 0 ? $v->rate_per_business : '50.00' }}" required style="font-size: 12px; color: #0f172a;">
+                                                    </div>
+                                                </div>
+
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <label class="mb-0 font-weight-bold" style="font-size: 12px; color: #c2410c; white-space: nowrap;">
+                                                        Rate/Restaurant:
+                                                    </label>
+                                                    <div class="input-group input-group-sm" style="width: 115px;">
+                                                        <div class="input-group-prepend"><span class="input-group-text bg-white font-weight-bold" style="color: #c2410c; font-size: 12px;">₹</span></div>
+                                                        <input type="number" step="0.01" min="0" name="rate_per_restaurant" class="form-control form-control-sm font-weight-bold" value="{{ (isset($v->rate_per_restaurant) && $v->rate_per_restaurant > 0) ? $v->rate_per_restaurant : '100.00' }}" required style="font-size: 12px; color: #0f172a;">
                                                     </div>
                                                 </div>
 
@@ -591,8 +602,8 @@
                                     <div style="font-size: 11px; color: #334155; font-weight: 600;">{{ $acq->user_phone }}</div>
                                 </td>
                                 <td>
-                                    <span class="badge {{ $acq->acquired_user_type === 'customer' ? 'badge-consumer' : 'badge-driver' }}" style="font-size: 10.5px;">
-                                        {{ ucfirst($acq->acquired_user_type ?? 'customer') }}
+                                    <span class="badge {{ $acq->acquired_user_type === 'customer' ? 'badge-consumer' : ($acq->acquired_user_type === 'restaurant' ? 'badge-restaurant' : 'badge-driver') }}" style="font-size: 10.5px; {{ $acq->acquired_user_type === 'restaurant' ? 'background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5;' : '' }}">
+                                        {{ $acq->acquired_user_type === 'restaurant' ? 'Restaurant' : ucfirst($acq->acquired_user_type ?? 'customer') }}
                                     </span>
                                 </td>
                                 <td>

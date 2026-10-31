@@ -52,6 +52,7 @@ Route::group(['middleware' => ['envKeyAuth'], 'prefix' => 'v1/food'], function (
     Route::group(['middleware' => ['restaurant.auth'], 'prefix' => 'restaurant'], function () {
         Route::get('profile', [RestaurantAuthController::class, 'profile']);
         Route::post('profile', [RestaurantAuthController::class, 'updateProfile']);
+        Route::post('apply-referral', [RestaurantAuthController::class, 'applyReferral']);
         Route::post('logout', [RestaurantAuthController::class, 'logout']);
 
         Route::get('me', [RestaurantOnboardingController::class, 'myRestaurant']);
