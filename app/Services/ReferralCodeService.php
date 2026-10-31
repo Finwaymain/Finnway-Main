@@ -60,22 +60,26 @@ class ReferralCodeService
         $isRestaurant = in_array($cleanType, ['restaurant', 'food', 'merchant']);
         $isDriver = in_array($cleanType, ['driver', 'conducteur', 'business', 'provider']);
         $type = $isRestaurant ? 'restaurant' : ($isDriver ? 'driver' : 'customer');
+        $expectedPrefix = $isRestaurant ? 'FIINR' : ($isDriver ? 'FIINB' : 'FIINC');
 
         // 1. Check referral table
         $refRow = DB::table('referral')->where('user_id', $userId)->where('user_type', $type)->first();
         if ($refRow && !empty($refRow->referral_code) && $refRow->referral_code !== 'TEMP') {
-            $existingCode = trim($refRow->referral_code);
-            // Check for collision with any OTHER user
-            $duplicateCount = DB::table('referral')
-                ->where('referral_code', $existingCode)
-                ->where(function($q) use ($userId, $type) {
-                    $q->where('user_id', '!=', $userId)->orWhere('user_type', '!=', $type);
-                })
-                ->count();
+            $existingCode = strtoupper(trim($refRow->referral_code));
+            // Only accept if code starts with the distinct expected prefix (FIINC, FIINB, or FIINR)
+            if (str_starts_with($existingCode, $expectedPrefix)) {
+                // Check for collision with any OTHER user
+                $duplicateCount = DB::table('referral')
+                    ->where('referral_code', $existingCode)
+                    ->where(function($q) use ($userId, $type) {
+                        $q->where('user_id', '!=', $userId)->orWhere('user_type', '!=', $type);
+                    })
+                    ->count();
 
-            if ($duplicateCount === 0) {
-                self::syncCodeToUserTable($userId, $type, $existingCode);
-                return $existingCode;
+                if ($duplicateCount === 0) {
+                    self::syncCodeToUserTable($userId, $type, $existingCode);
+                    return $existingCode;
+                }
             }
         }
 
@@ -84,12 +88,14 @@ class ReferralCodeService
             if (Schema::hasTable('food_owners') && Schema::hasColumn('food_owners', 'referral_code')) {
                 $ownerCode = DB::table('food_owners')->where('id', $userId)->value('referral_code');
                 if (!empty($ownerCode) && $ownerCode !== 'TEMP') {
-                    $ownerCode = trim($ownerCode);
-                    $duplicateCount = DB::table('food_owners')->where('referral_code', $ownerCode)->where('id', '!=', $userId)->count();
-                    if ($duplicateCount === 0) {
-                        self::syncCodeToReferralTable($userId, $type, $ownerCode);
-                        self::syncCodeToUserTable($userId, $type, $ownerCode);
-                        return $ownerCode;
+                    $ownerCode = strtoupper(trim($ownerCode));
+                    if (str_starts_with($ownerCode, $expectedPrefix)) {
+                        $duplicateCount = DB::table('food_owners')->where('referral_code', $ownerCode)->where('id', '!=', $userId)->count();
+                        if ($duplicateCount === 0) {
+                            self::syncCodeToReferralTable($userId, $type, $ownerCode);
+                            self::syncCodeToUserTable($userId, $type, $ownerCode);
+                            return $ownerCode;
+                        }
                     }
                 }
             }
@@ -98,11 +104,13 @@ class ReferralCodeService
             if (Schema::hasColumn($table, 'referral_code')) {
                 $userCode = DB::table($table)->where('id', $userId)->value('referral_code');
                 if (!empty($userCode) && $userCode !== 'TEMP') {
-                    $userCode = trim($userCode);
-                    $duplicateCount = DB::table($table)->where('referral_code', $userCode)->where('id', '!=', $userId)->count();
-                    if ($duplicateCount === 0) {
-                        self::syncCodeToReferralTable($userId, $type, $userCode);
-                        return $userCode;
+                    $userCode = strtoupper(trim($userCode));
+                    if (str_starts_with($userCode, $expectedPrefix)) {
+                        $duplicateCount = DB::table($table)->where('referral_code', $userCode)->where('id', '!=', $userId)->count();
+                        if ($duplicateCount === 0) {
+                            self::syncCodeToReferralTable($userId, $type, $userCode);
+                            return $userCode;
+                        }
                     }
                 }
             }

@@ -29,7 +29,7 @@ class GetUserReferralCode extends Controller
             if ($request->filled('id_driver') || $request->filled('driver_id')) {
                 $userCat = 'driver';
             } else {
-                $token = $request->header('accesstoken') ?: $request->get('accesstoken');
+                $token = $request->header('accesstoken') ?: $request->header('access-token') ?: $request->header('Accesstoken') ?: $request->get('accesstoken');
                 if (!empty($token)) {
                     $access = \Illuminate\Support\Facades\DB::table('users_access')->where('accesstoken', $token)->first();
                     if ($access && !empty($access->user_type)) {
