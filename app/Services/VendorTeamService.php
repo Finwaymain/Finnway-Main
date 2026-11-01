@@ -24,7 +24,7 @@ class VendorTeamService
             // Check if already applied or approved
             $existing = DB::table('marketing_vendors')
                 ->where('user_id', $userId)
-                ->where('user_type', $userType)
+                ->whereIn('user_type', self::getUserTypesForQuery($userType))
                 ->first();
 
             if ($existing) {
@@ -138,7 +138,7 @@ class VendorTeamService
                 // Check if user is already an approved or pending vendor
                 $existingVendor = DB::table('marketing_vendors')
                     ->where('user_id', $userId)
-                    ->where('user_type', $userType)
+                    ->whereIn('user_type', self::getUserTypesForQuery($userType))
                     ->first();
 
                 if ($existingVendor) {
@@ -229,7 +229,8 @@ class VendorTeamService
         float $ratePerCustomer,
         float $ratePerBusiness,
         ?string $designation = null,
-        bool $isRateVisible = true
+        bool $isRateVisible = true,
+        float $ratePerRestaurant = 0.0
     ): array {
         try {
             $approverUserType = self::normalizeUserType($approverUserType);
@@ -237,7 +238,7 @@ class VendorTeamService
             // Find approver's vendor profile
             $parentVendor = DB::table('marketing_vendors')
                 ->where('user_id', $approverUserId)
-                ->where('user_type', $approverUserType)
+                ->whereIn('user_type', self::getUserTypesForQuery($approverUserType))
                 ->where('status', 'approved')
                 ->first();
 
@@ -259,6 +260,7 @@ class VendorTeamService
             // Rate Ceiling Enforcement: cannot exceed parent's own effective rates
             $parentCustRate = (float)$parentVendor->rate_per_customer;
             $parentBizRate  = (float)$parentVendor->rate_per_business;
+            $parentRestRate = (float)($parentVendor->rate_per_restaurant ?? 0.0);
 
             if ($ratePerCustomer > $parentCustRate) {
                 return [
@@ -274,6 +276,13 @@ class VendorTeamService
                 ];
             }
 
+            if ($ratePerRestaurant > $parentRestRate) {
+                return [
+                    'success' => false,
+                    'message' => "Restaurant rate cannot exceed your rate of ₹" . number_format($parentRestRate, 2) . ".",
+                ];
+            }
+
             // Generate VR code if not set
             $code = $subVendor->vendor_code;
             if (empty($code)) {
@@ -284,7 +293,7 @@ class VendorTeamService
 
             $finalDesignation = trim((string)$designation) ?: ($subVendor->designation ?: 'Sub-Vendor');
 
-            DB::table('marketing_vendors')->where('id', $subVendorId)->update([
+            $updateData = [
                 'status'                => 'approved',
                 'vendor_code'           => $code,
                 'sub_vendor_code'       => $subVendorCode,
@@ -297,9 +306,15 @@ class VendorTeamService
                 'approved_at'           => now(),
                 'rejection_reason'      => null,
                 'updated_at'            => now(),
-            ]);
+            ];
 
-            Log::info("VendorTeamService: Parent Vendor #{$parentVendor->id} approved Sub-Vendor #{$subVendorId} with code {$code}, SV: {$subVendorCode}, FR: {$freelancerCode}, designation '{$finalDesignation}', Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}, Visible: " . ($isRateVisible ? 'ON' : 'OFF'));
+            if (Schema::hasColumn('marketing_vendors', 'rate_per_restaurant')) {
+                $updateData['rate_per_restaurant'] = max(0, $ratePerRestaurant);
+            }
+
+            DB::table('marketing_vendors')->where('id', $subVendorId)->update($updateData);
+
+            Log::info("VendorTeamService: Parent Vendor #{$parentVendor->id} approved Sub-Vendor #{$subVendorId} with code {$code}, SV: {$subVendorCode}, FR: {$freelancerCode}, designation '{$finalDesignation}', Cust ₹{$ratePerCustomer}, Biz ₹{$ratePerBusiness}, Rest ₹{$ratePerRestaurant}, Visible: " . ($isRateVisible ? 'ON' : 'OFF'));
 
             return [
                 'success'          => true,
@@ -310,6 +325,7 @@ class VendorTeamService
                 'designation'      => $finalDesignation,
                 'rate_customer'    => $ratePerCustomer,
                 'rate_business'    => $ratePerBusiness,
+                'rate_restaurant'  => $ratePerRestaurant,
                 'is_rate_visible'  => (bool)$isRateVisible,
             ];
 
@@ -328,7 +344,7 @@ class VendorTeamService
             $approverUserType = self::normalizeUserType($approverUserType);
             $parentVendor = DB::table('marketing_vendors')
                 ->where('user_id', $approverUserId)
-                ->where('user_type', $approverUserType)
+                ->whereIn('user_type', self::getUserTypesForQuery($approverUserType))
                 ->first();
 
             if (!$parentVendor) {
@@ -364,7 +380,7 @@ class VendorTeamService
             $parentUserType = self::normalizeUserType($parentUserType);
             $parentVendor = DB::table('marketing_vendors')
                 ->where('user_id', $parentUserId)
-                ->where('user_type', $parentUserType)
+                ->whereIn('user_type', self::getUserTypesForQuery($parentUserType))
                 ->first();
 
             if (!$parentVendor) {
@@ -1157,7 +1173,7 @@ class VendorTeamService
         // 1. Check if Vendor / Sub-Vendor
         $vendor = DB::table('marketing_vendors')
             ->where('user_id', $userId)
-            ->where('user_type', $userType)
+            ->whereIn('user_type', self::getUserTypesForQuery($userType))
             ->first();
 
         if ($vendor) {
@@ -1240,7 +1256,7 @@ class VendorTeamService
         $userType = self::normalizeUserType($userType);
         $vendor = DB::table('marketing_vendors')
             ->where('user_id', $userId)
-            ->where('user_type', $userType)
+            ->whereIn('user_type', self::getUserTypesForQuery($userType))
             ->where('status', 'approved')
             ->first();
 
@@ -1383,6 +1399,7 @@ class VendorTeamService
                 'is_rate_visible'    => (bool)($sv->is_rate_visible ?? true),
                 'rate_per_customer'  => number_format((float)$sv->rate_per_customer, 2, '.', ''),
                 'rate_per_business'  => number_format((float)$sv->rate_per_business, 2, '.', ''),
+                'rate_per_restaurant'=> number_format((float)($sv->rate_per_restaurant ?? 0.0), 2, '.', ''),
                 'freelancers_count'  => $svFreelancers,
                 'acquisitions_count' => $svAcquisitions,
                 'total_users'        => $svAcquisitions,
@@ -2207,6 +2224,18 @@ class VendorTeamService
 
         // Fallback with random suffix
         return $prefix . strtoupper(substr(md5(uniqid((string)mt_rand(), true)), 0, 6));
+    }
+
+    public static function getUserTypesForQuery(string $type): array
+    {
+        $t = strtolower(trim($type));
+        if (in_array($t, ['restaurant', 'food', 'merchant'], true)) {
+            return ['restaurant', 'food', 'merchant'];
+        }
+        if (in_array($t, ['driver', 'conducteur', 'business', 'provider'], true)) {
+            return ['driver', 'conducteur', 'business', 'provider'];
+        }
+        return ['customer', 'user'];
     }
 
     private static function normalizeUserType(string $type): string

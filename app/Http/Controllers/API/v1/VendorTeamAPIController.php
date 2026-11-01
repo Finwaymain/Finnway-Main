@@ -217,6 +217,7 @@ class VendorTeamAPIController extends Controller
         $subVendorId    = (int)$request->input('sub_vendor_id');
         $rateCustomer   = (float)$request->input('rate_per_customer', 0);
         $rateBusiness   = (float)$request->input('rate_per_business', 0);
+        $rateRestaurant = (float)$request->input('rate_per_restaurant', 0);
         $designation    = $request->input('designation');
         $isRateVisible  = filter_var($request->input('is_rate_visible', true), FILTER_VALIDATE_BOOLEAN);
 
@@ -231,7 +232,8 @@ class VendorTeamAPIController extends Controller
             $rateCustomer,
             $rateBusiness,
             $designation,
-            $isRateVisible
+            $isRateVisible,
+            $rateRestaurant
         );
 
         return response()->json($result, $result['success'] ? 200 : 422);
