@@ -17,4 +17,9 @@ class FoodMarkupRule extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];
+
+    public function restaurant()
+    {
+        return $this->belongsTo(FoodRestaurant::class, 'restaurant_id');
+    }
 }

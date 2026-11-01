@@ -17,4 +17,14 @@ class FoodCommissionRule extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];
+
+    public function restaurant()
+    {
+        return $this->belongsTo(FoodRestaurant::class, 'restaurant_id');
+    }
+
+    public function restaurantType()
+    {
+        return $this->belongsTo(FoodRestaurantType::class, 'restaurant_type_id');
+    }
 }

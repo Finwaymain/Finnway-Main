@@ -468,10 +468,12 @@ class FoodAdminController extends Controller
 
     public function commissions()
     {
-        $rules = FoodCommissionRule::orderByDesc('id')->get();
-        $markups = FoodMarkupRule::orderByDesc('id')->get();
+        $rules = FoodCommissionRule::with(['restaurant', 'restaurantType'])->orderByDesc('id')->get();
+        $markups = FoodMarkupRule::with('restaurant')->orderByDesc('id')->get();
         $deals = FoodPremiumDeal::with('restaurant')->orderByDesc('id')->get();
-        return view('admin.food.commissions', compact('rules', 'markups', 'deals'));
+        $restaurants = FoodRestaurant::orderBy('name')->get();
+        $restaurantTypes = FoodRestaurantType::where('is_active', true)->orderBy('name')->get();
+        return view('admin.food.commissions', compact('rules', 'markups', 'deals', 'restaurants', 'restaurantTypes'));
     }
 
     public function saveCommission(Request $request, $id = null)

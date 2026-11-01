@@ -16,7 +16,7 @@ class RestaurantOnboardingController extends Controller
     public function myRestaurant(Request $request)
     {
         $owner = $request->attributes->get('food_owner');
-        $restaurant = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->first();
+        $restaurant = FoodRestaurant::with('type')->where('owner_id', $owner->id)->orderByDesc('id')->first();
         return response()->json(['success' => true, 'data' => $restaurant]);
     }
 

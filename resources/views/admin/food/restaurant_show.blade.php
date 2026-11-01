@@ -1,6 +1,65 @@
 @extends("admin.food.layout")
 
 @section("food")
+<style>
+    /* Sleek Segmented Pill Navigation */
+    .restaurant-nav-pills {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .restaurant-nav-pills .nav-item {
+        margin: 0;
+    }
+    .restaurant-nav-pills .nav-link {
+        color: #334155 !important;
+        font-weight: 600 !important;
+        font-size: 13.5px !important;
+        padding: 9px 16px !important;
+        border-radius: 8px !important;
+        border: 1px solid transparent !important;
+        background-color: transparent !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+        text-decoration: none !important;
+    }
+    .restaurant-nav-pills .nav-link:hover {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
+    .restaurant-nav-pills .nav-link.active {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        border-color: #0f172a !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25) !important;
+    }
+    .restaurant-nav-pills .nav-link.active .badge {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.35) !important;
+    }
+    .restaurant-nav-pills .nav-link .badge {
+        font-size: 11px !important;
+        padding: 3px 7px !important;
+        border-radius: 6px !important;
+    }
+    /* Tab panes display management */
+    #restaurantTabContent > .tab-pane {
+        display: none;
+    }
+    #restaurantTabContent > .tab-pane.active {
+        display: block !important;
+    }
+</style>
 <div class="mb-4">
     <!-- Breadcrumb & Back -->
     <div class="mb-3">
@@ -74,10 +133,10 @@
                                 @csrf
                                 <button class="btn btn-sm btn-success"><i class="fa fa-check mr-1"></i> Approve Partner</button>
                             </form>
-                            <button type="button" class="btn btn-sm btn-info mb-2 mr-2" data-toggle="modal" data-target="#docReuploadModal">
+                            <button type="button" class="btn btn-sm btn-info mb-2 mr-2" data-toggle="modal" data-bs-toggle="modal" data-target="#docReuploadModal" data-bs-target="#docReuploadModal">
                                 <i class="fa fa-redo mr-1"></i> Request Doc Re-upload
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger mb-2 mr-2" data-toggle="modal" data-target="#rejectModal">
+                            <button type="button" class="btn btn-sm btn-outline-danger mb-2 mr-2" data-toggle="modal" data-bs-toggle="modal" data-target="#rejectModal" data-bs-target="#rejectModal">
                                 <i class="fa fa-times mr-1"></i> Reject
                             </button>
                         @else
@@ -144,49 +203,50 @@
     </div>
 
     <!-- Multi-Tab Navigation -->
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-            <ul class="nav nav-tabs card-header-tabs" id="restaurantTabs" role="tablist">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom p-3">
+            <ul class="nav nav-pills restaurant-nav-pills" id="restaurantTabs" role="tablist">
                 <li class="nav-item">
-                    <a class="nav-link active font-weight-bold" id="overview-tab" data-toggle="tab" href="#overview" role="tab">
-                        <i class="fa fa-info-circle mr-1"></i> Overview & Profile
+                    <a class="nav-link active" id="overview-tab" data-toggle="tab" data-bs-toggle="tab" href="#overview" data-target="#overview" data-bs-target="#overview" role="tab" aria-controls="overview" aria-selected="true">
+                        <i class="fa fa-info-circle mr-1"></i> Overview &amp; Profile
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="docs-tab" data-toggle="tab" href="#docs" role="tab">
+                    <a class="nav-link" id="docs-tab" data-toggle="tab" data-bs-toggle="tab" href="#docs" data-target="#docs" data-bs-target="#docs" role="tab" aria-controls="docs" aria-selected="false">
                         <i class="fa fa-file-invoice mr-1"></i> Compliance Documents
                         @php
                             $docCount = ($restaurant->fssai_doc ? 1 : 0) + ($restaurant->gst_doc ? 1 : 0) + ($restaurant->cancelled_cheque ? 1 : 0) + ($restaurant->id_proof ? 1 : 0);
                         @endphp
-                        <span class="badge badge-primary ml-1">{{ $docCount }}/4</span>
+                        <span class="badge {{ $docCount === 4 ? 'badge-success' : 'badge-primary' }} ml-1">{{ $docCount }}/4</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="menu-tab" data-toggle="tab" href="#menu" role="tab">
-                        <i class="fa fa-utensils mr-1"></i> Menu & Catalog ({{ $products->count() }})
+                    <a class="nav-link" id="menu-tab" data-toggle="tab" data-bs-toggle="tab" href="#menu" data-target="#menu" data-bs-target="#menu" role="tab" aria-controls="menu" aria-selected="false">
+                        <i class="fa fa-utensils mr-1"></i> Menu &amp; Catalog
+                        <span class="badge badge-light border ml-1">{{ $products->count() }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="commission-tab" data-toggle="tab" href="#commission" role="tab">
-                        <i class="fa fa-percentage mr-1"></i> Commission & Rules
+                    <a class="nav-link" id="commission-tab" data-toggle="tab" data-bs-toggle="tab" href="#commission" data-target="#commission" data-bs-target="#commission" role="tab" aria-controls="commission" aria-selected="false">
+                        <i class="fa fa-percentage mr-1"></i> Commission &amp; Rules
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="dues-tab" data-toggle="tab" href="#dues" role="tab">
-                        <i class="fa fa-hand-holding-usd mr-1"></i> COD Dues & Settlements
+                    <a class="nav-link" id="dues-tab" data-toggle="tab" data-bs-toggle="tab" href="#dues" data-target="#dues" data-bs-target="#dues" role="tab" aria-controls="dues" aria-selected="false">
+                        <i class="fa fa-hand-holding-usd mr-1"></i> COD Dues &amp; Settlements
                         @if($pendingDueTotal > 0)
-                            <span class="badge badge-danger ml-1">Due</span>
+                            <span class="badge badge-danger ml-1">Due: ₹{{ number_format($pendingDueTotal, 0) }}</span>
                         @endif
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="orders-tab" data-toggle="tab" href="#orders" role="tab">
+                    <a class="nav-link" id="orders-tab" data-toggle="tab" data-bs-toggle="tab" href="#orders" data-target="#orders" data-bs-target="#orders" role="tab" aria-controls="orders" aria-selected="false">
                         <i class="fa fa-receipt mr-1"></i> Orders History
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link font-weight-bold" id="disputes-tab" data-toggle="tab" href="#disputes" role="tab">
-                        <i class="fa fa-exclamation-triangle mr-1"></i> Disputes & Reviews
+                    <a class="nav-link" id="disputes-tab" data-toggle="tab" data-bs-toggle="tab" href="#disputes" data-target="#disputes" data-bs-target="#disputes" role="tab" aria-controls="disputes" aria-selected="false">
+                        <i class="fa fa-exclamation-triangle mr-1"></i> Disputes &amp; Reviews
                     </a>
                 </li>
             </ul>
@@ -640,7 +700,7 @@
                             <h5 class="font-weight-bold text-dark mb-1">Restaurant Menu & Products Catalog</h5>
                             <p class="text-muted small mb-0">Admin has full control to add items, change prices, or toggle in/out of stock.</p>
                         </div>
-                        <button type="button" class="btn btn-primary btn-sm font-weight-bold" data-toggle="modal" data-target="#addProductModal">
+                        <button type="button" class="btn btn-primary btn-sm font-weight-bold" data-toggle="modal" data-bs-toggle="modal" data-target="#addProductModal" data-bs-target="#addProductModal">
                             <i class="fa fa-plus mr-1"></i> Add Food Item
                         </button>
                     </div>
@@ -948,7 +1008,7 @@
                 @csrf
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title font-weight-bold"><i class="fa fa-redo mr-1"></i> Request Document Resubmission</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close text-white" data-dismiss="modal" data-bs-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small">Select the documents that failed compliance checks. The restaurant partner will be notified in their PWA app to re-upload them.</p>
@@ -981,7 +1041,7 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-info btn-sm font-weight-bold">Send Resubmission Request</button>
                 </div>
             </form>
@@ -997,7 +1057,7 @@
                 @csrf
                 <div class="modal-header bg-danger text-white">
                     <h5 class="modal-title font-weight-bold"><i class="fa fa-times mr-1"></i> Reject Restaurant Application</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close text-white" data-dismiss="modal" data-bs-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
@@ -1006,7 +1066,7 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger btn-sm font-weight-bold">Reject Application</button>
                 </div>
             </form>
@@ -1022,7 +1082,7 @@
                 @csrf
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title font-weight-bold"><i class="fa fa-plus mr-1"></i> Add Food Item to Menu</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close text-white" data-dismiss="modal" data-bs-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
@@ -1068,12 +1128,91 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary btn-sm font-weight-bold">Save Food Item</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    function initRestaurantTabs() {
+        const tabsContainer = document.getElementById('restaurantTabs');
+        const tabContent = document.getElementById('restaurantTabContent');
+        if (!tabsContainer || !tabContent) return;
+
+        const links = tabsContainer.querySelectorAll('.nav-link');
+        const panes = tabContent.querySelectorAll('.tab-pane');
+
+        function showTab(targetId) {
+            if (!targetId) return;
+            targetId = targetId.replace(/^#/, '');
+            const targetPane = document.getElementById(targetId);
+            if (!targetPane) return;
+
+            links.forEach(function(link) {
+                link.classList.remove('active');
+                link.setAttribute('aria-selected', 'false');
+            });
+
+            panes.forEach(function(pane) {
+                pane.classList.remove('show', 'active');
+                pane.style.display = 'none';
+            });
+
+            const activeLink = tabsContainer.querySelector('.nav-link[href="#' + targetId + '"]') ||
+                               tabsContainer.querySelector('.nav-link[data-bs-target="#' + targetId + '"]') ||
+                               tabsContainer.querySelector('.nav-link[data-target="#' + targetId + '"]');
+            if (activeLink) {
+                activeLink.classList.add('active');
+                activeLink.setAttribute('aria-selected', 'true');
+            }
+
+            targetPane.style.display = 'block';
+            setTimeout(function() {
+                targetPane.classList.add('show', 'active');
+            }, 10);
+        }
+
+        links.forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const href = this.getAttribute('href') || this.getAttribute('data-bs-target') || this.getAttribute('data-target');
+                if (href && href.startsWith('#')) {
+                    const targetId = href.substring(1);
+                    showTab(targetId);
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState(null, null, '#' + targetId);
+                    } else {
+                        window.location.hash = '#' + targetId;
+                    }
+                }
+            });
+        });
+
+        // Initialize from URL hash
+        const initialHash = window.location.hash;
+        if (initialHash && document.getElementById(initialHash.replace(/^#/, ''))) {
+            showTab(initialHash.replace(/^#/, ''));
+        } else {
+            showTab('overview');
+        }
+
+        window.addEventListener('hashchange', function() {
+            if (window.location.hash) {
+                showTab(window.location.hash.replace(/^#/, ''));
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRestaurantTabs);
+    } else {
+        initRestaurantTabs();
+    }
+})();
+</script>
 
 @endsection

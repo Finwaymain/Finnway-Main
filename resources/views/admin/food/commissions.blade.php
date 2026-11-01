@@ -38,7 +38,14 @@
                     @forelse($rules as $r)
                         <tr>
                             <td class="font-weight-bold">#{{ $r->id }}</td>
-                            <td><span class="badge badge-light border">{{ ucfirst($r->scope) }}</span></td>
+                            <td>
+                                <span class="badge badge-light border">{{ ucfirst(str_replace('_', ' ', $r->scope)) }}</span>
+                                @if($r->scope === 'restaurant')
+                                    <div class="small font-weight-bold text-dark mt-1">{{ optional($r->restaurant)->name ?: ('Restaurant #' . $r->restaurant_id) }}</div>
+                                @elseif($r->scope === 'restaurant_type')
+                                    <div class="small font-weight-bold text-dark mt-1">{{ optional($r->restaurantType)->name ?: ('Type #' . $r->restaurant_type_id) }}</div>
+                                @endif
+                            </td>
                             <td>{{ ucfirst($r->rule_type) }}</td>
                             <td class="font-weight-bold text-primary">
                                 {{ $r->rule_value }}{{ $r->rule_type === 'percentage' ? '%' : ' ₹' }}
@@ -123,12 +130,35 @@
                 <div class="modal-body p-4">
                     <div class="form-group">
                         <label class="small font-weight-bold text-muted">Scope</label>
-                        <select name="scope" class="form-control custom-select">
+                        <select name="scope" id="commissionScope" class="form-control custom-select">
                             <option value="global">Global (All Restaurants)</option>
                             <option value="restaurant_type">By Restaurant Type</option>
                             <option value="restaurant">Specific Restaurant</option>
                         </select>
                     </div>
+
+                    <!-- Dynamic Restaurant Selection (Shown when Scope = Specific Restaurant) -->
+                    <div class="form-group" id="commissionRestaurantGroup" style="display: none;">
+                        <label class="small font-weight-bold text-muted">Select Restaurant *</label>
+                        <select name="restaurant_id" id="commissionRestaurantSelect" class="form-control custom-select">
+                            <option value="">-- Choose Restaurant --</option>
+                            @foreach($restaurants as $rest)
+                                <option value="{{ $rest->id }}">{{ $rest->name }} (ID: #{{ $rest->id }}{{ $rest->city ? ' - ' . $rest->city : '' }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Dynamic Restaurant Type Selection (Shown when Scope = By Restaurant Type) -->
+                    <div class="form-group" id="commissionTypeGroup" style="display: none;">
+                        <label class="small font-weight-bold text-muted">Select Restaurant Type *</label>
+                        <select name="restaurant_type_id" id="commissionTypeSelect" class="form-control custom-select">
+                            <option value="">-- Choose Type --</option>
+                            @foreach($restaurantTypes as $type)
+                                <option value="{{ $type->id }}">{{ $type->name }} ({{ $type->code }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <label class="small font-weight-bold text-muted">Rule Type</label>
@@ -169,11 +199,23 @@
                 <div class="modal-body p-4">
                     <div class="form-group">
                         <label class="small font-weight-bold text-muted">Scope</label>
-                        <select name="scope" class="form-control custom-select">
+                        <select name="scope" id="markupScope" class="form-control custom-select">
                             <option value="global">Global</option>
                             <option value="restaurant">Specific Restaurant</option>
                         </select>
                     </div>
+
+                    <!-- Dynamic Restaurant Selection for Markup -->
+                    <div class="form-group" id="markupRestaurantGroup" style="display: none;">
+                        <label class="small font-weight-bold text-muted">Select Restaurant *</label>
+                        <select name="restaurant_id" id="markupRestaurantSelect" class="form-control custom-select">
+                            <option value="">-- Choose Restaurant --</option>
+                            @foreach($restaurants as $rest)
+                                <option value="{{ $rest->id }}">{{ $rest->name }} (ID: #{{ $rest->id }}{{ $rest->city ? ' - ' . $rest->city : '' }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <label class="small font-weight-bold text-muted">Type</label>
@@ -200,4 +242,40 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Commission Scope Switcher
+    const comScope = document.getElementById('commissionScope');
+    const comRestGrp = document.getElementById('commissionRestaurantGroup');
+    const comTypeGrp = document.getElementById('commissionTypeGroup');
+
+    function updateCommissionScope() {
+        if (!comScope) return;
+        const val = comScope.value;
+        if (comRestGrp) comRestGrp.style.display = (val === 'restaurant') ? 'block' : 'none';
+        if (comTypeGrp) comTypeGrp.style.display = (val === 'restaurant_type') ? 'block' : 'none';
+    }
+
+    if (comScope) {
+        comScope.addEventListener('change', updateCommissionScope);
+        updateCommissionScope();
+    }
+
+    // Markup Scope Switcher
+    const mkScope = document.getElementById('markupScope');
+    const mkRestGrp = document.getElementById('markupRestaurantGroup');
+
+    function updateMarkupScope() {
+        if (!mkScope) return;
+        const val = mkScope.value;
+        if (mkRestGrp) mkRestGrp.style.display = (val === 'restaurant') ? 'block' : 'none';
+    }
+
+    if (mkScope) {
+        mkScope.addEventListener('change', updateMarkupScope);
+        updateMarkupScope();
+    }
+});
+</script>
 @endsection

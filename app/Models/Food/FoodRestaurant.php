@@ -10,6 +10,8 @@ class FoodRestaurant extends Model
 
     protected $guarded = [];
 
+    protected $appends = ['onboarding_fee'];
+
     protected $casts = [
         'latitude' => 'float',
         'longitude' => 'float',
@@ -59,5 +61,17 @@ class FoodRestaurant extends Model
     public function isActivePartner(): bool
     {
         return in_array(strtolower((string) $this->onboarding_status), ['active', 'approved', 'verified']);
+    }
+
+    public function getOnboardingFeeAttribute(): float
+    {
+        if ($this->relationLoaded('type') && $this->type) {
+            return (float) ($this->type->onboarding_fee ?? 0);
+        }
+        if (!empty($this->type_id)) {
+            $type = FoodRestaurantType::find($this->type_id);
+            return (float) ($type->onboarding_fee ?? 0);
+        }
+        return 0.0;
     }
 }
