@@ -44,7 +44,14 @@ class FoodAdminController extends Controller
     public function types()
     {
         $types = FoodRestaurantType::orderBy('sort_order')->get();
-        return view('admin.food.types', compact('types'));
+        $showFeeOnCards = (bool) FoodSetting::getValue('food_show_fee_on_onboarding_cards', false);
+        return view('admin.food.types', compact('types', 'showFeeOnCards'));
+    }
+
+    public function togglePricingOnCards(Request $request)
+    {
+        FoodSetting::setValue('food_show_fee_on_onboarding_cards', $request->boolean('show_fee_on_cards') ? '1' : '0');
+        return redirect()->route('admin.food.types')->with('success', 'Onboarding card pricing visibility updated.');
     }
 
     public function saveType(Request $request, $id = null)

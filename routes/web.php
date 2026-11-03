@@ -1251,6 +1251,7 @@ Route::middleware(['auth'])->prefix('admin/food')->name('admin.food.')->group(fu
     Route::get('/', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'dashboard'])->name('dashboard');
     Route::get('/live', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'live'])->name('live');
     Route::get('/types', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'types'])->name('types');
+    Route::post('/types/toggle-pricing', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'togglePricingOnCards'])->name('types.toggle_pricing');
     Route::post('/types/{id?}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'saveType'])->name('types.save');
     Route::get('/restaurants', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'restaurants'])->name('restaurants');
     Route::get('/restaurants/{id}', [\App\Http\Controllers\Admin\Food\FoodAdminController::class, 'restaurantShow'])->name('restaurants.show');

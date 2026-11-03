@@ -12,6 +12,31 @@
         </button>
     </div>
 
+    <!-- Onboarding Pricing Display Setting Banner -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius: 12px; background: #ffffff; border-left: 4px solid #FF5200 !important;">
+        <div class="card-body py-3 d-flex justify-content-between align-items-center flex-wrap">
+            <div class="pr-3 mb-2 mb-md-0" style="max-width: 750px;">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge badge-warning text-dark font-weight-bold mr-2 px-2 py-1" style="font-size: 11px;">Display Setting</span>
+                    <h6 class="font-weight-bold mb-0 text-dark">Display Fee on Onboarding Selection Cards</h6>
+                </div>
+                <p class="text-muted small mb-0">
+                    Control whether partners see fee amounts (e.g. ₹2,000) directly on the category cards in the app during registration.
+                    <strong>When OFF (Default)</strong>, fees remain fully active for payment and settlements, but the pricing tag is hidden on the selection cards for a clean look.
+                </p>
+            </div>
+            <form method="post" action="{{ route('admin.food.types.toggle_pricing') }}" class="d-flex align-items-center">
+                @csrf
+                <div class="custom-control custom-switch custom-switch-lg mr-2">
+                    <input type="checkbox" class="custom-control-input" id="showFeeSwitch" name="show_fee_on_cards" value="1" onchange="this.form.submit()" @checked(!empty($showFeeOnCards))>
+                    <label class="custom-control-label font-weight-bold {{ !empty($showFeeOnCards) ? 'text-success' : 'text-secondary' }}" for="showFeeSwitch">
+                        {{ !empty($showFeeOnCards) ? 'Visible on Cards' : 'Hidden from Selection Cards (Default)' }}
+                    </label>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Active Types Cards -->
     <div class="row">
         @foreach($types as $t)

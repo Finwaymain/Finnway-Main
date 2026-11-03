@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Food\FoodOwner;
 use App\Models\Food\FoodRestaurant;
 use App\Models\Food\FoodRestaurantType;
+use App\Models\Food\FoodSetting;
 use App\Services\PhoneService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -348,7 +349,14 @@ class RestaurantAuthController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get(['id', 'code', 'name', 'description', 'onboarding_fee', 'approval_mode']);
-        return response()->json(['success' => true, 'data' => $types]);
+
+        $showPricingOnCards = (bool) FoodSetting::getValue('food_show_fee_on_onboarding_cards', false);
+
+        return response()->json([
+            'success' => true,
+            'data' => $types,
+            'show_pricing_on_cards' => $showPricingOnCards,
+        ]);
     }
 
     protected function issueToken(FoodOwner $owner): string
