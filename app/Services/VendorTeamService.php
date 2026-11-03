@@ -187,6 +187,14 @@ class VendorTeamService
 
                 Log::info("VendorTeamService: User #{$userId} ($userType) applied as Sub-Vendor under Parent Vendor #{$parentVendor->id} ($vendorCode)");
 
+                self::sendPushNotification(
+                    (int)$parentVendor->user_id,
+                    (string)$parentVendor->user_type,
+                    "🤝 New Sub-Vendor Request!",
+                    "A partner applied as Sub-Vendor under your code {$parentVendor->vendor_code}. Open your Partner Dashboard to review.",
+                    "sub_vendor_request"
+                );
+
                 return [
                     'success'       => true,
                     'status'        => 'pending',
@@ -1108,6 +1116,14 @@ class VendorTeamService
 
             Log::info("VendorTeamService: Registered user #{$userId} ($userType) as Freelancer under Vendor #{$vendor->id} with code {$memberCode}");
 
+            self::sendPushNotification(
+                (int)$vendor->user_id,
+                (string)$vendor->user_type,
+                "👥 New Freelancer Joined!",
+                "A new Freelancer joined your team under Vendor {$vendor->vendor_code} with code {$memberCode}.",
+                "freelancer_joined"
+            );
+
             return [
                 'success'     => true,
                 'member_code' => $memberCode,
@@ -1154,6 +1170,14 @@ class VendorTeamService
             ]);
 
             Log::info("VendorTeamService: Recorded acquisition of {$acquiredUserType} #{$acquiredUserId} under Freelancer #{$teamMember->id} (Vendor #{$teamMember->vendor_id})");
+
+            self::sendPushNotification(
+                (int)$teamMember->user_id,
+                (string)$teamMember->user_type,
+                "🎉 New User Acquired!",
+                "A new user joined using your Freelancer code {$teamMember->member_code}!",
+                "user_acquired"
+            );
 
             return ['success' => true, 'acquisition_id' => $acquisitionId];
 
@@ -2245,5 +2269,53 @@ class VendorTeamService
             return 'restaurant';
         }
         return in_array($t, ['driver', 'conducteur', 'business', 'provider'], true) ? 'business' : 'customer';
+    }
+
+    /**
+     * Send FCM push notification across tj_conducteur / tj_user_app safely
+     */
+    public static function sendPushNotification(int $userId, string $userType, string $title, string $body, string $tag = 'referral'): void
+    {
+        try {
+            if ($userId <= 0) return;
+            $fcmToken = null;
+            $userType = self::normalizeUserType($userType);
+
+            if ($userType === 'customer') {
+                $u = DB::table('tj_user_app')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                if ($u) {
+                    $fcmToken = (!empty($u->fcm_id) && strlen($u->fcm_id) > 15) ? $u->fcm_id : ((!empty($u->tonotify) && strlen($u->tonotify) > 15) ? $u->tonotify : null);
+                }
+            } else {
+                $d = DB::table('tj_conducteur')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                if ($d) {
+                    $fcmToken = (!empty($d->fcm_id) && strlen($d->fcm_id) > 15) ? $d->fcm_id : ((!empty($d->tonotify) && strlen($d->tonotify) > 15) ? $d->tonotify : null);
+                }
+            }
+
+            // Cross-check fallback if primary had no token
+            if (empty($fcmToken)) {
+                $d = DB::table('tj_conducteur')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                if ($d && (!empty($d->fcm_id) || !empty($d->tonotify))) {
+                    $fcmToken = (!empty($d->fcm_id) && strlen($d->fcm_id) > 15) ? $d->fcm_id : ((!empty($d->tonotify) && strlen($d->tonotify) > 15) ? $d->tonotify : null);
+                }
+            }
+            if (empty($fcmToken)) {
+                $u = DB::table('tj_user_app')->where('id', $userId)->select('tonotify', 'fcm_id')->first();
+                if ($u && (!empty($u->fcm_id) || !empty($u->tonotify))) {
+                    $fcmToken = (!empty($u->fcm_id) && strlen($u->fcm_id) > 15) ? $u->fcm_id : ((!empty($u->tonotify) && strlen($u->tonotify) > 15) ? $u->tonotify : null);
+                }
+            }
+
+            if (!empty($fcmToken)) {
+                \App\Http\Controllers\API\v1\GcmController::sendNotification($fcmToken, [
+                    'title' => $title,
+                    'body'  => $body,
+                    'tag'   => $tag,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("VendorTeamService::sendPushNotification failed for user #{$userId}: " . $e->getMessage());
+        }
     }
 }

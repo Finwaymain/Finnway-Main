@@ -66,8 +66,8 @@ class ReferralCodeService
         $refRow = DB::table('referral')->where('user_id', $userId)->where('user_type', $type)->first();
         if ($refRow && !empty($refRow->referral_code) && $refRow->referral_code !== 'TEMP') {
             $existingCode = strtoupper(trim($refRow->referral_code));
-            // Only accept if code starts with the distinct expected prefix (FIINC, FIINB, or FIINR)
-            if (str_starts_with($existingCode, $expectedPrefix)) {
+            // Accept if code starts with expected prefix or any valid FIIN prefix series
+            if (str_starts_with($existingCode, $expectedPrefix) || str_starts_with($existingCode, 'FIIN')) {
                 // Check for collision with any OTHER user
                 $duplicateCount = DB::table('referral')
                     ->where('referral_code', $existingCode)
@@ -89,7 +89,7 @@ class ReferralCodeService
                 $ownerCode = DB::table('food_owners')->where('id', $userId)->value('referral_code');
                 if (!empty($ownerCode) && $ownerCode !== 'TEMP') {
                     $ownerCode = strtoupper(trim($ownerCode));
-                    if (str_starts_with($ownerCode, $expectedPrefix)) {
+                    if (str_starts_with($ownerCode, $expectedPrefix) || str_starts_with($ownerCode, 'FIIN')) {
                         $duplicateCount = DB::table('food_owners')->where('referral_code', $ownerCode)->where('id', '!=', $userId)->count();
                         if ($duplicateCount === 0) {
                             self::syncCodeToReferralTable($userId, $type, $ownerCode);
@@ -105,7 +105,7 @@ class ReferralCodeService
                 $userCode = DB::table($table)->where('id', $userId)->value('referral_code');
                 if (!empty($userCode) && $userCode !== 'TEMP') {
                     $userCode = strtoupper(trim($userCode));
-                    if (str_starts_with($userCode, $expectedPrefix)) {
+                    if (str_starts_with($userCode, $expectedPrefix) || str_starts_with($userCode, 'FIIN')) {
                         $duplicateCount = DB::table($table)->where('referral_code', $userCode)->where('id', '!=', $userId)->count();
                         if ($duplicateCount === 0) {
                             self::syncCodeToReferralTable($userId, $type, $userCode);
@@ -218,12 +218,34 @@ class ReferralCodeService
             }
         }
 
+        // Generate normalized variants for VR/SV/FR/FIIN (e.g., VR00034 vs VR34 vs VR034)
+        $codeVariants = [$code];
+        if (preg_match('/^([A-Z]+)0*(\d+)$/', $code, $m)) {
+            $prefix = $m[1];
+            $cleanNum = ltrim($m[2], '0');
+            $codeVariants[] = $prefix . $cleanNum;
+            $codeVariants[] = $prefix . '0' . $cleanNum;
+            $codeVariants[] = $prefix . sprintf('%05d', (int)$cleanNum);
+            $codeVariants[] = $prefix . sprintf('%06d', (int)$cleanNum);
+        }
+        $codeVariants = array_values(array_unique($codeVariants));
+
         // 6. Match in marketing_vendors (vendor / sub-vendor / head-vendor)
-        if (Schema::hasTable('marketing_vendors') && Schema::hasColumn('marketing_vendors', 'vendor_code')) {
-            $vendorMatch = DB::table('marketing_vendors')->where(DB::raw('UPPER(vendor_code)'), $code)->first();
+        if (Schema::hasTable('marketing_vendors')) {
+            $vendorMatch = DB::table('marketing_vendors')
+                ->where(function($q) use ($codeVariants) {
+                    $q->whereIn(DB::raw('UPPER(vendor_code)'), $codeVariants);
+                    if (Schema::hasColumn('marketing_vendors', 'sub_vendor_code')) {
+                        $q->orWhereIn(DB::raw('UPPER(sub_vendor_code)'), $codeVariants);
+                    }
+                    if (Schema::hasColumn('marketing_vendors', 'freelancer_code')) {
+                        $q->orWhereIn(DB::raw('UPPER(freelancer_code)'), $codeVariants);
+                    }
+                })
+                ->first();
             if ($vendorMatch) {
                 return [
-                    'user_id' => (int)$vendorMatch->user_id,
+                    'user_id'   => (int)$vendorMatch->user_id,
                     'user_type' => $vendorMatch->hierarchy_level > 0 ? 'sub_vendor' : 'vendor',
                     'vendor_id' => (int)$vendorMatch->id,
                 ];
@@ -232,10 +254,10 @@ class ReferralCodeService
 
         // 7. Match in marketing_team_members (freelancer / agent)
         if (Schema::hasTable('marketing_team_members') && Schema::hasColumn('marketing_team_members', 'member_code')) {
-            $memberMatch = DB::table('marketing_team_members')->where(DB::raw('UPPER(member_code)'), $code)->first();
+            $memberMatch = DB::table('marketing_team_members')->whereIn(DB::raw('UPPER(member_code)'), $codeVariants)->first();
             if ($memberMatch) {
                 return [
-                    'user_id' => (int)$memberMatch->user_id,
+                    'user_id'   => (int)$memberMatch->user_id,
                     'user_type' => 'freelance',
                     'vendor_id' => (int)$memberMatch->vendor_id,
                     'member_id' => (int)$memberMatch->id,
