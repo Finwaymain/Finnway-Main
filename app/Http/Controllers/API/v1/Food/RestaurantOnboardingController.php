@@ -125,7 +125,7 @@ class RestaurantOnboardingController extends Controller
             'success' => true,
             'message' => 'Onboarding details saved.',
             'data' => [
-                'restaurant' => $restaurant->fresh(),
+                'restaurant' => $restaurant->fresh()->load('type'),
                 'onboarding_fee' => $fee,
                 'payment_required' => $fee > 0,
                 'approval_mode' => $type->approval_mode,
@@ -141,7 +141,7 @@ class RestaurantOnboardingController extends Controller
             return response()->json(['success' => false, 'error' => 'Complete registration first.']);
         }
         $type = FoodRestaurantType::find($restaurant->type_id);
-        $fee = (float) ($type->onboarding_fee ?? 0);
+        $fee = (float) ($type->onboarding_fee ?? $restaurant->onboarding_fee ?? 0);
         if ($fee <= 0) {
             return response()->json(['success' => false, 'error' => 'No onboarding fee configured.']);
         }

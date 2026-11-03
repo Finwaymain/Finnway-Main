@@ -361,7 +361,7 @@ class RestaurantAuthController extends Controller
 
     protected function ownerPayload(FoodOwner $owner, ?string $token = null): array
     {
-        $restaurants = FoodRestaurant::where('owner_id', $owner->id)->orderByDesc('id')->get();
+        $restaurants = FoodRestaurant::with('type')->where('owner_id', $owner->id)->orderByDesc('id')->get();
 
         // Ensure restaurant owner has a unique referral code (FIINR...)
         $referralCode = null;
