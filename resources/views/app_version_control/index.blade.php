@@ -44,9 +44,14 @@
                             <i class="mdi mdi-account-circle mr-1"></i> Customer App (User)
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item mr-2">
                         <a class="nav-link font-weight-bold rounded-pill {{ $tab === 'business' ? 'active' : '' }}" href="{{ route('app-version-control.index', ['tab' => 'business']) }}">
                             <i class="mdi mdi-car mr-1"></i> Driver & Partner App (Business)
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link font-weight-bold rounded-pill {{ $tab === 'restaurant' ? 'active' : '' }}" href="{{ route('app-version-control.index', ['tab' => 'restaurant']) }}">
+                            <i class="mdi mdi-silverware-fork-knife mr-1"></i> Restaurant Partner App
                         </a>
                     </li>
                 </ul>
@@ -54,9 +59,22 @@
         </div>
 
         @php
-            $activeConfig = $tab === 'business' ? $businessConfig : $customerConfig;
-            $otherConfig = $tab === 'business' ? $customerConfig : $businessConfig;
-            $themeColor = $tab === 'business' ? '#4f46e5' : '#10b981';
+            if ($tab === 'restaurant') {
+                $activeConfig = $restaurantConfig;
+                $themeColor = '#FF5200';
+                $themeIcon = 'mdi-silverware-fork-knife';
+                $appNameBadge = 'Restaurant Partner App';
+            } elseif ($tab === 'business') {
+                $activeConfig = $businessConfig;
+                $themeColor = '#4f46e5';
+                $themeIcon = 'mdi-car';
+                $appNameBadge = 'Driver Partner App';
+            } else {
+                $activeConfig = $customerConfig;
+                $themeColor = '#10b981';
+                $themeIcon = 'mdi-account-circle';
+                $appNameBadge = 'Customer User App';
+            }
         @endphp
 
         <div class="row">
@@ -66,7 +84,7 @@
                     <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <div class="rounded-circle mr-3 d-flex align-items-center justify-content-center text-white font-weight-bold" style="background-color: {{ $themeColor }}; width: 40px; height: 40px;">
-                                <i class="mdi {{ $tab === 'business' ? 'mdi-car' : 'mdi-account-circle' }}" style="font-size: 22px;"></i>
+                                <i class="mdi {{ $themeIcon }}" style="font-size: 22px;"></i>
                             </div>
                             <div>
                                 <h4 class="card-title m-0 font-weight-bold text-dark">{{ $activeConfig->app_name }}</h4>
@@ -213,7 +231,7 @@
                     <div class="card-body p-4">
                         <div class="mb-3 d-flex justify-content-between align-items-center">
                             <span class="text-muted">Target App</span>
-                            <span class="badge badge-primary px-3 py-1 font-weight-bold">{{ $activeConfig->app_type === 'business' ? 'Driver Partner App' : 'Customer User App' }}</span>
+                            <span class="badge badge-primary px-3 py-1 font-weight-bold">{{ $appNameBadge }}</span>
                         </div>
                         <div class="mb-3 d-flex justify-content-between align-items-center">
                             <span class="text-muted">Latest Version</span>

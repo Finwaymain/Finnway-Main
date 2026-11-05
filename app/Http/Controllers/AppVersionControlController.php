@@ -13,12 +13,12 @@ class AppVersionControlController extends Controller
     }
 
     /**
-     * Display version settings for Customer and Driver apps
+     * Display version settings for Customer, Driver, and Restaurant apps
      */
     public function index(Request $request)
     {
         $tab = $request->query('tab', 'customer');
-        if (!in_array($tab, ['customer', 'business'])) {
+        if (!in_array($tab, ['customer', 'business', 'restaurant'])) {
             $tab = 'customer';
         }
 
@@ -48,7 +48,20 @@ class AppVersionControlController extends Controller
             ]
         );
 
-        return view('app_version_control.index', compact('tab', 'customerConfig', 'businessConfig'));
+        $restaurantConfig = AppVersionControl::firstOrCreate(
+            ['app_type' => 'restaurant'],
+            [
+                'app_name' => 'Fiinway Restaurant Partner App',
+                'latest_version' => '1.0.5',
+                'minimum_version' => '1.0.0',
+                'force_update' => false,
+                'playstore_url' => 'https://play.google.com/store/apps/details?id=come.fiinway.restaurant&hl=en_IN',
+                'title' => 'Restaurant Partner App Update!',
+                'message' => 'A new version of the Fiinway Restaurant Partner App is available with live order alerts, menu management, and performance enhancements. Please update now to continue managing your orders seamlessly.',
+            ]
+        );
+
+        return view('app_version_control.index', compact('tab', 'customerConfig', 'businessConfig', 'restaurantConfig'));
     }
 
     /**

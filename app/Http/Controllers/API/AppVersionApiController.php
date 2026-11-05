@@ -15,7 +15,7 @@ class AppVersionApiController extends Controller
     public function checkVersion(Request $request)
     {
         $appType = $request->query('app_type', 'customer');
-        if (!in_array($appType, ['customer', 'business'])) {
+        if (!in_array($appType, ['customer', 'business', 'restaurant'])) {
             $appType = 'customer';
         }
 
