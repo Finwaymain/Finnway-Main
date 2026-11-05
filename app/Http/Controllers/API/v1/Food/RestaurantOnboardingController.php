@@ -121,6 +121,22 @@ class RestaurantOnboardingController extends Controller
         }
         $owner->save();
 
+        $incomingReferral = trim((string) ($request->input('referral_code') ?? $request->input('ref_by') ?? ''));
+        if ($incomingReferral !== '' && empty($owner->ref_by)) {
+            try {
+                $authCtrl = new RestaurantAuthController();
+                $refReq = new Request(['referral_code' => $incomingReferral]);
+                $refReq->attributes->set('food_owner', $owner);
+                $authCtrl->applyReferral($refReq);
+                $owner->refresh();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('RestaurantOnboarding referral apply error: ' . $e->getMessage());
+            }
+        } elseif (!empty($owner->ref_by) && empty($restaurant->ref_by)) {
+            $restaurant->ref_by = $owner->ref_by;
+            $restaurant->save();
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Onboarding details saved.',

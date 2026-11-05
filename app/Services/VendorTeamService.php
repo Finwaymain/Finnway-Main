@@ -150,7 +150,7 @@ class VendorTeamService
                             'message'   => "You are already an approved Vendor (Code: {$existingVendor->vendor_code}).",
                         ];
                     }
-                    if ($existingVendor->status === 'pending') {
+                    if ($existingVendor->status === 'pending' && (int)$existingVendor->parent_vendor_id === (int)$parentVendor->id) {
                         return [
                             'success'   => true,
                             'status'    => 'pending',
@@ -166,24 +166,44 @@ class VendorTeamService
                 $location = trim((string)$teamLocation) ?: ($parentVendor->team_location ?? 'Territory');
                 $type = trim((string)$teamType) ?: ($parentVendor->team_type ?? 'Field Marketing');
 
-                $subVendorId = DB::table('marketing_vendors')->insertGetId([
-                    'user_id'            => $userId,
-                    'user_type'          => $userType,
-                    'parent_vendor_id'   => $parentVendor->id,
-                    'head_vendor_id'     => $parentHeadId,
-                    'vendor_code'        => null, // Generated upon approval by parent
-                    'designation'        => $cleanDesignation,
-                    'hierarchy_level'    => $level,
-                    'team_location'      => $location,
-                    'team_type'          => $type,
-                    'remarks'            => $remarks,
-                    'status'             => 'pending',
-                    'rate_per_customer'  => 0.00,
-                    'rate_per_business'  => 0.00,
-                    'is_rate_visible'    => true,
-                    'created_at'         => now(),
-                    'updated_at'         => now(),
-                ]);
+                if ($existingVendor) {
+                    DB::table('marketing_vendors')->where('id', $existingVendor->id)->update([
+                        'parent_vendor_id'  => $parentVendor->id,
+                        'head_vendor_id'    => $parentHeadId,
+                        'designation'       => $cleanDesignation,
+                        'hierarchy_level'   => $level,
+                        'team_location'     => $location,
+                        'team_type'         => $type,
+                        'remarks'           => $remarks,
+                        'status'            => 'pending',
+                        'rejection_reason'  => null,
+                        'updated_at'        => now(),
+                    ]);
+                    $subVendorId = $existingVendor->id;
+                } else {
+                    $insertData = [
+                        'user_id'            => $userId,
+                        'user_type'          => $userType,
+                        'parent_vendor_id'   => $parentVendor->id,
+                        'head_vendor_id'     => $parentHeadId,
+                        'vendor_code'        => null, // Generated upon approval by parent
+                        'designation'        => $cleanDesignation,
+                        'hierarchy_level'    => $level,
+                        'team_location'      => $location,
+                        'team_type'          => $type,
+                        'remarks'            => $remarks,
+                        'status'             => 'pending',
+                        'rate_per_customer'  => 0.00,
+                        'rate_per_business'  => 0.00,
+                        'is_rate_visible'    => true,
+                        'created_at'         => now(),
+                        'updated_at'         => now(),
+                    ];
+                    if (Schema::hasColumn('marketing_vendors', 'rate_per_restaurant')) {
+                        $insertData['rate_per_restaurant'] = 0.00;
+                    }
+                    $subVendorId = DB::table('marketing_vendors')->insertGetId($insertData);
+                }
 
                 Log::info("VendorTeamService: User #{$userId} ($userType) applied as Sub-Vendor under Parent Vendor #{$parentVendor->id} ($vendorCode)");
 
@@ -573,7 +593,7 @@ class VendorTeamService
      */
     public static function findApprovedVendorByCode(string $code): ?object
     {
-        $code = strtoupper(trim($code));
+        $code = strtoupper(str_replace(' ', '', trim($code)));
         if (empty($code)) {
             return null;
         }
@@ -590,8 +610,9 @@ class VendorTeamService
             $codeVariants[] = $prefix . $cleanNum;
             $codeVariants[] = $prefix . '0' . $cleanNum;
             $codeVariants[] = $prefix . sprintf('%05d', (int)$cleanNum);
+            $codeVariants[] = $prefix . sprintf('%06d', (int)$cleanNum);
         }
-        $codeVariants = array_values(array_unique($codeVariants));
+        $codeVariants = array_values(array_unique(array_map('strtoupper', $codeVariants)));
 
         // 1. Direct match on vendor_code, sub_vendor_code, or freelancer_code
         $vendor = DB::table('marketing_vendors')
@@ -600,12 +621,12 @@ class VendorTeamService
                   ->orWhereIn('status', ['approved', 'active', 'verified']);
             })
             ->where(function($q) use ($codeVariants) {
-                $q->whereIn('vendor_code', $codeVariants);
+                $q->whereIn(DB::raw('UPPER(TRIM(vendor_code))'), $codeVariants);
                 if (Schema::hasColumn('marketing_vendors', 'sub_vendor_code')) {
-                    $q->orWhereIn('sub_vendor_code', $codeVariants);
+                    $q->orWhereIn(DB::raw('UPPER(TRIM(sub_vendor_code))'), $codeVariants);
                 }
                 if (Schema::hasColumn('marketing_vendors', 'freelancer_code')) {
-                    $q->orWhereIn('freelancer_code', $codeVariants);
+                    $q->orWhereIn(DB::raw('UPPER(TRIM(freelancer_code))'), $codeVariants);
                 }
             })
             ->first();
@@ -622,11 +643,13 @@ class VendorTeamService
                 'VR' . $numPart,
                 'VR' . $cleanNum,
                 'VR' . sprintf('%05d', (int)$cleanNum),
+                'VR' . sprintf('%06d', (int)$cleanNum),
                 'TM' . $numPart,
                 'TM' . $cleanNum,
                 'TM' . sprintf('%05d', (int)$cleanNum),
+                'TM' . sprintf('%06d', (int)$cleanNum),
             ];
-            $vrVariants = array_values(array_unique($vrVariants));
+            $vrVariants = array_values(array_unique(array_map('strtoupper', $vrVariants)));
 
             return DB::table('marketing_vendors')
                 ->where(function($q) {
@@ -634,7 +657,10 @@ class VendorTeamService
                       ->orWhereIn('status', ['approved', 'active', 'verified']);
                 })
                 ->where(function($q) use ($vrVariants) {
-                    $q->whereIn('vendor_code', $vrVariants);
+                    $q->whereIn(DB::raw('UPPER(TRIM(vendor_code))'), $vrVariants);
+                    if (Schema::hasColumn('marketing_vendors', 'sub_vendor_code')) {
+                        $q->orWhereIn(DB::raw('UPPER(TRIM(sub_vendor_code))'), $vrVariants);
+                    }
                 })
                 ->first();
         }
@@ -643,11 +669,13 @@ class VendorTeamService
     }
 
     /**
-     * Check if code belongs to an active Team Member / Freelancer (starts with FR)
+     * Check if code belongs to an active Team Member / Freelancer (starts with FR).
+     * Excludes vendor self-proxy rows where member_code is actually the vendor's Freelancer Joining Code,
+     * so vendor FR joining codes remain routed to vendor team registration / direct vendor attribution.
      */
     public static function findActiveTeamMemberByCode(string $code): ?object
     {
-        $code = strtoupper(trim($code));
+        $code = strtoupper(str_replace(' ', '', trim($code)));
         if (!str_starts_with($code, 'FR')) {
             return null;
         }
@@ -662,16 +690,81 @@ class VendorTeamService
             $codeVariants[] = 'FR' . $cleanNum;
             $codeVariants[] = 'FR0' . $cleanNum;
             $codeVariants[] = 'FR' . sprintf('%05d', (int)$cleanNum);
+            $codeVariants[] = 'FR' . sprintf('%06d', (int)$cleanNum);
         }
-        $codeVariants = array_values(array_unique($codeVariants));
+        $codeVariants = array_values(array_unique(array_map('strtoupper', $codeVariants)));
 
-        return DB::table('marketing_team_members')
-            ->whereIn('member_code', $codeVariants)
+        $candidates = DB::table('marketing_team_members')
+            ->whereIn(DB::raw('UPPER(TRIM(member_code))'), $codeVariants)
             ->where(function($q) {
                 $q->whereNull('status')
                   ->orWhereIn('status', ['active', 'approved', 'verified']);
             })
+            ->get();
+
+        foreach ($candidates as $member) {
+            // Check if this member row is just a vendor's self-proxy row using the vendor's joining code
+            if (Schema::hasTable('marketing_vendors')) {
+                $parentVendor = DB::table('marketing_vendors')->where('id', $member->vendor_id)->first();
+                if ($parentVendor && (int)$parentVendor->user_id === (int)$member->user_id) {
+                    $vFrCode = strtoupper(trim((string)($parentVendor->freelancer_code ?? '')));
+                    $vNum = substr((string)($parentVendor->vendor_code ?? ''), 2);
+                    $vAutoFr = $vNum ? ('FR' . $vNum) : '';
+                    $mCodeUpper = strtoupper(trim((string)$member->member_code));
+                    if ($mCodeUpper === $vFrCode || ($vAutoFr !== '' && $mCodeUpper === $vAutoFr)) {
+                        // This is the vendor's own joining code proxy row, not an independent freelancer
+                        continue;
+                    }
+                }
+            }
+            return $member;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get or create a dedicated direct-acquisition team_member record for a Vendor.
+     * Uses the vendor's own user_id without hijacking other freelancers under the vendor.
+     */
+    public static function getOrCreateVendorDirectMember(object $vendor): ?object
+    {
+        if (!Schema::hasTable('marketing_team_members')) {
+            return null;
+        }
+
+        // 1. Look for existing member belonging specifically to the vendor's own user_id under this vendor
+        $directMember = DB::table('marketing_team_members')
+            ->where('vendor_id', $vendor->id)
+            ->where('user_id', $vendor->user_id)
             ->first();
+
+        if ($directMember) {
+            return $directMember;
+        }
+
+        // 2. Create a dedicated self-member record for the vendor's direct acquisitions
+        $directCode = $vendor->vendor_code ?: ($vendor->freelancer_code ?: ('VR' . $vendor->id));
+        $existsCode = DB::table('marketing_team_members')->where('member_code', $directCode)->exists();
+        if ($existsCode) {
+            $directCode = 'DIR_' . $directCode . '_' . $vendor->id;
+        }
+
+        try {
+            $memberId = DB::table('marketing_team_members')->insertGetId([
+                'vendor_id'   => $vendor->id,
+                'user_id'     => $vendor->user_id,
+                'user_type'   => $vendor->user_type ?: 'driver',
+                'member_code' => $directCode,
+                'status'      => 'active',
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ]);
+            return DB::table('marketing_team_members')->where('id', $memberId)->first();
+        } catch (\Throwable $e) {
+            Log::warning("VendorTeamService::getOrCreateVendorDirectMember fallback: " . $e->getMessage());
+            return DB::table('marketing_team_members')->where('vendor_id', $vendor->id)->first();
+        }
     }
 
     /**
@@ -921,6 +1014,10 @@ class VendorTeamService
                     if (Schema::hasTable('referral') && Schema::hasColumn('referral', 'referral_by_code')) {
                         $refs = DB::table('referral')
                             ->where('referral_by_code', $frCode)
+                            ->where(function($q) {
+                                $q->whereNull('user_type')
+                                  ->orWhereIn('user_type', ['customer', 'driver', 'conducteur', 'business', 'provider']);
+                            })
                             ->select('user_id', 'user_type')
                             ->get()
                             ->map(fn($r) => [
@@ -1138,7 +1235,7 @@ class VendorTeamService
     }
 
     /**
-     * Record a Marketing Acquisition (Customer or Business user joined via FR code)
+     * Record a Marketing Acquisition (Customer, Business, or Restaurant user joined via FR/VR/SV code)
      */
     public static function recordAcquisition(object $teamMember, int $acquiredUserId, string $acquiredUserType, string $serviceCategory = 'General'): array
     {
@@ -1155,6 +1252,19 @@ class VendorTeamService
                 return ['success' => false, 'message' => 'Acquisition already recorded.'];
             }
 
+            // Resolve payout rate from vendor
+            $vendor = DB::table('marketing_vendors')->where('id', $teamMember->vendor_id)->first();
+            $payoutRate = 0.00;
+            if ($vendor) {
+                if ($acquiredUserType === 'restaurant') {
+                    $payoutRate = (float)($vendor->rate_per_restaurant ?? 0.00);
+                } elseif ($acquiredUserType === 'business') {
+                    $payoutRate = (float)($vendor->rate_per_business ?? 0.00);
+                } else {
+                    $payoutRate = (float)($vendor->rate_per_customer ?? 0.00);
+                }
+            }
+
             $acquisitionId = DB::table('marketing_acquisitions')->insertGetId([
                 'vendor_id'            => $teamMember->vendor_id,
                 'team_member_id'       => $teamMember->id,
@@ -1163,21 +1273,48 @@ class VendorTeamService
                 'verification_status'  => 'pending',
                 'verified_by'          => null,
                 'verified_at'          => null,
-                'payout_rate_applied'  => 0.00,
+                'payout_rate_applied'  => $payoutRate,
                 'payout_status'        => 'unpaid',
                 'created_at'           => now(),
                 'updated_at'           => now(),
             ]);
 
-            Log::info("VendorTeamService: Recorded acquisition of {$acquiredUserType} #{$acquiredUserId} under Freelancer #{$teamMember->id} (Vendor #{$teamMember->vendor_id})");
+            Log::info("VendorTeamService: Recorded acquisition of {$acquiredUserType} #{$acquiredUserId} under Freelancer #{$teamMember->id} (Vendor #{$teamMember->vendor_id}) with rate ₹{$payoutRate}");
+
+            $title = $acquiredUserType === 'restaurant'
+                ? "🍽️ New Restaurant Partner Acquired!"
+                : ($acquiredUserType === 'business' ? "🚗 New Business Partner Acquired!" : "🎉 New User Acquired!");
+
+            $body = $acquiredUserType === 'restaurant'
+                ? "A new restaurant partner joined using your code {$teamMember->member_code}!"
+                : ($acquiredUserType === 'business'
+                    ? "A new business driver joined using your Freelancer code {$teamMember->member_code}!"
+                    : "A new user joined using your Freelancer code {$teamMember->member_code}!");
 
             self::sendPushNotification(
                 (int)$teamMember->user_id,
                 (string)$teamMember->user_type,
-                "🎉 New User Acquired!",
-                "A new user joined using your Freelancer code {$teamMember->member_code}!",
+                $title,
+                $body,
                 "user_acquired"
             );
+
+            // Also notify the Parent Vendor if the acquisition came through a team member different from the vendor user
+            if ($vendor && !empty($vendor->user_id) && ((int)$vendor->user_id !== (int)$teamMember->user_id || $vendor->user_type !== $teamMember->user_type)) {
+                $vTitle = $acquiredUserType === 'restaurant'
+                    ? "🍽️ New Restaurant in Your Team!"
+                    : ($acquiredUserType === 'business' ? "🚗 New Business Partner in Team!" : "👥 New Acquisition in Team!");
+
+                $vBody = "A new {$acquiredUserType} partner joined under Freelancer {$teamMember->member_code} (Vendor: {$vendor->vendor_code}).";
+
+                self::sendPushNotification(
+                    (int)$vendor->user_id,
+                    (string)$vendor->user_type,
+                    $vTitle,
+                    $vBody,
+                    "team_acquisition"
+                );
+            }
 
             return ['success' => true, 'acquisition_id' => $acquisitionId];
 
