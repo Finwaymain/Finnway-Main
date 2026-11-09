@@ -49,14 +49,14 @@
                                             <div class="form-group row width-50">
                                                 <label class="col-3 control-label">{{ trans('lang.name') }}</label>
                                                 <div class="col-7">
-                                                    <input type="text" class="form-control name" name="name">
+                                                    <input type="text" class="form-control name" name="name" value="{{ old('name') }}">
 
                                                 </div>
                                             </div>
                                             <div class="form-group row width-100">
                                                 <div class="form-check">
                                                     <input type="checkbox" class="user_active" id="status"
-                                                        name="status">
+                                                        name="status" {{ old('status', 'on') ? 'checked' : '' }}>
                                                     <label class="col-3 control-label"
                                                         for="status">{{ trans('lang.status') }}</label>
                                                 </div>
@@ -125,7 +125,7 @@
                                         class="fa fa-undo"></i>{{ trans('lang.cancel') }}</a>
                             </div>
 
-                            <input type="hidden" id="coordinates" name="coordinates" value="">
+                            <input type="hidden" id="coordinates" name="coordinates" value="{{ old('coordinates') }}">
 
                         </form>
                     </div>
@@ -424,21 +424,29 @@ function initMap() {
             setSelection(newShape, 0);
         });
 
+        function syncAllShapesToInput() {
+            let lat_lng = [];
+            allShapes.forEach(function(data, index) {
+                lat_lng[index] = getCoordinates(data);
+            });
+            document.getElementById('coordinates').value = lat_lng.length > 0 ? JSON.stringify(lat_lng) : '';
+        }
+
         //update coordinates
         google.maps.event.addListener(newShape, 'click', function(e) {
-            getCoordinates(newShape);
+            syncAllShapesToInput();
         });
         google.maps.event.addListener(newShape, "dragend", function(e) {
-            getCoordinates(newShape);
+            syncAllShapesToInput();
         });
         google.maps.event.addListener(newShape.getPath(), "insert_at", function(e) {
-            getCoordinates(newShape);
+            syncAllShapesToInput();
         });
         google.maps.event.addListener(newShape.getPath(), "remove_at", function(e) {
-            getCoordinates(newShape);
+            syncAllShapesToInput();
         });
         google.maps.event.addListener(newShape.getPath(), "set_at", function(e) {
-            getCoordinates(newShape);
+            syncAllShapesToInput();
         });
     });
 

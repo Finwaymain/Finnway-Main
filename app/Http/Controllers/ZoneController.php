@@ -83,23 +83,30 @@ class ZoneController extends Controller
               if (is_array($id)) {
                   for ($i = 0; $i < count($id); $i++) {
                       $zone = Zone::find($id[$i]);
-                      $zone->delete();
+                      if ($zone) {
+                          $zone->delete();
+                      }
                   }
               } else {
                   $zone = Zone::find($id);
-                  $zone->delete();
+                  if ($zone) {
+                      $zone->delete();
+                  }
               }
           }
-          return redirect()->back();
+          return redirect()->back()->with('success', 'Zone deleted successfully.');
     }
 
     public function update($id,Request $request)
     {
-        $validator = Validator::make($request->all() ,$rules = [
-          'name' => 'required',
-          'coordinates' => 'required',
+        $request->merge(['name' => trim((string) $request->input('name'))]);
+
+        $validator = Validator::make($request->all(), $rules = [
+            'name' => 'required|string|max:255|unique:zones,name,' . $id,
+            'coordinates' => 'required',
         ], $messages = [
             'name.required' => 'The Name field is required',
+            'name.unique' => 'Another zone with this name already exists.',
             'coordinates.required' => 'Please select your zone from map',
         ]);
 
@@ -107,17 +114,34 @@ class ZoneController extends Controller
             return redirect()->back()->withErrors($validator)->with(['message' => $messages])->withInput();
         }
 
-        $name = $request->input('name');
+        $name = trim((string) $request->input('name'));
         $status = $request->input('status') ? 'yes' : 'no';
         $coordinates = json_decode($request->input('coordinates'));
-        
+
+        if (!is_array($coordinates) || empty($coordinates[0]) || !is_array($coordinates[0]) || count($coordinates[0]) < 3) {
+            return redirect()->back()
+                ->withErrors(['coordinates' => 'Please draw a valid zone polygon with at least 3 points on the map.'])
+                ->withInput();
+        }
+
         $points = array();
         foreach ($coordinates[0] as $coordinate) {
-            $points[]= new Point($coordinate->lat, $coordinate->lng);
+            if (isset($coordinate->lat, $coordinate->lng)) {
+                $points[] = new Point((float) $coordinate->lat, (float) $coordinate->lng);
+            }
+        }
+        if (count($points) < 3) {
+            return redirect()->back()
+                ->withErrors(['coordinates' => 'Please draw a valid zone polygon with at least 3 points on the map.'])
+                ->withInput();
         }
         array_push($points, $points[0]);
 
         $zone = Zone::find($id);
+        if (!$zone) {
+            return redirect('zone')->with('error', 'Zone not found.');
+        }
+
         $zone->name = $name;
         $zone->status = $status;
         $zone->latitude = $points[0]->latitude;
@@ -127,78 +151,109 @@ class ZoneController extends Controller
         ]);
         $zone->update();
         
-        return redirect('zone');
+        return redirect('zone')->with('success', "Zone '{$name}' updated successfully.");
     }
 
     public function store(Request $request)
     {
+        $request->merge(['name' => trim((string) $request->input('name'))]);
 
-        $validator = Validator::make($request->all() ,$rules = [
-            'name' => 'required',
+        $validator = Validator::make($request->all(), $rules = [
+            'name' => 'required|string|max:255',
             'coordinates' => 'required',
         ], $messages = [
-          'name.required' => 'The Name field is required',
-          'coordinates.required' => 'Please select your zone from map',
+            'name.required' => 'The Name field is required',
+            'coordinates.required' => 'Please select your zone from map',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->with(['message' => $messages])->withInput();
         }
 
-        $name = $request->input('name');
+        $name = trim((string) $request->input('name'));
         $status = $request->input('status') ? 'yes' : 'no';
         $coordinates = json_decode($request->input('coordinates'));
-        
+
+        if (!is_array($coordinates) || empty($coordinates[0]) || !is_array($coordinates[0]) || count($coordinates[0]) < 3) {
+            return redirect()->back()
+                ->withErrors(['coordinates' => 'Please draw a valid zone polygon with at least 3 points on the map.'])
+                ->withInput();
+        }
+
         $points = array();
         foreach ($coordinates[0] as $coordinate) {
-            $points[]= new Point($coordinate->lat, $coordinate->lng);
+            if (isset($coordinate->lat, $coordinate->lng)) {
+                $points[] = new Point((float) $coordinate->lat, (float) $coordinate->lng);
+            }
+        }
+        if (count($points) < 3) {
+            return redirect()->back()
+                ->withErrors(['coordinates' => 'Please draw a valid zone polygon with at least 3 points on the map.'])
+                ->withInput();
         }
         array_push($points, $points[0]);
-        
-        $zone = Zone::create([
+
+        $polygon = new Polygon([
+            new LineString($points),
+        ]);
+
+        // Check if a zone with the same name already exists (prevents UniqueConstraintViolationException on zones.zones_name_unique)
+        $existingZone = Zone::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($name)])->first();
+        if ($existingZone) {
+            $existingZone->name = $name;
+            $existingZone->status = $status;
+            $existingZone->latitude = $points[0]->latitude;
+            $existingZone->longitude = $points[0]->longitude;
+            $existingZone->area = $polygon;
+            $existingZone->save();
+
+            return redirect('zone')->with('success', "Zone '{$name}' already existed and has been updated with the new area.");
+        }
+
+        Zone::create([
             'name' => $name,
             'status' => $status,
             'latitude' => $points[0]->latitude,
             'longitude' => $points[0]->longitude,
-            'area' =>  new Polygon([
-                new LineString($points),
-            ])
+            'area' => $polygon,
         ]);
 
-        return redirect('zone');
+        return redirect('zone')->with('success', "Zone '{$name}' created successfully.");
     }
     
     public function toggalSwitch(Request $request){
         $ischeck = $request->input('ischeck');
         $id = $request->input('id');
         $zone = Zone::find($id);
-        if($ischeck=="true"){
-          $zone->status = 'yes';
-        }else{
-          $zone->status = 'no';
+        if ($zone) {
+            $zone->status = ($ischeck == "true") ? 'yes' : 'no';
+            $zone->save();
         }
-        $zone->save();
     }
 
     public function getDefaultLatLong(){
+        $sql = DB::table('tj_settings')->select('tj_settings.contact_us_address as address', 'tj_settings.google_map_api_key as apikey')->first();
+        $address = $sql->address ?? '';
+        $apiKey = $sql->apikey ?? '';
+        $latlong = array();
 
-      $sql=DB::table('tj_settings')->select('tj_settings.contact_us_address as address','tj_settings.google_map_api_key as apikey')->first();
-      $address=$sql->address;
-      $apiKey=$sql->apikey;
-
-      if(!empty($address) && !empty($apiKey)){
-      $geo=file_get_contents('https://maps.googleapis.com/maps/api/geocode/json?address='.urlencode($address).'&sensor=false&key='.$apiKey);
-      $geo = json_decode($geo, true);
-      $latlong = array();
-          if (isset($geo['status']) && $geo['status'] == 'OK') {
-              $latitude = $geo['results'][0]['geometry']['location']['lat'];
-              $longitude = $geo['results'][0]['geometry']['location']['lng'];
-              $latlong = array('lat'=> $latitude ,'lng'=>$longitude);
-          }
-      }else{
-          $latlong = array();
-      }
-      return $latlong;
-  }
+        if (!empty($address) && !empty($apiKey)) {
+            try {
+                $ctx = stream_context_create(['http' => ['timeout' => 3]]);
+                $raw = @file_get_contents('https://maps.googleapis.com/maps/api/geocode/json?address=' . urlencode($address) . '&sensor=false&key=' . $apiKey, false, $ctx);
+                if ($raw) {
+                    $geo = json_decode($raw, true);
+                    if (isset($geo['status']) && $geo['status'] == 'OK' && !empty($geo['results'][0]['geometry']['location'])) {
+                        $latitude = $geo['results'][0]['geometry']['location']['lat'];
+                        $longitude = $geo['results'][0]['geometry']['location']['lng'];
+                        $latlong = array('lat' => $latitude, 'lng' => $longitude);
+                    }
+                }
+            } catch (\Throwable $e) {
+                $latlong = array();
+            }
+        }
+        return $latlong;
+    }
 
 }

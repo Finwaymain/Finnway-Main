@@ -280,10 +280,6 @@ class TransactionController extends Controller
             return back()->with('error', 'Transaction not found.');
         }
 
-        if ($txn->wallet_credited) {
-            return back()->with('error', 'Transaction is already credited.');
-        }
-
         $userId   = (int) $request->input('user_id');
         $userType = $request->input('user_type');
         $table    = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
@@ -291,6 +287,17 @@ class TransactionController extends Controller
 
         if (!$user) {
             return back()->with('error', 'Selected recipient user not found.');
+        }
+
+        $isReassign = false;
+        $prevUserId = !empty($txn->user_id) ? (int) $txn->user_id : null;
+        $prevUserType = !empty($txn->user_type) ? (string) $txn->user_type : 'customer';
+
+        if ($txn->wallet_credited) {
+            if ($prevUserId === $userId && $prevUserType === $userType) {
+                return back()->with('error', 'Transaction is already credited to this user.');
+            }
+            $isReassign = true;
         }
 
         $amountInRupees = floatval($txn->amount);
@@ -302,7 +309,42 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Increment wallet balance
+            // 0. If reassigning a previously credited transaction, reverse the credit from the old user first
+            if ($isReassign && $prevUserId) {
+                $prevTable = ($prevUserType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+                $prevTxnTable = ($prevUserType === 'driver') ? 'tj_conducteur_transaction' : 'tj_transaction';
+                $prevUserCol = ($prevUserType === 'driver') ? 'id_conducteur' : 'id_user_app';
+
+                $prevUser = DB::table($prevTable)->where('id', $prevUserId)->first();
+                if ($prevUser) {
+                    $newPrevBal = max(0, round(floatval($prevUser->amount ?? 0) - $amountInRupees, 2));
+                    DB::table($prevTable)->where('id', $prevUserId)->update(['amount' => (string) $newPrevBal]);
+                }
+
+                // Remove old ledger entry for this payment ID on the previous user
+                DB::table($prevTxnTable)
+                    ->where($prevUserCol, $prevUserId)
+                    ->where('txn_id', $paymentId)
+                    ->delete();
+
+                // Reverse any top-up cashback that was awarded for this payment ID to the previous user
+                $cashbackTxnId = 'CB_' . $paymentId;
+                $cbRow = DB::table($prevTxnTable)
+                    ->where($prevUserCol, $prevUserId)
+                    ->where('txn_id', $cashbackTxnId)
+                    ->first();
+                if ($cbRow && floatval($cbRow->amount ?? 0) > 0) {
+                    $cbAmt = floatval($cbRow->amount);
+                    $freshPrev = DB::table($prevTable)->where('id', $prevUserId)->first();
+                    if ($freshPrev) {
+                        $afterCbBal = max(0, round(floatval($freshPrev->amount ?? 0) - $cbAmt, 2));
+                        DB::table($prevTable)->where('id', $prevUserId)->update(['amount' => (string) $afterCbBal]);
+                    }
+                    DB::table($prevTxnTable)->where('id', $cbRow->id)->delete();
+                }
+            }
+
+            // 1. Increment wallet balance of the target recipient
             DB::table($table)->where('id', $userId)->increment('amount', $amountInRupees);
 
             // 2. Insert wallet transaction record
@@ -314,7 +356,7 @@ class TransactionController extends Controller
                 'counterparty'   => $payerName,
                 'payment_status' => 'success',
                 'txn_id'         => $paymentId,
-                'description'    => 'UPI Payment from ' . $payerName . ($txn->payer_vpa ? ' (' . $txn->payer_vpa . ')' : '') . ' (Admin Assigned)',
+                'description'    => 'UPI Payment from ' . $payerName . ($txn->payer_vpa ? ' (' . $txn->payer_vpa . ')' : '') . ($isReassign ? ' (Admin Reassigned)' : ' (Admin Assigned)'),
                 'date'           => $currentDate,
                 'creer'          => $nowDateTime,
                 'modifier'       => $nowDateTime,

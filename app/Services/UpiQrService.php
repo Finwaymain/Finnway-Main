@@ -94,21 +94,51 @@ class UpiQrService
 
             if (!empty($queryStr)) {
                 parse_str($queryStr, $params);
-                // Check 'tr' (transaction reference) first for a valid 10-14 digit account number
-                if (!empty($params['tr'])) {
-                    $tr = trim((string) $params['tr']);
-                    if (preg_match('/[0-9]{10,14}/', $tr, $m)) {
-                        return $m[0];
+                // 1. Strictly check 'tr' and 'tn' for Fiinway pocket number format (7080XXXXXXXX or 7060XXXXXXXX) first
+                foreach (['tr', 'tn'] as $paramKey) {
+                    if (!empty($params[$paramKey])) {
+                        if (preg_match('/(7080|7060)[0-9]{8}/', (string) $params[$paramKey], $m)) {
+                            return $m[0];
+                        }
                     }
                 }
 
-                // Check 'tn' (transaction note) if tr did not contain a pocket number
-                if (!empty($params['tn'])) {
-                    if (preg_match('/(7080|7060)[0-9]{8}/', $params['tn'], $m)) {
+                // 2. Check 'tn' (transaction note) for any 12-digit pocket number
+                if (!empty($params['tn']) && preg_match('/[0-9]{12}/', (string) $params['tn'], $m)) {
+                    return $m[0];
+                }
+
+                // 3. Check 'tr' (transaction reference) for a 10-14 digit account number
+                if (!empty($params['tr'])) {
+                    $tr = trim((string) $params['tr']);
+                    if (preg_match('/^[0-9]{10,14}$/', $tr, $m)) {
                         return $m[0];
                     }
-                    if (preg_match('/[0-9]{12}/', $params['tn'], $m)) {
-                        return $m[0];
+                    // If 'tr' is a dedicated Razorpay QR reference (not the shared Tm8NeVRNVXdRRaqrv2 standee),
+                    // check if any user/driver owns this dedicated QR string in the database
+                    if ($tr !== 'Tm8NeVRNVXdRRaqrv2') {
+                        try {
+                            if (\Illuminate\Support\Facades\Schema::hasColumn('tj_user_app', 'razorpay_upi_string')) {
+                                $u = \Illuminate\Support\Facades\DB::table('tj_user_app')
+                                    ->where('razorpay_upi_string', 'LIKE', '%' . $tr . '%')
+                                    ->whereNotNull('ac_no')
+                                    ->first();
+                                if ($u && !empty($u->ac_no)) {
+                                    return trim((string) $u->ac_no);
+                                }
+                            }
+                            if (\Illuminate\Support\Facades\Schema::hasColumn('tj_conducteur', 'razorpay_upi_string')) {
+                                $d = \Illuminate\Support\Facades\DB::table('tj_conducteur')
+                                    ->where('razorpay_upi_string', 'LIKE', '%' . $tr . '%')
+                                    ->whereNotNull('ac_no')
+                                    ->first();
+                                if ($d && !empty($d->ac_no)) {
+                                    return trim((string) $d->ac_no);
+                                }
+                            }
+                        } catch (\Throwable $e) {
+                            // Ignore DB lookup errors during static extraction
+                        }
                     }
                 }
 
@@ -132,6 +162,29 @@ class UpiQrService
     }
 
     /**
+     * Ensure razorpay_qr_id, razorpay_qr_image_url, and razorpay_upi_string columns exist on user/driver tables.
+     */
+    public static function ensureQrColumnsExist(string $table = 'tj_user_app'): void
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasTable($table)) {
+                return;
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn($table, 'razorpay_qr_id')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `{$table}` ADD COLUMN `razorpay_qr_id` VARCHAR(100) NULL DEFAULT NULL, ADD INDEX `idx_{$table}_rzp_qr_id` (`razorpay_qr_id`)");
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn($table, 'razorpay_qr_image_url')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `{$table}` ADD COLUMN `razorpay_qr_image_url` TEXT NULL DEFAULT NULL");
+            }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn($table, 'razorpay_upi_string')) {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE `{$table}` ADD COLUMN `razorpay_upi_string` TEXT NULL DEFAULT NULL");
+            }
+        } catch (\Throwable $e) {
+            Log::warning("ensureQrColumnsExist({$table}): " . $e->getMessage());
+        }
+    }
+
+    /**
      * Get or create a dedicated multiple_use Razorpay QR code for a user/driver.
      * Stored in user's profile and database for 100% bank-stripping immunity.
      *
@@ -144,14 +197,16 @@ class UpiQrService
     public static function getOrCreateRazorpayQrForUser(int $userId, string $userType, string $acNo, ?string $userName = null): array
     {
         $table = ($userType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+        self::ensureQrColumnsExist($table);
         $user = \Illuminate\Support\Facades\DB::table($table)->where('id', $userId)->first();
 
         // 1. Check if user already has an active Razorpay QR stored
         if ($user && !empty($user->razorpay_qr_id) && !empty($user->razorpay_qr_image_url)) {
+            $storedUpi = !empty($user->razorpay_upi_string) ? $user->razorpay_upi_string : self::generateUpiStringForUser($acNo, $userName);
             return [
                 'qr_id'      => $user->razorpay_qr_id,
                 'image_url'  => $user->razorpay_qr_image_url,
-                'upi_string' => !empty($user->razorpay_upi_string) ? $user->razorpay_upi_string : self::generateUpiStringForUser($acNo, $userName),
+                'upi_string' => $storedUpi,
             ];
         }
 
@@ -199,7 +254,14 @@ class UpiQrService
                 if (!empty($res['id']) && !empty($res['image_url'])) {
                     $qrId = $res['id'];
                     $imageUrl = $res['image_url'];
-                    $upiString = self::generateUpiStringForUser($acNo, $userName);
+                    if (!empty($res['image_content']) && stripos((string) $res['image_content'], 'upi://pay') !== false) {
+                        $upiString = trim((string) $res['image_content']);
+                        if (stripos($upiString, 'tn=') === false && !empty($acNo)) {
+                            $upiString .= (str_contains($upiString, '?') ? '&' : '?') . 'tn=' . rawurlencode('Fiinway Wallet ' . trim((string) $acNo));
+                        }
+                    } else {
+                        $upiString = self::generateUpiStringForUser($acNo, $userName);
+                    }
 
                     // Ensure columns exist or store gracefully
                     try {

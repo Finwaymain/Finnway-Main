@@ -330,6 +330,19 @@ class RazorpayWebhookController extends Controller
         if (empty($acNo) && !empty($paymentEntity['notes'])) {
             $notes = $paymentEntity['notes'];
             $acNo = $notes['comment'] ?? $notes['ac_no'] ?? $notes['account_no'] ?? $notes['user_ac_no'] ?? $notes['recipient_ac_no'] ?? null;
+            if (empty($acNo) && !empty($notes['user_id'])) {
+                $noteUserId = (int) $notes['user_id'];
+                $noteUserType = (($notes['user_type'] ?? 'customer') === 'driver') ? 'driver' : 'customer';
+                $noteTable = ($noteUserType === 'driver') ? 'tj_conducteur' : 'tj_user_app';
+                $noteUser = DB::table($noteTable)->where('id', $noteUserId)->first();
+                if ($noteUser) {
+                    return [
+                        'user'      => $noteUser,
+                        'user_type' => $noteUserType,
+                        'ac_no'     => $noteUser->ac_no ?? null,
+                    ];
+                }
+            }
             if (empty($acNo)) {
                 foreach ($notes as $val) {
                     $candidate = UpiQrService::extractAcNoFromScannedString((string)$val);
@@ -401,13 +414,17 @@ class RazorpayWebhookController extends Controller
                     $acNo = $rzpData['notes']['ac_no'];
                 } elseif (!empty($rzpData['id'])) {
                     $qrId = $rzpData['id'];
-                    $user = DB::table('tj_user_app')->where('razorpay_qr_id', $qrId)->first();
-                    if ($user) {
-                        return ['user' => $user, 'user_type' => 'customer', 'ac_no' => $user->ac_no];
+                    if (Schema::hasColumn('tj_user_app', 'razorpay_qr_id')) {
+                        $user = DB::table('tj_user_app')->where('razorpay_qr_id', $qrId)->first();
+                        if ($user) {
+                            return ['user' => $user, 'user_type' => 'customer', 'ac_no' => $user->ac_no];
+                        }
                     }
-                    $driver = DB::table('tj_conducteur')->where('razorpay_qr_id', $qrId)->first();
-                    if ($driver) {
-                        return ['user' => $driver, 'user_type' => 'driver', 'ac_no' => $driver->ac_no];
+                    if (Schema::hasColumn('tj_conducteur', 'razorpay_qr_id')) {
+                        $driver = DB::table('tj_conducteur')->where('razorpay_qr_id', $qrId)->first();
+                        if ($driver) {
+                            return ['user' => $driver, 'user_type' => 'driver', 'ac_no' => $driver->ac_no];
+                        }
                     }
                 }
             }
@@ -447,51 +464,32 @@ class RazorpayWebhookController extends Controller
             }
         }
 
-        // 7. Fallback: Lookup by Payer Contact Phone Number
-        if (!$user && !empty($payerPhone)) {
-            $phoneVariants = PhoneService::getVariants($payerPhone);
-            $digits10 = PhoneService::getLast10($payerPhone);
-            if (!empty($digits10)) {
-                $phoneVariants[] = $digits10;
-                $phoneVariants[] = '+91' . $digits10;
-                $phoneVariants[] = '91' . $digits10;
-                $phoneVariants[] = '0' . $digits10;
-            }
-            $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
+        // IMPORTANT: Payer Phone / Payer VPA / Payer Email belong to User B (the Payer), NOT User A (the QR Receiver)!
+        // Only fall back to Payer identity when this is an explicit self-wallet top-up (has order_id or Wallet Top-Up description),
+        // NEVER on a third-party UPI QR scan where the UPI app stripped the receiver's transaction note (tn).
+        $isSelfTopup = !empty($paymentEntity['order_id'])
+            || stripos((string) ($paymentEntity['description'] ?? ''), 'Wallet Top-Up') !== false
+            || !empty($paymentEntity['notes']['is_self_topup']);
 
-            $user = DB::table('tj_user_app')->whereIn('phone', $phoneVariants)->first();
-            if ($user) {
-                $userType = 'customer';
-                $acNo = $user->ac_no ?? $acNo;
-            } else {
-                $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVariants)->first();
-                if ($user) {
-                    $userType = 'driver';
-                    $acNo = $user->ac_no ?? $acNo;
+        if ($isSelfTopup) {
+            // 7. Fallback (Self Top-Up only): Lookup by Payer Contact Phone Number (excluding shared standee default 6307014149)
+            $digits10 = !empty($payerPhone) ? PhoneService::getLast10($payerPhone) : '';
+            if (!$user && !empty($payerPhone) && $digits10 !== '6307014149') {
+                $phoneVariants = PhoneService::getVariants($payerPhone);
+                if (!empty($digits10)) {
+                    $phoneVariants[] = $digits10;
+                    $phoneVariants[] = '+91' . $digits10;
+                    $phoneVariants[] = '91' . $digits10;
+                    $phoneVariants[] = '0' . $digits10;
                 }
-            }
-        }
+                $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
 
-        // 8. Fallback: Lookup by Payer VPA (Phone embedded OR Name matching User)
-        if (!$user && !empty($payerVpa)) {
-            $vpaUsername = strtolower(explode('@', $payerVpa)[0] ?? '');
-
-            // 8a. Extract 10-digit mobile sequence in the username (e.g. 9430083275-1@naviaxis or 9876543210@ybl)
-            if (preg_match('/([6-9]\d{9})/', $vpaUsername, $vpaMatch)) {
-                $vpaPhone = $vpaMatch[1];
-                $vpaVariants = PhoneService::getVariants($vpaPhone);
-                $vpaVariants[] = $vpaPhone;
-                $vpaVariants[] = '+91' . $vpaPhone;
-                $vpaVariants[] = '91' . $vpaPhone;
-                $vpaVariants[] = '0' . $vpaPhone;
-                $vpaVariants = array_values(array_unique(array_filter($vpaVariants)));
-
-                $user = DB::table('tj_user_app')->whereIn('phone', $vpaVariants)->first();
+                $user = DB::table('tj_user_app')->whereIn('phone', $phoneVariants)->first();
                 if ($user) {
                     $userType = 'customer';
                     $acNo = $user->ac_no ?? $acNo;
                 } else {
-                    $user = DB::table('tj_conducteur')->whereIn('phone', $vpaVariants)->first();
+                    $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVariants)->first();
                     if ($user) {
                         $userType = 'driver';
                         $acNo = $user->ac_no ?? $acNo;
@@ -499,40 +497,44 @@ class RazorpayWebhookController extends Controller
                 }
             }
 
-            // 8b. Match alphabetical name in VPA against users (e.g. "sudeepkashyap006-13@okaxis" matches "Sudeep Kashyap")
-            if (!$user) {
-                $vpaAlphaOnly = preg_replace('/[^a-z]/', '', $vpaUsername);
-                if (strlen($vpaAlphaOnly) >= 5) {
-                    $allUsers = DB::table('tj_user_app')
-                        ->whereNotNull('nom')
-                        ->whereNotNull('prenom')
-                        ->get();
-                    foreach ($allUsers as $u) {
-                        $userFullName = strtolower(preg_replace('/[^a-z]/', '', ($u->prenom ?? '') . ($u->nom ?? '')));
-                        if (!empty($userFullName) && strlen($userFullName) >= 5) {
-                            if (str_contains($vpaAlphaOnly, $userFullName) || str_contains($userFullName, $vpaAlphaOnly)) {
-                                $user = $u;
-                                $userType = 'customer';
-                                $acNo = $u->ac_no ?? $acNo;
-                                break;
-                            }
+            // 8. Fallback (Self Top-Up only): Lookup by Payer VPA
+            if (!$user && !empty($payerVpa)) {
+                $vpaUsername = strtolower(explode('@', $payerVpa)[0] ?? '');
+                if (preg_match('/([6-9]\d{9})/', $vpaUsername, $vpaMatch)) {
+                    $vpaPhone = $vpaMatch[1];
+                    $vpaVariants = PhoneService::getVariants($vpaPhone);
+                    $vpaVariants[] = $vpaPhone;
+                    $vpaVariants[] = '+91' . $vpaPhone;
+                    $vpaVariants[] = '91' . $vpaPhone;
+                    $vpaVariants[] = '0' . $vpaPhone;
+                    $vpaVariants = array_values(array_unique(array_filter($vpaVariants)));
+
+                    $user = DB::table('tj_user_app')->whereIn('phone', $vpaVariants)->first();
+                    if ($user) {
+                        $userType = 'customer';
+                        $acNo = $user->ac_no ?? $acNo;
+                    } else {
+                        $user = DB::table('tj_conducteur')->whereIn('phone', $vpaVariants)->first();
+                        if ($user) {
+                            $userType = 'driver';
+                            $acNo = $user->ac_no ?? $acNo;
                         }
                     }
                 }
             }
-        }
 
-        // 9. Fallback: Lookup by Payer Email
-        if (!$user && !empty($payerEmail)) {
-            $user = DB::table('tj_user_app')->where('email', $payerEmail)->first();
-            if ($user) {
-                $userType = 'customer';
-                $acNo = $user->ac_no ?? $acNo;
-            } else {
-                $user = DB::table('tj_conducteur')->where('email', $payerEmail)->first();
+            // 9. Fallback (Self Top-Up only): Lookup by Payer Email
+            if (!$user && !empty($payerEmail)) {
+                $user = DB::table('tj_user_app')->where('email', $payerEmail)->first();
                 if ($user) {
-                    $userType = 'driver';
+                    $userType = 'customer';
                     $acNo = $user->ac_no ?? $acNo;
+                } else {
+                    $user = DB::table('tj_conducteur')->where('email', $payerEmail)->first();
+                    if ($user) {
+                        $userType = 'driver';
+                        $acNo = $user->ac_no ?? $acNo;
+                    }
                 }
             }
         }
@@ -544,19 +546,19 @@ class RazorpayWebhookController extends Controller
         ];
     }
 
+    private static bool $schemaChecked = false;
+
     /**
-     * Ensure user_id and ac_no are nullable in database.
+     * Ensure user_id and ac_no are nullable in database and QR columns exist.
      */
     private function ensureSchemaNullable(): void
     {
-        if (Schema::hasTable('upi_qr_transactions')) {
-            try {
-                DB::statement("ALTER TABLE `upi_qr_transactions` MODIFY `user_id` BIGINT UNSIGNED NULL");
-            } catch (\Throwable $e) {}
-            try {
-                DB::statement("ALTER TABLE `upi_qr_transactions` MODIFY `ac_no` VARCHAR(50) NULL");
-            } catch (\Throwable $e) {}
+        if (self::$schemaChecked) {
+            return;
         }
+        self::$schemaChecked = true;
+        UpiQrService::ensureQrColumnsExist('tj_user_app');
+        UpiQrService::ensureQrColumnsExist('tj_conducteur');
     }
 
     /**
@@ -721,6 +723,8 @@ class RazorpayWebhookController extends Controller
         if (!Schema::hasTable('upi_qr_transactions')) {
             return 0;
         }
+        UpiQrService::ensureQrColumnsExist('tj_user_app');
+        UpiQrService::ensureQrColumnsExist('tj_conducteur');
 
         $pending = DB::table('upi_qr_transactions')
             ->where(function($q) {
@@ -776,12 +780,16 @@ class RazorpayWebhookController extends Controller
                     }
                     if (!$user && !empty($rzpData['id'])) {
                         $qrId = $rzpData['id'];
-                        $user = DB::table('tj_user_app')->where('razorpay_qr_id', $qrId)->first();
+                        if (Schema::hasColumn('tj_user_app', 'razorpay_qr_id')) {
+                            $user = DB::table('tj_user_app')->where('razorpay_qr_id', $qrId)->first();
+                        }
                         if ($user) {
                             $userType = 'customer';
                             $acNo = $user->ac_no;
                         } else {
-                            $user = DB::table('tj_conducteur')->where('razorpay_qr_id', $qrId)->first();
+                            if (Schema::hasColumn('tj_conducteur', 'razorpay_qr_id')) {
+                                $user = DB::table('tj_conducteur')->where('razorpay_qr_id', $qrId)->first();
+                            }
                             if ($user) {
                                 $userType = 'driver';
                                 $acNo = $user->ac_no;
@@ -791,82 +799,7 @@ class RazorpayWebhookController extends Controller
                 }
             }
 
-            // 3. Try matching by payer VPA alphabetical name (e.g. sudeepkashyap006-13@okaxis -> Sudeep Kashyap)
-            if (!$user && !empty($txn->payer_vpa)) {
-                $vpaUsername = strtolower(explode('@', $txn->payer_vpa)[0] ?? '');
-
-                // Check 10-digit mobile embedded in VPA
-                if (preg_match('/([6-9]\d{9})/', $vpaUsername, $m)) {
-                    $vpaPhone = $m[1];
-                    $phoneVars = PhoneService::getVariants($vpaPhone);
-                    $phoneVars[] = $vpaPhone;
-                    $phoneVars[] = '+91' . $vpaPhone;
-                    $phoneVars[] = '91' . $vpaPhone;
-                    $phoneVars[] = '0' . $vpaPhone;
-                    $phoneVars = array_values(array_unique(array_filter($phoneVars)));
-
-                    $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
-                    if ($user) {
-                        $userType = 'customer';
-                        $acNo = $user->ac_no;
-                    } else {
-                        $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
-                        if ($user) {
-                            $userType = 'driver';
-                            $acNo = $user->ac_no;
-                        }
-                    }
-                }
-
-                // Check alphabetical name matching in VPA
-                if (!$user) {
-                    $vpaAlphaOnly = preg_replace('/[^a-z]/', '', $vpaUsername);
-                    if (strlen($vpaAlphaOnly) >= 5) {
-                        $allUsers = DB::table('tj_user_app')
-                            ->whereNotNull('nom')
-                            ->whereNotNull('prenom')
-                            ->get();
-                        foreach ($allUsers as $u) {
-                            $userFullName = strtolower(preg_replace('/[^a-z]/', '', ($u->prenom ?? '') . ($u->nom ?? '')));
-                            if (!empty($userFullName) && strlen($userFullName) >= 5) {
-                                if (str_contains($vpaAlphaOnly, $userFullName) || str_contains($userFullName, $vpaAlphaOnly)) {
-                                    $user = $u;
-                                    $userType = 'customer';
-                                    $acNo = $u->ac_no;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. Try matching by payer_phone
-            if (!$user && !empty($txn->payer_phone)) {
-                $phoneVars = PhoneService::getVariants($txn->payer_phone);
-                $d10 = PhoneService::getLast10($txn->payer_phone);
-                if (!empty($d10)) {
-                    $phoneVars[] = $d10;
-                    $phoneVars[] = '+91' . $d10;
-                    $phoneVars[] = '91' . $d10;
-                    $phoneVars[] = '0' . $d10;
-                }
-                $phoneVars = array_values(array_unique(array_filter($phoneVars)));
-
-                $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
-                if ($user) {
-                    $userType = 'customer';
-                    $acNo = $user->ac_no;
-                } else {
-                    $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
-                    if ($user) {
-                        $userType = 'driver';
-                        $acNo = $user->ac_no;
-                    }
-                }
-            }
-
-            // 5. Try scanning raw_payload for valid pocket account number
+            // 3. Try scanning raw_payload for valid pocket account number or explicit recipient user_id
             if (!$user && !empty($txn->raw_payload)) {
                 if (preg_match('/(7080|7060)[0-9]{8}/', $txn->raw_payload, $matches)) {
                     $extractedAc = $matches[0];
@@ -884,32 +817,33 @@ class RazorpayWebhookController extends Controller
                 }
             }
 
-            // 6. Same-day test transaction correlation:
-            // If the payer is the server tester (e.g. +916307014149), correlate with same-day tests
-            if (!$user && !empty($txn->payer_phone)) {
-                $last10 = PhoneService::getLast10($txn->payer_phone);
-                if ($last10 === '6307014149') {
-                    // Check other transactions from the same tester on the same date that succeeded
-                    $txnDate = date('Y-m-d', strtotime($txn->created_at ?? now()));
-                    $sameDayCredited = DB::table('upi_qr_transactions')
-                        ->where('wallet_credited', true)
-                        ->whereDate('created_at', $txnDate)
-                        ->where('payer_phone', 'LIKE', '%6307014149%')
-                        ->whereNotNull('user_id')
-                        ->first();
-                    if ($sameDayCredited) {
-                        $user = DB::table('tj_user_app')->where('id', $sameDayCredited->user_id)->first();
-                        if ($user) {
-                            $userType = 'customer';
-                            $acNo = $user->ac_no;
-                        }
+            // 4. Only for explicit self-topups (having razorpay_order_id or Wallet Top-Up in payload),
+            // allow matching by payer phone/VPA (excluding shared merchant standee phone 6307014149).
+            // Never match Payer VPA/phone on third-party QR scans!
+            $isSelfTopupTxn = !empty($txn->razorpay_order_id)
+                || (!empty($txn->raw_payload) && stripos((string) $txn->raw_payload, 'Wallet Top-Up') !== false);
+
+            if (!$user && $isSelfTopupTxn) {
+                $d10 = !empty($txn->payer_phone) ? PhoneService::getLast10($txn->payer_phone) : '';
+                if (!empty($txn->payer_phone) && $d10 !== '6307014149') {
+                    $phoneVars = PhoneService::getVariants($txn->payer_phone);
+                    if (!empty($d10)) {
+                        $phoneVars[] = $d10;
+                        $phoneVars[] = '+91' . $d10;
+                        $phoneVars[] = '91' . $d10;
+                        $phoneVars[] = '0' . $d10;
+                    }
+                    $phoneVars = array_values(array_unique(array_filter($phoneVars)));
+
+                    $user = DB::table('tj_user_app')->whereIn('phone', $phoneVars)->first();
+                    if ($user) {
+                        $userType = 'customer';
+                        $acNo = $user->ac_no;
                     } else {
-                        // Fallback to active server test user: 9669454554 (Mohammed Test)
-                        $testUser = DB::table('tj_user_app')->where('phone', 'LIKE', '%9669454554%')->first();
-                        if ($testUser) {
-                            $user = $testUser;
-                            $userType = 'customer';
-                            $acNo = $testUser->ac_no;
+                        $user = DB::table('tj_conducteur')->whereIn('phone', $phoneVars)->first();
+                        if ($user) {
+                            $userType = 'driver';
+                            $acNo = $user->ac_no;
                         }
                     }
                 }

@@ -401,8 +401,19 @@
                                                                         data-payment-id="{{ $row->razorpay_payment_id }}"
                                                                         data-amount="{{ $row->amount }}"
                                                                         data-payer="{{ $row->payer_name ?: 'UPI Payer' }}"
+                                                                        data-reassign="0"
                                                                         title="Assign to user and credit wallet">
                                                                     <i class="fa fa-user-plus mr-1"></i> Assign &amp; Credit
+                                                                </button>
+                                                            @else
+                                                                <button type="button" class="btn btn-sm btn-outline-warning btn-assign-action"
+                                                                        data-id="{{ $row->id }}"
+                                                                        data-payment-id="{{ $row->razorpay_payment_id }}"
+                                                                        data-amount="{{ $row->amount }}"
+                                                                        data-payer="{{ $row->payer_name ?: 'UPI Payer' }} (Currently: {{ trim($row->user_full_name ?? '') ?: ('ID #' . $row->user_id) }})"
+                                                                        data-reassign="1"
+                                                                        title="Reassign recipient &amp; transfer wallet credit to actual receiver">
+                                                                    <i class="fa fa-exchange mr-1"></i> Reassign
                                                                 </button>
                                                             @endif
                                                             @if($row->wallet_credited && !empty($row->user_id))
