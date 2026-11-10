@@ -119,6 +119,20 @@ class OnboardingAccess
     {
         $path = resource_path('views/' . $viewName . '.blade.php');
 
+        $assetSubdirMap = [
+            'onboarding' => 'index.html',
+            'onboarding-dashboard' => 'dashboard/index.html',
+            'referral-dashboard' => 'referral/index.html',
+        ];
+        $assetRelPath = $assetSubdirMap[$viewName] ?? ($viewName . '/index.html');
+        $assetIndexPath = public_path('onboarding-assets/' . $assetRelPath);
+
+        if (is_file($assetIndexPath)) {
+            if (!is_file($path) || @filemtime($assetIndexPath) >= @filemtime($path)) {
+                $path = $assetIndexPath;
+            }
+        }
+
         if (!is_file($path)) {
             return response()->make(
                 '<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;text-align:center;">' .
