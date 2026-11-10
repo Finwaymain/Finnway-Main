@@ -475,4 +475,67 @@ class VendorTeamAPIController extends Controller
             'photo_url' => $photoUrl,
         ]);
     }
+
+    /**
+     * POST /api/v1/vendor-team/save-document-image
+     * Stores rendered ID card or Authorization Letter PNG and returns direct download & view URLs
+     */
+    public function saveDocumentImage(Request $request)
+    {
+        $rawBase64 = (string) $request->input('image_base64', '');
+        $requestedName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', (string) $request->input('filename', 'Fiinway_Partner_Document.png'));
+        if (!str_ends_with(strtolower($requestedName), '.png')) {
+            $requestedName .= '.png';
+        }
+
+        if (preg_match('/^data:image\/\w+;base64,/', $rawBase64)) {
+            $rawBase64 = substr($rawBase64, strpos($rawBase64, ',') + 1);
+        }
+
+        $decoded = base64_decode($rawBase64);
+        if (!$decoded || strlen($decoded) < 100) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid document image data.',
+            ], 422);
+        }
+
+        $destDir = public_path('uploads/partner_documents');
+        if (!is_dir($destDir)) {
+            @mkdir($destDir, 0775, true);
+        }
+
+        $uniqueName = pathinfo($requestedName, PATHINFO_FILENAME) . '_' . time() . '.png';
+        file_put_contents($destDir . DIRECTORY_SEPARATOR . $uniqueName, $decoded);
+
+        return response()->json([
+            'success'      => true,
+            'filename'     => $uniqueName,
+            'image_url'    => url('uploads/partner_documents/' . $uniqueName),
+            'download_url' => url('api/v1/vendor-team/download-document/' . $uniqueName),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/vendor-team/download-document/{filename}
+     * Serves the generated Partner ID Card or Authorization Letter PNG as a binary file attachment
+     */
+    public function downloadDocument(Request $request, $filename)
+    {
+        $safeName = basename((string) $filename);
+        $path = public_path('uploads/partner_documents/' . $safeName);
+
+        if (!is_file($path)) {
+            abort(404, 'Document not found.');
+        }
+
+        return response()->download($path, $safeName, [
+            'Content-Type'                => 'application/octet-stream',
+            'Content-Disposition'         => 'attachment; filename="' . $safeName . '"',
+            'Content-Transfer-Encoding'   => 'binary',
+            'X-Content-Type-Options'      => 'nosniff',
+            'Cache-Control'               => 'no-cache, must-revalidate',
+            'Access-Control-Allow-Origin' => '*',
+        ]);
+    }
 }

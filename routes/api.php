@@ -834,6 +834,10 @@ Route::match(['get', 'post'], 'v1/vendor-team/member-dashboard', [\App\Http\Cont
 Route::match(['get', 'post'], 'vendor-team/member-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getMemberDashboard']);
 Route::post('v1/vendor-team/upload-id-photo', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'uploadIdPhoto']);
 Route::post('vendor-team/upload-id-photo', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'uploadIdPhoto']);
+Route::post('v1/vendor-team/save-document-image', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'saveDocumentImage']);
+Route::post('vendor-team/save-document-image', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'saveDocumentImage']);
+Route::get('v1/vendor-team/download-document/{filename}', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'downloadDocument'])->where('filename', '.*');
+Route::get('vendor-team/download-document/{filename}', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'downloadDocument'])->where('filename', '.*');
 
 
 // ── Dynamic Public API Keys Endpoint ──────────────────────────────────────
