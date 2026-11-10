@@ -405,4 +405,74 @@ class VendorTeamAPIController extends Controller
             'data'    => $stats,
         ]);
     }
+
+    /**
+     * POST /api/v1/vendor-team/upload-id-photo
+     * Upload or update the Partner ID Card photo (supports multipart file or base64 image string).
+     */
+    public function uploadIdPhoto(Request $request)
+    {
+        [$userId, $userCat] = $this->resolveUser($request);
+
+        if (!$userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User ID is required.',
+            ], 422);
+        }
+
+        $destDir = public_path('assets/images/partner_id_photos');
+        if (!is_dir($destDir)) {
+            @mkdir($destDir, 0775, true);
+        }
+
+        $fileName = null;
+
+        if ($request->hasFile('photo')) {
+            $file = $request->file('photo');
+            if (!$file->isValid()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Uploaded photo file is invalid.',
+                ], 422);
+            }
+            $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+            if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                $ext = 'jpg';
+            }
+            $fileName = 'partner_id_' . $userId . '_' . time() . '.' . $ext;
+            $file->move($destDir, $fileName);
+        } elseif ($request->filled('photo_base64')) {
+            $rawBase64 = (string) $request->input('photo_base64');
+            $ext = 'jpg';
+            if (preg_match('/^data:image\/(\w+);base64,/', $rawBase64, $m)) {
+                $ext = strtolower($m[1]);
+                if ($ext === 'jpeg') $ext = 'jpg';
+                $rawBase64 = substr($rawBase64, strpos($rawBase64, ',') + 1);
+            }
+            $decoded = base64_decode($rawBase64);
+            if (!$decoded || strlen($decoded) < 50) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid image data.',
+                ], 422);
+            }
+            $fileName = 'partner_id_' . $userId . '_' . time() . '.' . $ext;
+            file_put_contents($destDir . DIRECTORY_SEPARATOR . $fileName, $decoded);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a photo to upload.',
+            ], 422);
+        }
+
+        $relativePath = 'assets/images/partner_id_photos/' . $fileName;
+        $photoUrl = VendorTeamService::savePartnerIdCardPhoto((int) $userId, (string) $userCat, $relativePath);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'ID Card photo uploaded successfully!',
+            'photo_url' => $photoUrl,
+        ]);
+    }
 }

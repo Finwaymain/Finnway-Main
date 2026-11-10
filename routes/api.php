@@ -832,6 +832,8 @@ Route::match(['get', 'post'], 'v1/vendor-team/vendor-dashboard', [\App\Http\Cont
 Route::match(['get', 'post'], 'vendor-team/vendor-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getVendorDashboard']);
 Route::match(['get', 'post'], 'v1/vendor-team/member-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getMemberDashboard']);
 Route::match(['get', 'post'], 'vendor-team/member-dashboard', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'getMemberDashboard']);
+Route::post('v1/vendor-team/upload-id-photo', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'uploadIdPhoto']);
+Route::post('vendor-team/upload-id-photo', [\App\Http\Controllers\API\v1\VendorTeamAPIController::class, 'uploadIdPhoto']);
 
 
 // ── Dynamic Public API Keys Endpoint ──────────────────────────────────────

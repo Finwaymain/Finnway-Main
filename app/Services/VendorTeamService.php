@@ -1813,6 +1813,13 @@ class VendorTeamService
         $subVendorCode = $vendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
         $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
 
+        $identity = self::resolvePartnerIdentity(
+            (int) $vendor->user_id,
+            (string) ($vendor->user_type ?: $userType),
+            $vendor,
+            $isHeadVendor ? 'vendor' : 'sub_vendor'
+        );
+
         return [
             'status'                     => 'approved',
             'is_approved'                => true,
@@ -1827,6 +1834,17 @@ class VendorTeamService
             'team_location'              => $vendor->team_location,
             'team_type'                  => $vendor->team_type,
             'is_rate_visible'            => $isRateVisible,
+
+            // Partner ID Card & Authorization Letter Identity Fields
+            'partner_name'               => $identity['partner_name'],
+            'partner_phone'              => $identity['partner_phone'],
+            'partner_photo_url'          => $identity['partner_photo_url'],
+            'aadhar_last_6'              => $identity['aadhar_last_6'],
+            'aadhar_masked'              => $identity['aadhar_masked'],
+            'joining_date'               => $identity['joining_date'],
+            'letter_date'                => $identity['letter_date'],
+            'role_badge'                 => $identity['role_badge'],
+            'partner_id_code'            => $isHeadVendor ? ($vendor->vendor_code ?: $subVendorCode) : ($subVendorCode ?: $vendor->vendor_code),
 
             // Rate values: redacted if not visible to sub-vendor
             'rate_per_customer'          => ($isHeadVendor || $isRateVisible) ? number_format($rateCustomer, 2, '.', '') : null,
@@ -2055,12 +2073,28 @@ class VendorTeamService
             ];
         }
 
+        $identity = self::resolvePartnerIdentity(
+            (int) $member->user_id,
+            (string) ($member->user_type ?: $userType),
+            $member,
+            'freelancer'
+        );
+
         return [
             'member_id'                => $member->id,
             'member_code'              => $member->member_code,
             'status'                   => $member->status,
             'team_location'            => $vendor->team_location ?? 'Regional Territory',
             'team_type'                => $vendor->team_type ?? 'Field Marketing',
+            'partner_name'             => $identity['partner_name'],
+            'partner_phone'            => $identity['partner_phone'],
+            'partner_photo_url'        => $identity['partner_photo_url'],
+            'aadhar_last_6'            => $identity['aadhar_last_6'],
+            'aadhar_masked'            => $identity['aadhar_masked'],
+            'joining_date'             => $identity['joining_date'],
+            'letter_date'              => $identity['letter_date'],
+            'role_badge'               => $identity['role_badge'],
+            'partner_id_code'          => $member->member_code,
             'customer_joined'          => $customerTotal,
             'acquired_customers_count' => $customerTotal,
             'customer_verified'        => $customerVerified,
@@ -2454,5 +2488,175 @@ class VendorTeamService
         } catch (\Throwable $e) {
             Log::warning("VendorTeamService::sendPushNotification failed for user #{$userId}: " . $e->getMessage());
         }
+    }
+
+    private static bool $idCardSchemaChecked = false;
+
+    /**
+     * Ensure id_card_photo column exists on marketing_vendors and marketing_team_members.
+     */
+    public static function ensureIdCardColumnsExist(): void
+    {
+        if (self::$idCardSchemaChecked) {
+            return;
+        }
+        self::$idCardSchemaChecked = true;
+        try {
+            if (Schema::hasTable('marketing_vendors') && !Schema::hasColumn('marketing_vendors', 'id_card_photo')) {
+                DB::statement("ALTER TABLE `marketing_vendors` ADD COLUMN `id_card_photo` VARCHAR(500) NULL DEFAULT NULL");
+            }
+            if (Schema::hasTable('marketing_team_members') && !Schema::hasColumn('marketing_team_members', 'id_card_photo')) {
+                DB::statement("ALTER TABLE `marketing_team_members` ADD COLUMN `id_card_photo` VARCHAR(500) NULL DEFAULT NULL");
+            }
+        } catch (\Throwable $e) {
+            Log::warning("VendorTeamService::ensureIdCardColumnsExist: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resolve Partner Identity for ID Card & Authorization Letter (Freelancer, Sub-Vendor, Vendor).
+     */
+    public static function resolvePartnerIdentity(int $userId, string $userType, ?object $record, string $roleType = 'freelancer'): array
+    {
+        self::ensureIdCardColumnsExist();
+
+        $normType = self::normalizeUserType($userType);
+        $userObj = null;
+
+        if ($normType === 'customer') {
+            $userObj = DB::table('tj_user_app')->where('id', $userId)->first();
+            if (!$userObj) {
+                $userObj = DB::table('tj_conducteur')->where('id', $userId)->first();
+            }
+        } else {
+            $userObj = DB::table('tj_conducteur')->where('id', $userId)->first();
+            if (!$userObj) {
+                $userObj = DB::table('tj_user_app')->where('id', $userId)->first();
+            }
+        }
+
+        $partnerName = '';
+        $partnerPhone = '';
+        $rawAadhar = '';
+
+        if ($userObj) {
+            $partnerName = trim(($userObj->prenom ?? '') . ' ' . ($userObj->nom ?? ''));
+            $partnerPhone = trim((string) ($userObj->phone ?? ''));
+            $rawAadhar = trim((string) ($userObj->aadhar_number ?? ''));
+        }
+
+        // Cross-table fallback for Aadhaar or name by phone if missing on primary record
+        if ((empty($rawAadhar) || empty($partnerName)) && !empty($partnerPhone)) {
+            $digits = preg_replace('/[^0-9]/', '', $partnerPhone);
+            $last10 = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+            if (!empty($last10)) {
+                $altCust = DB::table('tj_user_app')->where('phone', 'like', "%{$last10}")->first();
+                $altDrv  = DB::table('tj_conducteur')->where('phone', 'like', "%{$last10}")->first();
+                if (empty($rawAadhar)) {
+                    $rawAadhar = trim((string) ($altCust->aadhar_number ?? $altDrv->aadhar_number ?? ''));
+                }
+                if (empty($partnerName)) {
+                    $partnerName = trim(($altCust->prenom ?? $altDrv->prenom ?? '') . ' ' . ($altCust->nom ?? $altDrv->nom ?? ''));
+                }
+            }
+        }
+
+        if (empty($partnerName)) {
+            $partnerName = $roleType === 'freelancer' ? 'Authorized Freelancer' : 'Authorized Vendor';
+        }
+
+        // Format phone nicely (e.g. +91 98765 43210)
+        $cleanPhoneDigits = preg_replace('/[^0-9]/', '', $partnerPhone);
+        if (strlen($cleanPhoneDigits) >= 10) {
+            $last10Phone = substr($cleanPhoneDigits, -10);
+            $formattedPhone = '+91 ' . substr($last10Phone, 0, 5) . ' ' . substr($last10Phone, 5);
+        } else {
+            $formattedPhone = $partnerPhone ?: 'N/A';
+        }
+
+        // Extract last 6 digits of Aadhaar number
+        $cleanAadharDigits = preg_replace('/[^0-9]/', '', $rawAadhar);
+        $aadharLast6 = strlen($cleanAadharDigits) >= 6 ? substr($cleanAadharDigits, -6) : ($cleanAadharDigits ?: '');
+        $aadharMasked = !empty($aadharLast6) ? ('XXXXXX' . $aadharLast6) : 'Not Linked';
+
+        // Resolve ID card photo URL (dedicated id_card_photo on partner record)
+        $rawPhoto = $record->id_card_photo ?? null;
+        if (empty($rawPhoto)) {
+            // Check if this user uploaded an id_card_photo on their vendor or team_member row
+            if (Schema::hasTable('marketing_vendors') && Schema::hasColumn('marketing_vendors', 'id_card_photo')) {
+                $rawPhoto = DB::table('marketing_vendors')
+                    ->where('user_id', $userId)
+                    ->whereNotNull('id_card_photo')
+                    ->where('id_card_photo', '!=', '')
+                    ->value('id_card_photo');
+            }
+            if (empty($rawPhoto) && Schema::hasTable('marketing_team_members') && Schema::hasColumn('marketing_team_members', 'id_card_photo')) {
+                $rawPhoto = DB::table('marketing_team_members')
+                    ->where('user_id', $userId)
+                    ->whereNotNull('id_card_photo')
+                    ->where('id_card_photo', '!=', '')
+                    ->value('id_card_photo');
+            }
+        }
+
+        $photoUrl = null;
+        if (!empty($rawPhoto)) {
+            if (str_starts_with($rawPhoto, 'http://') || str_starts_with($rawPhoto, 'https://') || str_starts_with($rawPhoto, 'data:image')) {
+                $photoUrl = $rawPhoto;
+            } else {
+                $photoUrl = url(ltrim($rawPhoto, '/'));
+            }
+        }
+
+        $rawJoinDate = $record->approved_at ?? $record->created_at ?? now();
+        $joiningDate = Carbon::parse($rawJoinDate)->format('d M Y');
+        $letterDate  = Carbon::parse($rawJoinDate)->format('d/m/Y');
+
+        $roleBadge = 'Authorized Vendor';
+        if ($roleType === 'sub_vendor') {
+            $roleBadge = 'Authorized Sub-Vendor';
+        } elseif ($roleType === 'freelancer') {
+            $roleBadge = 'Authorized Freelancer';
+        }
+
+        return [
+            'partner_name'      => $partnerName,
+            'partner_phone'     => $formattedPhone,
+            'partner_photo_url' => $photoUrl,
+            'aadhar_last_6'     => $aadharLast6,
+            'aadhar_masked'     => $aadharMasked,
+            'joining_date'      => $joiningDate,
+            'letter_date'       => $letterDate,
+            'role_badge'        => $roleBadge,
+        ];
+    }
+
+    /**
+     * Save uploaded Partner ID Card photo path across marketing_vendors and marketing_team_members.
+     */
+    public static function savePartnerIdCardPhoto(int $userId, string $userType, string $relativePhotoPath): string
+    {
+        self::ensureIdCardColumnsExist();
+
+        $phone = self::getUserPhone($userId, $userType);
+        $userIds = [$userId];
+        if (!empty($phone)) {
+            $linked = self::findUserIdsByPhone($phone);
+            $userIds = array_values(array_unique(array_merge($userIds, $linked['drivers'], $linked['customers'])));
+        }
+
+        if (Schema::hasTable('marketing_vendors') && Schema::hasColumn('marketing_vendors', 'id_card_photo')) {
+            DB::table('marketing_vendors')
+                ->whereIn('user_id', $userIds)
+                ->update(['id_card_photo' => $relativePhotoPath, 'updated_at' => now()]);
+        }
+
+        if (Schema::hasTable('marketing_team_members') && Schema::hasColumn('marketing_team_members', 'id_card_photo')) {
+            DB::table('marketing_team_members')
+                ->whereIn('user_id', $userIds)
+                ->update(['id_card_photo' => $relativePhotoPath, 'updated_at' => now()]);
+        }
+
+        return url(ltrim($relativePhotoPath, '/'));
     }
 }
