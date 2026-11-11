@@ -21,23 +21,43 @@ class VendorTeamService
 
             $userType = self::normalizeUserType($userType);
 
-            // Check if already applied or approved
+            // Check if already applied or approved as Vendor
             $existing = DB::table('marketing_vendors')
                 ->where('user_id', $userId)
                 ->whereIn('user_type', self::getUserTypesForQuery($userType))
+                ->orderByRaw("CASE WHEN status = 'approved' THEN 0 WHEN status = 'pending' THEN 1 ELSE 2 END")
+                ->orderByDesc('id')
                 ->first();
 
-            if ($existing) {
-                if ($existing->status === 'approved') {
-                    return [
-                        'success'   => true,
-                        'message'   => 'You are already an approved Vendor.',
-                        'status'    => 'approved',
-                        'vendor_id' => $existing->id,
-                        'data'      => $existing,
-                    ];
-                }
+            if ($existing && $existing->status === 'approved') {
+                return [
+                    'success'   => true,
+                    'message'   => 'You are already an approved Vendor.',
+                    'role'      => 'vendor',
+                    'status'    => 'approved',
+                    'vendor_id' => $existing->id,
+                    'data'      => $existing,
+                ];
+            }
 
+            // Prevent an already-active Freelancer (FR code) from accidentally locking their account with a pending Head Vendor row
+            $existingMember = self::resolveAndReconcileTeamMember($userId, $userType);
+            if ($existingMember && !empty($existingMember->member_code)) {
+                if ($existing && $existing->status !== 'approved' && is_null($existing->parent_vendor_id)) {
+                    DB::table('marketing_vendors')->where('id', $existing->id)->delete();
+                }
+                return [
+                    'success'     => true,
+                    'role'        => 'team_member',
+                    'status'      => 'active',
+                    'member_id'   => $existingMember->id,
+                    'member_code' => $existingMember->member_code,
+                    'vendor_id'   => $existingMember->vendor_id,
+                    'message'     => "You are already an active Freelancer (Code: {$existingMember->member_code}).",
+                ];
+            }
+
+            if ($existing) {
                 if ($existing->status === 'pending') {
                     return [
                         'success'   => true,
@@ -1176,6 +1196,16 @@ class VendorTeamService
             // Resilient check: reuse existing code if user or phone is already registered
             $existing = self::resolveAndReconcileTeamMember($userId, $userType);
 
+            // Clean up any unapproved Head Vendor application that could conflict with Freelancer status
+            if (Schema::hasTable('marketing_vendors')) {
+                DB::table('marketing_vendors')
+                    ->where('user_id', $userId)
+                    ->whereIn('user_type', self::getUserTypesForQuery($userType))
+                    ->where('status', '!=', 'approved')
+                    ->whereNull('parent_vendor_id')
+                    ->delete();
+            }
+
             if ($existing) {
                 // If the user already had a member record, ensure they are assigned/transferred to this vendor
                 if ((int)$existing->vendor_id !== (int)$vendor->id) {
@@ -1325,25 +1355,109 @@ class VendorTeamService
     }
 
     /**
-     * Check role/status of a user in the Vendor/Team system
+     * Check role/status of a user in the Vendor/Team system.
+     * Priority:
+     *   1. Approved Vendor / Sub-Vendor (marketing_vendors.status = 'approved')
+     *   2. Active Freelancer / Team Member (marketing_team_members) — NEVER overridden by unapproved vendor rows
+     *   3. Pending / Rejected Vendor or Sub-Vendor application (only when user has no active Freelancer code)
      */
     public static function getUserRoleStatus(int $userId, string $userType): array
     {
         $userType = self::normalizeUserType($userType);
 
-        // 1. Check if Vendor / Sub-Vendor
+        // 1. Check if Approved Vendor / Sub-Vendor
+        $approvedVendor = DB::table('marketing_vendors')
+            ->where('user_id', $userId)
+            ->whereIn('user_type', self::getUserTypesForQuery($userType))
+            ->where('status', 'approved')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($approvedVendor) {
+            $numPart = substr((string)($approvedVendor->vendor_code ?? ''), 2);
+            $subVendorCode = $approvedVendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
+            $freelancerCode = $approvedVendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
+
+            $parentVendorInfo = null;
+            if ($approvedVendor->parent_vendor_id) {
+                $pVendor = DB::table('marketing_vendors')->where('id', $approvedVendor->parent_vendor_id)->first();
+                if ($pVendor) {
+                    $parentVendorInfo = [
+                        'id'            => $pVendor->id,
+                        'vendor_code'   => $pVendor->vendor_code,
+                        'designation'   => $pVendor->designation,
+                        'team_location' => $pVendor->team_location,
+                    ];
+                }
+            }
+
+            return [
+                'role'               => 'vendor',
+                'status'             => 'approved',
+                'application_status' => 'approved',
+                'application_type'   => $approvedVendor->parent_vendor_id ? 'sub_vendor' : 'head_vendor',
+                'is_approved'        => true,
+                'is_head_vendor'     => is_null($approvedVendor->parent_vendor_id),
+                'vendor_id'          => $approvedVendor->id,
+                'vendor_code'        => $approvedVendor->vendor_code,
+                'sub_vendor_code'    => $subVendorCode,
+                'freelancer_code'    => $freelancerCode,
+                'designation'        => $approvedVendor->designation ?: ($approvedVendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
+                'hierarchy_level'    => (int)($approvedVendor->hierarchy_level ?? 0),
+                'parent_vendor_id'   => $approvedVendor->parent_vendor_id,
+                'parent_vendor'      => $parentVendorInfo,
+                'head_vendor_id'     => $approvedVendor->head_vendor_id,
+                'team_location'      => $approvedVendor->team_location,
+                'team_type'          => $approvedVendor->team_type,
+                'is_rate_visible'    => (bool)($approvedVendor->is_rate_visible ?? true),
+                'rejection_reason'   => null,
+                'application_data'   => [
+                    'id'               => $approvedVendor->id,
+                    'status'           => 'approved',
+                    'designation'      => $approvedVendor->designation ?: ($approvedVendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
+                    'team_location'    => $approvedVendor->team_location,
+                    'team_type'        => $approvedVendor->team_type,
+                    'parent_vendor'    => $parentVendorInfo,
+                    'parent_code'      => $parentVendorInfo['vendor_code'] ?? null,
+                    'created_at'       => $approvedVendor->created_at,
+                ],
+            ];
+        }
+
+        // 2. Check if Active Freelancer / Team Member
+        $member = self::resolveAndReconcileTeamMember($userId, $userType);
+
+        if ($member) {
+            // Auto-clean any accidental unapproved Head Vendor application that would conflict with this Freelancer
+            try {
+                DB::table('marketing_vendors')
+                    ->where('user_id', $userId)
+                    ->whereIn('user_type', self::getUserTypesForQuery($userType))
+                    ->where('status', '!=', 'approved')
+                    ->whereNull('parent_vendor_id')
+                    ->delete();
+            } catch (\Throwable $e) {
+                Log::warning("VendorTeamService::getUserRoleStatus cleanup warning: " . $e->getMessage());
+            }
+
+            return [
+                'role'        => 'team_member',
+                'status'      => 'active',
+                'member_id'   => $member->id,
+                'member_code' => $member->member_code,
+                'vendor_id'   => $member->vendor_id,
+            ];
+        }
+
+        // 3. Check if Pending / Rejected Vendor or Sub-Vendor Application (for users who are not yet Freelancers)
         $vendor = DB::table('marketing_vendors')
             ->where('user_id', $userId)
             ->whereIn('user_type', self::getUserTypesForQuery($userType))
+            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+            ->orderByDesc('id')
             ->first();
 
         if ($vendor) {
-            $isApproved = ($vendor->status === 'approved');
-            $numPart = substr((string)($vendor->vendor_code ?? ''), 2);
-            $subVendorCode = $vendor->sub_vendor_code ?: ($numPart ? 'SV' . $numPart : null);
-            $freelancerCode = $vendor->freelancer_code ?: ($numPart ? 'FR' . $numPart : null);
-
-            // Fetch parent vendor info if applicable
             $parentVendorInfo = null;
             if ($vendor->parent_vendor_id) {
                 $pVendor = DB::table('marketing_vendors')->where('id', $vendor->parent_vendor_id)->first();
@@ -1358,16 +1472,16 @@ class VendorTeamService
             }
 
             return [
-                'role'               => $isApproved ? 'vendor' : ($vendor->status === 'rejected' ? 'rejected' : 'pending'),
+                'role'               => $vendor->status === 'rejected' ? 'rejected' : 'pending',
                 'status'             => $vendor->status,
                 'application_status' => $vendor->status,
                 'application_type'   => $vendor->parent_vendor_id ? 'sub_vendor' : 'head_vendor',
-                'is_approved'        => $isApproved,
+                'is_approved'        => false,
                 'is_head_vendor'     => is_null($vendor->parent_vendor_id),
                 'vendor_id'          => $vendor->id,
-                'vendor_code'        => $isApproved ? $vendor->vendor_code : null,
-                'sub_vendor_code'    => $isApproved ? $subVendorCode : null,
-                'freelancer_code'    => $isApproved ? $freelancerCode : null,
+                'vendor_code'        => null,
+                'sub_vendor_code'    => null,
+                'freelancer_code'    => null,
                 'designation'        => $vendor->designation ?: ($vendor->parent_vendor_id ? 'Sub-Vendor' : 'Head Vendor'),
                 'hierarchy_level'    => (int)($vendor->hierarchy_level ?? 0),
                 'parent_vendor_id'   => $vendor->parent_vendor_id,
@@ -1387,19 +1501,6 @@ class VendorTeamService
                     'parent_code'      => $parentVendorInfo['vendor_code'] ?? null,
                     'created_at'       => $vendor->created_at,
                 ],
-            ];
-        }
-
-        // 2. Check if Freelancer / Team Member
-        $member = self::resolveAndReconcileTeamMember($userId, $userType);
-
-        if ($member) {
-            return [
-                'role'        => 'team_member',
-                'status'      => $member->status,
-                'member_id'   => $member->id,
-                'member_code' => $member->member_code,
-                'vendor_id'   => $member->vendor_id,
             ];
         }
 

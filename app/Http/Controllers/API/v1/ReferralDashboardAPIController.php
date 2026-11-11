@@ -161,14 +161,48 @@ class ReferralDashboardAPIController extends Controller
             $refCode = \App\Services\ReferralCodeService::generateUniqueCode($userType, $id ?: null);
         }
 
+        // Resolve Vendor / Freelancer Role Status (and auto-clean any conflicting pending head vendor rows for active Freelancers)
+        $vendorTeamRole = ($id > 0)
+            ? \App\Services\VendorTeamService::getUserRoleStatus($id, $userType)
+            : ['role' => 'none', 'status' => 'none'];
+
+        $rawPartnerCodes = [$refCode];
+        if (!empty($vendorTeamRole['member_code'])) {
+            $rawPartnerCodes[] = $vendorTeamRole['member_code'];
+        }
+        if (!empty($vendorTeamRole['vendor_code'])) {
+            $rawPartnerCodes[] = $vendorTeamRole['vendor_code'];
+        }
+        if (!empty($vendorTeamRole['freelancer_code'])) {
+            $rawPartnerCodes[] = $vendorTeamRole['freelancer_code'];
+        }
+
         // Build all possible referral code formats for backward-compatible lookup
-        $possibleRefCodes = array_values(array_unique(array_filter([
-            $refCode,
-            strtoupper($refCode),
-            strtolower($refCode),
-        ])));
+        $possibleRefCodes = [];
+        foreach (array_filter($rawPartnerCodes) as $c) {
+            $possibleRefCodes[] = $c;
+            $possibleRefCodes[] = strtoupper($c);
+            $possibleRefCodes[] = strtolower($c);
+        }
+        $possibleRefCodes = array_values(array_unique(array_filter($possibleRefCodes)));
 
         $referredEntities = [];
+
+        // 0. If user is an active Freelancer, also include their marketing_acquisitions
+        if (!empty($vendorTeamRole['member_id']) && Schema::hasTable('marketing_acquisitions')) {
+            $acqRows = DB::table('marketing_acquisitions')
+                ->where('team_member_id', (int)$vendorTeamRole['member_id'])
+                ->whereIn('acquired_user_type', ['customer', 'business', 'driver', 'conducteur'])
+                ->get();
+            foreach ($acqRows as $acqRow) {
+                if (!empty($acqRow->acquired_user_id)) {
+                    $acqType = in_array(strtolower((string)$acqRow->acquired_user_type), ['business', 'driver', 'conducteur'], true) ? 'driver' : 'customer';
+                    if ((int)$acqRow->acquired_user_id !== $id || $acqType !== $userType) {
+                        $referredEntities[] = ['id' => (int)$acqRow->acquired_user_id, 'type' => $acqType];
+                    }
+                }
+            }
+        }
 
         // 1. Find all users who were referred BY THIS USER using their referral code or ID+type
         if (Schema::hasTable('referral') && $id > 0) {
@@ -759,9 +793,10 @@ class ReferralDashboardAPIController extends Controller
                 'benefits'         => $benefitsData,
                 'summary'          => $summaryData,
                 'consumer'         => $consumerData,
-                'business'         => $businessData,
-                'aadhar_number'    => $aadharNumber ? (string)$aadharNumber : '',
-                'aadhar_submitted' => $hasSubmittedAadhar,
+                'business'           => $businessData,
+                'aadhar_number'      => $aadharNumber ? (string)$aadharNumber : '',
+                'aadhar_submitted'   => $hasSubmittedAadhar,
+                'vendor_team_status' => $vendorTeamRole,
             ]
         ]);
     }

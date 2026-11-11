@@ -39,11 +39,54 @@ class VendorTeamAPIController extends Controller
             ?? $request->input('user_cat')
             ?? $request->input('user_type');
 
+        // Fallback 1: Resolve via accesstoken if user ID was not provided
+        if (!$rawId) {
+            $token = trim((string)($request->header('accesstoken') ?? $request->input('accesstoken') ?? ''));
+            if (!empty($token) && !in_array(strtolower($token), ['null', 'undefined', '0'], true)) {
+                $accessRow = DB::table('users_access')->where('accesstoken', $token)->first();
+                if ($accessRow && !empty($accessRow->user_id)) {
+                    $rawId = (int)$accessRow->user_id;
+                    if (empty($rawCat)) {
+                        $rawCat = ($accessRow->user_type === 'driver') ? 'driver' : 'customer';
+                    }
+                }
+            }
+        }
+
+        // Fallback 2: Resolve via phone / mobile if user ID was still not provided
+        if (!$rawId) {
+            $phone = trim((string)($request->header('phone') ?? $request->input('phone') ?? $request->input('mobile') ?? ''));
+            $cleanPhone = substr(preg_replace('/[^0-9]/', '', $phone), -10);
+            if (strlen($cleanPhone) >= 10) {
+                $isDrv = in_array(strtolower(trim((string)$rawCat)), ['driver', 'conducteur', 'business', 'provider'], true);
+                if ($isDrv) {
+                    $drv = DB::table('tj_conducteur')->where('phone', 'like', "%{$cleanPhone}")->first();
+                    if ($drv) {
+                        $rawId = (int)$drv->id;
+                        $rawCat = 'driver';
+                    }
+                }
+                if (!$rawId) {
+                    $usr = DB::table('tj_user_app')->where('phone', 'like', "%{$cleanPhone}")->first();
+                    if ($usr) {
+                        $rawId = (int)$usr->id;
+                        $rawCat = 'customer';
+                    } else {
+                        $drv = DB::table('tj_conducteur')->where('phone', 'like', "%{$cleanPhone}")->first();
+                        if ($drv) {
+                            $rawId = (int)$drv->id;
+                            $rawCat = 'driver';
+                        }
+                    }
+                }
+            }
+        }
+
         if (empty($rawCat)) {
             if ($request->has('driver_id') || $request->has('id_driver') || $request->has('id_conducteur')) {
                 $rawCat = 'driver';
             } else {
-                $rawCat = 'driver';
+                $rawCat = 'customer';
             }
         }
 
@@ -58,11 +101,9 @@ class VendorTeamAPIController extends Controller
         [$userId, $userCat] = $this->resolveUser($request);
         if (!$userId) return null;
 
-        $userCat = in_array($userCat, ['driver', 'conducteur', 'business', 'provider'], true) ? 'business' : 'customer';
-
         return DB::table('marketing_vendors')
             ->where('user_id', $userId)
-            ->where('user_type', $userCat)
+            ->whereIn('user_type', VendorTeamService::getUserTypesForQuery($userCat))
             ->where('status', 'approved')
             ->first();
     }
@@ -342,7 +383,7 @@ class VendorTeamAPIController extends Controller
         if (!$stats) {
             $pendingVendor = DB::table('marketing_vendors')
                 ->where('user_id', $userId)
-                ->where('user_type', $userCat)
+                ->whereIn('user_type', VendorTeamService::getUserTypesForQuery($userCat))
                 ->where('status', 'pending')
                 ->first();
 
